@@ -1,0 +1,279 @@
+{
+  "repo": "mitmproxy/mitmproxy",
+  "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "mitmproxy-8141",
+      "pr": 8141,
+      "sha": "5a4a12888e73f6e0de2b7daf1eb91a21349ee814",
+      "parent": "c665530916f745a73d4f82db3f8778583d61674e",
+      "subject": "fix: skip inject_event when inject flow type is wrong (#8141)",
+      "codeLines": 3,
+      "totalLines": 8,
+      "files": [
+        "mitmproxy/addons/proxyserver.py",
+        "test/mitmproxy/addons/test_proxyserver.py"
+      ],
+      "production": [
+        "mitmproxy/addons/proxyserver.py"
+      ],
+      "target": "Invalid/non-protocol flow input must return after warning instead of constructing/injecting events and crashing."
+    },
+    {
+      "id": "mitmproxy-7841",
+      "pr": 7841,
+      "sha": "12ee8193c0514690b073914f516353baba8b14a9",
+      "parent": "e9603eee9e37bdc6b955e1dd1f1db6a4ad3ef4f2",
+      "subject": "fix a flow reader bug found with fuzzing (#7841)",
+      "codeLines": 2,
+      "totalLines": 3,
+      "files": [
+        "mitmproxy/io/io.py",
+        "test/mitmproxy/io/test_io.py"
+      ],
+      "production": [
+        "mitmproxy/io/io.py"
+      ],
+      "target": "Non-dictionary tnetstring flow data must produce FlowReadException rather than escaping with wrong-type errors."
+    },
+    {
+      "id": "mitmproxy-7666",
+      "pr": 7666,
+      "sha": "b089c5fb83a43af2cb290d501013e23367102d6f",
+      "parent": "d0ee0edfbc7cfe602e94f5885e504736b59d9ee1",
+      "subject": "fix #7452 (#7666)",
+      "codeLines": 4,
+      "totalLines": 21,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/savehar.py",
+        "test/mitmproxy/addons/test_savehar.py",
+        "test/mitmproxy/data/flows/diff_data.har"
+      ],
+      "production": [
+        "mitmproxy/addons/savehar.py"
+      ],
+      "target": "HAR request bodySize must use raw bytes; decoding malformed/compressed content can crash export and gives wrong wire size."
+    },
+    {
+      "id": "mitmproxy-7624",
+      "pr": 7624,
+      "sha": "3c7c3ccfd599a5f89a451c3c4b302f1b7c5c1144",
+      "parent": "cc6da7a8192c29e4ca8813832968414c18a8071f",
+      "subject": "fixup url.unparse (#7624)",
+      "codeLines": 59,
+      "totalLines": 61,
+      "files": [
+        "mitmproxy/http.py",
+        "mitmproxy/net/http/url.py",
+        "test/mitmproxy/net/http/test_url.py"
+      ],
+      "production": [
+        "mitmproxy/http.py",
+        "mitmproxy/net/http/url.py"
+      ],
+      "target": "url.unparse must preserve byte inputs as bytes instead of formatting bytes repr into a string; Request URL still handles asterisk targets."
+    },
+    {
+      "id": "mitmproxy-7183",
+      "pr": 7183,
+      "sha": "9369bc8d76fd62d893c83b61a02b28bffb4b2d2c",
+      "parent": "65db82f4cf0c294a3e9de103c4789ba4b9b19a41",
+      "subject": "Fix error while changing string-based options (#7183)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/tools/console/grideditor/col_bytes.py"
+      ],
+      "production": [
+        "mitmproxy/tools/console/grideditor/col_bytes.py"
+      ],
+      "target": "String option editor must unwrap AttrMap before get_text; wrapper has no get_text and editing crashes."
+    },
+    {
+      "id": "mitmproxy-7036",
+      "pr": 7036,
+      "sha": "4f1bc6fc9a921152abb0485a33cf2dd918cd2568",
+      "parent": "fa1633842acaeb84a94fbffc6db22850422514ac",
+      "subject": "Do not block local mode connections (#7036)",
+      "codeLines": 3,
+      "totalLines": 18,
+      "files": [
+        "mitmproxy/addons/block.py",
+        "test/mitmproxy/addons/test_block.py"
+      ],
+      "production": [
+        "mitmproxy/addons/block.py"
+      ],
+      "target": "Local proxy connections must bypass block_global/block_private even when peer address is non-loopback."
+    },
+    {
+      "id": "mitmproxy-7022",
+      "pr": 7022,
+      "sha": "bbf5df326a92da46150c9f7574f75c30cf0bd84e",
+      "parent": "30ecc2dfbc0d0195933cb67005ca6e99027436f6",
+      "subject": "Fix decompressing fake pointers in DNS messages (#7022)",
+      "codeLines": 30,
+      "totalLines": 44,
+      "files": [
+        "mitmproxy/net/dns/domain_names.py",
+        "test/mitmproxy/net/dns/test_domain_names.py"
+      ],
+      "production": [
+        "mitmproxy/net/dns/domain_names.py"
+      ],
+      "target": "A DNS RDATA byte with 0b11 high bits may be ordinary data, not a valid pointer; catch struct.error and preserve bytes."
+    },
+    {
+      "id": "mitmproxy-6796",
+      "pr": 6796,
+      "sha": "bfbd777cbb35850c432194912df71485f76e2d9a",
+      "parent": "61b094ac36ecde0bfef825b1763a1deec15621ad",
+      "subject": "Fix certs for unicode domains (#6796)",
+      "codeLines": 2,
+      "totalLines": 8,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/tlsconfig.py",
+        "test/mitmproxy/addons/test_tlsconfig.py"
+      ],
+      "production": [
+        "mitmproxy/addons/tlsconfig.py"
+      ],
+      "target": "Unicode hostnames must be IDNA-encoded before x509.DNSName, which rejects Unicode strings."
+    },
+    {
+      "id": "mitmproxy-6697",
+      "pr": 6697,
+      "sha": "a128672ec7e229230b44a21316340a10f90815b5",
+      "parent": "a91989b7ba6b1385ae8d0961415ea216509d1ea5",
+      "subject": "Fix Bug view options menu (#6697)",
+      "codeLines": 2,
+      "totalLines": 7,
+      "files": [
+        "CHANGELOG.md",
+        "web/src/css/dropdown.less",
+        "web/src/js/components/contentviews/ViewSelector.tsx"
+      ],
+      "production": [
+        "web/src/js/components/contentviews/ViewSelector.tsx",
+        "web/src/css/dropdown.less"
+      ],
+      "target": "View options dropdown can overflow/clamp outside short flow detail; preserve max-height and scrolling."
+    },
+    {
+      "id": "mitmproxy-6386",
+      "pr": 6386,
+      "sha": "e6e354cf38c52047246f6e47e12c970cc2133b2f",
+      "parent": "c851a055c30a50ecb2aeca01ae6e727464474d3d",
+      "subject": "web: don't crash when opening options (#6386)",
+      "codeLines": 9,
+      "totalLines": 11,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addonmanager.py",
+        "mitmproxy/addons/savehar.py"
+      ],
+      "production": [
+        "mitmproxy/addonmanager.py",
+        "mitmproxy/addons/savehar.py"
+      ],
+      "target": "SaveHar option help must be one string, not a positional choices string that causes options UI to crash."
+    },
+    {
+      "id": "mitmproxy-6032",
+      "pr": 6032,
+      "sha": "04d9249ab18cd7bd8b54958714d24614f27863b5",
+      "parent": "87577578925d28b6f1c8f00ffb6b283bfa80c993",
+      "subject": "Command signature inspection fix (#6029) (#6032)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "mitmproxy/command.py"
+      ],
+      "production": [
+        "mitmproxy/command.py"
+      ],
+      "target": "Command signature inspection must evaluate postponed string annotations to resolve command argument types."
+    },
+    {
+      "id": "mitmproxy-5982",
+      "pr": 5982,
+      "sha": "884fd60e26b8beaa3785ea3d708c2d4386707f93",
+      "parent": "2b10e3f3a79aef4e4c077a4ea056ebb3bb493ddb",
+      "subject": "fix #5972 (#5982)",
+      "codeLines": 5,
+      "totalLines": 5,
+      "files": [
+        "mitmproxy/addons/next_layer.py"
+      ],
+      "production": [
+        "mitmproxy/addons/next_layer.py"
+      ],
+      "target": "Forced HTTP next layer in upstream proxy mode must retain HTTPMode.upstream so requests use the configured upstream."
+    },
+    {
+      "id": "mitmproxy-5749",
+      "pr": 5749,
+      "sha": "b9dc95cb8c3e2ea65800a0f01d9348d056dd32f6",
+      "parent": "e24f93e263743d101190826049f0f2ef372bad7c",
+      "subject": "fix a race condition in `ConnectionHandler.drain_writers` (#5749)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/proxy/server.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/server.py"
+      ],
+      "target": "Snapshot transport values before awaiting drain; concurrent connection removal mutates dictionary during iteration."
+    },
+    {
+      "id": "mitmproxy-5352",
+      "pr": 5352,
+      "sha": "4a2ca7563108d2256909309c770feb0c5b481397",
+      "parent": "4069830d4848c8f7114746bd598ba54a7b3c7b57",
+      "subject": "remove overambitious assertion found with fuzzing, fix #5343 (#5352)",
+      "codeLines": 7,
+      "totalLines": 7,
+      "files": [
+        "mitmproxy/proxy/layers/http/__init__.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/layers/http/__init__.py"
+      ],
+      "target": "Late data for an already-removed HTTP stream is allowed and must not assert that only protocol errors can arrive."
+    },
+    {
+      "id": "mitmproxy-4951",
+      "pr": 4951,
+      "sha": "b1c1cd3f2f4b32c2569597573181f11352d71c5d",
+      "parent": "27e69651f6c5d6cbd4a8dbe549d809bc68cc3446",
+      "subject": "Fixes AttributeError in transparent mode (#4951)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/platform/windows.py"
+      ],
+      "production": [
+        "mitmproxy/platform/windows.py"
+      ],
+      "target": "Windows transparent Resolver must catch uninitialized wfile AttributeError and connect/retry on first use."
+    }
+  ],
+  "excluded": {
+    "7905": "Python 3.14 SyntaxWarning cleanup; exclude from behavior-bug cohort before model results.",
+    "8059": "docstring typo",
+    "7988": "TypeScript build/typing only",
+    "7981": "documentation typo",
+    "7752": "typing only",
+    "7605": "example only",
+    "7249": "documentation only",
+    "6728": "typos",
+    "6008": "typo"
+  },
+  "frozenAt": "2026-10-06",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "high"
+}

@@ -1,0 +1,184 @@
+....F.....................
+=================================== FAILURES ===================================
+_________________________ TestTlsConfig.test_get_cert __________________________
+
+val = '🌈.sni.example'
+
+    def _ip_or_dns_name(val: str) -> x509.GeneralName:
+        """Convert a string into either an x509.IPAddress or x509.DNSName object."""
+        try:
+>           ip = ipaddress.ip_address(val)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+mitmproxy/addons/tlsconfig.py:650: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = '🌈.sni.example'
+
+    def ip_address(address):
+        """Take an IP string/int and return an object of the correct type.
+    
+        Args:
+            address: A string or integer, the IP address.  Either IPv4 or
+              IPv6 addresses may be supplied; integers less than 2**32 will
+              be considered to be IPv4 by default.
+    
+        Returns:
+            An IPv4Address or IPv6Address object.
+    
+        Raises:
+            ValueError: if the *address* passed isn't either a v4 or a v6
+              address
+    
+        """
+        try:
+            return IPv4Address(address)
+        except (AddressValueError, NetmaskValueError):
+            pass
+    
+        try:
+            return IPv6Address(address)
+        except (AddressValueError, NetmaskValueError):
+            pass
+    
+>       raise ValueError(f'{address!r} does not appear to be an IPv4 or IPv6 address')
+E       ValueError: '🌈.sni.example' does not appear to be an IPv4 or IPv6 address
+
+/opt/homebrew/Cellar/python@3.13/3.13.14_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ipaddress.py:54: ValueError
+
+During handling of the above exception, another exception occurred:
+
+self = <[AttributeError("'DNSName' object has no attribute '_value'") raised in repr()] DNSName object at 0x1076f8050>
+value = '🌈.sni.example'
+
+    def __init__(self, value: str) -> None:
+        if isinstance(value, str):
+            try:
+>               value.encode("ascii")
+E               UnicodeEncodeError: 'ascii' codec can't encode character '\U0001f308' in position 0: ordinal not in range(128)
+
+../canary-venv/lib/python3.13/site-packages/cryptography/x509/general_name.py:85: UnicodeEncodeError
+
+During handling of the above exception, another exception occurred:
+
+self = <test.mitmproxy.addons.test_tlsconfig.TestTlsConfig object at 0x1076315b0>
+tdata = <mitmproxy.utils.data.Data object at 0x1076727b0>
+
+    def test_get_cert(self, tdata):
+        """Test that we generate a certificate matching the connection's context."""
+        ta = tlsconfig.TlsConfig()
+        with taddons.context(ta) as tctx:
+            ta.configure(["confdir"])
+    
+            ctx = _ctx(tctx.options)
+    
+            # Edge case first: We don't have _any_ idea about the server nor is there a SNI,
+            # so we just return our local IP as subject.
+            entry = ta.get_cert(ctx)
+            assert entry.cert.cn == "127.0.0.1"
+    
+            # Here we have an existing server connection...
+            ctx.server.address = ("server-address.example", 443)
+            with open(
+                tdata.path("mitmproxy/net/data/verificationcerts/trusted-leaf.crt"),
+                "rb",
+            ) as f:
+                ctx.server.certificate_list = [certs.Cert.from_pem(f.read())]
+            entry = ta.get_cert(ctx)
+            assert entry.cert.cn == "example.mitmproxy.org"
+            assert entry.cert.altnames == x509.GeneralNames(
+                [
+                    x509.DNSName("example.mitmproxy.org"),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                    x509.DNSName("server-address.example"),
+                ]
+            )
+    
+            # And now we also incorporate SNI.
+            ctx.client.sni = "🌈.sni.example"
+>           entry = ta.get_cert(ctx)
+                    ^^^^^^^^^^^^^^^^
+
+test/mitmproxy/addons/test_tlsconfig.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+mitmproxy/addons/tlsconfig.py:617: in get_cert
+    altnames.append(_ip_or_dns_name(conn_context.client.sni))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+mitmproxy/addons/tlsconfig.py:652: in _ip_or_dns_name
+    return x509.DNSName(val)
+           ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <[AttributeError("'DNSName' object has no attribute '_value'") raised in repr()] DNSName object at 0x1076f8050>
+value = '🌈.sni.example'
+
+    def __init__(self, value: str) -> None:
+        if isinstance(value, str):
+            try:
+                value.encode("ascii")
+            except UnicodeEncodeError:
+>               raise ValueError(
+                    "DNSName values should be passed as an A-label string. "
+                    "This means unicode characters should be encoded via "
+                    "a library like idna."
+                )
+E               ValueError: DNSName values should be passed as an A-label string. This means unicode characters should be encoded via a library like idna.
+
+../canary-venv/lib/python3.13/site-packages/cryptography/x509/general_name.py:87: ValueError
+=============================== warnings summary ===============================
+mitmproxy/flowfilter.py:604: 14 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:604: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:613
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:613: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString('"', escChar="\\")
+
+mitmproxy/flowfilter.py:614
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:614: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString("'", escChar="\\")
+
+mitmproxy/flowfilter.py:618: 17 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:618: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:623
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:623: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:628
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:628: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(FUrl.make)
+
+mitmproxy/flowfilter.py:633
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:633: PyparsingDeprecationWarning: 'infixNotation' deprecated - use 'infix_notation'
+    pp.infixNotation(
+
+mitmproxy/flowfilter.py:642
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:642: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    return expr.setParseAction(lambda x: FAnd(x) if len(x) != 1 else x)
+
+mitmproxy/flowfilter.py:664
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/flowfilter.py:664: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    flt = bnf.parseString(s, parseAll=True)[0]
+
+../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'
+    return fn(self, *args, **kwargs)
+
+mitmproxy/command_lexer.py:24
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-6796/mitmproxy/command_lexer.py:24: PyparsingDeprecationWarning: 'leaveWhitespace' deprecated - use 'leave_whitespace'
+    ).leaveWhitespace()
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: tagMap is deprecated. Please use TAG_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/mitmproxy/addons/test_tlsconfig.py::TestTlsConfig::test_get_cert
+1 failed, 25 passed, 42 warnings in 1.65s

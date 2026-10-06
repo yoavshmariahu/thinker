@@ -1,0 +1,127 @@
+{
+  "checks": [
+    {
+      "id": "mitmproxy-8141",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 1,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7841",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 1,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7666",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 3,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7624",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 5,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7183",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 2,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7036",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 2,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-7022",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 3,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-6796",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 6,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-6697",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 1,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-6386",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 2,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-6032",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 1,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-5982",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 2,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-5749",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 3,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-5352",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 4,
+      "baselineFindings": 1,
+      "cachedFindings": 1
+    },
+    {
+      "id": "mitmproxy-4951",
+      "pairedModelsValid": true,
+      "matchingSourceRetrieved": true,
+      "consulted": 1,
+      "baselineFindings": 0,
+      "cachedFindings": 1
+    }
+  ],
+  "manifestAndOriginalNotesUnchanged": true,
+  "semanticScoring": "All 15 cached and eight baseline top-level findings identify their target bug. The UI overflow diagnosis is in a secondary location. No independent clean controls, so no false-positive-rate estimate.",
+  "gate": "passed for expanding historical-fix recall; not evidence of unseen-bug detection"
+}

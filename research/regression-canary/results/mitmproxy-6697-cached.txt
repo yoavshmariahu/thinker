@@ -1,0 +1,23 @@
+thinker review: working tree against HEAD, 3 files; 1 note consulted (1 on the changed code, 0 related), 1 assessed with gpt-6.1-sol (~17k tokens)
+
+Findings: 0 errors, 1 warning, 0 info
+  warning  web/src/js/components/contentviews/ViewSelector.tsx:26  ViewSelector changes its placement to top-start, contradicting the note's requirement to configure top-end here.  [note keep-overflowing-view-options-menus-scrollable, 100%]
+           finding: f-5c5a8f73f628a96de061d3f5
+           evidence: -            options={{ placement: "top-end" }} | +            options={{ placement: "top-start" }}
+           also at: web/src/css/dropdown.less:8 (Removing the shared menu height limit and vertical scrolling breaks the overflow…)
+
+### Review thoroughness
+
+| Decision | What happened | Basis |
+|---|---|---|
+| Code assessment | assessed | Default configuration; Jev not evaluated |
+| Caller context | skipped | Default configuration; Jev not evaluated |
+| Split review | skipped | Default configuration; Jev not evaluated |
+| Verify findings | skipped | Default configuration; Jev not evaluated |
+| Run tests | not-recommended | Default configuration; Jev not evaluated |
+
+Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.
+
+Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.
+
+Impact review: 2768f5b2-c1e2-434c-9ca1-921a3d98bb92 · attach with thinker impact link-review <run-id> --pr <number>

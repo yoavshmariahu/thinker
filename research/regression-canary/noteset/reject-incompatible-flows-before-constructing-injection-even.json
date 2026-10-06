@@ -1,0 +1,78 @@
+{
+  "id": "reject-incompatible-flows-before-constructing-injection-even",
+  "title": "Reject incompatible flows before constructing injection events",
+  "kind": "rule",
+  "answers": [
+    "Why does injecting a WebSocket message with @focus crash?",
+    "How should message injection handle the wrong flow type?",
+    "Where are WebSocket, TCP, and UDP injection eligibility checks enforced?"
+  ],
+  "body": "Symptom: Injecting a WebSocket message with a bare @focus string crashes with AttributeError instead of reporting an incompatible flow.\nRoot cause: mitmproxy/addons/proxyserver.py:Proxyserver.inject_websocket, Proxyserver.inject_tcp, and Proxyserver.inject_udp logged failed eligibility checks but continued constructing events and calling inject_event, which accessed flow.client_conn.\nFix pattern: Return immediately after warning when an injection eligibility check fails, before constructing messages or dispatching events.\nConstraints: WebSocket injection requires an HTTPFlow with websocket set; TCP and UDP injection require TCPFlow and UDPFlow respectively. Eligible flows must still reach the existing live-connection handling; test/mitmproxy/addons/test_proxyserver.py:test_inject_fail covers both invalid inputs and a TCP flow without a live connection.",
+  "applies": "Changes to WebSocket, TCP, or UDP message injection in the Proxyserver addon.",
+  "tags": [
+    "message-injection",
+    "flow-validation",
+    "early-return"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/proxyserver.py",
+      "symbol": "Proxyserver.inject_websocket",
+      "hash": "sha256:4feff4726bb3359fe559da69",
+      "line": 335,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mitmproxy/addons/proxyserver.py",
+      "symbol": "Proxyserver.inject_tcp",
+      "hash": "sha256:b1f37db70a06012b5be779f4",
+      "line": 352,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mitmproxy/addons/proxyserver.py",
+      "symbol": "Proxyserver.inject_udp",
+      "hash": "sha256:e9ebbbbc0d17be35de0fc85f",
+      "line": 364,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "test/mitmproxy/addons/test_proxyserver.py",
+      "symbol": "test_inject_fail",
+      "hash": "sha256:4a879599a29631191dfde3eb",
+      "line": 166,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8141"
+  },
+  "created": "2026-10-06T23:32:30.929Z",
+  "verified": "2026-10-06T23:32:30.929Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

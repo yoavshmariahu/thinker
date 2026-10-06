@@ -1,0 +1,137 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "pr": 8141,
+    "source": "mitmproxy/mitmproxy#8141",
+    "title": "fix: skip inject_event when inject flow type is wrong",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/8141",
+    "mergedAt": "2026-03-24T06:18:51Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7905",
+    "pr": 7905,
+    "source": "mitmproxy/mitmproxy#7905",
+    "title": "Don't `return` in `finally` block (PEP 765)",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7905",
+    "mergedAt": "2025-10-09T12:50:39Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7841",
+    "pr": 7841,
+    "source": "mitmproxy/mitmproxy#7841",
+    "title": "Fix a flow reader bug found with fuzzing",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7841",
+    "mergedAt": "2025-08-24T17:26:00Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7666",
+    "pr": 7666,
+    "source": "mitmproxy/mitmproxy#7666",
+    "title": "fix #7452",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7666",
+    "mergedAt": "2025-04-23T12:30:50Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7624",
+    "pr": 7624,
+    "source": "mitmproxy/mitmproxy#7624",
+    "title": "fixup url.unparse",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7624",
+    "mergedAt": "2025-03-28T22:44:12Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7183",
+    "pr": 7183,
+    "source": "mitmproxy/mitmproxy#7183",
+    "title": "Fix error while changing string-based options",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7183",
+    "mergedAt": "2024-09-16T11:12:07Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7036",
+    "pr": 7036,
+    "source": "mitmproxy/mitmproxy#7036",
+    "title": "Do not block local mode connections",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7036",
+    "mergedAt": "2024-07-25T10:15:23Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-7022",
+    "pr": 7022,
+    "source": "mitmproxy/mitmproxy#7022",
+    "title": "Fix decompressing fake pointers in DNS messages",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7022",
+    "mergedAt": "2024-07-13T14:18:04Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-6796",
+    "pr": 6796,
+    "source": "mitmproxy/mitmproxy#6796",
+    "title": "Fix certs for unicode domains",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6796",
+    "mergedAt": "2024-04-12T15:22:19Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-6697",
+    "pr": 6697,
+    "source": "mitmproxy/mitmproxy#6697",
+    "title": "Fix Bug view options menu",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6697",
+    "mergedAt": "2024-03-06T20:55:26Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-6386",
+    "pr": 6386,
+    "source": "mitmproxy/mitmproxy#6386",
+    "title": "web: don't crash when opening options",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6386",
+    "mergedAt": "2023-09-27T11:07:01Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-6032",
+    "pr": 6032,
+    "source": "mitmproxy/mitmproxy#6032",
+    "title": "Command signature inspection fix (#6029)",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6032",
+    "mergedAt": "2023-03-29T11:13:55Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-5982",
+    "pr": 5982,
+    "source": "mitmproxy/mitmproxy#5982",
+    "title": "fix #5972",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5982",
+    "mergedAt": "2023-03-09T15:48:27Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-5749",
+    "pr": 5749,
+    "source": "mitmproxy/mitmproxy#5749",
+    "title": "Fix a race condition `ConnectionHandler.drain_writers`",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5749",
+    "mergedAt": "2022-11-22T13:04:06Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  },
+  {
+    "id": "mitmproxy-5352",
+    "pr": 5352,
+    "source": "mitmproxy/mitmproxy#5352",
+    "title": "remove overambitious assertion found with fuzzing, fix #5343",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5352",
+    "mergedAt": "2022-05-15T20:18:30Z",
+    "error": "codex exited 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)\n "
+  }
+]

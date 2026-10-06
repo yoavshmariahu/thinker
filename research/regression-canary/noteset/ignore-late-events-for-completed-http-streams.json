@@ -1,0 +1,42 @@
+{
+  "id": "ignore-late-events-for-completed-http-streams",
+  "title": "Ignore late events for completed HTTP streams",
+  "kind": "rule",
+  "answers": [
+    "Why does late HTTP data cause an assertion failure?",
+    "How should events for completed HTTP streams be handled?",
+    "Can a finished HTTP stream still receive data or errors?"
+  ],
+  "body": "Symptom: Late HTTP data for an already completed stream can trigger an assertion failure.\nRoot cause: mitmproxy/proxy/layers/http/__init__.py:HttpLayer assumed events for missing streams could only be RequestProtocolError or ResponseProtocolError.\nFix pattern: Ignore events when the stream lookup raises KeyError; completed streams may still receive data or errors.\nConstraints: This applies to events whose stream is absent from self.streams; events for existing streams must still be dispatched through event_to_child.",
+  "applies": "HTTP-layer event routing when an event references a stream that has already finished handling.",
+  "tags": [
+    "http",
+    "stream-lifecycle",
+    "event-routing"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpLayer",
+      "hash": "sha256:1c8e248eb78c5c6a0e7a13b0",
+      "line": 921,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 80,
+        "refs": 109
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#5352"
+  },
+  "created": "2026-10-06T23:35:34.524Z",
+  "verified": "2026-10-06T23:35:34.524Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

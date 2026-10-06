@@ -1,0 +1,55 @@
+{
+  "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+  "title": "Tolerate fake compression pointers in DNS record data",
+  "kind": "rule",
+  "answers": [
+    "Why does decompressing a DNS SOA record fail?",
+    "How should DNS record decompression handle bytes that resemble compression pointers?",
+    "Preserve numeric record data while expanding compressed domain names"
+  ],
+  "body": "Symptom: Decompressing a DNS SOA record fails when numeric data resembles a domain-name compression pointer.\nRoot cause: mitmproxy/net/dns/domain_names.py:decompress_from_record_data treats bytes with the pointer-indicator bits as candidates and previously let struct.error from attempted decompression escape.\nFix pattern: Catch struct.error around candidate decoding and replacement; leave failed candidates unchanged and advance one byte so scanning continues. Successfully decoded pointers still expand normally.\nConstraints: This fallback applies to scanning mixed record data, where pointer-like bytes can belong to other data types. It catches struct.error only and does not detect false pointers that decode successfully; regression coverage is in test/mitmproxy/net/dns/test_domain_names.py:test_record_data_contains_fake_pointer.",
+  "applies": "DNS resource-record data decompression that scans for compression pointers among other data types.",
+  "tags": [
+    "dns",
+    "compression",
+    "record-data",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/dns/domain_names.py",
+      "symbol": "decompress_from_record_data",
+      "hash": "sha256:81df6a9d15d82fa6b847e521",
+      "line": 140,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "test/mitmproxy/net/dns/test_domain_names.py",
+      "symbol": "test_record_data_contains_fake_pointer",
+      "hash": "sha256:c387bad793fb098f621be01b",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7022"
+  },
+  "created": "2026-10-06T23:34:00.397Z",
+  "verified": "2026-10-06T23:34:00.397Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

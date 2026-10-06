@@ -1,0 +1,43 @@
+{
+  "id": "snapshot-transports-before-awaiting-writer-drains",
+  "title": "Snapshot transports before awaiting writer drains",
+  "kind": "rule",
+  "answers": [
+    "Why can draining pending connection writes fail when transports change?",
+    "How should ConnectionHandler.drain_writers handle concurrent transport changes?",
+    "How do I avoid dictionary mutation errors while draining proxy output?"
+  ],
+  "body": "Symptom: Draining pending connection writes can fail when transports change concurrently.\nRoot cause: mitmproxy/proxy/server.py:ConnectionHandler.drain_writers iterated the live transports dictionary across an await of writer.drain().\nFix pattern: Snapshot the dictionary values into a list before iterating across awaits; retain the drain lock and the writer-is-not-None guard.\nConstraints: Applies when a mutable dictionary may change while iteration is suspended; the snapshot stabilizes iteration membership, not the state of individual transports.",
+  "applies": "Asynchronous transport iteration in ConnectionHandler.drain_writers.",
+  "tags": [
+    "asyncio",
+    "race-condition",
+    "transports",
+    "writer-draining"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/server.py",
+      "symbol": "ConnectionHandler.drain_writers",
+      "hash": "sha256:109f709c45a4e3934abdc988",
+      "line": 330,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#5749"
+  },
+  "created": "2026-10-06T23:35:23.273Z",
+  "verified": "2026-10-06T23:35:23.273Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

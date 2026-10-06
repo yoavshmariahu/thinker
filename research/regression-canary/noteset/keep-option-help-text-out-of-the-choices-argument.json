@@ -1,0 +1,49 @@
+{
+  "id": "keep-option-help-text-out-of-the-choices-argument",
+  "title": "Keep option help text out of the choices argument",
+  "kind": "rule",
+  "answers": [
+    "mitmweb crashes when I open options",
+    "How should an addon register multiline option help?",
+    "Why does option registration reject a string for choices?"
+  ],
+  "body": "Symptom: mitmweb crashes when opening options.\nRoot cause: mitmproxy/addons/savehar.py:SaveHar.load passed a separate help-text string as the positional choices argument for hardump.\nFix pattern: Combine the complete description into one help argument; mitmproxy/addonmanager.py:Loader.add_option asserts that choices is not a string to catch this registration mistake.\nConstraints: Applies to addon option registration; prose belongs in help, while choices must not be a bare string. The assertion does not prohibit actual choice collections.",
+  "applies": "Addon option definitions registered through Loader.add_option, especially descriptions split across multiple lines.",
+  "tags": [
+    "mitmweb",
+    "options",
+    "addon-registration"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/savehar.py",
+      "symbol": "SaveHar.load",
+      "hash": "sha256:229a92e5775b528d1da44d9e",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "Loader.add_option",
+      "hash": "sha256:5d6e07454a8fa31ebd459263",
+      "line": 70,
+      "missing": false,
+      "fanout": {
+        "files": 58,
+        "sites": 179,
+        "refs": 181
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6386"
+  },
+  "created": "2026-10-06T23:34:45.075Z",
+  "verified": "2026-10-06T23:34:45.075Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

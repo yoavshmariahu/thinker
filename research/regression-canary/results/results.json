@@ -1,0 +1,2020 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "pr": 8141,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/8141",
+    "sha": "5a4a12888e73f6e0de2b7daf1eb91a21349ee814",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/addons/proxyserver.py": [
+        340,
+        354,
+        365
+      ],
+      "test/mitmproxy/addons/test_proxyserver.py": [
+        171,
+        182
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 13826,
+      "tokens": 17144,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/proxyserver.py",
+          "line": 340,
+          "message": "Removing the early returns makes all three injection methods pass incompatible flows to inject_event after logging that injection is invalid. Restore the returns so failed validation prevents event construction and dispatch.",
+          "evidence": "Each validation branch loses its `return`. Execution now continues from `logger.warning(\"Cannot inject WebSocket messages into non-WebSocket flows.\")` to `event = WebSocketMessageInjected(flow, msg)` and `self.inject_event(event)`. The TCP and UDP methods likewise continue to `TcpMessageInjected(flow, tcp.TCPMessage(not to_client, message))` and `UdpMessageInjected(flow, udp.UDPMessage(not to_client, message))`, respectively, then call `self.inject_event(event)`.",
+          "confidence": 1,
+          "inChange": false,
+          "notes": [],
+          "id": "f-f3966dd234165d7adcd6418d"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The removed returns break flow validation in all three injection methods."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 15818,
+      "tokens": 17786,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 1,
+        "direct": 1,
+        "related": 0,
+        "assessed": 1,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "reject-incompatible-flows-before-constructing-injection-even",
+          "title": "Reject incompatible flows before constructing injection events",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#8141"
+          },
+          "why": "rests on mitmproxy/addons/proxyserver.py:Proxyserver.inject_websocket, mitmproxy/addons/proxyserver.py:Proxyserver.inject_tcp, mitmproxy/addons/proxyserver.py:Proxyserver.inject_udp, test/mitmproxy/addons/test_proxyserver.py:test_inject_fail; 7 changed lines in them, naming what the note names"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/proxyserver.py",
+          "line": 342,
+          "message": "Restore the early returns in all three injection methods. Incompatible flows now proceed past the warning into message construction and inject_event, violating the eligibility checks. The change also removes the regression test that ensured a bare \"@focus\" string never reached inject_event.",
+          "evidence": "WebSocket: if not isinstance(flow, http.HTTPFlow) or not flow.websocket: logger.warning(...), followed by msg = websocket.WebSocketMessage(...), event = WebSocketMessageInjected(flow, msg), and self.inject_event(event).\nTCP: if not isinstance(flow, tcp.TCPFlow): logger.warning(...), followed by event = TcpMessageInjected(flow, tcp.TCPMessage(not to_client, message)) and self.inject_event(event).\nUDP: if not isinstance(flow, udp.UDPFlow): logger.warning(...), followed by event = UdpMessageInjected(flow, udp.UDPMessage(not to_client, message)) and self.inject_event(event).\nThe diff deletes retur",
+          "confidence": 1,
+          "note": "reject-incompatible-flows-before-constructing-injection-even",
+          "inChange": false,
+          "notes": [
+            "reject-incompatible-flows-before-constructing-injection-even"
+          ],
+          "id": "f-8f20733e40c992f32cf97846"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The note's verdict is violation: the change removes the supported early-return invariant from WebSocket, TCP, and UDP injection. No note is outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7841",
+    "pr": 7841,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7841",
+    "sha": "12ee8193c0514690b073914f516353baba8b14a9",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/io/io.py": [
+        72
+      ],
+      "test/mitmproxy/io/test_io.py": [
+        20
+      ]
+    },
+    "cached": {
+      "elapsedMs": 12637,
+      "tokens": 16997,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 1,
+        "direct": 1,
+        "related": 0,
+        "assessed": 1,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "test/mitmproxy/io/test_io.py"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "reject-non-dictionary-flow-records-before-migration",
+          "title": "Reject non-dictionary flow records before migration",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7841"
+          },
+          "why": "rests on mitmproxy/io/io.py:FlowReader; 2 changed lines in it, naming what the note names"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/io/io.py",
+          "line": 73,
+          "message": "Removing the dictionary check passes non-dictionary tnetstring records directly to migration, violating the requirement to reject them inside the ValueError handler. The cast does not perform runtime validation.",
+          "evidence": "Removed: `if not isinstance(loaded, dict): raise ValueError(f\"Invalid flow: {loaded=}\")`. Remaining: `yield flow.Flow.from_state(compat.migrate_flow(loaded))`. The code also states: `# FIXME: This cast hides a lack of dynamic type checking`.",
+          "confidence": 0.99,
+          "note": "reject-non-dictionary-flow-records-before-migration",
+          "inChange": false,
+          "notes": [
+            "reject-non-dictionary-flow-records-before-migration"
+          ],
+          "id": "f-2c525bb8eedb44011aa53eb2"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The note's verdict is violation: the change removes the required validation before migration and deletes the explicit null-record test example."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 6788,
+      "tokens": 16241,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "test/mitmproxy/io/test_io.py"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No bug is established by the code shown. Whether removing the dictionary check allows an unhandled exception depends on compat.migrate_flow and Flow.from_state, whose implementations are not provided."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7666",
+    "pr": 7666,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7666",
+    "sha": "b089c5fb83a43af2cb290d501013e23367102d6f",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "CHANGELOG.md": [
+        169
+      ],
+      "mitmproxy/addons/savehar.py": [
+        249
+      ],
+      "test/mitmproxy/addons/test_savehar.py": [
+        242
+      ],
+      "test/mitmproxy/data/flows/diff_data.har": [
+        602
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 9875,
+      "tokens": 22469,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/savehar.py",
+          "line": 249,
+          "message": "HAR export now raises ValueError for requests with malformed content encoding. Evaluating request.content in the condition can raise before bodySize is computed, aborting the export. Preserve raw_content access or handle the decoding error.",
+          "evidence": "Added: \"\\\"bodySize\\\": len(flow.request.content) if flow.request.content else 0,\". The deleted test constructs a request with content=b\"foo\" and content-encoding=\"utf8\", asserts \"with pytest.raises(ValueError): _ = flow.request.content\", and previously verifies \"assert SaveHar().make_har([flow])\".",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-04107e62701685acada0130a"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change reintroduces a HAR export crash for malformed request content encoding."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 14441,
+      "tokens": 23698,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "size-har-request-bodies-from-raw-content",
+          "title": "Size HAR request bodies from raw content",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7666"
+          },
+          "why": "rests on mitmproxy/addons/savehar.py:SaveHar, test/mitmproxy/addons/test_savehar.py:test_content_raises; 15 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "keep-option-help-text-out-of-the-choices-argument",
+          "title": "Keep option help text out of the choices argument",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6386"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "reject-incompatible-flows-before-constructing-injection-even",
+          "title": "Reject incompatible flows before constructing injection events",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#8141"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/savehar.py",
+          "line": 249,
+          "message": "Using request.content for bodySize reintroduces HAR export failures on malformed content encoding and reports decoded length instead of raw byte length. Restore the raw_content calculation; the deleted regression test demonstrates that content access can raise ValueError.",
+          "evidence": "+ \"bodySize\": len(flow.request.content) if flow.request.content else 0,\nDeleted test: with pytest.raises(ValueError): _ = flow.request.content\nDeleted test: assert SaveHar().make_har([flow])\nHAR fixture: \"bodySize\": 2379 → 5970",
+          "confidence": 1,
+          "note": "size-har-request-bodies-from-raw-content",
+          "inChange": true,
+          "notes": [
+            "size-har-request-bodies-from-raw-content"
+          ],
+          "id": "f-e59724cb8b218bfa8ec0c22e"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "size-har-request-bodies-from-raw-content: violation. keep-option-help-text-out-of-the-choices-argument: consistent; SaveHar.load supplies one complete help argument. reject-incompatible-flows-before-constructing-injection-even: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7624",
+    "pr": 7624,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7624",
+    "sha": "3c7c3ccfd599a5f89a451c3c4b302f1b7c5c1144",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/http.py": [
+        801,
+        806,
+        836,
+        838
+      ],
+      "mitmproxy/net/http/url.py": [
+        6,
+        20,
+        48,
+        49,
+        50,
+        51,
+        53,
+        56,
+        59,
+        60,
+        62,
+        64,
+        66,
+        67,
+        70,
+        75,
+        76,
+        78,
+        81,
+        82,
+        83,
+        85,
+        86,
+        88
+      ],
+      "test/mitmproxy/net/http/test_url.py": [
+        78
+      ]
+    },
+    "cached": {
+      "elapsedMs": 20170,
+      "tokens": 19313,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 5,
+        "direct": 2,
+        "related": 3,
+        "assessed": 5,
+        "staleBefore": [],
+        "outdated": [
+          {
+            "id": "normalize-asterisk-request-targets-in-request-url-properties",
+            "reason": "The normalization behavior remains correct, but the note's enforcement and layering claims are outdated. Both request properties now pass self.path directly, and unparse performs `if path == \"*\": path = \"\"`. Corrected body: Request.url and Request.pretty_url render an asterisk request target as an empty URL path without modifying the stored request path. Normalization occurs in mitmproxy/net/http/url.py:unparse; both properties delegate to it. Their separate authority-format branches remain intact.",
+            "correction": ""
+          }
+        ],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "normalize-asterisk-request-targets-in-request-url-properties",
+          "title": "Normalize asterisk request targets in request URL properties",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7624"
+          },
+          "why": "rests on mitmproxy/http.py:Request.url, mitmproxy/http.py:Request.pretty_url, mitmproxy/net/http/url.py:unparse; 20 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "url-reconstruction-preserves-string-or-byte-representation",
+          "title": "URL reconstruction preserves string or byte representation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7624"
+          },
+          "why": "rests on mitmproxy/net/http/url.py:unparse, test/mitmproxy/net/http/test_url.py:test_unparse; 16 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "size-har-request-bodies-from-raw-content",
+          "title": "Size HAR request bodies from raw content",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7666"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "ignore-late-events-for-completed-http-streams",
+          "title": "Ignore late events for completed HTTP streams",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5352"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "idna-encode-unicode-dns-names-when-constructing-certificate",
+          "title": "IDNA-encode Unicode DNS names when constructing certificate names",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6796"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "mitmproxy/net/http/url.py",
+          "line": 88,
+          "message": "Byte URL reconstruction regresses: consistently typed byte components now produce a string containing Python byte-literal notation instead of a byte URL. The existing byte reconstruction assertion was also removed.",
+          "evidence": "Before: return b\"%s://%s%s\" % (scheme, authority, path)\nAfter, line 88: return f\"{scheme}://{authority}{path}\"\nRemoved test: assert url.unparse(b\"http\", b\"foo.com\", 99, b\"\") == b\"http://foo.com:99\"",
+          "confidence": 1,
+          "note": "url-reconstruction-preserves-string-or-byte-representation",
+          "inChange": true,
+          "notes": [
+            "url-reconstruction-preserves-string-or-byte-representation"
+          ],
+          "id": "f-0a982841bd995b44056afcb2"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "normalize-asterisk-request-targets-in-request-url-properties: note_outdated. url-reconstruction-preserves-string-or-byte-representation: violation. size-har-request-bodies-from-raw-content, ignore-late-events-for-completed-http-streams, and idna-encode-unicode-dns-names-when-constructing-certificate: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 5999,
+      "tokens": 17849,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 2,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No bugs are supported by the code shown. The request getters preserve asterisk handling through unparse, and the tests reflect its new string-only contract."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7183",
+    "pr": 7183,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7183",
+    "sha": "9369bc8d76fd62d893c83b61a02b28bffb4b2d2c",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/tools/console/grideditor/col_bytes.py": [
+        44
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 4093,
+      "tokens": 15678,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No supported bug found. The shown code does not establish whether self._w supports get_text(), so the changed call cannot be judged incorrect from the provided evidence."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 9121,
+      "tokens": 16647,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 2,
+        "direct": 1,
+        "related": 1,
+        "assessed": 2,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "read-byte-column-editor-text-through-the-underlying-widget",
+          "title": "Read byte-column editor text through the underlying widget",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7183"
+          },
+          "why": "rests on mitmproxy/tools/console/grideditor/col_bytes.py:Edit.get_data; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+          "title": "Tolerate fake compression pointers in DNS record data",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7022"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/tools/console/grideditor/col_bytes.py",
+          "line": 44,
+          "message": "Calling get_text() on self._w reverses the underlying-widget fix and reintroduces the documented AttributeError when self._w is an AttrMap. Restore self._w.base_widget.get_text()[0].strip().",
+          "evidence": "-        txt = self._w.base_widget.get_text()[0].strip()\n+        txt = self._w.get_text()[0].strip()",
+          "confidence": 0.95,
+          "note": "read-byte-column-editor-text-through-the-underlying-widget",
+          "inChange": true,
+          "notes": [
+            "read-byte-column-editor-text-through-the-underlying-widget"
+          ],
+          "id": "f-fa9100dfae38dede5a4e72d7"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "read-byte-column-editor-text-through-the-underlying-widget: violation. tolerate-fake-compression-pointers-in-dns-record-data: unrelated. Neither note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7036",
+    "pr": 7036,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7036",
+    "sha": "4f1bc6fc9a921152abb0485a33cf2dd918cd2568",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/addons/block.py": [
+        4,
+        34
+      ],
+      "test/mitmproxy/addons/test_block.py": [
+        4,
+        61
+      ]
+    },
+    "cached": {
+      "elapsedMs": 9768,
+      "tokens": 17741,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 2,
+        "direct": 1,
+        "related": 1,
+        "assessed": 2,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "local-mode-bypasses-client-ip-blocking",
+          "title": "Local mode bypasses client IP blocking",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7036"
+          },
+          "why": "rests on mitmproxy/addons/block.py:Block.client_connected, test/mitmproxy/addons/test_block.py:test_ignore_local_mode; 15 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "reject-incompatible-flows-before-constructing-injection-even",
+          "title": "Reject incompatible flows before constructing injection events",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#8141"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/block.py",
+          "line": 34,
+          "message": "Removing the LocalMode exemption causes local clients with non-loopback peer addresses to be rejected when block_private or block_global applies. Restore the exemption and its deleted regression test.",
+          "evidence": "-        if address.is_loopback or isinstance(client.proxy_mode, mode_specs.LocalMode):\n+        if address.is_loopback:\n             return\n\n        if ctx.options.block_private and address.is_private:\n            client.error = \"Connection killed by block_private.\"\n\n        if ctx.options.block_global and address.is_global:\n            client.error = \"Connection killed by block_global.\"",
+          "confidence": 1,
+          "note": "local-mode-bypasses-client-ip-blocking",
+          "inChange": true,
+          "notes": [
+            "local-mode-bypasses-client-ip-blocking"
+          ],
+          "id": "f-1f7f365e2289d427359acc5c"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "local-mode-bypasses-client-ip-blocking: violation; the pre-change code supports the note, and this change removes its exemption. reject-incompatible-flows-before-constructing-injection-even: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 10813,
+      "tokens": 16458,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/block.py",
+          "line": 34,
+          "message": "Removing the local-mode exemption causes local-mode connections with private, non-loopback peer addresses to be killed when block_private is enabled. The deleted test demonstrates this case with peername 192.168.1.1 and previously required the connection to remain allowed.",
+          "evidence": "Removed guard: `if address.is_loopback or isinstance(client.proxy_mode, mode_specs.LocalMode):`. Replacement: `if address.is_loopback:`. The subsequent branch sets `client.error = \"Connection killed by block_private.\"` when `ctx.options.block_private and address.is_private`. The deleted test configured `block_private=True`, used `peername=(\"192.168.1.1\", 0)` and `proxy_mode=ProxyMode.parse(\"local\")`, and asserted `not client.error`.",
+          "confidence": 0.96,
+          "inChange": true,
+          "notes": [],
+          "id": "f-9829507f1b57dbc533bfe990"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes the local-mode exemption and breaks the previously tested allowance for local connections with private peer addresses."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-7022",
+    "pr": 7022,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/7022",
+    "sha": "bbf5df326a92da46150c9f7574f75c30cf0bd84e",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/net/dns/domain_names.py": [
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161
+      ],
+      "test/mitmproxy/net/dns/test_domain_names.py": [
+        87
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 9423,
+      "tokens": 16731,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/net/dns/domain_names.py",
+          "line": 153,
+          "message": "Removing the struct.error handler makes valid RDATA fail when non-name fields contain bytes resembling compression pointers. The deleted regression test provides such an SOA record with numeric bytes \\xd2\\xa2 and \\xc2\\x00; these are now passed to the decoder and any decoding error escapes instead of preserving the bytes.",
+          "evidence": "The call `unpack_from_with_compression(buffer, offset + data_offset, cached_names)` is now unconditional after the leading-bit check. The removed handler was `except struct.error: # the byte isn't actually a domain name compression pointer but some other data type; pass`. The deleted `test_record_data_contains_fake_pointer` asserted successful decompression while preserving `\\xd2\\xa2\\xc2\\x00`.",
+          "confidence": 0.99,
+          "inChange": true,
+          "notes": [],
+          "id": "f-21ed8312241cfc26d00f735f"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "One regression: pointer-like bytes in non-name RDATA fields now cause decoding errors to propagate."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 10940,
+      "tokens": 18072,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+          "title": "Tolerate fake compression pointers in DNS record data",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7022"
+          },
+          "why": "rests on mitmproxy/net/dns/domain_names.py:decompress_from_record_data, test/mitmproxy/net/dns/test_domain_names.py:test_record_data_contains_fake_pointer; 43 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "idna-encode-unicode-dns-names-when-constructing-certificate",
+          "title": "IDNA-encode Unicode DNS names when constructing certificate names",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6796"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "read-byte-column-editor-text-through-the-underlying-widget",
+          "title": "Read byte-column editor text through the underlying widget",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7183"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/net/dns/domain_names.py",
+          "line": 153,
+          "message": "Removing the struct.error fallback makes mixed DNS record data fail when numeric bytes resemble compression pointers. Failed candidates must remain unchanged and scanning must advance one byte. The change also deletes the regression test covering this case.",
+          "evidence": "The diff removes `except struct.error:` and calls `unpack_from_with_compression(buffer, offset + data_offset, cached_names)` without protection. The deleted `test_record_data_contains_fake_pointer` passes SOA data containing `\\xd2\\xa2\\xc2\\x00` and asserts that these bytes survive decompression unchanged.",
+          "confidence": 1,
+          "note": "tolerate-fake-compression-pointers-in-dns-record-data",
+          "inChange": true,
+          "notes": [
+            "tolerate-fake-compression-pointers-in-dns-record-data"
+          ],
+          "id": "f-7c79200eb9d7870a8a622f98"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "tolerate-fake-compression-pointers-in-dns-record-data: violation; the pre-change code supports the note and this change removes its required fallback. idna-encode-unicode-dns-names-when-constructing-certificate: unrelated. read-byte-column-editor-text-through-the-underlying-widget: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-6796",
+    "pr": 6796,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/6796",
+    "sha": "bfbd777cbb35850c432194912df71485f76e2d9a",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "CHANGELOG.md": [
+        446
+      ],
+      "mitmproxy/addons/tlsconfig.py": [
+        652
+      ],
+      "test/mitmproxy/addons/test_tlsconfig.py": [
+        196,
+        201
+      ]
+    },
+    "cached": {
+      "elapsedMs": 11877,
+      "tokens": 17879,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 6,
+        "direct": 1,
+        "related": 5,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "test/mitmproxy/addons/test_tlsconfig.py"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "idna-encode-unicode-dns-names-when-constructing-certificate",
+          "title": "IDNA-encode Unicode DNS names when constructing certificate names",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6796"
+          },
+          "why": "rests on mitmproxy/addons/tlsconfig.py:_ip_or_dns_name; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "local-mode-bypasses-client-ip-blocking",
+          "title": "Local mode bypasses client IP blocking",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7036"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "read-byte-column-editor-text-through-the-underlying-widget",
+          "title": "Read byte-column editor text through the underlying widget",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7183"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+          "title": "Tolerate fake compression pointers in DNS record data",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7022"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "reject-incompatible-flows-before-constructing-injection-even",
+          "title": "Reject incompatible flows before constructing injection events",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#8141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "size-har-request-bodies-from-raw-content",
+          "title": "Size HAR request bodies from raw content",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7666"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/tlsconfig.py",
+          "line": 652,
+          "message": "Removing IDNA encoding reintroduces certificate-generation failures for Unicode DNS names, including client SNI. Restore the conversion before constructing x509.DNSName. The changed test now uses ASCII and no longer covers this regression.",
+          "evidence": "-        return x509.DNSName(val.encode(\"idna\").decode())\n+        return x509.DNSName(val)\n-            ctx.client.sni = \"🌈.sni.example\"\n+            ctx.client.sni = \"sni.example\"",
+          "confidence": 0.99,
+          "note": "idna-encode-unicode-dns-names-when-constructing-certificate",
+          "inChange": true,
+          "notes": [
+            "idna-encode-unicode-dns-names-when-constructing-certificate"
+          ],
+          "id": "f-b961eba6c5e77fab3a8bb203"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Verdicts: IDNA-encode Unicode DNS names—violation; local-mode blocking exemption—unrelated; byte-column widget text retrieval—unrelated; fake DNS compression pointers—unrelated; injection eligibility checks—unrelated; HAR raw request body sizing—unrelated. No notes are shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 7704,
+      "tokens": 16689,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "test/mitmproxy/addons/test_tlsconfig.py"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/tlsconfig.py",
+          "line": 652,
+          "message": "Removing IDNA encoding breaks Unicode domain handling: x509.DNSName requires an ASCII A-label, so a value such as \"🌈.sni.example\" now raises ValueError instead of producing a certificate name. The changed test replaces this previously covered input with an ASCII domain, hiding the regression.",
+          "evidence": "-        return x509.DNSName(val.encode(\"idna\").decode())\n+        return x509.DNSName(val)\n-            ctx.client.sni = \"🌈.sni.example\"\n+            ctx.client.sni = \"sni.example\"",
+          "confidence": 0.99,
+          "inChange": true,
+          "notes": [],
+          "id": "f-e8d0f735a54322162091608d"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change regresses certificate generation for Unicode domains by removing required IDNA conversion."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-6697",
+    "pr": 6697,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/6697",
+    "sha": "a128672ec7e229230b44a21316340a10f90815b5",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "CHANGELOG.md": [
+        477
+      ],
+      "web/src/css/dropdown.less": [
+        7
+      ],
+      "web/src/js/components/contentviews/ViewSelector.tsx": [
+        26
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 5937,
+      "tokens": 16134,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No bugs are established by the provided code and diff."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 13247,
+      "tokens": 16992,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 1,
+        "direct": 1,
+        "related": 0,
+        "assessed": 1,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "keep-overflowing-view-options-menus-scrollable",
+          "title": "Keep overflowing view options menus scrollable",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6697"
+          },
+          "why": "rests on web/src/js/components/contentviews/ViewSelector.tsx:ViewSelector; 2 changed lines in it, naming what the note names"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "web/src/js/components/contentviews/ViewSelector.tsx",
+          "line": 26,
+          "message": "ViewSelector changes its placement to top-start, contradicting the note's requirement to configure top-end here.",
+          "evidence": "-            options={{ placement: \"top-end\" }}\n+            options={{ placement: \"top-start\" }}",
+          "confidence": 1,
+          "note": "keep-overflowing-view-options-menus-scrollable",
+          "inChange": true,
+          "notes": [
+            "keep-overflowing-view-options-menus-scrollable"
+          ],
+          "locations": [
+            {
+              "file": "web/src/css/dropdown.less",
+              "line": 8,
+              "message": "Removing the shared menu height limit and vertical scrolling breaks the overflow fix for long view-option lists.",
+              "evidence": "The diff removes both `max-height: 250px;` and `overflow-y: scroll;` from shared dropdown styling.",
+              "severity": "warning",
+              "confidence": 0.99,
+              "inChange": false
+            }
+          ],
+          "id": "f-5c5a8f73f628a96de061d3f5"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Verdict for keep-overflowing-view-options-menus-scrollable: violation. The pre-change code supports the note; this change removes its overflow protection and changes its specified placement."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-6386",
+    "pr": 6386,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/6386",
+    "sha": "e6e354cf38c52047246f6e47e12c970cc2133b2f",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "CHANGELOG.md": [
+        616
+      ],
+      "mitmproxy/addonmanager.py": [
+        84
+      ],
+      "mitmproxy/addons/savehar.py": [
+        83,
+        84,
+        85
+      ]
+    },
+    "cached": {
+      "elapsedMs": 18712,
+      "tokens": 18096,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 2,
+        "direct": 2,
+        "related": 0,
+        "assessed": 2,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "keep-option-help-text-out-of-the-choices-argument",
+          "title": "Keep option help text out of the choices argument",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6386"
+          },
+          "why": "rests on mitmproxy/addons/savehar.py:SaveHar.load, mitmproxy/addonmanager.py:Loader.add_option; 9 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "size-har-request-bodies-from-raw-content",
+          "title": "Size HAR request bodies from raw content",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7666"
+          },
+          "why": "rests on mitmproxy/addons/savehar.py:SaveHar; 8 changed lines in it"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/savehar.py",
+          "line": 85,
+          "message": "The final sentence of hardump's help is passed as the choices argument. Combine all three sentences into the help argument. Removing Loader.add_option's assertion also removes the guard against this registration mistake.",
+          "evidence": "Loader.add_option declares `help: str, choices: Sequence[str] | None = None`. SaveHar.load passes `\"You may select particular flows by setting save_stream_filter.\",` followed by `\"For mitmdump, enabling this option will mean that flows are kept in memory. \",` as a separate positional argument. The diff also removes `assert not isinstance(choices, str)`.",
+          "confidence": 1,
+          "note": "keep-option-help-text-out-of-the-choices-argument",
+          "inChange": true,
+          "notes": [
+            "keep-option-help-text-out-of-the-choices-argument"
+          ],
+          "id": "f-1cc0fabc5d566118f6320ae2"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "keep-option-help-text-out-of-the-choices-argument: violation; the change reintroduces the documented registration mistake. size-har-request-bodies-from-raw-content: unrelated; the diff does not change request body-size calculation, and that calculation is not shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 8824,
+      "tokens": 16392,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 2,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/savehar.py",
+          "line": 85,
+          "message": "The mitmdump help sentence is now passed as the fifth positional argument, `choices`, instead of being included in `help`. This incorrectly registers descriptive text as the allowed choices for `hardump` and removes it from the option's help.",
+          "evidence": "SaveHar.load passes \"For mitmdump, enabling this option will mean that flows are kept in memory. \" as the fifth argument. Loader.add_option declares its fifth argument as `choices: Sequence[str] | None = None` and forwards it with `self.master.options.add_option(name, typespec, default, help, choices)`.",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-2da38b130497cfb0854c6a81"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The hardump registration mistakenly passes part of its help text as choices."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-6032",
+    "pr": 6032,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/6032",
+    "sha": "04d9249ab18cd7bd8b54958714d24614f27863b5",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/command.py": [
+        26,
+        75
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 11010,
+      "tokens": 16190,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No concrete bug is established by the shown code; no command annotations or CommandTypes registry entries demonstrate a failure caused by removing eval_str=True."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 16367,
+      "tokens": 17244,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 1,
+        "direct": 1,
+        "related": 0,
+        "assessed": 1,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "resolve-postponed-annotations-during-command-signature-inspe",
+          "title": "Resolve postponed annotations during command signature inspection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#6032"
+          },
+          "why": "rests on mitmproxy/command.py:Command, mitmproxy/command.py:verify_arg_signature; 4 changed lines in them, naming what the note names"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/command.py",
+          "line": 75,
+          "message": "Removing eval_str=True leaves postponed annotations as strings. Command initialization uses these annotations directly for type lookup, so commands with postponed annotations can fail with an unknown-type CommandError. Restore annotation evaluation.",
+          "evidence": "-        self.signature = inspect.signature(self.func, eval_str=True)\n+        self.signature = inspect.signature(self.func)\n\n            if not mitmproxy.types.CommandTypes.get(parameter.annotation, None):\n                raise exceptions.CommandError(\n                    f\"Argument {name} has an unknown type {t} in {func}.\"\n                )",
+          "confidence": 0.99,
+          "note": "resolve-postponed-annotations-during-command-signature-inspe",
+          "inChange": true,
+          "notes": [
+            "resolve-postponed-annotations-during-command-signature-inspe"
+          ],
+          "id": "f-714af327a074f24b7f76fd26"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The note's verdict is violation: annotation evaluation was removed from both inspection sites, and Command still consumes annotations directly. verify_arg_signature preserves sig.bind(*args, **kwargs); no separate binding bug is demonstrated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-5982",
+    "pr": 5982,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/5982",
+    "sha": "884fd60e26b8beaa3785ea3d708c2d4386707f93",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/addons/next_layer.py": [
+        415
+      ]
+    },
+    "cached": {
+      "elapsedMs": 9916,
+      "tokens": 17254,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 2,
+        "direct": 1,
+        "related": 1,
+        "assessed": 2,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "preserve-upstream-proxy-mode-when-selecting-the-http-layer",
+          "title": "Preserve upstream proxy mode when selecting the HTTP layer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5982"
+          },
+          "why": "rests on mitmproxy/addons/next_layer.py:NextLayer; 5 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "ignore-late-events-for-completed-http-streams",
+          "title": "Ignore late events for completed HTTP streams",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5352"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/addons/next_layer.py",
+          "line": 415,
+          "message": "Upstream proxy stacks now receive HTTPMode.regular. Preserve the removed check so HttpUpstreamProxy stacks receive HTTPMode.upstream.",
+          "evidence": "Removed: if isinstance(context.layers[0], modes.HttpUpstreamProxy): stack /= layers.HttpLayer(context, HTTPMode.upstream). Added: stack /= layers.HttpLayer(context, HTTPMode.regular). The shown _next_layer still routes both modes.HttpProxy and modes.HttpUpstreamProxy to _setup_explicit_http_proxy.",
+          "confidence": 0.99,
+          "note": "preserve-upstream-proxy-mode-when-selecting-the-http-layer",
+          "inChange": true,
+          "notes": [
+            "preserve-upstream-proxy-mode-when-selecting-the-http-layer"
+          ],
+          "id": "f-22aa598e2539f3899da3c8d6"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "preserve-upstream-proxy-mode-when-selecting-the-http-layer: violation. ignore-late-events-for-completed-http-streams: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 13559,
+      "tokens": 15986,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/addons/next_layer.py",
+          "line": 415,
+          "message": "Upstream-proxy contexts now receive HTTPMode.regular instead of HTTPMode.upstream, dropping the mode distinction previously enforced by this setup method.",
+          "evidence": "Removed: if isinstance(context.layers[0], modes.HttpUpstreamProxy): stack /= layers.HttpLayer(context, HTTPMode.upstream)\nAdded: stack /= layers.HttpLayer(context, HTTPMode.regular)",
+          "confidence": 0.94,
+          "inChange": true,
+          "notes": [],
+          "id": "f-7c5fa7d507ea6fe0a3bc2fd7"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The unconditional regular HTTP mode removes upstream-proxy handling from this setup path."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-5749",
+    "pr": 5749,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/5749",
+    "sha": "b9dc95cb8c3e2ea65800a0f01d9348d056dd32f6",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/proxy/server.py": [
+        336
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 5893,
+      "tokens": 15805,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No concrete bug is supported by the shown code. The loop awaits while iterating a live dictionary view, but no mutation of that dictionary is shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 14729,
+      "tokens": 16838,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "snapshot-transports-before-awaiting-writer-drains",
+          "title": "Snapshot transports before awaiting writer drains",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5749"
+          },
+          "why": "rests on mitmproxy/proxy/server.py:ConnectionHandler.drain_writers; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "preserve-upstream-proxy-mode-when-selecting-the-http-layer",
+          "title": "Preserve upstream proxy mode when selecting the HTTP layer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5982"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "recover-from-an-uninitialized-windows-transparent-mode-resol",
+          "title": "Recover from an uninitialized Windows transparent-mode resolver connection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#4951"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/proxy/server.py",
+          "line": 336,
+          "message": "Removing the snapshot leaves iteration over the live transports dictionary suspended during writer.drain(). If dictionary membership changes during that await, iteration can raise RuntimeError. Restore list(self.transports.values()).",
+          "evidence": "-            for transport in list(self.transports.values()):\n+            for transport in self.transports.values():\n                 if transport.writer is not None:\n                     try:\n                         await transport.writer.drain()",
+          "confidence": 0.98,
+          "note": "snapshot-transports-before-awaiting-writer-drains",
+          "inChange": true,
+          "notes": [
+            "snapshot-transports-before-awaiting-writer-drains"
+          ],
+          "id": "f-a449e951555e5cb26e180e28"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "snapshot-transports-before-awaiting-writer-drains: violation. preserve-upstream-proxy-mode-when-selecting-the-http-layer: unrelated. recover-from-an-uninitialized-windows-transparent-mode-resol: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-5352",
+    "pr": 5352,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/5352",
+    "sha": "4a2ca7563108d2256909309c770feb0c5b481397",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/proxy/layers/http/__init__.py": [
+        1040,
+        1041,
+        1042,
+        1043
+      ]
+    },
+    "cached": {
+      "elapsedMs": 11439,
+      "tokens": 17756,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 4,
+        "direct": 1,
+        "related": 3,
+        "assessed": 4,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "ignore-late-events-for-completed-http-streams",
+          "title": "Ignore late events for completed HTTP streams",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5352"
+          },
+          "why": "rests on mitmproxy/proxy/layers/http/__init__.py:HttpLayer; 7 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "preserve-upstream-proxy-mode-when-selecting-the-http-layer",
+          "title": "Preserve upstream proxy mode when selecting the HTTP layer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5982"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "normalize-asterisk-request-targets-in-request-url-properties",
+          "title": "Normalize asterisk request targets in request URL properties",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#7624"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "snapshot-transports-before-awaiting-writer-drains",
+          "title": "Snapshot transports before awaiting writer drains",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#5749"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/proxy/layers/http/__init__.py",
+          "line": 1041,
+          "message": "The new assertion rejects late data events for completed streams. Previously, any event whose stream lookup raised KeyError was ignored; now a non-protocol-error event raises AssertionError. Restore unconditional ignoring of missing-stream events while retaining dispatch for existing streams.",
+          "evidence": "Before: except KeyError: # We may be getting data or errors for a stream even though we've already finished handling it ... pass\nAfter: except KeyError: assert isinstance(command.event, (RequestProtocolError, ResponseProtocolError))\nExisting streams still use: yield from self.event_to_child(stream, command.event)",
+          "confidence": 0.99,
+          "note": "ignore-late-events-for-completed-http-streams",
+          "inChange": true,
+          "notes": [
+            "ignore-late-events-for-completed-http-streams"
+          ],
+          "id": "f-5c287bc0e174b026cab8c89e"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "ignore-late-events-for-completed-http-streams: violation. preserve-upstream-proxy-mode-when-selecting-the-http-layer, normalize-asterisk-request-targets-in-request-url-properties, and snapshot-transports-before-awaiting-writer-drains: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 11766,
+      "tokens": 16423,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "mitmproxy/proxy/layers/http/__init__.py",
+          "line": 1041,
+          "message": "Late data for a finished stream now raises AssertionError instead of being ignored. The previous code explicitly documents that both data and errors can arrive after stream handling finishes, but the new assertion permits only protocol errors.",
+          "evidence": "Removed: \"We may be getting data or errors for a stream even though we've already finished handling it\" followed by `pass`. Added inside `except KeyError`: `assert isinstance(command.event, (RequestProtocolError, ResponseProtocolError))`.",
+          "confidence": 0.91,
+          "inChange": true,
+          "notes": [],
+          "id": "f-164e8ad8c1bddadf459a4405"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The new assertion breaks the explicitly documented handling of late data for completed streams."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "mitmproxy-4951",
+    "pr": 4951,
+    "source": "https://github.com/mitmproxy/mitmproxy/pull/4951",
+    "sha": "b1c1cd3f2f4b32c2569597573181f11352d71c5d",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "mitmproxy/platform/windows.py": [
+        82
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 4975,
+      "tokens": 15749,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change stops retrying on AttributeError, but the shown code does not establish that this exception is a recoverable connection failure. No supported bug found."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 11270,
+      "tokens": 16476,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 1,
+        "direct": 1,
+        "related": 0,
+        "assessed": 1,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "recover-from-an-uninitialized-windows-transparent-mode-resol",
+          "title": "Recover from an uninitialized Windows transparent-mode resolver connection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "mitmproxy/mitmproxy#4951"
+          },
+          "why": "rests on mitmproxy/platform/windows.py:Resolver.original_addr; 2 changed lines in it, naming what the note names"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "mitmproxy/platform/windows.py",
+          "line": 82,
+          "message": "Removing AttributeError from the recovery handler breaks recovery when the resolver connection is uninitialized: accessing self.wfile can raise AttributeError, bypassing _connect() and the retry.",
+          "evidence": "write((ip, port), self.wfile)\n-            except (EOFError, OSError, AttributeError):\n+            except (EOFError, OSError):\n                 self._connect()\n                 return self.original_addr(csock)",
+          "confidence": 0.98,
+          "note": "recover-from-an-uninitialized-windows-transparent-mode-resol",
+          "inChange": true,
+          "notes": [
+            "recover-from-an-uninitialized-windows-transparent-mode-resol"
+          ],
+          "id": "f-9cebeb51c8677a036b8ed541"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Violation: the change removes the Windows resolver's AttributeError recovery described by the note. No note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  }
+]

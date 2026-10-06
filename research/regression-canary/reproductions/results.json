@@ -1,0 +1,147 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "tests": [
+      "test/mitmproxy/addons/test_proxyserver.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n15 passed, 1 skipped, 42 warnings in 3.54s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/mitmproxy/addons/test_proxyserver.py::test_inject_fail - Attribut...\n1 failed, 14 passed, 1 skipped, 42 warnings in 1.20s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-7841",
+    "tests": [
+      "test/mitmproxy/io/test_io.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "    flt = bnf.parseString(s, parseAll=True)[0]\n\n../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'\n    return fn(self, *args, **kwargs)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n12 passed, 39 warnings in 0.18s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'\n    return fn(self, *args, **kwargs)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/mitmproxy/io/test_io.py::TestFlowReader::test_fuzz - AttributeErr...\n1 failed, 11 passed, 39 warnings in 0.15s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-7666",
+    "tests": [
+      "test/mitmproxy/addons/test_savehar.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n22 passed, 56 warnings in 0.37s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/mitmproxy/addons/test_savehar.py::test_savehar[diff_data] - Asser...\nFAILED test/mitmproxy/addons/test_savehar.py::test_content_raises - ValueErro...\n2 failed, 20 passed, 56 warnings in 0.28s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-7624",
+    "tests": [
+      "test/mitmproxy/net/http/test_url.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": ".......................\n23 passed in 0.09s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "E       assert \"b'http'://b'foo.com:99'b''\" == b'http://foo.com:99'\nE        +  where \"b'http'://b'foo.com:99'b''\" = <function unparse at 0x105fc40e0>(b'http', b'foo.com', 99, b'')\nE        +    where <function unparse at 0x105fc40e0> = url.unparse\n\ntest/mitmproxy/net/http/test_url.py:78: AssertionError\n=========================== short test summary info ============================\nFAILED test/mitmproxy/net/http/test_url.py::test_unparse - assert \"b'http'://...\n1 failed, 22 passed in 0.07s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-7183",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-7036",
+    "tests": [
+      "test/mitmproxy/addons/test_block.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n37 passed, 42 warnings in 0.37s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/mitmproxy/addons/test_block.py::test_ignore_local_mode - Assertio...\n1 failed, 36 passed, 42 warnings in 0.28s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-7022",
+    "tests": [
+      "test/mitmproxy/net/dns/test_domain_names.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "......\n6 passed in 0.07s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": ">               (size,) = _LABEL_SIZE.unpack_from(buffer, offset)\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE               struct.error: unpack_from requires a buffer of at least 4771 bytes for unpacking 1 bytes at offset 4770 (actual buffer size is 78)\n\nmitmproxy/net/dns/domain_names.py:50: error\n=========================== short test summary info ============================\nFAILED test/mitmproxy/net/dns/test_domain_names.py::test_record_data_contains_fake_pointer\n1 failed, 5 passed in 0.07s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-6796",
+    "tests": [
+      "test/mitmproxy/addons/test_tlsconfig.py"
+    ],
+    "fixed": {
+      "returncode": 0,
+      "summary": "    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n26 passed, 42 warnings in 1.83s"
+    },
+    "regressed": {
+      "returncode": 1,
+      "summary": "../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50\n  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.\n    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/mitmproxy/addons/test_tlsconfig.py::TestTlsConfig::test_get_cert\n1 failed, 25 passed, 42 warnings in 1.65s"
+    },
+    "status": "reproduced"
+  },
+  {
+    "id": "mitmproxy-6697",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-6386",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-6032",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-5982",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-5749",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-5352",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  },
+  {
+    "id": "mitmproxy-4951",
+    "status": "not-run",
+    "reason": "No upstream test file changed in the historical fix."
+  }
+]

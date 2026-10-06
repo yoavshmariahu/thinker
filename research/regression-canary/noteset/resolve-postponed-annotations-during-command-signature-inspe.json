@@ -1,0 +1,54 @@
+{
+  "id": "resolve-postponed-annotations-during-command-signature-inspe",
+  "title": "Resolve postponed annotations during command signature inspection",
+  "kind": "rule",
+  "answers": [
+    "Why do commands fail in modules using from __future__ import annotations?",
+    "How should command signatures handle string annotations?",
+    "Where must command signature inspection evaluate annotations?"
+  ],
+  "body": "Symptom: Commands defined in modules using `from __future__ import annotations` fail to execute.\nRoot cause: `mitmproxy/command.py:Command` and `mitmproxy/command.py:verify_arg_signature` inspected signatures without evaluating string annotations.\nFix pattern: Use `inspect.signature(..., eval_str=True)` in both command signature construction and argument-signature verification.\nConstraints: Applies to command callable inspection, including postponed annotations; preserve the existing `sig.bind(*args, **kwargs)` argument validation.",
+  "applies": "Command signature construction and argument verification in mitmproxy/command.py.",
+  "tags": [
+    "commands",
+    "signature-inspection",
+    "postponed-annotations"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/command.py",
+      "symbol": "Command",
+      "hash": "sha256:7d5d1d22e799a0344ad27fed",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 9,
+        "refs": 52
+      }
+    },
+    {
+      "path": "mitmproxy/command.py",
+      "symbol": "verify_arg_signature",
+      "hash": "sha256:117611ad22075767d39c5b0e",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6032"
+  },
+  "created": "2026-10-06T23:34:55.775Z",
+  "verified": "2026-10-06T23:34:55.775Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,40 @@
+{
+  "thinkerCommit": "2dec2458a8c766d244c64effcee633b1fc156337",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "provider": "codex",
+  "fallback": false,
+  "patchSha256": "bdbfd4933641b9df94802e4f3158ea44888dafd2a16845cd36b5ffe08f0c6464",
+  "casesSha256": "c92d713277098af33580f4a8c9d701193779a4c8b31446c52b69d257a78c6002",
+  "telemetry": "THINKER_TEST=1, THINKER_TELEMETRY=off",
+  "reviewStrategies": {
+    "baseline": {
+      "mode": "nocache",
+      "related": false
+    },
+    "cached": {
+      "mode": "holistic",
+      "related": true
+    }
+  },
+  "maxNotes": 12,
+  "repetitions": 1,
+  "notesSha256": {
+    "idna-encode-unicode-dns-names-when-constructing-certificate.json": "0992d06e94c1d9583d3c5ad2a1d35dbc2668b213b2efdd14cbdd8fea39b7a6ce",
+    "ignore-late-events-for-completed-http-streams.json": "8535d61c8bbb2f322d5148fa2c1e03f3f76847dc4df7dbe3961e81f1a766841b",
+    "keep-option-help-text-out-of-the-choices-argument.json": "48be3d8fcac4e21649bf3f06280ccbaac51cf1d07a67a922551b3cc04d4f7eed",
+    "keep-overflowing-view-options-menus-scrollable.json": "28c47b1d64cc1069860af828faac0876fb65f99b418cff6e0fc46bfbabd03db7",
+    "local-mode-bypasses-client-ip-blocking.json": "2b18879910b908d1407c600838e5d664ac2594cb95717425b29f60e0b553e0b9",
+    "normalize-asterisk-request-targets-in-request-url-properties.json": "729eae2e12ddb198efc550938b63b63420b47afb5c545a4e653d912e2501d5a8",
+    "preserve-upstream-proxy-mode-when-selecting-the-http-layer.json": "421c8d04fe5300df4d616c8549da75aa7dc2458440043ab2b222ceae477ce5d5",
+    "read-byte-column-editor-text-through-the-underlying-widget.json": "7d7a6c09f0bf0dd90663b958323b9a1fce017776296e4eb1fc8cf2dc2e9a254b",
+    "recover-from-an-uninitialized-windows-transparent-mode-resol.json": "a34acc42b2676c7fd46b42d6a18cecf238f88386091f4322e49344cab7e36d99",
+    "reject-incompatible-flows-before-constructing-injection-even.json": "74dfc7437340fafed3369bb4224809c3f2386edc06861d8a782a010817341cd9",
+    "reject-non-dictionary-flow-records-before-migration.json": "2a0395c05e64504c72cedd01362b25a6837a7424c361b7f103d7a889d9f3e808",
+    "resolve-postponed-annotations-during-command-signature-inspe.json": "f76ef4f70df8b2ef646c15c8ab41e9b0688f6dbe16505beb96e10741019a0c99",
+    "size-har-request-bodies-from-raw-content.json": "b5f877f0ac08544014c155009754616e8f9b28be7651fafb51c44028424fcd80",
+    "snapshot-transports-before-awaiting-writer-drains.json": "acdcc081656b48a7af339a7b8078779cbd4d66678373db02c1c77780dd37d477",
+    "tolerate-fake-compression-pointers-in-dns-record-data.json": "a4fae201e3d1f5d94369fc3912d06953ac1d7a6a44c8be060363ec60cee85c47",
+    "url-reconstruction-preserves-string-or-byte-representation.json": "394260c67f3884804141120b0f97a7f2e3ab9be4590d1d18ce7add998ab2a9ff"
+  }
+}

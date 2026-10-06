@@ -1,0 +1,26 @@
+thinker review: working tree against HEAD, 3 files; 6 notes consulted (1 on the changed code, 5 related), 6 assessed with gpt-6.1-sol (~18k tokens)
+⚠ Blind on 1 of 2 changed code files: no note rests on it, so nothing checks those.
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/tlsconfig.py:652  Removing IDNA encoding reintroduces certificate-generation failures for Unicode DNS names, including client SNI. Restore the conversion before constructing x509.DNSName. The changed test now uses ASCII and no longer covers this regression.  [note idna-encode-unicode-dns-names-when-constructing-certificate, 99%]
+           finding: f-b961eba6c5e77fab3a8bb203
+           evidence: -        return x509.DNSName(val.encode("idna").decode()) | +        return x509.DNSName(val) | -            ctx.client.sni = "🌈.sni.example" | +            ctx.client.sni = "sni.example"
+
+Cache state:
+  - no cached knowledge rests on: test/mitmproxy/addons/test_tlsconfig.py; the review is blind there
+
+### Review thoroughness
+
+| Decision | What happened | Basis |
+|---|---|---|
+| Code assessment | assessed | Default configuration; Jev not evaluated |
+| Caller context | skipped | Default configuration; Jev not evaluated |
+| Split review | skipped | Default configuration; Jev not evaluated |
+| Verify findings | skipped | Default configuration; Jev not evaluated |
+| Run tests | not-recommended | Default configuration; Jev not evaluated |
+
+Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.
+
+Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.
+
+Impact review: 2683617d-c058-47a2-aba5-c6a63c547399 · attach with thinker impact link-review <run-id> --pr <number>
