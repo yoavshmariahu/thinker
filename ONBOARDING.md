@@ -4,7 +4,9 @@ Run the installer from your repository, then start a new agent session.
 Use `thinker setup --build` to build a local cache from code and merged pull
 requests, or `thinker setup --no-build` to learn from future sessions.
 
-Notes stay local. Personal backups use `thinker export backup.tgz` and
+Notes are stored locally. Optional Jev ranking sends your request and candidate-note
+excerpts to TypeSafe; learning and review use your configured agent/model.
+Personal backups use `thinker export backup.tgz` and
 `thinker import backup.tgz`. Team sharing and server sync are not supported.
 
 ## Setup flow (`thinker setup`)
@@ -14,11 +16,87 @@ Setup has two steps:
 1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
 2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Choose **Full repo** or **Specify project directories**. For a project, enter a name and comma-separated repository-relative directories; setup saves `thinker.project.json`. Setup shows estimated build time and token usage for the selection before asking whether to build. Outside a terminal, building requires an explicit flag such as `--build`.
 
-Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it.
+Setup also offers **Jev** for note selection if no API key is already configured.
+You can choose the built-in offline ranker or leave the key blank. This choice
+is independent of whether you build a cache now. `--yes` skips the key prompt;
+noninteractive setup uses an existing key if present and otherwise keeps the
+built-in ranker.
+
+Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it;
+this does not disable Jev ranking.
 
 The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
 
 A paired PR benchmark runs during setup only when requested with `--benchmark` or `--pr <number>`. Its results are saved in `.thinker/benchmarks/`.
+
+## Using Jev
+
+Get a key from the [TypeSafe console](https://console.typesafe.ai/keys) and
+paste it during interactive setup, or run:
+
+```bash
+thinker ranker --jev-key <your-typesafe-api-key>
+thinker ranker
+```
+
+The key is saved outside the repository in `~/.thinker/jev-key`, with owner-only
+permissions. `THINKER_HOME` changes that directory. Environment keys take
+precedence: `THINKER_JEV_KEY`, then `JEV_API_KEY`, then `TYPESAFE_API_KEY`.
+Environment variables must reach the agent process that runs Thinker's hooks;
+the saved key also works for desktop agents launched outside your shell.
+Thinker does not load a repository `.env` file for this setting.
+
+With a key, Jev ranks the prompt hook's shortlist in one API call. Defaults are
+eight candidates, a 0.5 relevance threshold, up to two selected notes, and a
+four-second timeout. No qualifying notes means no notes served. A failed or
+timed-out call falls back to the local cross-encoder, then lexical ranking if
+that model is unavailable. `thinker ranker` reports configuration and local
+model availability; it does not validate the key with a live API call.
+
+Jev receives the request and candidate-note titles, question phrasings, body
+excerpts, file/symbol pointers, and freshness. This uses your TypeSafe account,
+separately from your coding-agent subscription. `THINKER_TELEMETRY=off` controls
+metrics only; it does not disable Jev or other configured model calls.
+
+To adjust selection, merge a `jev` entry into `.thinker/config.json`:
+
+```json
+{
+  "jev": {
+    "enabled": "auto",
+    "model": "jev-latest",
+    "k": 8,
+    "floor": 0.5,
+    "maxNotes": 2,
+    "timeoutMs": 4000
+  }
+}
+```
+
+`enabled: "auto"` uses Jev when a key is present. Keep credentials in the saved
+key file or environment. These settings govern the small note-selection path;
+they do not change learning or review models, or expand the prompt hook's
+two-note budget. Broader MCP `orient` requests keep lexical ranking.
+Environment overrides are `THINKER_JEV=on|off`, `THINKER_JEV_MODEL`,
+`THINKER_JEV_K`, `THINKER_JEV_FLOOR`, `THINKER_JEV_MAX`, and
+`THINKER_JEV_TIMEOUT` (milliseconds).
+
+To return to local ranking, set `"jev": false` in `.thinker/config.json`, or
+set `THINKER_JEV=off` in the agent's environment. To remove the saved key:
+
+```bash
+thinker ranker --no-jev-key
+```
+
+Unset any environment keys separately. If the local fallback is missing,
+`thinker ranker fetch` fetches the model; `thinker update` repairs a missing
+runtime. Jev call failures are logged as `jev-error` in the usage log
+(`~/.thinker/log.jsonl` by default).
+
+See [the preliminary Jev evaluation](bench/RESULTS.md#serving-jev-2026-10-06-offline-20-of-the-54-labelled-tasks)
+for measured retrieval quality and its limits. The paired benchmark below
+compares an agent with and without selected notes; it does not compare Jev
+against the local ranker.
 
 ## Choosing directories in a large repository
 
