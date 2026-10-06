@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>thinker</title>
-  <meta name="description" content="A knowledge cache for your coding agents.">
+  <meta name="description" content="Thinker catches regressions against past fixes and team rules in CI, and gives coding agents repository knowledge to make better changes.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -115,9 +115,17 @@
       color: #444444;
       font-weight: 400;
       letter-spacing: -0.02em;
-      margin-bottom: 2rem;
+      margin-bottom: 0.65rem;
       max-width: 580px;
       line-height: 1.45;
+    }
+
+    p.hero-outcome {
+      font-size: 1rem;
+      color: #555555;
+      line-height: 1.55;
+      max-width: 640px;
+      margin-bottom: 2rem;
     }
 
     /* Action Container */
@@ -475,6 +483,16 @@
       text-decoration: underline;
     }
 
+    .ci-link {
+      margin-top: 1rem;
+      color: #111111;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .ci-link:hover { text-decoration: underline; }
+
     .supported-agents {
       margin-top: 1.75rem;
       font-size: 0.85rem;
@@ -562,6 +580,11 @@
       color: #666666;
       margin-bottom: 1.25rem;
       line-height: 1.5;
+    }
+
+    .modal-section-title {
+      font-size: 1rem;
+      margin-bottom: 0.55rem;
     }
 
     table {
@@ -657,6 +680,7 @@
   <main>
     <h1>thinker</h1>
     <p class="subtitle">A knowledge cache for your coding agents</p>
+    <p class="hero-outcome">Catch regressions against past fixes and team rules in CI. Give coding agents the same repository knowledge to make better changes.</p>
 
     <div class="install-container">
       <!-- State 1: Action Buttons -->
@@ -698,40 +722,42 @@
     </div>
 
     <!-- Benchmark Hero Card -->
-    <div class="benchmark-card" onclick="openModal()" title="View full multi-model benchmark breakdown">
+    <div class="benchmark-card" onclick="openModal()" title="View bug detection and coding agent benchmark details">
       <div class="card-header">
         <div class="card-title">
-          <span class="terminal-prompt">$</span> thinker benchmark report
+          <span class="terminal-prompt">$</span> bug detection &amp; agent output
         </div>
-        <span class="card-tag">PR change evaluation</span>
+        <span class="card-tag">Measured on real PRs</span>
       </div>
       <div class="metrics-grid">
         <div class="metric-item">
+          <div class="metric-num gain">12/12</div>
+          <div class="metric-label">Known-fix regressions found</div>
+          <div class="metric-sub">PostHog fix reversions with a cached note</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-num gain">2 regressions</div>
+          <div class="metric-label">Found beyond diff review</div>
+          <div class="metric-sub">The diff-only model missed these</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-num gain">12 vs 9</div>
+          <div class="metric-label">Agent tasks fully solved</div>
+          <div class="metric-sub">With vs without Thinker, 20 paired runs</div>
+        </div>
+        <div class="metric-item">
           <div class="metric-num gain">14% faster</div>
-          <div class="metric-label">Wall clock time</div>
-          <div class="metric-sub">2.7m &rarr; 2.3m</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">18&ndash;21% less</div>
-          <div class="metric-label">Input tokens</div>
-          <div class="metric-sub">stops context re-reads</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">17&ndash;22% fewer</div>
-          <div class="metric-label">Tool calls</div>
-          <div class="metric-sub">cuts blind exploration</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">+33% solved</div>
-          <div class="metric-label">Correctness</div>
-          <div class="metric-sub">Claude Fable pass rate</div>
+          <div class="metric-label">Agent task time</div>
+          <div class="metric-sub">2.7m &rarr; 2.3m per task</div>
         </div>
       </div>
       <div class="card-footer">
-        <span>Measured on real PR tasks across Claude Fable, Gemini Flash &amp; GPT-6 Astra</span>
-        <span class="card-footer-cta">View full report &rarr;</span>
+        <span>Bug review: PostHog fixes, Claude Sonnet. Agent tasks: Claude Fable.</span>
+        <span class="card-footer-cta">See methods &amp; limits &rarr;</span>
       </div>
     </div>
+
+    <a class="ci-link" href="docs.html#review">See how CI review catches regressions &rarr;</a>
 
     <div class="supported-agents">
       Claude Code &bull; Codex CLI &bull; Gemini CLI &bull; Cursor &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
@@ -745,9 +771,12 @@
         <button class="btn-close" onclick="closeModal()">&times;</button>
       </div>
       <div class="modal-body">
+        <h3 class="modal-section-title">Finding regressions in PR review</h3>
         <p class="modal-note">
-          Measured on real tasks from merged pull requests, evaluated with and without thinker cache across frontier and fast coding models.
+          On 23 PostHog fix reversions, the cache held a note about 12 fixes. A review using those notes caught all 12 regressions, including two that a review of the diff alone missed. Where no relevant note existed, the cache added no bug detection. The review used Claude Sonnet; these results do not measure new bugs in code the cache has never covered.
         </p>
+        <h3 class="modal-section-title">Coding agent output on PR tasks</h3>
+        <p class="modal-note">Real tasks from merged pull requests, run with and without Thinker. The table shows task completion separately from time and tool use.</p>
         <table>
           <thead>
             <tr>
@@ -800,14 +829,14 @@
               <td class="nodiff">no diff</td>
             </tr>
             <tr>
-              <td rowspan="2"><strong>Correctness</strong></td>
-              <td>Criteria accuracy</td>
+              <td rowspan="2"><strong>Agent output</strong></td>
+              <td>Essential criteria met</td>
               <td class="gain">10% improved</td>
               <td class="nodiff">no diff</td>
               <td class="nodiff">no diff</td>
             </tr>
             <tr>
-              <td>Fully solved</td>
+              <td>Tasks fully solved</td>
               <td class="gain">33% more solved</td>
               <td class="nodiff">no diff</td>
               <td class="nodiff">no diff</td>
