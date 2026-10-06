@@ -1,5 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Store } from '../src/store.js';
 import { jevEvaluate } from '../src/jev.js';
 import { judgeWithJev } from '../src/jev-decisions.js';
 
@@ -23,7 +27,7 @@ test('oversized UTF-8 payloads and too many questions never reach the transport'
   assert.equal(calls, 0);
 });
 
-test('learning judgments distinguish disabled, cap exhaustion and validated responses, and meter failures', async () => {
+test('learning judgments distinguish disabled and validated responses, and meter failures', async () => {
   const events = [];
   const store = { config: () => ({ jev: false, maintain: { dailyTokens: 0 } }), log: e => events.push(e) };
   const request = { state: {}, questions, purpose: 'jev-reconcile' };
@@ -39,6 +43,22 @@ test('learning judgments distinguish disabled, cap exhaustion and validated resp
   assert.equal(events[1].failed, true);
   assert.equal(events[1].tokens.totalTokens, 25);
   assert.equal(events[1].state, undefined);
+});
+
+test('the next judgment stops after reported learning usage reaches the daily cap', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-jev-cap-'));
+  try {
+    const store = new Store(dir).init();
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 25 } }));
+    let calls = 0;
+    const cfg = { enabled: true, key: 'test', fetchImpl: async (...args) => { calls++; return transport(valid)(...args); } };
+    const request = { state: {}, questions, purpose: 'jev-grounding' };
+    assert.equal((await judgeWithJev(store, request, cfg)).status, 'ok');
+    const result = await judgeWithJev(store, request, cfg);
+    assert.equal(result.status, 'unavailable');
+    assert.equal(result.reason, 'dailyTokens');
+    assert.equal(calls, 1);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('test mode prohibits automatic production transport even when explicitly enabled', async () => {

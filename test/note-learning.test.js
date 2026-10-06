@@ -102,6 +102,23 @@ test('save cannot bypass reconciliation through lexical merging, a changed targe
   assert.equal(s.get(old.id).kind, 'behavior');
 });
 
+test('an apparently fresh extension rechecks dependency hashes before using the prior claim as evidence', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-grounding-fresh-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, 'src'));
+  const file = path.join(dir, 'src/a.js');
+  fs.writeFileSync(file, 'export function commit() { return true; }\n');
+  const s = new Store(dir).init();
+  const old = saveNotes(s, [note()], { source: { type: 'agent' } }).saved[0];
+  assert.equal(old.status, 'fresh');
+  fs.writeFileSync(file, 'export function commit() { throw new Error("changed"); }\n');
+  const seen = [];
+  await prepareNotes(s, [{ ...old, body: old.body + '\nThe token must match.', extends: old.id }], {
+    evidence, judge: judge({ relation: 'extends', capture: r => seen.push(r) }),
+  });
+  assert.equal(seen.find(r => r.purpose === 'jev-grounding').state.prior_note, null);
+});
+
 
 test('literal body preservation needs no extra model judgment but applicability changes still do', async () => {
   const old = note('lease', { status: 'fresh' });

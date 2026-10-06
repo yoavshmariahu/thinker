@@ -4,9 +4,9 @@ Run the installer from your repository, then start a new agent session.
 Use `thinker setup --build` to build a local cache from code and merged pull
 requests, or `thinker setup --no-build` to learn from future sessions.
 
-Notes are stored locally. Hosted Jev sends your request and candidate-note
-excerpts through Thinker’s proxy to TypeSafe;
-learning and review use your configured agent/model.
+Notes are stored locally. Hosted Jev sends search inputs and learning evidence
+through Thinker’s proxy to TypeSafe, as described below. Your configured agent
+writes notes and performs review.
 Personal backups use `thinker export backup.tgz` and
 `thinker import backup.tgz`. Team sharing and server sync are not supported.
 
@@ -20,7 +20,8 @@ Setup has two steps:
 Jev note selection uses **Thinker hosted access**, provisioned automatically
 with no personal TypeSafe key required, including with `--yes`.
 
-Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it;
+Ongoing learning uses your agent to write notes and Jev to select evidence,
+reconcile discoveries, and check source support and summary fidelity. Use `--no-learn` to disable it;
 this does not disable Jev ranking.
 
 The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
@@ -48,8 +49,9 @@ cross-encoder for hooks, then lexical ranking. Exact-ID lookups stay direct.
 
 Your request and all eligible note titles, question phrasings, descriptions or
 body excerpts, applicability, file/symbol pointers, and freshness pass through
-Thinker's proxy to TypeSafe.
-The proxy does not log request or note content. Hosted access has usage limits;
+Thinker's proxy to TypeSafe. Learning also sends selected transcript passages,
+source evidence from sessions/PRs, proposed claims, and relevant complete notes.
+Summary checks send the source note and proposed description. The proxy does not log this content. Hosted access has usage limits;
 reaching one falls back locally. The cache stays local. Hosted enrollment and ranking are separate from
 telemetry and from the coding agent used for learning, verification, and review.
 `THINKER_TELEMETRY=off` does not disable these model calls.
@@ -57,7 +59,8 @@ telemetry and from the coding agent used for learning, verification, and review.
 ### Use local ranking
 
 Set `"jev": false` in `.thinker/config.json`, or set `THINKER_JEV=off` in the
-agent's environment. This works with both direct and hosted Jev. Environment
+agent's environment. This also disables Jev learning checks and retains the
+local learning workflow. This works with both direct and hosted Jev. Environment
 variables must reach the agent process that runs Thinker's hooks. If the local
 fallback is missing, `thinker ranker fetch`
 downloads the model; `thinker update` repairs a missing runtime.

@@ -95,8 +95,9 @@ descriptions through its proxy in bounded batches, then uses Jev's relevance
 probabilities to choose what the coding agent sees. Thinker
 provisions access automatically and keeps the upstream TypeSafe credential on
 the server. A revocable client token is stored in `~/.thinker/jev-proxy.json`
-with owner-only permissions. Your coding agent still implements the task; learning,
-verification, and review still use your configured agent/model.
+with owner-only permissions. Your configured agent writes notes; Jev selects
+learning evidence and checks proposed notes and search descriptions. Verification
+and review continue to use their configured models.
 
 `lookup` queries and `orient` both use Jev, without a keyword shortlist.
 It reads a note's current `search` description, falling back to its body when
@@ -108,15 +109,35 @@ avoid repeating notes within a session. Invalid and archived notes stay out of
 query search. Errors, rate limits, and searches exceeding five seconds fall back
 to local ranking (the cross-encoder for hooks, then lexical ranking).
 
+Jev also helps maintain the cache:
+
+- It selects numbered source passages from eligible sessions, preserving nearby context.
+- Before distilling sessions or PRs, it searches the catalog for related notes. It then
+  classifies proposed discoveries as covered, extending, contradictory, or unrelated
+  against complete note bodies.
+- Each proposed claim must be supported by source evidence before it is saved.
+  Extensions must retain existing constraints; contradictions wait for investigation.
+- Generated `search` descriptions must preserve the source note's claims, scope and
+  exceptions before their content hash is marked current.
+
+Uncertain discoveries and contradictions are saved in
+`.thinker/state/learning-pending/` with their source reference. Transient failures
+leave sessions and PRs eligible for retry. Human behavior notes are not rewritten
+by these learning paths. Jev usage is logged by purpose and counts toward the
+learning/maintenance daily token cap. Acceptance thresholds are initial conservative
+policies; synthetic checks do not establish accuracy on real sessions.
+
 **Data flow:** the request and all eligible note titles, question phrasings,
 search descriptions or body excerpts, applicability, file/symbol pointers,
 and freshness pass through Thinker's proxy to
-TypeSafe. The proxy does not log request or note content. Hosted access has
+TypeSafe. Learning additionally sends selected transcript passages, proposed claims,
+source evidence from sessions/PRs, and relevant complete notes; summary checks send
+the source note and proposed description. The proxy does not log this content. Hosted access has
 usage limits; the local ranker takes over when a limit is reached. The cache
 remains stored locally. Hosted ranking is separate from
 telemetry: `THINKER_TELEMETRY=off` does not disable model calls. Set
 `"jev": false` in `.thinker/config.json`, or `THINKER_JEV=off` in the agent's
-environment, to use local note ranking. See [onboarding](ONBOARDING.md#jev-through-thinker)
+environment, to use local note ranking and disable these Jev learning checks. See [onboarding](ONBOARDING.md#jev-through-thinker)
 for setup guidance and optional personal-key access.
 
 In two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes;
@@ -435,8 +456,9 @@ setup spending outside that period.
 
 Session learning uses the working agent's `remember` and `feedback` tools first:
 save a reusable finding while its evidence is already in context. Background
-learning selects at most 12,000 characters of evidence around edits, failures,
-corrections and the final answer. Routine exploration and cache hits alone do not
+learning uses Jev to select at most 12,000 characters of source evidence from up
+to 96 passages sampled across the transcript, with neighboring context. Unavailable
+or uncertain selection falls back to the existing local evidence selection. Routine exploration and cache hits alone do not
 trigger discovery. Notes are assessed only when discussed explicitly or when a
 failure/correction touches their dependencies; omitted evidence stays unknown,
 not “unused.” Only returned assessments are checkpointed as assessed.
@@ -449,8 +471,8 @@ every eligible session. The log records `learningMode` (`evidence`, `assessment`
 `audit`, or `full`) and trace size so quality and spending can be compared.
 
 `thinker distill <transcript> --dry --evidence` previews the compact path;
-without `--evidence` or `--incremental`, an explicit distill uses the fuller trace
-as a fallback. Both dry runs call a model but save no notes. Compact discovery
+without `--evidence` or `--incremental`, an explicit distill retains the fuller
+trace as its fallback when semantic selection is disabled or unavailable. Both dry runs call a model but save no notes. Compact discovery
 requests at most 3,000 output tokens, assessment alone 1,500, and full distillation
 6,000. Claude CLI receives these per-request output limits, disables optional
 thinking, and limits structured-output attempts; provider retries can still add
@@ -555,7 +577,7 @@ integration tests that intentionally exercise installation or scheduling.
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Jev ranking sends the request and candidate-note records for model processing; the hosted flow routes them through Thinker’s proxy to TypeSafe. Disabling telemetry does not disable model calls.
+Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Jev sends requests and note records for search, and source evidence and proposed claims/descriptions for learning checks; the hosted flow routes them through Thinker’s proxy to TypeSafe. Disabling telemetry does not disable model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 
