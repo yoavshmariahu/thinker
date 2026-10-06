@@ -1,0 +1,80 @@
+{
+  "id": "escape-resource-and-annotation-keys-before-constructing-json",
+  "title": "Escape resource and annotation keys before constructing JSONPatch paths",
+  "kind": "rule",
+  "answers": [
+    "Why can GPU pods bypass VPA resource caps?",
+    "How should extended resource names be encoded in admission patches?",
+    "How do I escape annotation names containing slash or tilde?"
+  ],
+  "body": "Symptom: Pods requesting extended resources such as GPUs can bypass VPA resource caps when admission patches fail and webhook failures are ignored.\nRoot cause: vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:GetAddResourceRequirementValuePatch inserted resource names directly into JSONPatch paths, treating slashes inside names as path separators.\nFix pattern: Use vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:escapeJSONPatchPath on each raw key segment before interpolation; replace ~ with ~0 first, then / with ~1, so nvidia.com/gpu becomes nvidia.com~1gpu.\nConstraints: Escape individual key segments, not the complete path. Resource names and annotation names share this encoding through GetAddResourceRequirementValuePatch, GetAddAnnotationPatch and GetRemoveAnnotationPatch in vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go; structural separators and standard cpu/memory names remain unchanged.",
+  "applies": "VPA admission-controller JSONPatch construction for container resource requirements and annotation additions or removals.",
+  "tags": [
+    "vpa",
+    "admission-controller",
+    "jsonpatch",
+    "extended-resources",
+    "annotations"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+      "symbol": "escapeJSONPatchPath",
+      "hash": "sha256:a0e5d688d1b9c85313343cf0",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+      "symbol": "GetAddResourceRequirementValuePatch",
+      "hash": "sha256:37138a536eb587c0bc05d702",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+      "symbol": "GetAddAnnotationPatch",
+      "hash": "sha256:380203b49f8966a27d7a8732",
+      "line": 38,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 29,
+        "refs": 30
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+      "symbol": "GetRemoveAnnotationPatch",
+      "hash": "sha256:7101234d3ee752318f4aad5d",
+      "line": 47,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#9691"
+  },
+  "created": "2026-10-06T02:01:21.763Z",
+  "verified": "2026-10-06T02:01:21.763Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

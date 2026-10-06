@@ -1,0 +1,67 @@
+{
+  "id": "anchor-oom-staleness-to-the-latest-memory-sample",
+  "title": "Anchor OOM staleness to the latest memory sample",
+  "kind": "rule",
+  "answers": [
+    "Why did VPA discard a recent OOM as too old?",
+    "Why was the expected memory bump missing after an OOM near an aggregation boundary?",
+    "What timestamp should RecordOOM use to decide whether an OOM is stale?"
+  ],
+  "body": "Symptom: VPA discards a recent OOM as \"too old\" near a memory aggregation boundary, preventing the expected memory bump-up.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/model/container.go:ContainerState.RecordOOM used WindowEnd as its staleness reference; usage samples advance that boundary up to a full interval ahead of the latest real sample.\nFix pattern: Compare event age against lastMemorySampleStart, the latest observed memory sample, and skip the staleness check when that reference is zero.\nConstraints: Preserve the single aggregation interval cutoff: reject timestamps strictly before lastMemorySampleStart minus GetMemoryAggregationIntervalDuration(). Do not substitute WindowEnd, wall-clock time, or the full interval-times-count window.",
+  "applies": "VPA recommender OOM recording and changes to memory aggregation or event staleness handling.",
+  "tags": [
+    "vertical-pod-autoscaler",
+    "oom",
+    "memory-aggregation",
+    "staleness"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+      "symbol": "ContainerState",
+      "hash": "sha256:682ace962311aa27323374a7",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 56
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+      "symbol": "GetMemoryAggregationIntervalDuration",
+      "hash": "sha256:4746cb5a9f84d7f4f1672391",
+      "line": 144,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 10
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+      "symbol": "GetMemoryAggregationIntervalDuration",
+      "hash": "sha256:4746cb5a9f84d7f4f1672391",
+      "line": 144,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#9725"
+  },
+  "created": "2026-10-06T02:01:02.211Z",
+  "verified": "2026-10-06T02:01:02.211Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

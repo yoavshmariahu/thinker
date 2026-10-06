@@ -1,0 +1,44 @@
+{
+  "id": "defer-transient-kubelet-resize-errors-without-caching-infeas",
+  "title": "Defer transient kubelet resize errors without caching infeasibility",
+  "kind": "rule",
+  "answers": [
+    "Why does VPA stop applying higher recommendations until the Updater restarts?",
+    "How should VPA InPlace handle a kubelet ResizeError?",
+    "When should an in-place resize be deferred versus marked infeasible?"
+  ],
+  "body": "Symptom: After a transient kubelet resize error, VPA skips later higher resource recommendations until the Updater restarts.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go:PodsInPlaceRestrictionImpl.CanInPlaceUpdate classified ResizeStatusError as InPlaceInfeasible, caching the failed recommendation; retries required a later recommendation with a lower resource.\nFix pattern: Map ResizeStatusError to InPlaceDeferred so the next loop can retry without recording permanent infeasibility.\nConstraints: Applies to transient kubelet resize errors in InPlace mode; preserve InPlaceInfeasible for true capacity infeasibility (ResizeInfeasible).",
+  "applies": "VPA Updater InPlace resize-status decisions and their effect on recommendation retries.",
+  "tags": [
+    "vpa",
+    "in-place-resize",
+    "kubelet",
+    "retry",
+    "infeasibility"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+      "symbol": "PodsInPlaceRestrictionImpl",
+      "hash": "sha256:e1c14601d62fe2740d517adc",
+      "line": 77,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10094"
+  },
+  "created": "2026-10-06T02:00:11.213Z",
+  "verified": "2026-10-06T02:00:11.213Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

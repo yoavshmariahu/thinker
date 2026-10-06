@@ -1,0 +1,57 @@
+{
+  "id": "give-checkpoint-writing-and-garbage-collection-independent-t",
+  "title": "Give checkpoint writing and garbage collection independent timeouts",
+  "kind": "rule",
+  "answers": [
+    "Why do orphaned VPA checkpoints keep accumulating on large clusters?",
+    "Can checkpoint writing timeouts prevent checkpoint cleanup?",
+    "How should checkpoint maintenance contexts be scoped?"
+  ],
+  "body": "Symptom: Orphaned VPA checkpoints accumulate when checkpoint writing exhausts its timeout before cleanup starts.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.RunOnce previously passed one write-limited context to both operations in recommender.MaintainCheckpoints.\nFix pattern: In vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.MaintainCheckpoints, create separate timeout contexts for writing and garbage collection from the shared parent; create the cleanup context when cleanup starts.\nConstraints: Applies when checkpoint storage is enabled and cleanup is due. Independent child timeouts prevent writing from exhausting cleanup's budget, but both operations remain subject to parent cancellation.",
+  "applies": "VPA recommender checkpoint maintenance and changes to its context or timeout handling.",
+  "tags": [
+    "vpa",
+    "checkpoints",
+    "garbage-collection",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+      "symbol": "RunOnce",
+      "hash": "sha256:49e6d3ebe0b43ec40f53c094",
+      "line": 173,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 16,
+        "refs": 29
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+      "symbol": "MaintainCheckpoints",
+      "hash": "sha256:55656def498daad0550ea2a9",
+      "line": 155,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10178"
+  },
+  "created": "2026-10-06T01:59:05.365Z",
+  "verified": "2026-10-06T01:59:05.365Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "record-checkpoint-cleanup-completion-only-after-successful-c"
+  ]
+}

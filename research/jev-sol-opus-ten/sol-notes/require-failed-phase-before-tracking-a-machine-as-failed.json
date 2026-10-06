@@ -1,0 +1,67 @@
+{
+  "id": "require-failed-phase-before-tracking-a-machine-as-failed",
+  "title": "Require Failed phase before tracking a machine as failed",
+  "kind": "rule",
+  "answers": [
+    "Why are Provisioning machines treated as failed during scale up?",
+    "When should Cluster API machines receive a synthetic failed provider ID?",
+    "Why does a machine failure message make the node group unhealthy?"
+  ],
+  "body": "Symptom: Machines still Provisioning are tracked as failed, potentially making their node group unhealthy after maxNodeProvisionTime.\nRoot cause: cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go:machineController.findScalableResourceProviderIDs treated a failure message alone as sufficient evidence of failure.\nFix pattern: Require status.phase to equal machinePhaseFailed before appending a synthetic failed provider ID and taking the failed-machine continue branch.\nConstraints: This legacy branch requires both a failure message and phase Failed; a missing or different phase must fall through to subsequent handling. The PR identifies this failed-state handling as deprecated and intended for eventual removal.",
+  "applies": "Cluster API scale-up provider-ID discovery while legacy failed-machine handling remains supported.",
+  "tags": [
+    "clusterapi",
+    "scale-up",
+    "machine-phase",
+    "failure-detection"
+  ],
+  "deps": [
+    {
+      "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+      "symbol": "machineController",
+      "hash": "sha256:74ea41468e30aad1fec14a9d",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 72
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+      "symbol": "machinePhaseFailed",
+      "hash": "sha256:bdf73008c25f7f4cc639d87c",
+      "line": 71,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+      "symbol": "machinePhaseFailed",
+      "hash": "sha256:bdf73008c25f7f4cc639d87c",
+      "line": 71,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10001"
+  },
+  "created": "2026-10-06T02:00:46.244Z",
+  "verified": "2026-10-06T02:00:46.244Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

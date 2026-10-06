@@ -1,0 +1,55 @@
+{
+  "id": "scaleway-creation-errors-must-retain-the-creating-state",
+  "title": "Scaleway creation errors must retain the creating state",
+  "kind": "rule",
+  "answers": [
+    "Why does Cluster Autoscaler detect failed Scaleway node creation slowly?",
+    "How should Scaleway creation_error map to an instance status?",
+    "What state and error information should a failed Scaleway node creation report?"
+  ],
+  "body": "Symptom: Cluster Autoscaler is slow to detect a Scaleway node that could not be created.\nRoot cause: cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go:fromScwStatus populated creation-error details without explicitly setting InstanceCreating.\nFix pattern: Map NodeStatusCreationError to InstanceCreating while preserving ErrorInfo, including the creation_error code and failure message.\nConstraints: This mapping applies to Scaleway creation failures; do not generalize it to other statuses. cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go:TestFromScwStatus checks both the creating state and error information.",
+  "applies": "Scaleway node-status translation for NodeStatusCreationError.",
+  "tags": [
+    "scaleway",
+    "cluster-autoscaler",
+    "instance-status",
+    "creation-error"
+  ],
+  "deps": [
+    {
+      "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go",
+      "symbol": "fromScwStatus",
+      "hash": "sha256:657534ef40723fc45ac9a717",
+      "line": 274,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go",
+      "symbol": "TestFromScwStatus",
+      "hash": "sha256:3eefd50cc834af32f20043f7",
+      "line": 606,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#9949"
+  },
+  "created": "2026-10-06T02:00:27.627Z",
+  "verified": "2026-10-06T02:00:27.627Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,55 @@
+{
+  "id": "capi-scale-up-simulation-must-preserve-stable-zone-labels",
+  "title": "CAPI scale-up simulation must preserve stable zone labels",
+  "kind": "rule",
+  "answers": [
+    "Why does Cluster API scale-up fail for pods requiring topology.kubernetes.io/zone?",
+    "Where are zone labels copied into CAPI template nodes?",
+    "How should scheduling labels be preserved in Cluster API scale-up simulation?"
+  ],
+  "body": "Symptom: Cluster API scale-up does not trigger for pods requiring topology.kubernetes.io/zone.\nRoot cause: cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go:extractNodeLabels copies a predefined label set; omitting the stable zone label deprived simulation templates of required topology metadata.\nFix pattern: Explicitly copy the stable zone label alongside the deprecated zone label, and verify source-to-template preservation in cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go:TestNodeGroupTemplateNodeInfo.\nConstraints: Applies to templates extracting labels from existing nodes; preserve nonempty source values through setLabelIfNotEmpty. This pattern does not provide zone metadata missing from the source node.",
+  "applies": "Cluster API template-node label extraction for scale-up simulation.",
+  "tags": [
+    "clusterapi",
+    "scale-up",
+    "node-template",
+    "topology"
+  ],
+  "deps": [
+    {
+      "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+      "symbol": "extractNodeLabels",
+      "hash": "sha256:92b204caf03aca5539f79d6c",
+      "line": 640,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go",
+      "symbol": "TestNodeGroupTemplateNodeInfo",
+      "hash": "sha256:1206237339c46e55db576ad2",
+      "line": 1491,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10258"
+  },
+  "created": "2026-10-06T01:59:55.370Z",
+  "verified": "2026-10-06T01:59:55.370Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

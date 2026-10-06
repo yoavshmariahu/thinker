@@ -1,0 +1,55 @@
+{
+  "id": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+  "title": "Use desired DaemonSet size for VPA eviction restrictions",
+  "kind": "rule",
+  "answers": [
+    "Why can't VPA recover a DaemonSet when all its pods are unready?",
+    "Which DaemonSet status field determines the VPA updater replica count?",
+    "Can VPA evict DaemonSet pods when NumberReady is zero?"
+  ],
+  "body": "Symptom: VPA cannot resize DaemonSet pods to recover after reduced memory limits cause all pods to become unready.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go:PodsRestrictionFactoryImpl.getReplicaCount used Status.NumberReady as the desired replica count, rejecting workloads with no ready pods.\nFix pattern: Derive DaemonSet replica count from Status.DesiredNumberScheduled so loss of readiness does not prevent recovery updates.\nConstraints: Zero desired scheduled pods still produces an error. Unready pods remain subject to eviction limits; vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go:TestEvictReplicatedByDaemonSet verifies that a five-pod DaemonSet permits only two evictions at a 0.5 eviction fraction, even with zero ready pods.",
+  "applies": "VPA updater replica-count lookup and eviction restrictions for DaemonSet-managed pods.",
+  "tags": [
+    "vpa",
+    "daemonset",
+    "eviction",
+    "readiness"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+      "symbol": "PodsRestrictionFactoryImpl",
+      "hash": "sha256:04791d3047d0cfc04725fb25",
+      "line": 63,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+      "symbol": "TestEvictReplicatedByDaemonSet",
+      "hash": "sha256:64e12fd70d26b329f004c1d4",
+      "line": 641,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10141"
+  },
+  "created": "2026-10-06T01:59:22.579Z",
+  "verified": "2026-10-06T01:59:22.579Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}
