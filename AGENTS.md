@@ -251,11 +251,18 @@ around it: a gotcha resting on a real 525-token script still counts as that
 script's size.
 
 Build and run output is refused as an anchor outright
-(`ops.js:TRANSIENT`: `node_modules/`, `dist/`, `coverage/`, `.next/`,
+(`deps.js:TRANSIENT`: `node_modules/`, `dist/`, `coverage/`, `.next/`,
 `__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`), since the next
 run rewrites or removes it. One served note here rested on nothing but a
 223-byte benchmark log that git ignores. The check is at creation only, so
-notes already stored keep their deps; a note left with no other anchor is
+notes already stored keep their deps — but `deps.js:checkNote` refuses to call
+such a dep stale, re-hashing it in place instead: the next run rewrites the
+file, so a changed hash says nothing about whether the claim still holds. The
+two notes explaining that `.thinker/` files rewrite themselves were both
+permanently stale, from `.thinker/` files rewriting themselves, and took a
+verify slot each time. Agent configuration is a valid anchor and is not
+covered: a note about what is in `.claude/settings.json` still goes stale when
+that file changes; a note left with no other anchor is
 refused with `no resolvable dependencies`. Agent configuration is deliberately
 not refused — those notes are worth keeping.
 

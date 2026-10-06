@@ -174,3 +174,44 @@ test('a note may rest on an agent config file but not on build or run output', (
   assert.ok(!only.note);
   assert.match(only.error, /no resolvable dependencies/);
 });
+
+test('a dep thinker would refuse as an anchor cannot make a note stale, but an agent config dep still can', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'transient-'));
+  fs.mkdirSync(path.join(repo, '.thinker'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.thinker/config.json'), '{"a":1}');
+  fs.writeFileSync(path.join(repo, '.claude/settings.json'), '{"a":1}');
+  fs.writeFileSync(path.join(repo, 'code.js'), JS);
+
+  const dep = p => ({ path: p, ...hashDep(repo, { path: p }) });
+  const note = { id: 'n', deps: [dep('.thinker/config.json'), dep('.claude/settings.json'), dep('code.js')] };
+  assert.deepEqual(checkNote(repo, note).changed, [], 'nothing changed yet');
+
+  // thinker's own cache rewrites itself; that says nothing about the claim
+  fs.writeFileSync(path.join(repo, '.thinker/config.json'), '{"a":2}');
+  assert.deepEqual(checkNote(repo, note).changed, [], 'a .thinker/ dep never reports stale');
+  // and the record is brought up to date rather than frozen
+  const after = checkNote(repo, note).deps.find(d => d.path === '.thinker/config.json');
+  assert.equal(after.hash, hashDep(repo, { path: '.thinker/config.json' }).hash, 're-hashed in place');
+
+  // agent configuration is deliberately a valid anchor: a note about its contents must still go stale
+  fs.writeFileSync(path.join(repo, '.claude/settings.json'), '{"a":3}');
+  assert.deepEqual(checkNote(repo, note).changed.map(c => c.path), ['.claude/settings.json'],
+    'a .claude/ dep still reports stale');
+
+  fs.writeFileSync(path.join(repo, 'code.js'), JS + '\nexport const extra = 1;\n');
+  assert.deepEqual(checkNote(repo, note).changed.map(c => c.path).sort(), ['.claude/settings.json', 'code.js']);
+  fs.rmSync(repo, { recursive: true, force: true });
+});
+
+test('a missing transient dep is kept rather than reported as a removed file', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'transient2-'));
+  fs.mkdirSync(path.join(repo, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.thinker/cochange.json'), '{}');
+  const d = { path: '.thinker/cochange.json', ...hashDep(repo, { path: '.thinker/cochange.json' }) };
+  fs.rmSync(path.join(repo, '.thinker/cochange.json'));
+  const r = checkNote(repo, { id: 'n', deps: [d] });
+  assert.deepEqual(r.changed, [], 'a removed cochange.json does not strand the note as stale');
+  assert.equal(r.deps[0].path, '.thinker/cochange.json');
+  fs.rmSync(repo, { recursive: true, force: true });
+});
