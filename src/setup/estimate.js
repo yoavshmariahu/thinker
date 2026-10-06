@@ -2,6 +2,7 @@
 // usage it will run through. No dollar figure: the agent's login is a subscription as often as a
 // metered key, and a price from the API list told most people what they would not pay.
 import path from 'node:path';
+import { directoryPathspecs } from '../project.js';
 import { execFileSync } from 'node:child_process';
 import { discoverAreas } from '../topology.js';
 import { formatDuration, formatBytes } from './ui.js';
@@ -15,7 +16,7 @@ import { hasBin } from './agents.js';
 export const TOKENS_PER_AREA = 400_000;
 export const TOKENS_PER_PR = 14_000;
 
-export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null } = {}) {
+export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null, directories = null } = {}) {
   let commitCount = 0;
   try {
     const raw = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -24,13 +25,13 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
 
   let fileCount = 0;
   try {
-    const raw = execFileSync('git', ['ls-files'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    fileCount = raw ? raw.split('\n').filter(Boolean).length : 0;
+    const raw = execFileSync('git', ['ls-files', '-z', '--', ...directoryPathspecs(directories)], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    fileCount = raw ? raw.split('\0').filter(Boolean).length : 0;
   } catch {}
 
   let candidateAreas = [];
   try {
-    candidateAreas = discoverAreas(repo, { limit: areas });
+    candidateAreas = discoverAreas(repo, { limit: areas, directories });
   } catch {}
 
   const canMineGh = Boolean(slug && !noPrs && hasBin('gh') && prs > 0);

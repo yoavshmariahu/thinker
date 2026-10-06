@@ -85,6 +85,45 @@ Notes:
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
+## Large repositories: choose your project
+
+During `thinker setup`, choose **Full repo** or **Specify project directories**.
+For a project, enter a name and comma-separated directories such as
+`apps/web, packages/ui`. Thinker saves `thinker.project.json` in the repository
+root and estimates the build using those directories.
+
+You can also create the selection without running setup:
+
+```bash
+thinker project init apps/web packages/ui --name "Web app"
+thinker seed --dry          # preview the exploration areas, without model calls
+thinker setup --build       # build using the saved project
+```
+
+The project file is small and editable:
+
+```json
+{
+  "version": 1,
+  "name": "Web app",
+  "directories": ["apps/web", "packages/ui"]
+}
+```
+
+Paths are relative to the repository root. `setup`, `seed`, and `mine-prs` use
+this file automatically; `--project other.project.json` selects another file,
+and `--full-repo` uses the whole repository for one run. `--areas` still limits
+the number of exploration sessions. `thinker project show` prints the selection.
+The file can be committed or kept personal using `.git/info/exclude`.
+
+Project builds explore selected directories and mine changes touching them.
+GitHub history is scanned in bounded batches; `thinker mine-prs` continues
+through older history on later runs. Exploration may follow dependencies outside
+the selection to explain the selected code. All notes go into the same local
+repository cache: retrieval, review, and ongoing learning remain repository-wide.
+File and symbol dependencies already connect notes to relevant paths for retrieval;
+the project file adds no retrieval filter.
+
 ## Your local cache
 
 Thinker learns and stores notes locally in `.thinker/local/notes/`, which is

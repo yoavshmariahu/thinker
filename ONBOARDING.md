@@ -12,13 +12,49 @@ Notes stay local. Personal backups use `thinker export backup.tgz` and
 Setup has two steps:
 
 1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
-2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Setup shows estimated build time and available model cost estimates before asking. Outside a terminal, building requires an explicit flag such as `--build`.
+2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Choose **Full repo** or **Specify project directories**. For a project, enter a name and comma-separated repository-relative directories; setup saves `thinker.project.json`. Setup shows estimated build time and token usage for the selection before asking whether to build. Outside a terminal, building requires an explicit flag such as `--build`.
 
 Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it.
 
 The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
 
 A paired PR benchmark runs during setup only when requested with `--benchmark` or `--pr <number>`. Its results are saved in `.thinker/benchmarks/`.
+
+## Choosing directories in a large repository
+
+The scope menu uses arrow keys and Enter:
+
+```text
+What should Thinker build a cache for?
+  Full repo
+  Specify project directories
+```
+
+Choose the second option to enter, for example, `apps/web, packages/ui` and a
+project name. Missing directories are reported so you can correct them. The
+selection is saved even if you choose to build later. On later interactive setup
+runs, the saved project is selected by default; choosing Full repo saves that
+preference. `--no-build` skips the scope menu.
+
+For scripts or a noninteractive install, create the file first:
+
+```bash
+thinker project init apps/web packages/ui --name "Web app"
+thinker seed --dry
+thinker setup --build --yes
+```
+
+Or save the selection directly with
+`thinker setup --directories apps/web,packages/ui --name "Web app" --build --yes`.
+`--yes` and noninteractive builds reuse the saved selection (or use the full
+repo when no file exists). `--project other.project.json` chooses another file;
+`--full-repo` overrides a saved project for this run. Directory paths always
+start at the repository root, including when running from a subdirectory.
+
+The project only chooses what to build. It does not hide existing notes or
+restrict retrieval, review, or ongoing learning. The repository retains one
+cache, with notes linked to their source files and symbols. See
+[the project file format](README.md#large-repositories-choose-your-project).
 
 ## First-run benchmark
 

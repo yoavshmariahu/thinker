@@ -128,7 +128,7 @@ export function ignoreLocalState(dir) {
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
+export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, directories = null, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
   let warnings = 0;
   // with neither pull requests nor exploration there is nothing to estimate: what is left
   // (linking) is free and local, and the notes come from the sessions to come
@@ -163,7 +163,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       out(`  ${c.bold(`[1/3] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
     }
     try {
-      const res = await minePrsFn(slug, { limit: prs, model, repo });
+      const res = await minePrsFn(slug, { limit: prs, model, repo, directories });
       minedPrCount = res.saved || 0;
       const label = estimates.mineSource === 'github' ? 'pull requests' : 'git history changes';
       if (res.failed) warnings++;
@@ -186,7 +186,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   if (estimates.canSeed && seedFn) {
     out(`  ${c.bold(`[2/3] Exploring architectural subsystems with ${agent}...`)}`);
     try {
-      const res = await seedFn({ areas, model, agent });
+      const res = await seedFn({ areas, model, agent, directories });
       seedCount = res.ok || 0;
       if (res.failures?.length) warnings++;
       if (res.saved !== undefined) {

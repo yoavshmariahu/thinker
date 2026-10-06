@@ -2,6 +2,8 @@
 // estimating and building the codebase cache, and running an optional PR change benchmark.
 // The flow is `runSetup` below; its parts are under src/setup/ (ui, agents, estimate, steps, pr-benchmark),
 // all re-exported here so nothing else needs to know the layout.
+import { chooseProject } from './setup/project.js';
+import { projectFromFlags } from './project.js';
 import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
@@ -26,6 +28,8 @@ export async function runSetup({
   userMcpEntry,
   clients,
   areas = 12,
+  projectFlags = {},
+  chooseProjectFn = chooseProject,
   prs = 60,
   prNumber = null,
   benchmark = false,
@@ -49,6 +53,8 @@ export async function runSetup({
   minePrsFn,
   checkAuthFn = checkAgentAuth,
 }) {
+  // Validate explicit/saved selections before setup writes agent settings.
+  projectFromFlags(repo, projectFlags);
   store.init();
   ignoreLocalState(store.dir);
 
@@ -88,6 +94,9 @@ export async function runSetup({
 
   out(stepBanner(2, 2, 'Choose how to start'));
 
+  const project = await chooseProjectFn({ repo, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !(noSeed && noPrs) });
+  const directories = project?.directories || null;
+
   let activeAgent = agent || exploreAgent();
   let agentAuthed = false;
   let buildError = null;
@@ -96,7 +105,7 @@ export async function runSetup({
   let building = (noSeed && noPrs) ? false : build;
   if (building === null) {
     building = yes || await confirmCacheBuild({
-      estimates: estimateCacheBuild(repo, { areas, prs, noSeed, noPrs, slug, agent: activeAgent }),
+      estimates: estimateCacheBuild(repo, { areas, prs, directories, noSeed, noPrs, slug, agent: activeAgent }),
       agent: activeAgent,
       out,
     });
@@ -135,12 +144,13 @@ export async function runSetup({
     process.env.THINKER_LLM = activeAgent;
   }
 
-  const estimates = estimateCacheBuild(repo, { areas, prs, noSeed: effectiveNoSeed, noPrs: effectiveNoPrs, slug, agent: activeAgent });
+  const estimates = estimateCacheBuild(repo, { areas, prs, directories, noSeed: effectiveNoSeed, noPrs: effectiveNoPrs, slug, agent: activeAgent });
 
   const cacheRes = await stepBuildCache({
     repo,
     store,
     estimates,
+    directories,
     areas,
     prs,
     noSeed: effectiveNoSeed,

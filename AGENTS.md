@@ -186,6 +186,26 @@ notes, so none is distilled twice, by you or by a teammate. Pull requests merged
 after thinker was set up are distilled by background maintenance (see [The
 learning loop](#the-learning-loop)); `mine-prs` is for history before that.
 
+## Project cache builds
+
+`thinker.project.json` at the repository root stores `{version: 1, name,
+directories: [repo-relative paths]}`. `src/project.js` validates paths and reads
+it for cache-building commands only. `thinker project init <dirs...> --name ...`
+creates it without initializing a cache. Interactive setup (`src/setup/project.js`)
+offers Full repo or Specify project directories before the usage estimate; `--yes`
+reuses the file. `--project file` chooses another file; `--full-repo` overrides it
+for one run. Choosing Full repo in the menu updates an existing default file to
+`directories: ["."]`.
+
+`discoverAreas` uses literal git pathspecs before clustering, and cannot widen a
+selected deep directory into its parent. Setup passes the same directories to
+estimates, exploration and PR mining. Scoped PR scans keep a directory-keyed
+cursor; only successfully processed changes enter the global mined record, so
+unrelated PRs remain available to other builds. Git history uses directory
+pathspecs; GitHub uses the listed changed paths with bounded scans. All projects
+share the repository's notes. Retrieval, review and automatic maintenance do not
+load the project file; existing dependency paths provide retrieval relevance.
+
 ## Usage history
 
 Every serving, assessment, distillation, verification and mining run is

@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { directoryPathspecs, includesPath } from './project.js';
 
 const CODE_EXTS = /\.(py|ts|tsx|js|jsx|go|rs|rb|java|kt|cs|php|swift|scala|ex|exs|c|cpp|h|hpp)$/i;
 const IGNORE_PATHS = /(^|\/)(node_modules|vendor|third_party|dist|build|__snapshots__|migrations|\.git)\//;
@@ -52,12 +53,13 @@ export function subsystemForFile(repo, filePath) {
 
 // Discover architectural areas in the repository, combining file structure,
 // adaptive directory depth, and git churn over recent commits.
-export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
+export function discoverAreas(repo, { limit = 12, churnLimit = 200, directories = null } = {}) {
+  if (limit <= 0) return [];
   let rawFiles = [];
   try {
-    rawFiles = execFileSync('git', ['ls-files'], { cwd: repo, maxBuffer: 1 << 26 })
+    rawFiles = execFileSync('git', ['ls-files', '-z', '--', ...directoryPathspecs(directories)], { cwd: repo, maxBuffer: 1 << 26 })
       .toString()
-      .split('\n')
+      .split('\0')
       .filter(Boolean);
   } catch {
     return [];
@@ -69,11 +71,17 @@ export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
 
   if (!files.length) return [];
 
+  // Never widen a deep selection (services/api/auth) to its parent (services/api).
+  const scopeArea = (file, area) => {
+    const root = directories?.find(dir => includesPath([dir], file));
+    return root && root !== '.' && includesPath([area], root) ? root : area;
+  };
+
   // Count files by 2-segment directory
   const depth2 = {};
   for (const f of files) {
     const parts = f.split('/');
-    const key = parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.';
+    const key = scopeArea(f, parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.');
     depth2[key] = (depth2[key] || 0) + 1;
   }
 
@@ -82,8 +90,8 @@ export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
   // Compact repo case: if <= 3 top directories and < 60 total source files (e.g. click),
   // partition by key individual source files rather than collapsing into 1 directory.
   if (topDirs.length <= 3 && files.length <= 60) {
-    const scoredFiles = files
-      .filter(f => !/__init__|py\.typed|index\.[jt]s$/i.test(f))
+    const substantive = files.filter(f => !/__init__|py\.typed|index\.[jt]s$/i.test(f));
+    const scoredFiles = (substantive.length ? substantive : files)
       .map(f => {
         let size = 0;
         try { size = fs.statSync(path.join(repo, f)).size; } catch {}
@@ -99,10 +107,11 @@ export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
   for (const f of files) {
     const parts = f.split('/');
     let key;
-    const p2 = parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.';
+    const p2 = scopeArea(f, parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.');
     // If a 2-segment directory has > 80 files, split into depth 3 (e.g. pkg/services/auth, posthog/api)
-    if (depth2[p2] > 80 && parts.length > 3) {
-      key = parts.slice(0, 3).join('/');
+    const splitDepth = Math.max(3, p2.split('/').length + 1);
+    if (depth2[p2] > 80 && parts.length > splitDepth) {
+      key = scopeArea(f, parts.slice(0, splitDepth).join('/'));
     } else {
       key = p2;
     }
@@ -112,7 +121,7 @@ export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
   // Count git churn over the last N commits
   const churn = {};
   try {
-    const log = execFileSync('git', ['log', '--name-only', '--pretty=format:', '-n', String(churnLimit)], {
+    const log = execFileSync('git', ['log', '--name-only', '--pretty=format:', '-n', String(churnLimit), '--', ...directoryPathspecs(directories)], {
       cwd: repo,
       maxBuffer: 1 << 24,
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -122,7 +131,7 @@ export function discoverAreas(repo, { limit = 12, churnLimit = 200 } = {}) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       for (const k of Object.keys(clusters)) {
-        if (trimmed.startsWith(k)) {
+        if (includesPath([k], trimmed)) {
           churn[k] = (churn[k] || 0) + 1;
           break;
         }
