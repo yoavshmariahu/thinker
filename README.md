@@ -99,9 +99,10 @@ Old sync settings are ignored.
 
 Thinker can post a PR report connecting the requested behavior to executed test
 results, code evidence, and the questions a reviewer still needs to resolve.
-For example, a change from three retries to five can show that
-`rejects timed-out requests` passed, while flagging that its assertion leaves
-timeouts on the final retry untested.
+For example, a change that makes a running app's auto-pause react in two
+seconds instead of five can show that `pauses within two seconds of a stop`
+passed, while flagging that the filter it removed was the fix that stopped runs
+pausing under bridges, where the GPS reports zero speed with no fix.
 
 With a verification contract committed on the trusted base and acceptance
 criteria linked to named tests in `task.json`, run:

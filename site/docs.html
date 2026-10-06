@@ -579,6 +579,8 @@
     .gh-scroll { overflow-x: auto; }
     .gh-pass { color: #1a7f37; font-weight: 600; white-space: nowrap; }
     .gh-warn { color: #9a6700; }
+    .gh-fail { color: #cf222e; font-weight: 600; }
+    .gh-review-state.gh-changes { color: #cf222e; background: #ffebe9; border-color: #ff8182; }
     .gh-details { margin: 0.4rem 0 0.8rem; font-size: 0.82rem; }
     .gh-details summary { cursor: pointer; color: #0969da; font-weight: 500; }
     .gh-details ul { margin-top: 0.5rem; color: #57606a; }
@@ -908,34 +910,44 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
           Agent-written code arrives with a diff and a claim that it works. A reviewer has to ask three more things: <strong>what the agent set out to do and why</strong>, <strong>how that was tested</strong>, and <strong>what the repository already knows that the agent did not</strong>. Thinker posts the answers as one review on the pull request, each part marked by where it came from: the agent, the test runner, the cache, or a model's reading.
         </p>
         <p>
-          The example below is a review of one change: raise a request's retry limit from three to five, and still reject timeouts. The named test passed. The cache remembered that the limit lives in two places, and the diff changed one of them.
+          The example below is a review of one change in a running app: make auto-pause react within two seconds of the runner stopping at a crossing, instead of five. Both named tests passed. The cache remembered why the old detector waited: under a bridge the GPS reports zero speed with no fix, and a year ago that paused people's runs in every tunnel.
         </p>
 
         <figure class="gh" aria-label="Example pull request review posted by thinker">
           <div class="gh-pr">
-            <span class="gh-pr-title">Raise request retries from three to five <span class="gh-pr-num">#142</span></span>
+            <span class="gh-pr-title">Auto-pause a run within two seconds of stopping <span class="gh-pr-num">#318</span></span>
             <span class="gh-pr-state">Open</span>
           </div>
           <div class="gh-timeline">
             <div class="gh-event">
               <span class="gh-avatar" aria-hidden="true"></span>
-              <span><strong>thinker</strong> <span class="gh-bot">bot</span> reviewed 2 minutes ago</span>
-              <span class="gh-review-state">Commented</span>
+              <span><strong>thinker</strong> <span class="gh-bot">bot</span> reviewed 4 minutes ago</span>
+              <span class="gh-review-state gh-changes">Changes requested</span>
             </div>
 
             <article class="gh-comment">
               <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>thinker</strong> <span class="gh-bot">bot</span> <span class="gh-muted">left a review</span></div>
               <div class="gh-md">
-                <h1>Change review: needs-review</h1>
-                <p><strong>Requested change:</strong> Increase retries from three to five; still reject timeouts.</p>
+                <h1>Change review: <span class="gh-fail">failed</span></h1>
+                <p><strong>Requested change:</strong> Make auto-pause react faster: pause the run within two seconds of the runner stopping at a crossing, and resume by itself when they move again.</p>
 
                 <h2>Why and how <span class="gh-tag tag-agent">supplied by the agent</span></h2>
-                <p><strong>Reason for the approach (supplied by the agent):</strong> The limit is a single constant read by the retry loop, so raising it keeps timeout handling on the existing rejection path.</p>
+                <p><strong>Reason for the approach (supplied by the agent):</strong> The detector waited for five consecutive one-second GPS samples under 0.5 m/s before pausing. Two samples are enough to tell a stop at a crossing from a slow stride, and resuming on the first sample above 1 m/s keeps the recorded pace honest.</p>
                 <ol>
-                  <li>Raise the retry limit to five
-                    <ul><li>Seen in the diff at <code>src/retry.js:18</code>: <code>MAX_RETRIES</code> goes from 3 to 5 <span class="gh-tag tag-model">model reading</span></li></ul>
+                  <li>Shorten the stop window from five samples to two
+                    <ul><li>Seen in the diff at <code>src/run/autopause.js:29</code>: <code>STOP_SAMPLES</code> goes from 5 to 2 <span class="gh-tag tag-model">model reading</span></li></ul>
+                  </li>
+                  <li>Resume on the first moving sample instead of three
+                    <ul><li>Seen in the diff at <code>src/run/autopause.js:44</code>: <code>RESUME_SAMPLES</code> goes from 3 to 1 <span class="gh-tag tag-model">model reading</span></li></ul>
                   </li>
                 </ol>
+
+                <h2>Before approving <span class="gh-tag tag-reviewer">for the reviewer</span></h2>
+                <ul>
+                  <li>Should the window stay at five samples for watches that sample GPS at 0.5 Hz? <span class="gh-tag tag-agent">the agent's own question</span></li>
+                  <li>Inspect the 1 error and 0 warning findings below.</li>
+                  <li>1 desired behavior is reported as violated: GPS loss never pauses a run.</li>
+                </ul>
 
                 <h2>Evidence for the requested behavior <span class="gh-tag tag-runner">observed by the runner</span></h2>
                 <div class="gh-scroll">
@@ -943,77 +955,79 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
                   <thead><tr><th>Criterion</th><th>Observed result</th><th>What the assertion supports or leaves open</th></tr></thead>
                   <tbody>
                     <tr>
-                      <td>Timed-out requests are rejected</td>
-                      <td><span class="gh-pass">✓ passed</span> unit: rejects timed-out requests (<code>test/retry.test.js</code>)</td>
-                      <td><strong>partial:</strong> the assertion checks that one timed-out request rejects; nothing counts attempts, so the fifth attempt is never reached (<code>test/retry.test.js:41</code>) <span class="gh-tag tag-model">model reading</span></td>
+                      <td>A run pauses within two seconds of the runner stopping</td>
+                      <td><span class="gh-pass">✓ passed</span> unit: pauses within two seconds of a stop (<code>test/autopause.test.js</code>)</td>
+                      <td><strong>direct:</strong> the test feeds two consecutive 0 m/s samples that carry a GPS fix and asserts the pause on the second (<code>test/autopause.test.js:28</code>) <span class="gh-tag tag-model">model reading</span></td>
+                    </tr>
+                    <tr>
+                      <td>A paused run resumes when the runner moves</td>
+                      <td><span class="gh-pass">✓ passed</span> unit: resumes on the first moving sample (<code>test/autopause.test.js</code>)</td>
+                      <td><strong>partial:</strong> the assertion covers a resume after a real stop; no test feeds samples without a fix, so a pause that should not have happened is never exercised (<code>test/autopause.test.js:47</code>) <span class="gh-tag tag-model">model reading</span></td>
                     </tr>
                   </tbody>
                 </table>
                 </div>
                 <p class="gh-fine">The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.</p>
                 <p><strong>Desired behaviors directly in play:</strong></p>
-                <ul><li>A timed-out request is rejected, never retried past the limit: <strong>upheld</strong> (human-authored) <span class="gh-tag tag-model">model reading</span></li></ul>
+                <ul><li>GPS loss never pauses a run: <span class="gh-fail">violated</span> — the stop window now counts every recent sample, and a dropout reports zero speed with no fix, so two seconds under a bridge pause the run (fixed, human-authored) <span class="gh-tag tag-model">model reading</span></li></ul>
 
                 <h2>Checks run <span class="gh-tag tag-runner">observed by the runner</span></h2>
                 <div class="gh-scroll">
                 <table>
                   <thead><tr><th>Check</th><th>Result</th><th>Observed tests</th></tr></thead>
-                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>41 passed; 0 skipped</td></tr></tbody>
+                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>184 passed; 0 skipped</td></tr></tbody>
                 </table>
                 </div>
-                <p><strong>Gate integrity:</strong> no pattern-based weakening signals found. No test was skipped, removed or rewritten; no CI filter changed.</p>
+                <p><strong>Gate integrity:</strong> No pattern-based weakening signals found.</p>
 
                 <h2>Code assessment <span class="gh-tag tag-cache">from the cache</span></h2>
-                <p>0 errors; 1 warning. This is a model reading of the change, not an executed check.</p>
+                <p>1 error; 0 warnings. This is a model reading of the change, not an executed check.</p>
                 <ul>
-                  <li><code>src/retry.js:18</code> — <code>MAX_RETRIES</code> is 5, but the timeout branch at line 22 still guards with the literal <code>n &lt; 3</code>, so a timed-out request is still given up after three attempts: the requested change does not reach timeouts. <strong>Basis:</strong> The retry limit is compared in two places and drifted once, <em>source PR #87</em>. <strong>Evidence:</strong> <code>if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3)</code> at line 22 is unchanged.</li>
+                  <li><code>src/run/autopause.js:32</code> — The filter that kept only samples with a GPS fix (accuracy between 0 and 20 m) is gone from the stop window, so the zero-speed samples a dropout reports count as a stop, and with a two-sample window two seconds under a bridge pause the run. <strong>Basis:</strong> Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix, <em>source PR #241</em>. <strong>Evidence:</strong> <code>samples.slice(-STOP_SAMPLES)</code> is no longer filtered, and <code>accuracy</code> is not read anywhere in the file after the change.</li>
                 </ul>
                 <p class="gh-fine">1 comment on a changed line is posted inline.</p>
-
-                <h2>Before approving <span class="gh-tag tag-reviewer">for the reviewer</span></h2>
-                <ul>
-                  <li>Does the fifth attempt happen for a timed-out request? The linked test asserts rejection, not the attempt count.</li>
-                  <li>Inspect the 1 warning finding above.</li>
-                </ul>
 
                 <details class="gh-details">
                   <summary>Evidence source and scope</summary>
                   <ul>
-                    <li>The task framing came from the calling agent via MCP at 2026-10-06T09:14Z. The criteria and test links are the agent's interpretation.</li>
-                    <li>The checks came from the verification contract at base <code>3f2a9c1e07d4</code> and ran against frozen snapshot <code>b81c44d0a9e2</code>. CI acceptance: not established.</li>
+                    <li>The task framing came from the calling agent via MCP at 2026-10-06T14:02Z. The criteria and test links are the agent's interpretation.</li>
+                    <li>The checks came from the verification contract at base <code>9e4b17c0d2a5</code> and ran against frozen snapshot <code>5a0c3e8f71b9</code>. CI acceptance: not established.</li>
                     <li>unit command: <code>node --test --test-reporter=/thinker/reporter.mjs test/*.test.js</code>.</li>
                     <li>The code assessment read the change against frozen notes. A clean model assessment does not replace a human reading of the diff.</li>
-                    <li>Run <code>7c1e2d</code>; 2026-10-06T09:14Z to 09:17Z.</li>
+                    <li>Run <code>4d9f2a</code>; 2026-10-06T14:02Z to 14:06Z.</li>
                   </ul>
                 </details>
               </div>
             </article>
 
             <div class="gh-file">
-              <div class="gh-file-head"><span class="gh-file-icon" aria-hidden="true"></span><code>src/retry.js</code><span class="gh-muted">1 comment</span></div>
+              <div class="gh-file-head"><span class="gh-file-icon" aria-hidden="true"></span><code>src/run/autopause.js</code><span class="gh-muted">1 comment</span></div>
               <div class="gh-scroll">
-              <table class="gh-diff" aria-label="Diff of src/retry.js">
+              <table class="gh-diff" aria-label="Diff of src/run/autopause.js">
                 <tbody>
-                  <tr class="gh-hunk"><td colspan="2"></td><td>@@ -15,8 +15,8 @@ import { request } from './http.js';</td></tr>
-                  <tr><td>16</td><td>16</td><td>// Attempts after the first. A timeout past the limit rejects; it is never retried.</td></tr>
-                  <tr><td>17</td><td>17</td><td></td></tr>
-                  <tr class="gh-del"><td>18</td><td></td><td><span class="gh-sign">-</span>const MAX_RETRIES = 3;</td></tr>
-                  <tr class="gh-add"><td></td><td>18</td><td><span class="gh-sign">+</span>const MAX_RETRIES = 5;</td></tr>
+                  <tr class="gh-hunk"><td colspan="2"></td><td>@@ -28,9 +28,7 @@ const STOP_SPEED = 0.5; // m/s</td></tr>
+                  <tr><td>28</td><td>28</td><td></td></tr>
+                  <tr class="gh-del"><td>29</td><td></td><td><span class="gh-sign">-</span>const STOP_SAMPLES = 5;</td></tr>
+                  <tr class="gh-add"><td></td><td>29</td><td><span class="gh-sign">+</span>const STOP_SAMPLES = 2;</td></tr>
+                  <tr><td>30</td><td>30</td><td></td></tr>
+                  <tr><td>31</td><td>31</td><td>export function detectStop(samples) {</td></tr>
+                  <tr class="gh-del"><td>32</td><td></td><td><span class="gh-sign">-</span>  const fixed = samples.filter(s =&gt; s.accuracy &gt; 0 &amp;&amp; s.accuracy &lt; 20);</td></tr>
+                  <tr class="gh-del"><td>33</td><td></td><td><span class="gh-sign">-</span>  const recent = fixed.slice(-STOP_SAMPLES);</td></tr>
+                  <tr class="gh-del"><td>34</td><td></td><td><span class="gh-sign">-</span>  if (recent.length &lt; STOP_SAMPLES) return false;</td></tr>
+                  <tr class="gh-del"><td>35</td><td></td><td><span class="gh-sign">-</span>  return recent.every(s =&gt; s.speed &lt; STOP_SPEED);</td></tr>
+                  <tr class="gh-add"><td></td><td>32</td><td><span class="gh-sign">+</span>  const recent = samples.slice(-STOP_SAMPLES);</td></tr>
                   <tr class="gh-comment-row"><td colspan="3">
                     <div class="gh-inline">
-                      <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>thinker</strong> <span class="gh-bot">bot</span> <span class="gh-muted">commented on line 18</span></div>
+                      <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>thinker</strong> <span class="gh-bot">bot</span> <span class="gh-muted">commented on line 32</span></div>
                       <div class="gh-md">
-                        <p><strong class="gh-warn">warning</strong> <code>MAX_RETRIES</code> is 5, but the timeout branch at line 22 still guards with the literal <code>n &lt; 3</code>, so a timed-out request is still given up after three attempts.</p>
-                        <blockquote>if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3) return withRetry(fn, n + 1);</blockquote>
-                        <p class="gh-fine"><code>retry-limit-two-places</code> · The retry limit is compared in two places and drifted once · learned from PR #87, 82% <span class="gh-tag tag-cache">from the cache</span></p>
+                        <p><strong class="gh-fail">error</strong> The stop window no longer keeps only samples with a GPS fix. A dropout under a bridge reports zero speed with accuracy 0, and two such samples now pause the run.</p>
+                        <blockquote>const recent = samples.slice(-STOP_SAMPLES);</blockquote>
+                        <p class="gh-fine"><code>autopause-gps-dropout</code> · Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix · learned from PR #241, 93% <span class="gh-tag tag-cache">from the cache</span></p>
                       </div>
                     </div>
                   </td></tr>
-                  <tr><td>19</td><td>19</td><td></td></tr>
-                  <tr><td>20</td><td>20</td><td>export async function withRetry(fn, n = 0) {</td></tr>
-                  <tr><td>21</td><td>21</td><td>  try { return await fn(); } catch (err) {</td></tr>
-                  <tr><td>22</td><td>22</td><td>    if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3) return withRetry(fn, n + 1);</td></tr>
-                  <tr><td>23</td><td>23</td><td>    throw err;</td></tr>
+                  <tr class="gh-add"><td></td><td>33</td><td><span class="gh-sign">+</span>  return recent.every(s =&gt; s.speed &lt; STOP_SPEED);</td></tr>
+                  <tr><td>36</td><td>34</td><td>}</td></tr>
                 </tbody>
               </table>
               </div>
@@ -1026,7 +1040,7 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
         <div class="gh-legend">
           <div class="gh-legend-item">
             <span class="gh-tag tag-agent">supplied by the agent</span>
-            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, and acceptance criteria linked to named tests (<code>task.json</code> on the CLI, the <code>review</code> tool over MCP). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
+            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, its open questions, and acceptance criteria linked to named tests (<code>task.json</code> on the CLI, the <code>review</code> tool over MCP). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-runner">observed by the runner</span>
@@ -1034,7 +1048,7 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-cache">from the cache</span>
-            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions. A finding names the note and the pull request it was learned from. In the example the diff is one line and the test is green; only the cache knew that the limit is compared in two places, because a fix once corrected exactly that drift.</p>
+            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions, and desired behaviors written by the team are held against the change. A finding names the note and the pull request it was learned from. In the example both tests are green and the diff reads as a tidy simplification; only the cache knew that the filter it removed was the fix for runs pausing in tunnels.</p>
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-model">model reading</span>
@@ -1062,24 +1076,27 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
 }</code></pre>
           <p>Each required check runs in a fresh container. The Node reporter records named test results. A setup failure, timeout, or missing report leaves verification incomplete.</p>
         </details>
-        <p>Save the request and a link to an existing test as <code>task.json</code>. Test names and paths must match your repository:</p>
+        <p>Save the request and links to existing tests as <code>task.json</code>. Test names and paths must match your repository:</p>
         <pre><code>{
-  "request": "Increase retries from three to five; still reject timeouts",
-  "rationale": "Allow more retries while keeping timeout handling",
-  "intendedChanges": ["Raise the retry limit to five"],
+  "request": "Pause a run within two seconds of the runner stopping; resume when they move",
+  "rationale": "Two GPS samples under 0.5 m/s are enough to tell a stop from a slow stride",
+  "intendedChanges": [
+    "Shorten the stop window from five samples to two",
+    "Resume on the first moving sample"
+  ],
+  "questions": ["Should the window stay at five for watches sampling GPS at 0.5 Hz?"],
   "criteria": [{
-    "text": "Timed-out requests are rejected",
-    "tests": [{
-      "check": "unit",
-      "name": "rejects timed-out requests",
-      "file": "test/retry.test.js"
-    }]
+    "text": "A run pauses within two seconds of the runner stopping",
+    "tests": [{ "check": "unit", "name": "pauses within two seconds of a stop", "file": "test/autopause.test.js" }]
+  }, {
+    "text": "A paused run resumes when the runner moves",
+    "tests": [{ "check": "unit", "name": "resumes on the first moving sample", "file": "test/autopause.test.js" }]
   }]
 }</code></pre>
         <pre><code>thinker review --run --base origin/main --task task.json \
-  --pr 142 --post</code></pre>
+  --pr 318 --post</code></pre>
         <p><code>--run</code> waits for the checks and code assessment, then <code>--post</code> adds the report as a PR conversation comment through your GitHub login. Run this in the PR’s checkout: <code>--pr</code> identifies the destination, it does not select the code to review. Each invocation adds a new comment.</p>
-        <p>To keep working while checks run, use <code>--start</code>, then post the result with <code>thinker review --status &lt;run-id&gt; --pr 142 --post</code>. If the code or other tracked inputs have changed, the report marks the evidence as outdated. Full check logs stay local and are not uploaded.</p>
+        <p>To keep working while checks run, use <code>--start</code>, then post the result with <code>thinker review --status &lt;run-id&gt; --pr 318 --post</code>. If the code or other tracked inputs have changed, the report marks the evidence as outdated. Full check logs stay local and are not uploaded.</p>
         <h3>What the proof establishes</h3>
         <p>A named test pass establishes that the test ran successfully on the captured snapshot. Thinker labels its reading of the assertions and code as a model assessment, and calls out skipped or unobserved tests, missing criterion coverage, and possible weakening of test or CI gates. The reviewer decides whether that evidence covers the request.</p>
         <p>This is practical correctness evidence with an explicit scope. It is not a mathematical proof, a signed CI attestation, or a guarantee that every edge case is covered. Ordinary <code>thinker review --post</code> posts a code assessment without executing tests; use <code>--run</code> or a completed verification run for execution evidence. Your existing CI checks still apply.</p>
