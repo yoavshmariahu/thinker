@@ -11,3 +11,4 @@ bench/runs/empty-notes/
 
 # private gateway deployment snapshots and credentials
 .access-work/
+.jev-proxy-work/

@@ -254,9 +254,9 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // pick could be a stale note and nothing would be served; the stale notes the lexical top would have served
   // are still held below until scheduled maintenance
   const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
-  // Jev (jev.js) ahead of the cross-encoder when a key is configured: one batched call scores the gated
+  // Jev (jev.js) ahead of the cross-encoder by default through hosted access: one batched call scores the gated
   // candidates against the request. Reaches about twice the share of important notes at the same precision
-  // (bench/RESULTS.md, "Serving: Jev"). Any failure -- no key, offline, slow, bad response -- falls through
+  // (bench/RESULTS.md, "Serving: Jev"). Any failure -- offline, quota, slow, bad response -- falls through
   // to the cross-encoder below, so a prompt hook never fails because a network call did.
   const jevCfg = jevConfig(store);
   let jev = null, jevTop = null; // jev: what was served; jevTop: the best three scores seen, so a turn that served nothing is still legible

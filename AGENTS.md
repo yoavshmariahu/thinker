@@ -712,7 +712,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Jev (`jev.js`), opt-in, ahead of the cross-encoder when a key is configured:
+- Jev (`jev.js`), hosted by default, ahead of the local cross-encoder:
   one batched call scores the gated candidates against the request, a Noul per
   candidate, and `selectByJev` keeps those at or above `floor`, at most
   `maxNotes`. The note goes over as named fields (`noteRecord`), which beat one
@@ -726,19 +726,27 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   2.5x the reach at the same precision, ~160 ms and ~10k tokens a prompt. Both
   runs were identical on the default arm. One judge, one prompt, and Jev was
   handed the labelled candidate pool.
-  Jev is the only thing in thinker that needs a credential of its own. The key
-  is read from `THINKER_JEV_KEY`, `JEV_API_KEY` or `TYPESAFE_API_KEY`, else from
-  `~/.thinker/jev-key` (mode 0600, written by `thinker setup` or `thinker ranker
-  --jev-key <key>`, removed by `--no-jev-key`). It is never written into
-  `.thinker/config.json`, which is part of the repository. `jev` in the config
-  sets `{ enabled, floor, maxNotes, k, model, timeoutMs }` or is `false`;
-  `enabled: "auto"` (the default) is on with a key and off without, and
-  `THINKER_JEV=on|off`, `THINKER_JEV_FLOOR`, `THINKER_JEV_MAX`, `THINKER_JEV_K`,
-  `THINKER_JEV_MODEL`, `THINKER_JEV_TIMEOUT` override it. Any failure — no key,
-  offline, slower than `timeoutMs` (4 s), a bad response — is logged as
-  `jev-error` and the cross-encoder serves as before, so a prompt hook never
-  fails because a network call did. `thinker ranker` reports both rankers, and
-  the `orient` log line carries `jev` beside `ce`.
+  Hosted Jev is the default since 2026-10-06. Setup (`configureJev`) and first
+  retrieval automatically enroll through `infra/jev-proxy/`, an API Gateway and
+  Lambda service on AWS. Revocable client tokens live in `~/.thinker/jev-proxy.json`
+  (mode 0600), expire after 30 days, and renew automatically on expiry. The proxy
+  holds the upstream key in Secrets Manager, checks token validity and reserves
+  minute/day/global request quotas atomically in DynamoDB, and never logs payloads
+  or credentials. Anonymous enrollment is bounded by IP/day and service/day quotas;
+  it is not proof of user identity. Prompt text and candidate note excerpts are
+  sent to the proxy and TypeSafe for inference, separately from telemetry.
+  An optional personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
+  or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
+  stores one; `--no-jev-key` returns to hosted access. Secrets never belong in the
+  repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
+  model, timeoutMs }` or is `false`; `enabled: "auto"` now means hosted or direct
+  Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`
+  controls still apply, including `THINKER_JEV_TIMEOUT` (default 1500 ms).
+  Any transport, quota, timeout or response-validation failure falls back to the
+  installed cross-encoder. A low relevance score is a valid decision to omit a
+  note, not a service failure. Tests cannot call either production model path
+  unless they explicitly inject a transport. `thinker ranker` reports the path,
+  and the `orient` log line carries `jev` beside `ce`.
   A facet vector typed onto the notes was measured and rejected as a serving
   signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
   the notes' own attestation labels, and the `inert` flag would have suppressed
