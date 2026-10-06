@@ -110,3 +110,11 @@ test('an environment key is preferred over the file and reported as such', () =>
   assert.equal(jevStatus({ config: () => ({}) }).source, 'environment');
   delete process.env.THINKER_JEV_KEY;
 }));
+
+test('jevRerank reports every candidate score through onScores, not just the selected ones', async () => {
+  const seen = [];
+  const ranked = [note('a'), note('b'), note('c')].map(n => ({ note: n }));
+  const out = await jevRerank(ranked, 'q', { key: 'k', floor: 0.5, maxNotes: 2, fetchImpl: okFetch([0.9, 0.1, 0.6]), onScores: rows => seen.push(...rows.map(r => r.jev)) });
+  assert.deepEqual(seen, [0.9, 0.1, 0.6], 'every candidate is reported');
+  assert.deepEqual(out.map(r => r.note.id), ['a', 'c'], 'only those above the floor are served');
+});

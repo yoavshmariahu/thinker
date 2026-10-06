@@ -123,12 +123,17 @@ export function selectByJev(scored, { floor = JEV_DEFAULTS.floor, maxNotes = JEV
   return scored.filter(r => r.jev >= floor).sort((a, b) => b.jev - a.jev).slice(0, maxNotes > 0 ? maxNotes : undefined);
 }
 
+// `onScores` sees every candidate's score, selected or not. Serving logs the best few through it: with the
+// selection alone a turn that served nothing is indistinguishable from one where the best note just missed
+// the floor, and the floor cannot be tuned from that.
 export async function jevRerank(ranked, query, cfg = {}) {
-  const { k = JEV_DEFAULTS.k, floor = JEV_DEFAULTS.floor, maxNotes = JEV_DEFAULTS.maxNotes } = cfg;
+  const { k = JEV_DEFAULTS.k, floor = JEV_DEFAULTS.floor, maxNotes = JEV_DEFAULTS.maxNotes, onScores } = cfg;
   const cands = ranked.slice(0, k);
   if (!cands.length) return cands;
   const sc = await jevScores(query, cands.map(r => r.note), cfg);
-  return selectByJev(cands.map((r, i) => ({ ...r, jev: sc[i] })), { floor, maxNotes });
+  const scored = cands.map((r, i) => ({ ...r, jev: sc[i] }));
+  if (onScores) onScores(scored);
+  return selectByJev(scored, { floor, maxNotes });
 }
 
 // What `thinker ranker` and setup report.
