@@ -89,7 +89,7 @@ test('cache build reports partial failures without a success summary', async () 
   }
 });
 
-test('behavior proposal stage runs only when requested', async () => {
+test('behavior proposal stage runs on every cache build', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init();
@@ -99,8 +99,8 @@ test('behavior proposal stage runs only when requested', async () => {
       proposeFn: async () => { calls++; return { proposals: [{ id: 'proposal-example' }], sources: 1 }; },
       out: () => {} };
     await stepBuildCache(options);
-    assert.equal(calls, 0);
-    await stepBuildCache({ ...options, proposeBehaviors: true });
+    assert.equal(calls, 1);
+    await stepBuildCache({ ...options, noSeed: true, noPrs: true });
     assert.equal(calls, 1);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
