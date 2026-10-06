@@ -11,7 +11,7 @@ assert.ok(html.includes('/message.js'));
 for (const path of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) {
   const response = await request(path);
   assert.equal(response.status, 200, path);
-  assert.ok((await response.text()).includes('thinker documentation'));
+  assert.ok((await response.text()).includes('<title>Documentation — thinker</title>'), path);
 }
 for (const path of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json',
   '/access/download/' + 'a'.repeat(64) + '/thinker.tgz']) assert.equal((await request(path, 'HEAD')).status, 200, path);
