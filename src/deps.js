@@ -197,6 +197,10 @@ export function hashDepAtIndex(repo, dep, opts = {}) {
 // narrow: a changed whole-file dep is judged against what the note names (narrowFileDep), which costs
 // git calls per changed file. Maintenance and `thinker check` pass it and persist the outcome; the
 // per-prompt refresh does not, and sees the deps they stored.
+// Build and run output, and thinker's own cache: refused as an anchor at creation (ops.js:createNote)
+// because the next run rewrites or removes them. checkNote also refuses to call them stale, below.
+export const TRANSIENT = /(^|\/)(node_modules|dist|coverage|\.next|__pycache__)\/|^bench\/runs\/|^\.thinker\/|\.log$|\.tmp$/;
+
 export function checkNote(repo, note, { ref, index = false, narrow = false } = {}) {
   const changed = [];
   let upgraded = false;
@@ -217,6 +221,12 @@ export function checkNote(repo, note, { ref, index = false, narrow = false } = {
   const deps = (note.deps || []).flatMap(d => {
     let now = index ? hashDepAtIndex(repo, d) : ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
     const before = changed.length;
+    // A dep thinker would refuse as an anchor today cannot make a note stale: the next run rewrites
+    // the file, so a changed hash says nothing about whether the claim still holds. The refusal is
+    // applied at creation only, so notes stored before it kept such deps and went stale on every
+    // run - on this repository the two notes explaining that `.thinker/` files rewrite themselves
+    // were both permanently stale, from `.thinker/` files rewriting themselves. Re-hash and move on.
+    if (TRANSIENT.test(d.path)) { const keep = now.missing ? { ...d } : now; if (d.fanout) keep.fanout = d.fanout; return [keep]; }
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) {
       // the current hasher does not find the symbol now; if it did not find it at verification either, it never
