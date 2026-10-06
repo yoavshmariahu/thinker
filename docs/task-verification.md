@@ -46,6 +46,60 @@ challenge unsupported assumptions; task claims cannot override fixed behaviors
 or establish that a check executed. Source labels are caller attribution, not
 authenticated user approval.
 
+## Proof of correctness on a pull request
+
+Post the evidence where the change is being reviewed. With the execution
+contract below committed on `origin/main`, Docker available, a configured model,
+and `gh auth login` completed, save a task as `task.json`:
+
+```json
+{
+  "request": "Increase retries from three to five; still reject timeouts",
+  "rationale": "Allow more retries while keeping timeout handling",
+  "intendedChanges": ["Raise the retry limit to five"],
+  "criteria": [{
+    "text": "Timed-out requests are rejected",
+    "tests": [{
+      "check": "unit",
+      "name": "rejects timed-out requests",
+      "file": "test/retry.test.js"
+    }]
+  }]
+}
+```
+
+Replace the test name and file with an existing test in your repository, then run
+from the PR's checkout:
+
+```sh
+thinker review --run --base origin/main --task task.json --pr 142 --post
+```
+
+`--run` waits for execution and assessment; `--post` adds the Markdown report as
+a PR conversation comment using your GitHub CLI login. Each invocation creates
+a new comment. `--pr` selects the destination, not the code being checked.
+For an asynchronous run, use `--start` and later
+`thinker review --status <run-id> --pr 142 --post`. Check that it has completed;
+posting status can also publish a partial or outdated report, labeled as such.
+
+For the retry example, an illustrative report could show:
+
+| Evidence | What the reviewer learns |
+|---|---|
+| Changed-line anchor: `src/retry.js:18` | The model reads the limit changing to five. |
+| `rejects timed-out requests` passed | The runner observed this named test pass on the snapshot. |
+| Assertion coverage: partial | The model finds timeout rejection covered, but no assertion for the fifth attempt. |
+| Before approving | Inspect or add coverage for a timeout on the final retry. |
+
+The posted report includes provenance and leaves coverage gaps visible. Full
+check logs remain local; posting does not upload them. Ordinary `review --post`
+performs a code assessment without running the execution contract. Use `--run`
+or a completed verification run to include observed test evidence.
+
+“Proof of correctness” here means evidence a reviewer can inspect for the stated
+behavior and snapshot. It is not a formal proof, a signed CI attestation, or an
+automatic declaration that the task is complete. Existing CI checks still apply.
+
 ## The execution contract
 
 Commit `.thinker/verification.json` on the trusted base before using required

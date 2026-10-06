@@ -571,6 +571,26 @@
 
     .gain { color: #15803d; font-weight: 600; }
 
+    /* Evidence report: real HTML keeps the example readable on small screens. */
+    .proof-card { margin: 1.5rem 0 .75rem; border: 1px solid #d9e2df; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 36px #183d2910; }
+    .proof-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: #f3f7f5; border-bottom: 1px solid #d9e2df; }
+    .proof-brand { font-size: .85rem; font-weight: 650; color: #183d29; }
+    .proof-chip { font-size: .7rem; border: 1px solid #c8d8cf; border-radius: 20px; padding: .2rem .6rem; color: #345543; white-space: nowrap; }
+    .proof-content { padding: 1.25rem; }
+    .proof-kicker { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: #66756c; margin-bottom: .4rem; }
+    .proof-title { font-size: 1.2rem; font-weight: 600; letter-spacing: -.025em; color: #162b20; margin-bottom: 1.25rem; }
+    .proof-step { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .8rem; padding: 0 0 1.1rem; }
+    .proof-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #eaf3ee; color: #276140; font-size: .75rem; font-weight: 600; }
+    .proof-step strong { display: block; font-size: .85rem; margin-bottom: .25rem; }
+    .proof-step p { font-size: .82rem; margin: 0; color: #526159; }
+    .proof-step code { overflow-wrap: anywhere; font-size: .76rem; }
+    .proof-observed { color: #17663b; font-weight: 600; }
+    .proof-gap { padding: .85rem 1rem; border-radius: 8px; background: #faf6ec; border: 1px solid #eee2c6; }
+    .proof-gap strong { font-size: .8rem; color: #785414; }
+    .proof-gap p { font-size: .8rem; color: #6c5a36; margin: .2rem 0 0; }
+    .proof-footer { border-top: 1px solid #e6ece8; padding: .8rem 1.25rem; font-size: .72rem; color: #607066; background: #fbfcfb; }
+    .proof-caption { font-size: .78rem; color: #6b7280; margin-bottom: 1.5rem; }
+
     /* Responsive */
     @media (max-width: 860px) {
       aside { display: none; }
@@ -621,6 +641,7 @@
         <div class="sidebar-heading">Bug detection</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#review">Reviewing a change</a></li>
+          <li class="sidebar-item"><a href="#proof-of-correctness">Proof of correctness</a></li>
           <li class="sidebar-item"><a href="#ci">In CI and before commits</a></li>
           <li class="sidebar-item"><a href="#behaviors">Desired behaviors</a></li>
         </ul>
@@ -852,6 +873,69 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
         <p>
           <code>--kinds behavior</code> consults the desired behaviors alone, <code>--dry</code> makes no model call, <code>--json</code> gives the report as data, <code>--model</code> picks the model (<code>reviewModel</code> in the config, default <code>sonnet</code>).
         </p>
+      </section>
+
+      <section id="proof-of-correctness">
+        <h2>Proof of correctness</h2>
+        <p>Give reviewers an evidence trail from <strong>what you asked for</strong> to <strong>what actually ran</strong>. Thinker can execute the repository’s required checks, connect named test results to acceptance criteria, and post the report directly on your pull request.</p>
+        <p>For example: increase a request’s retry limit from three to five, while still rejecting timeouts. The report shows the implementation, the observed test result, and what still needs a reviewer’s judgment.</p>
+
+        <figure class="proof-card" aria-label="Illustrative pull request evidence report for a retry limit change">
+          <div class="proof-top"><span class="proof-brand">thinker / change review</span><span class="proof-chip">PR comment · example</span></div>
+          <div class="proof-content">
+            <div class="proof-kicker">Requested change</div>
+            <div class="proof-title">Five retries. Timeouts still rejected.</div>
+            <div class="proof-step"><span class="proof-number">1</span><div><strong>Trace the implementation</strong><p><code>src/retry.js:18</code> raises the retry limit to five.<br>Changed-line evidence · model reading</p></div></div>
+            <div class="proof-step"><span class="proof-number">2</span><div><strong>Observe the named test</strong><p><span class="proof-observed">✓ rejects timed-out requests — passed</span><br><code>test/retry.test.js</code> · observed by the Node reporter</p></div></div>
+            <div class="proof-step"><span class="proof-number">3</span><div><strong>Read what the assertion establishes</strong><p>The assertion checks rejection after a timeout. It leaves timeout handling on the fifth attempt untested.<br>Coverage assessment · model reading</p></div></div>
+            <div class="proof-gap"><strong>Before approving</strong><p>Does timeout rejection still work on the final retry? Add or inspect a test for that edge case.</p></div>
+          </div>
+          <figcaption class="proof-footer">Frozen candidate · checks from the trusted base · task and test links supplied by the agent</figcaption>
+        </figure>
+        <p class="proof-caption">Illustrative excerpt, condensed for clarity. Actual reports include check results, findings, coverage gaps, and evidence provenance.</p>
+
+        <h3>Run it and post the evidence</h3>
+        <p>First, commit <code>.thinker/verification.json</code> on the trusted base. This contract pins the Docker image and required check commands; a candidate cannot replace its own evaluation commands. Docker, a configured review model, and an authenticated GitHub CLI (<code>gh auth login</code>) are required for this flow.</p>
+        <details>
+          <summary>Example execution contract</summary>
+          <p>Save as <code>.thinker/verification.json</code> and commit it to the base branch. Replace the image placeholder with an actual image digest containing Node and your project’s system dependencies. This example allows network access for <code>npm ci</code>.</p>
+          <pre><code>{
+  "version": 1,
+  "image": "your-registry/verification@sha256:&lt;64-character-image-digest&gt;",
+  "platform": "linux/amd64",
+  "network": "bridge",
+  "setup": "npm ci",
+  "checks": [{
+    "id": "unit",
+    "command": "node --test --test-reporter=/thinker/reporter.mjs test/*.test.js",
+    "reporter": "node",
+    "timeoutSeconds": 600
+  }]
+}</code></pre>
+          <p>Each required check runs in a fresh container. The Node reporter records named test results. A setup failure, timeout, or missing report leaves verification incomplete.</p>
+        </details>
+        <p>Save the request and a link to an existing test as <code>task.json</code>. Test names and paths must match your repository:</p>
+        <pre><code>{
+  "request": "Increase retries from three to five; still reject timeouts",
+  "rationale": "Allow more retries while keeping timeout handling",
+  "intendedChanges": ["Raise the retry limit to five"],
+  "criteria": [{
+    "text": "Timed-out requests are rejected",
+    "tests": [{
+      "check": "unit",
+      "name": "rejects timed-out requests",
+      "file": "test/retry.test.js"
+    }]
+  }]
+}</code></pre>
+        <pre><code>thinker review --run --base origin/main --task task.json \
+  --pr 142 --post</code></pre>
+        <p><code>--run</code> waits for the checks and code assessment, then <code>--post</code> adds the report as a PR conversation comment through your GitHub login. Run this in the PR’s checkout: <code>--pr</code> identifies the destination, it does not select the code to review. Each invocation adds a new comment.</p>
+        <p>To keep working while checks run, use <code>--start</code>, then post the result with <code>thinker review --status &lt;run-id&gt; --pr 142 --post</code>. If the code or other tracked inputs have changed, the report marks the evidence as outdated. Full check logs stay local and are not uploaded.</p>
+        <h3>What the proof establishes</h3>
+        <p>A named test pass establishes that the test ran successfully on the captured snapshot. Thinker labels its reading of the assertions and code as a model assessment, and calls out skipped or unobserved tests, missing criterion coverage, and possible weakening of test or CI gates. The reviewer decides whether that evidence covers the request.</p>
+        <p>This is practical correctness evidence with an explicit scope. It is not a mathematical proof, a signed CI attestation, or a guarantee that every edge case is covered. Ordinary <code>thinker review --post</code> posts a code assessment without executing tests; use <code>--run</code> or a completed verification run for execution evidence. Your existing CI checks still apply.</p>
+        <p><a href="https://github.com/yoavshmariahu/thinker/blob/main/docs/task-verification.md">Execution contract, MCP usage, and full verification reference &rarr;</a></p>
       </section>
 
       <section id="ci">
