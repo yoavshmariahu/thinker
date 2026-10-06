@@ -323,7 +323,7 @@ export async function setup(ctx) {
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
   // asking for a size is asking for the build; --no-build (or both --no-seed and --no-prs) is a no
-  const askedToBuild = Boolean(flags.build) || flags.areas !== undefined || flags.prs !== undefined;
+  const askedToBuild = Boolean(flags.build) || flags.areas !== undefined || flags.prs !== undefined || Boolean(flags['propose-behaviors']);
   const build = flags['no-build'] || (flags['no-seed'] && flags['no-prs']) ? false : (askedToBuild ? true : null);
 
   await runSetup({
@@ -342,6 +342,7 @@ export async function setup(ctx) {
     noSeed: Boolean(flags['no-seed']) || build === false,
     noPrs: Boolean(flags['no-prs']) || build === false,
     noPhrase: Boolean(flags['no-phrase']),
+    proposeBehaviors: Boolean(flags['propose-behaviors']),
     model: flags.model,
     agent,
     yes: Boolean(flags.yes),

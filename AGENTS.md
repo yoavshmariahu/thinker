@@ -731,6 +731,15 @@ readable; new behaviors stay local.
   system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one
   (`ops.js:archiveReason`).
+- **Optional build proposals.** `thinker setup --build --propose-behaviors`
+  drafts up to twelve high-signal PR/document rule notes into desired behavior
+  candidates in `.thinker/local/behavior-proposals.json`. The model sees each
+  note's source and current symbol code; outputs are restricted to the note's
+  existing symbol deps. `thinker system propose` shows drafts and their
+  provenance; `thinker system accept proposal-<note-id>` creates an active
+  behavior only after a person reviews it. The draft is not served or reviewed
+  as a requirement. Acceptance refuses a changed source note or code. The
+  step is opt-in and is absent from the default build.
 - **Verification** (`ops.js:verifyBehavior`, through `verifyNote`): when a dep
   changes the question is whether the code still upholds the behavior.
   `holds` re-baselines; `moved` re-points the deps at where the behavior is

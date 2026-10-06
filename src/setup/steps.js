@@ -10,6 +10,7 @@ import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
+import { generateBehaviorProposals } from '../behavior-proposals.js';
 import { c, formatBytes, selectMenu } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -127,7 +128,7 @@ export function ignoreLocalState(dir) {
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn }) {
+export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, proposeBehaviors = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
   let warnings = 0;
   // with neither pull requests nor exploration there is nothing to estimate: what is left
   // (linking) is free and local, and the notes come from the sessions to come
@@ -221,6 +222,16 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     } catch (e) {
       warnings++;
       out(`        ${c.yellow('⚠')} Search phrasings failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker phrase`);
+    }
+  }
+
+  if (proposeBehaviors) {
+    try {
+      const result = await proposeFn(store, { model });
+      out(`        ${c.green('✔')} ${result.proposals.length} behavior drafts from ${result.sources} source notes; inspect with thinker system propose`);
+    } catch (e) {
+      warnings++;
+      out(`        ${c.yellow('⚠')} Behavior proposals failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry with thinker setup --build --propose-behaviors`);
     }
   }
 
