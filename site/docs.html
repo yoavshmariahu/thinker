@@ -281,8 +281,6 @@
 
     .callout strong { display: inline; }
 
-    .callout code { background: rgba(0, 0, 0, 0.05); }
-
     /* Code */
     pre {
       background: #0f172a;
@@ -299,10 +297,10 @@
     code {
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       font-size: 0.86rem;
-      background: #f3f4f6;
+      background: #0f172a;
       padding: 0.12rem 0.35rem;
       border-radius: 4px;
-      color: #111827;
+      color: #f8fafc;
     }
 
     pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
@@ -543,7 +541,7 @@
     /* Evidence report: real HTML keeps the example readable on small screens. */
     /* Proof of correctness: a pull request review as GitHub renders one */
     .gh { margin: 1.5rem 0 0.5rem; color: #1f2328; font-size: 0.84rem; line-height: 1.5; }
-    .gh code { font-size: 0.78rem; background: #eff1f3; color: #1f2328; margin: 0; padding: 0.1em 0.35em; white-space: nowrap; }
+    .gh code { font-size: 0.78rem; background: #0f172a; color: #f8fafc; margin: 0; padding: 0.1em 0.35em; white-space: nowrap; }
     .gh-details code, .gh-fine code { white-space: normal; }
     .gh-muted { color: #656d76; }
     .gh-fine { font-size: 0.78rem; color: #656d76; }
@@ -591,7 +589,7 @@
     .tag-model { color: #7d5300; background: #fff4ca; }
     .tag-reviewer { color: #3f4650; background: #eaeef2; }
     .gh-file-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
-    .gh-file-head code { background: transparent; padding: 0; font-size: 0.8rem; }
+    .gh-file-head code { font-size: 0.8rem; }
     .gh-file-head .gh-muted { margin-left: auto; font-size: 0.76rem; }
     .gh-file-icon { width: 0.9rem; height: 0.9rem; border: 1.5px solid #656d76; border-radius: 2px; display: inline-block; }
     .gh-diff { border-collapse: collapse; width: 100%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.74rem; line-height: 1.55; }
@@ -716,7 +714,7 @@
           </a>
           <a class="outcome" href="#in-a-session">
             <div class="outcome-kicker">Efficient coding</div>
-            <div class="outcome-num">&minus;18 to 19%</div>
+            <div class="outcome-num">&minus;18%</div>
             <div class="outcome-label">Input tokens per coding task, on every model tested</div>
             <p class="outcome-body">Each request gets the one note that fits it, with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
             <div class="outcome-cta">What a session looks like &rarr;</div>
@@ -1148,7 +1146,7 @@ thinker system md                   <span class="code-comment"># write them as .
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
         <p>
-          Measured on real tasks with and without thinker, every model tested used 18 to 19% fewer input tokens per task, made fewer tool calls and finished faster, with correctness held. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
+          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task, made fewer tool calls and finished faster, with correctness held. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
         </p>
       </section>
 
@@ -1323,7 +1321,7 @@ export THINKER_TELEMETRY=off
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
-          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer tokens</span> per task.</h3>
+          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
           <p class="bench-lede">Real coding tasks from merged pull requests, run with and without thinker. Input tokens per task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>

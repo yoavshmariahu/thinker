@@ -844,7 +844,7 @@
       </div>
       <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
         <div class="metric-kicker">Efficiency</div>
-        <div class="metric-num gain">18%</div>
+        <div class="metric-num gain">&minus;18%</div>
         <div class="metric-label">Less tokens per coding task, on every model</div>
         <ul class="metric-models">
           <li><span>Claude Fable</span><span><span class="before">1.25M &rarr;</span> 1.02M</span></li>
@@ -913,7 +913,7 @@
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
-          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer tokens</span> per task.</h3>
+          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
           <p class="bench-lede">Real coding tasks from merged pull requests, run with and without thinker. Input tokens per task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
