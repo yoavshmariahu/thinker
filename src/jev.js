@@ -1,6 +1,6 @@
 // Jev (TypeSafe System One) as the serving reranker: one batched call scores every gated candidate
-// against the request, and the selection happens in code. Opt-in; without a key the cross-encoder
-// (dense.js) serves as before, so nothing here is required to run thinker.
+// against the request, and the selection happens in code. Hosted by default; an optional personal
+// key uses TypeSafe directly. The local cross-encoder takes over on errors or slow responses.
 //
 // Measured on all 54 labelled ranking tasks, two runs (judge gpt-6-sol, the labels in
 // bench/runs/ranking-lab-2026-10-04), against the cross-encoder default on the same 54:
@@ -13,7 +13,8 @@ import os from 'os';
 import path from 'path';
 
 export const JEV_ENDPOINT = process.env.THINKER_JEV_ENDPOINT || 'https://api.typesafe.ai/v1/systemone';
-export const JEV_DEFAULTS = { enabled: 'auto', floor: 0.5, maxNotes: 2, k: 8, model: 'jev-latest', timeoutMs: 4000 };
+export const JEV_PROXY_ENDPOINT = 'https://dtsvgyzh00.execute-api.us-east-1.amazonaws.com/v1/systemone';
+export const JEV_DEFAULTS = { enabled: 'auto', floor: 0.5, maxNotes: 2, k: 8, model: 'jev-latest', timeoutMs: 1500 };
 
 export const thinkerHome = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 // The key never goes in .thinker/config.json: that file is part of the repository. It lives in the
@@ -37,8 +38,45 @@ export function saveKey(key) {
 
 export function forgetKey() { try { fs.unlinkSync(keyFile()); return true; } catch { return false; } }
 
-// `enabled: 'auto'` (the default) means: on when a key is present, off otherwise. true forces it on and
-// an absent key then surfaces as a jev-error and the cross-encoder serves; false turns it off outright.
+export const proxyFile = () => path.join(thinkerHome(), 'jev-proxy.json');
+const proxyEndpoint = () => process.env.THINKER_JEV_PROXY_ENDPOINT || JEV_PROXY_ENDPOINT;
+function savedProxy(endpoint) {
+  try {
+    const data = JSON.parse(fs.readFileSync(proxyFile(), 'utf8'));
+    if (data.endpoint === endpoint && /^tp_[a-f0-9]{64}$/.test(data.token) && data.expiresAt > Date.now() / 1000 + 60) return data;
+  } catch {}
+  return null;
+}
+// Registration is automatic, separate from telemetry, and contains no repository content.
+// Tests must inject a transport; they cannot register or call a production model accidentally.
+export async function hostedCredential({ endpoint = proxyEndpoint(), fetchImpl = fetch, signal } = {}) {
+  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
+  const url = new URL(endpoint);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/v1/systemone') {
+    throw new Error('invalid jev proxy endpoint');
+  }
+  const saved = savedProxy(endpoint);
+  if (saved) return saved;
+  const response = await fetchImpl(new URL('/v1/enroll', url), {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    signal: signal || AbortSignal.timeout(JEV_DEFAULTS.timeoutMs), redirect: 'error',
+  });
+  if (!response.ok) throw new Error(`jev registration ${response.status}`);
+  const data = await response.json();
+  if (!/^tp_[a-f0-9]{64}$/.test(data?.token) || !Number.isFinite(data.expiresAt) || data.expiresAt <= Date.now() / 1000 + 60) {
+    throw new Error('invalid jev registration');
+  }
+  const credential = { endpoint, token: data.token, expiresAt: data.expiresAt };
+  fs.mkdirSync(thinkerHome(), { recursive: true });
+  const temporary = `${proxyFile()}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(credential) + '\n', { mode: 0o600, flag: 'wx' });
+    fs.renameSync(temporary, proxyFile());
+  } finally { try { fs.unlinkSync(temporary); } catch {} }
+  return credential;
+}
+
+// Auto now selects hosted Jev without requiring a personal key. false is the local-only mode.
 export function jevConfig(store) {
   const c = store?.config?.().jev;
   const cfg = { ...JEV_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
@@ -50,15 +88,12 @@ export function jevConfig(store) {
   if (e.THINKER_JEV_MODEL) cfg.model = e.THINKER_JEV_MODEL;
   if (e.THINKER_JEV_TIMEOUT) cfg.timeoutMs = Number(e.THINKER_JEV_TIMEOUT);
   cfg.key = cfg.key || jevKey();
-  // A developer's key must never switch Jev on inside the test suite: a test run contacts no service
-  // (AGENTS.md, "No telemetry from tests or benchmarks"), and before this guard `npm test` made live
-  // calls and changed what orient served on any machine that had a key. An explicit `enabled: true`
-  // or THINKER_JEV=on still wins, for a deliberate integration test.
-  if (cfg.enabled === 'auto') cfg.enabled = !!cfg.key && !process.env.THINKER_TEST;
+  // Automatic model calls stay off in tests; explicit mocked integrations may enable them.
+  if (cfg.enabled === 'auto') cfg.enabled = !process.env.THINKER_TEST;
   return cfg;
 }
 export const jevEnabled = store => !!jevConfig(store).enabled;
-export const jevReady = store => { const c = jevConfig(store); return !!(c.enabled && c.key); };
+export const jevReady = store => { const c = jevConfig(store); return !!(c.enabled && (c.key || savedProxy(proxyEndpoint()))); };
 
 // Jev reads named fields, not prose: a note goes over as a record whose parts it can be pointed at by name.
 // Measured against one prose blob of the same note: same recall, false positives 8 -> 5.
@@ -96,23 +131,25 @@ export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject
 // caller falls back to the cross-encoder; a hook must never fail because a network call did.
 export async function jevScores(query, notes, cfg = {}) {
   const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs, fetchImpl = fetch, subject, criteria, question } = cfg;
-  if (!key) throw new Error('no jev key');
   if (!notes.length) return [];
+  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const res = await fetchImpl(JEV_ENDPOINT, {
+    const hosted = key ? null : await hostedCredential({ fetchImpl, signal: ctl.signal });
+    const res = await fetchImpl(hosted?.endpoint || JEV_ENDPOINT, {
       method: 'POST',
-      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${key || hosted.token}`, 'content-type': 'application/json' },
       body: JSON.stringify(buildRequest(query, notes, { model, subject, criteria, question })),
       signal: ctl.signal,
+      redirect: 'error',
     });
     if (!res.ok) throw new Error(`jev ${res.status}`);
     const j = await res.json();
     if (!j || !j.answers) throw new Error('jev: no answers');
     return notes.map((_, i) => {
       const a = j.answers[`rel${i}`];
-      if (!a || typeof a.noul !== 'number') throw new Error(`jev: missing rel${i}`);
+      if (!a || !Number.isFinite(a.noul) || a.noul < 0 || a.noul > 1) throw new Error(`jev: missing or invalid rel${i}`);
       return a.noul;
     });
   } finally { clearTimeout(timer); }
@@ -141,5 +178,7 @@ export async function jevRerank(ranked, query, cfg = {}) {
 // What `thinker ranker` and setup report.
 export function jevStatus(store) {
   const cfg = jevConfig(store);
-  return { enabled: !!cfg.enabled, key: !!cfg.key, source: process.env.THINKER_JEV_KEY || process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY ? 'environment' : cfg.key ? keyFile() : null, model: cfg.model, floor: cfg.floor, maxNotes: cfg.maxNotes };
+  return { enabled: !!cfg.enabled, key: !!cfg.key, mode: cfg.key ? 'direct' : 'hosted',
+    source: process.env.THINKER_JEV_KEY || process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY ? 'environment' : cfg.key ? keyFile() : 'Thinker hosted access',
+    model: cfg.model, floor: cfg.floor, maxNotes: cfg.maxNotes, timeoutMs: cfg.timeoutMs };
 }

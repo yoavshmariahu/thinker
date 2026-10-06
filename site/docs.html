@@ -805,18 +805,18 @@ thinker setup --build --yes</code></pre>
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
         </div>
         <p>
-          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. We’re building <a href="#jev">hosted Jev through Thinker’s proxy</a>, with no personal TypeSafe key required. Existing releases can use the built-in local ranker while hosted access rolls out. <code>thinker ranker</code> shows the configured ranking mode.
+          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. Hosted <a href="#jev">Jev through Thinker’s proxy</a> is the default, with no personal TypeSafe key required. The local ranker stays installed as a fallback. <code>thinker ranker</code> shows the configured ranking mode.
         </p>
       </section>
 
       <section id="jev">
         <h2>Jev through Thinker</h2>
         <p>
-          We're building hosted note selection with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Thinker will provide access through its proxy. You won't need a TypeSafe account or personal API key.</strong>
+          Thinker uses hosted note selection with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Thinker provides access through its proxy. You do not need a TypeSafe account or personal API key.</strong>
         </p>
-        <h3>How it will work</h3>
+        <h3>How it works</h3>
         <ol>
-          <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically and keeps the upstream TypeSafe credential on its server.</li>
+          <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically, including with <code>--yes</code>, and keeps the upstream TypeSafe credential on its server. A revocable client token is stored in <code>~/.thinker/jev-proxy.json</code> with owner-only permissions.</li>
           <li>For each task, Thinker builds a local shortlist. One request through Thinker's proxy asks Jev which notes help with the task.</li>
           <li>Thinker uses the relevance probabilities to select notes for your coding agent. Your agent still implements the task; learning, verification, and review use your configured agent/model.</li>
         </ol>
@@ -834,11 +834,11 @@ thinker setup --build --yes</code></pre>
         </p>
         <h3>What leaves your machine</h3>
         <p>
-          Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
+          Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The proxy does not log request or note content. Hosted access has usage limits, with local fallback when a limit is reached. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
         </p>
         <h3>Already configured a personal key?</h3>
         <p>
-          Personal keys remain an optional compatibility path and use TypeSafe directly. They are not required for hosted access. To switch from a saved personal key to the proxy once hosted access ships:
+          Personal keys remain an optional compatibility path and use TypeSafe directly. They are not required for hosted access. To switch from a saved personal key to the proxy:
         </p>
         <pre><code>thinker ranker --no-jev-key</code></pre>
         <p>
@@ -1220,7 +1220,7 @@ thinker system md                   <span class="code-comment"># write them as .
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. The <a href="#jev">hosted Jev integration in development</a> will score a shortlist through Thinker’s proxy and keep up to two qualifying notes, without requiring a personal API key. Existing releases use local ranking or an optional personal-key Jev connection; API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. The <a href="#jev">hosted Jev integration</a> scores a shortlist through Thinker’s proxy and keeps up to two qualifying notes, without requiring a personal API key. Existing releases use local ranking or an optional personal-key Jev connection; API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
@@ -1325,7 +1325,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is in development. <a href="#jev">Rollout and data handling</a></td></tr>
+              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is the default; the client timeout is 1,500 ms. <a href="#jev">Rollout and data handling</a></td></tr>
               <tr><td><code>ce</code></td><td>Local fallback ranker: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to disable it. With Jev also disabled, ranking uses words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
@@ -1341,7 +1341,7 @@ thinker benchmark report</code></pre>
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> <a href="#jev">Jev ranking</a> sends the request and candidate-note records for model processing; the hosted flow will route them through Thinker’s proxy to TypeSafe. Learning and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> <a href="#jev">Jev ranking</a> sends the request and candidate-note records for model processing; the hosted flow routes them through Thinker’s proxy to TypeSafe. Learning and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off

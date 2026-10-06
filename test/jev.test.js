@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, noteRecord, saveKey, selectByJev } from '../src/jev.js';
+import { JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, hostedCredential, proxyFile, noteRecord, saveKey, selectByJev } from '../src/jev.js';
 
 const note = (id, over = {}) => ({ id, kind: 'rule', title: `t ${id}`, answers: [`q ${id}`], body: `line one about ${id}\nline two`, deps: [{ path: 'src/a.js', symbol: 'f' }], status: 'fresh', ...over });
-const withHome = fn => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jev-')); const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = dir;
-  const keep = { k: process.env.THINKER_JEV_KEY, j: process.env.JEV_API_KEY, t: process.env.TYPESAFE_API_KEY, test: process.env.THINKER_TEST };
-  delete process.env.THINKER_JEV_KEY; delete process.env.JEV_API_KEY; delete process.env.TYPESAFE_API_KEY; delete process.env.THINKER_TEST;
-  try { return fn(dir); } finally { prev === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prev);
-    for (const [k, v] of [['THINKER_JEV_KEY', keep.k], ['JEV_API_KEY', keep.j], ['TYPESAFE_API_KEY', keep.t], ['THINKER_TEST', keep.test]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+const withHome = async fn => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jev-')); const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = dir;
+  const keep = { k: process.env.THINKER_JEV_KEY, j: process.env.JEV_API_KEY, t: process.env.TYPESAFE_API_KEY };
+  delete process.env.THINKER_JEV_KEY; delete process.env.JEV_API_KEY; delete process.env.TYPESAFE_API_KEY;
+  try { return await fn(dir); } finally { prev === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prev);
+    for (const [k, v] of [['THINKER_JEV_KEY', keep.k], ['JEV_API_KEY', keep.j], ['TYPESAFE_API_KEY', keep.t]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
     fs.rmSync(dir, { recursive: true, force: true }); } };
 const okFetch = scores => async () => ({ ok: true, status: 200, json: async () => ({ model: 'jev-1.13.0', answers: Object.fromEntries(scores.map((s, i) => [`rel${i}`, { type: 'noul', noul: s }])), usage: { input_tokens: 10, output_tokens: 0 } }) });
 
@@ -53,8 +53,8 @@ test('jevScores returns one probability per note, in order', async () => {
 test('jevScores throws on a failed call, an empty body, or a missing answer, so serving falls back', async () => {
   await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: async () => ({ ok: false, status: 429 }) }), /jev 429/);
   await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: async () => ({ ok: true, json: async () => ({}) }) }), /no answers/);
-  await assert.rejects(jevScores('q', [note('a'), note('b')], { key: 'k', fetchImpl: okFetch([0.8]) }), /missing rel1/);
-  await assert.rejects(jevScores('q', [note('a')], { key: null }), /no jev key/);
+  await assert.rejects(jevScores('q', [note('a'), note('b')], { key: 'k', fetchImpl: okFetch([0.8]) }), /missing or invalid rel1/);
+  await assert.rejects(jevScores('q', [note('a')], { key: null }), /network disabled in tests/);
 });
 
 test('jevRerank scores only the first k and returns the selection', async () => {
@@ -81,11 +81,12 @@ test('the key is never written into the repository', () => withHome(dir => {
   assert.ok(saveKey('k').startsWith(dir), 'key must live under THINKER_HOME');
 }));
 
-test('enabled defaults to auto: on with a key, off without', () => withHome(() => {
+test('auto selects hosted or direct credentials but never enables model calls implicitly in tests', () => withHome(() => {
   const store = { config: () => ({}) };
   assert.equal(jevConfig(store).enabled, false);
+  assert.equal(jevStatus(store).mode, 'hosted');
   saveKey('k');
-  assert.equal(jevConfig(store).enabled, true);
+  assert.equal(jevConfig(store).enabled, false);
   assert.equal(jevStatus(store).key, true);
 }));
 
@@ -127,7 +128,65 @@ test('a key on the machine never switches Jev on inside the test suite', () => w
   assert.equal(jevConfig({ config: () => ({ jev: { enabled: true } }) }).enabled, true, 'an explicit opt-in still wins');
   process.env.THINKER_JEV = 'on';
   assert.equal(jevConfig(store).enabled, true, 'THINKER_JEV=on still wins');
-  delete process.env.THINKER_JEV; delete process.env.THINKER_TEST;
+  delete process.env.THINKER_JEV;
+}));
+
+test('hosted Jev registers once, stores an owner-only token and reuses it', () => withHome(async () => {
+  let enrollments = 0, evaluations = 0;
+  const token = `tp_${'b'.repeat(64)}`;
+  const fetchImpl = async (url, options) => {
+    if (String(url).endsWith('/v1/enroll')) {
+      enrollments++; assert.equal(options.body, '{}');
+      return { ok: true, json: async () => ({ token, expiresAt: Date.now() / 1000 + 3600 }) };
+    }
+    evaluations++;
+    assert.equal(options.headers.authorization, `Bearer ${token}`);
+    return (await okFetch([0.9])());
+  };
+  assert.deepEqual(await jevScores('q', [note('a')], { key: null, fetchImpl }), [0.9]);
+  assert.deepEqual(await jevScores('q', [note('a')], { key: null, fetchImpl }), [0.9]);
+  assert.equal(enrollments, 1); assert.equal(evaluations, 2);
+  assert.equal(fs.statSync(proxyFile()).mode & 0o777, 0o600);
+  assert.equal(JSON.parse(fs.readFileSync(proxyFile())).token, token);
+}));
+
+test('personal keys bypass enrollment and never go to the hosted proxy', () => withHome(async () => {
+  await jevScores('q', [note('a')], { key: 'personal-key', fetchImpl: async (url, options) => {
+    assert.equal(url, 'https://api.typesafe.ai/v1/systemone');
+    assert.equal(options.headers.authorization, 'Bearer personal-key');
+    return (await okFetch([0.7])());
+  } });
+  assert.equal(fs.existsSync(proxyFile()), false);
+}));
+
+test('invalid registration, revoked tokens and invalid probabilities fail for local fallback', () => withHome(async () => {
+  await assert.rejects(hostedCredential({ fetchImpl: async () => ({ ok: true, json: async () => ({ token: 'bad', expiresAt: 1 }) }) }), /invalid jev registration/);
+  for (const value of [NaN, Infinity, -0.1, 1.1, '0.5']) {
+    await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: okFetch([value]) }), /invalid rel0/);
+  }
+  const token = `tp_${'b'.repeat(64)}`;
+  await hostedCredential({ fetchImpl: async () => ({ ok: true, json: async () => ({ token, expiresAt: Date.now() / 1000 + 3600 }) }) });
+  let calls = 0;
+  await assert.rejects(jevScores('q', [note('a')], { key: null, fetchImpl: async url => {
+    calls++; assert.ok(String(url).endsWith('/v1/systemone')); return { ok: false, status: 401 };
+  } }), /jev 401/);
+  assert.equal(calls, 1, 'revocation must not trigger automatic re-enrollment');
+}));
+
+test('a slow response is aborted within the configured budget', async () => {
+  let aborted = false;
+  await assert.rejects(jevScores('q', [note('a')], { key: 'k', timeoutMs: 15,
+    fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); }, { once: true });
+    }),
+  }), /aborted/);
+  assert.equal(aborted, true);
+});
+
+test('hosted credentials cannot be sent to HTTP or a URL containing credentials', () => withHome(async () => {
+  for (const endpoint of ['http://example.com/v1/systemone', 'https://user:pass@example.com/v1/systemone']) {
+    await assert.rejects(hostedCredential({ endpoint, fetchImpl: async () => { throw new Error('must not fetch'); } }), /invalid jev proxy endpoint/);
+  }
 }));
 
 test('review narrows its related notes with Jev and falls back to BM25 when the call fails', async () => {

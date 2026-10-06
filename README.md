@@ -45,8 +45,8 @@ everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
 
 Then work with your agent as usual. Thinker selects relevant notes for each
-request automatically. We're building **hosted Jev through Thinker's proxy**
-so note selection can use Jev without a personal TypeSafe account or API key.
+request automatically. **Hosted Jev through Thinker's proxy is the default**,
+with no personal TypeSafe account or API key required.
 See [Jev through Thinker](#jev-through-thinker) for the rollout and data flow.
 
 To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
@@ -85,30 +85,33 @@ Notes:
 
 ## Jev through Thinker
 
-We're building hosted note selection with
+Thinker uses hosted note selection with
 [Jev](https://docs.typesafe.ai/concepts/system-one), TypeSafe's System One
-model. **Thinker will provide access through its proxy; users won't need to
-create a TypeSafe account or supply an API key.** This integration is in
-development. Existing releases may still show the earlier personal-key setup;
-that is not a requirement for the hosted flow.
+model. **Thinker provides access through its proxy; users do not need to
+create a TypeSafe account or supply an API key.** The hosted service is live;
+this source version uses it by default. Earlier release archives may still
+show the personal-key prompt until updated.
 
 The flow is simple: Thinker shortlists relevant notes locally, sends the
 request and candidates through its proxy to Jev, then uses Jev's relevance
 probabilities to choose what the coding agent sees. The hosted implementation
 provisions access automatically and keeps the upstream TypeSafe credential on
-the server. Your coding agent still implements the task; learning,
+the server. A revocable client token is stored in `~/.thinker/jev-proxy.json`
+with owner-only permissions. Your coding agent still implements the task; learning,
 verification, and review still use your configured agent/model.
 
 The selection defaults are up to eight candidates in one call, a relevance
 threshold of 0.5, and at most two notes within the serving budget. If nothing
 qualifies, nothing is served. Prompt hooks withhold stale notes and avoid
 repeating notes within a session. Broader MCP `orient` requests retain lexical
-ranking. Errors, rate limits, and slow responses fall back to the built-in
+ranking. Errors, rate limits, and responses exceeding 1.5 seconds fall back to the built-in
 local ranker, with lexical ranking available if that model is unavailable.
 
 **Data flow:** the request and candidate-note titles, question phrasings, body
 excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to
-TypeSafe. The cache remains stored locally. Hosted ranking is separate from
+TypeSafe. The proxy does not log request or note content. Hosted access has
+usage limits; the local ranker takes over when a limit is reached. The cache
+remains stored locally. Hosted ranking is separate from
 telemetry: `THINKER_TELEMETRY=off` does not disable model calls. Set
 `"jev": false` in `.thinker/config.json`, or `THINKER_JEV=off` in the agent's
 environment, to use local note ranking. See [onboarding](ONBOARDING.md#jev-through-thinker)
