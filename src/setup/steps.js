@@ -11,6 +11,7 @@ import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
+import { jevKey, saveKey, keyFile } from '../jev.js';
 import { c, formatBytes, selectMenu } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -273,5 +274,40 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
   } catch {
     out(`  ${c.dim('Cache not built. Run thinker setup --build any time.')}`);
     return false;
+  }
+}
+
+// Which ranker decides what gets served. The built-in cross-encoder needs nothing and works offline;
+// Jev (TypeSafe System One) needs a key of its own, which is the only credential thinker ever asks for.
+// The numbers quoted are from bench/RESULTS.md, "Serving: Jev": 20 of the 54 labelled ranking tasks,
+// judged by the same gpt-6-sol labels as every other ranking number there.
+export async function confirmJevKey({ out = console.log, stdin = process.stdin, stdout = process.stdout, readlineFn = null } = {}) {
+  if (jevKey()) { out(`  ${c.dim(`Jev key already configured (${keyFile()}); serving will use it.`)}`); return 'existing'; }
+  out(`  ${c.bold('Which ranker should choose the notes you are served?')} ${c.dim('— optional')}`);
+  out(`    • ${c.bold('Jev')} ${c.dim('(TypeSafe System One)')} reaches about ${c.cyan('twice the share of the notes that matter')} at the same precision,`);
+  out(`      and serves nothing when nothing fits. About ${c.cyan('170 ms')} and ${c.cyan('6k tokens')} a prompt, on a key of your own.`);
+  out(`    • ${c.bold('Built-in ranker')} is a 23 MB local model: no key, no network, nothing to pay for.`);
+  out(`    • ${c.dim('Recommended: Jev, if you have a key. Get one at https://console.typesafe.ai/keys')}`);
+  out(`    • ${c.dim('Either way you can change it later: thinker ranker --jev-key <key>, or THINKER_JEV=off')}`);
+  if (!stdin.isTTY) { out(`\n  ${c.yellow('○')} ${c.dim('Not a terminal, so the built-in ranker stays in use.')}`); return 'ce'; }
+  try {
+    const choice = await selectMenu({
+      items: [
+        { label: 'Use Jev · paste an API key now (recommended)', value: 'jev' },
+        { label: 'Use the built-in ranker · no key, works offline', value: 'ce' },
+      ],
+      defaultIndex: 0, out,
+    });
+    if (choice?.value !== 'jev') { out(`  ${c.dim('Built-in ranker. Add a key later with: thinker ranker --jev-key <key>')}`); return 'ce'; }
+    const rl = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
+    let key = '';
+    try { key = String(await rl.question(`  ${c.bold('TypeSafe API key')} ${c.dim('(leave blank to skip)')}: `)).trim(); } finally { rl.close(); }
+    if (!key) { out(`  ${c.dim('No key given; built-in ranker stays in use.')}`); return 'ce'; }
+    const where = saveKey(key);
+    out(`  ${c.green('✓')} Key saved to ${c.dim(where)} ${c.dim('(owner-readable only; never written into the repository)')}`);
+    return 'jev';
+  } catch {
+    out(`  ${c.dim('Built-in ranker stays in use. Add a key later with: thinker ranker --jev-key <key>')}`);
+    return 'ce';
   }
 }

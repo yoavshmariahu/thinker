@@ -12,6 +12,7 @@ import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { anchoringGuard } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
+import { jevConfig, jevRerank } from './jev.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 
@@ -254,7 +255,19 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // pick could be a stale note and nothing would be served; the stale notes the lexical top would have served
   // are still held below until scheduled maintenance
   const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
-  if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
+  // Jev (jev.js) ahead of the cross-encoder when a key is configured: one batched call scores the gated
+  // candidates against the request. Reaches about twice the share of important notes at the same precision
+  // (bench/RESULTS.md, "Serving: Jev"). Any failure -- no key, offline, slow, bad response -- falls through
+  // to the cross-encoder below, so a prompt hook never fails because a network call did.
+  const jevCfg = jevConfig(store);
+  let jev = null;
+  if (jevCfg.enabled && ranked.length && maxNotes <= 2) {
+    const before = ranked;
+    if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
+    try { ranked = await jevRerank(ranked, task, jevCfg); chosen = true; jev = ranked.map(r => Number(r.jev.toFixed(2))); maxNotes = Math.min(maxNotes, jevCfg.maxNotes || maxNotes); }
+    catch (e) { ranked = before; store.log({ op: 'jev-error', error: String(e.message).slice(0, 200) }); }
+  }
+  if (!chosen && ceCfg.enabled && ranked.length && maxNotes <= 2) {
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
     try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
     catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
@@ -286,7 +299,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -297,7 +310,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

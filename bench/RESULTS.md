@@ -660,6 +660,45 @@ stacked on the cross-encoder (nothing extra). The floor was chosen on these 54 t
 should be read as somewhat smaller. The transformers.js classification pipeline softmaxes a single-logit
 cross-encoder to 1.0; the logit is read from the model directly.
 
+## Serving: Jev (2026-10-06, offline, 20 of the 54 labelled tasks)
+
+[Jev](https://docs.typesafe.ai) (TypeSafe System One) returns a calibrated probability per typed question and
+generates no text. As a serving reranker it takes the lexically gated candidates and answers one Noul per
+candidate: *would this note help a developer carry out this request*. The note goes over as named fields
+(`kind`, `title`, `answers_the_questions`, `claim`, `code_it_points_at`, `freshness`; `jev.js:noteRecord`),
+not as prose: against one blob of the same note, recall held and false positives went from 8 to 5.
+
+Scored against the same `gpt-6-sol` labels as every other ranking number here
+(`bench/runs/ranking-lab-2026-10-04`), on 20 of the 54 tasks — grafana 10, mitmproxy 5, posthog 5, stratified
+by largest remainder in file order. 303 candidates, 27 important notes, 15 of 20 tasks have a useful note.
+Harness: the `agent/jev-structured-notes` branch, `exp/hook-jev-arm.mjs`.
+
+| arm | served | useful share | important share | important notes | tasks hit | served when nothing useful |
+|---|---|---|---|---|---|---|
+| jev, floor 0.5, one note | 11 | 1.00 | 0.64 | 7/27 | 11/20 | 0 |
+| **jev, floor 0.5, two notes** (the default when a key is set) | 18 | **0.94** | 0.61 | **11/27** | 11/20 | **0** |
+| jev, floor 0.7, one note | 7 | 1.00 | 0.86 | 6/27 | 7/20 | 0 |
+| cross-encoder default, all 54 tasks (above) | — | 0.96 | — | 16/70 | 23/54 | 0/8 |
+
+So about twice the share of important notes reached — 41% against 23% — at the same useful share, and
+neither serves anything on a task where no useful note exists. About 170 ms and 6k tokens a prompt.
+
+What this is not: n=20, one run, one judge, one prompt. The same setup scored 0.64 / 0.69 / 0.75 precision on a
+smaller hand-labelled set across runs differing only by model nondeterminism, so differences of a couple of
+notes are not resolvable here. The BM25 arms in that harness rank *within* each task's labelled pool with no
+coverage gate and score 0.37–0.47; they badly understate the production gated hook at 0.69 and are not the
+baseline. Jev was handed the labelled pool (the union of the gate, dense and open rankings), which is
+favourable — production generates its own candidates. The stored `l6` scores in the lab run behave like the
+raw-note-text variant that did not separate, so the `l6` arm there is not the live cross-encoder default.
+
+Measured and rejected the same day: a facet vector typed onto every note (task triggers, an `inert` flag, a
+`machine` flag, a drift surface, a blast score; 347 notes, `exp/type-store.mjs`) as a serving signal. Against
+the 66 notes carrying real attestation labels every facet scored AUC ~0.50 — inert 0.630 (the wrong way),
+machine 0.435, blast 0.480, trigger 0.517–0.541 — and `inert > 0.5` flagged three notes sessions had been
+confirmed to act on, one with three confirmations. No intrinsic property of a note predicts what sessions do
+with it; only the (request, note) pair does. The facets stay useful descriptively: 29 of 347 notes type as
+`an_external_tool_changing`, meaning no dep hash can falsify them.
+
 ## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
 
 Every ranking number above scores a served note as "on target" when it rests on a file the merged fix changed.
