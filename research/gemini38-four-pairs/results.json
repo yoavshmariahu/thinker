@@ -1,0 +1,235 @@
+{
+  "date": "2026-10-05",
+  "sourceCommit": "8105d37",
+  "agent": "agy 1.2.17",
+  "model": "gemini-3.8-flash-high",
+  "effort": "high",
+  "runs": [
+    {
+      "repo": "grafana",
+      "task": "PR133011-hard",
+      "arm": "cache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "c24af5cf-fa86-44fa-978a-f1867fe61ec8",
+      "wallMs": 603033,
+      "toolCalls": 102,
+      "filesRead": 54,
+      "normalInputTokens": 520941,
+      "providerCacheReadTokens": 13276221,
+      "outputTokens": 114620,
+      "thinkingTokens": 89045,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [
+        "c4"
+      ],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [
+        "text-v2-view-mode-state-must-stay-lifted-in-textngpanel-not"
+      ],
+      "patchSha256": "8b878c3df6a0cfc093350456d29b56530396071c5020e07cba3ff0a0888e70e9"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133011-hard",
+      "arm": "nocache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "f16f9dc9-b4da-4a5f-9483-52b3c6a8fc2e",
+      "wallMs": 778379,
+      "toolCalls": 131,
+      "filesRead": 73,
+      "normalInputTokens": 742907,
+      "providerCacheReadTokens": 14236525,
+      "outputTokens": 135941,
+      "thinkingTokens": 107020,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [],
+      "patchSha256": "a290b798cecd295d21257683b21c535d53072cc75b041ef7e46bfb0763894f1c"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133206-hard",
+      "arm": "cache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "b1b524c6-9ac1-455b-9994-d2e2db4c987d",
+      "wallMs": 390720,
+      "toolCalls": 74,
+      "filesRead": 36,
+      "normalInputTokens": 365099,
+      "providerCacheReadTokens": 6593920,
+      "outputTokens": 63248,
+      "thinkingTokens": 45172,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [],
+      "targetedTest": "pass",
+      "timedOut": false,
+      "noteIds": [
+        "aggregate-router-discovery-must-request-handle-aggregated-di"
+      ],
+      "patchSha256": "22dc2dcfe8174742d816b8c92e331f009e3a880057acab57aadff9fd7bc57c6b"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133206-hard",
+      "arm": "nocache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "15870303-c86a-4a7f-bf2e-b9cafb7749ab",
+      "wallMs": 467057,
+      "toolCalls": 87,
+      "filesRead": 34,
+      "normalInputTokens": 444984,
+      "providerCacheReadTokens": 8843470,
+      "outputTokens": 68721,
+      "thinkingTokens": 49760,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [],
+      "targetedTest": "pass",
+      "timedOut": false,
+      "noteIds": [],
+      "patchSha256": "46cfb66f905f29a357bab89bfd83134f58fd7987eb27f02873850fcb1d7c750f"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR105871-hard",
+      "arm": "cache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "bc7d8823-3325-4087-a6ae-121e01170636",
+      "wallMs": 559888,
+      "toolCalls": 105,
+      "filesRead": 55,
+      "normalInputTokens": 575910,
+      "providerCacheReadTokens": 13604485,
+      "outputTokens": 73326,
+      "thinkingTokens": 48821,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [
+        "c4"
+      ],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [
+        "conventions-for-cross-team-flag-management-commands-and-temp"
+      ],
+      "patchSha256": "1f91a35d7ed7d80811f11388987d326546c6422ab58f03a5e970c62ac6346bbc"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR105871-hard",
+      "arm": "nocache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "edd7c123-5757-4631-8b8b-be427d9b4f31",
+      "wallMs": 432563,
+      "toolCalls": 76,
+      "filesRead": 39,
+      "normalInputTokens": 375436,
+      "providerCacheReadTokens": 8915062,
+      "outputTokens": 71954,
+      "thinkingTokens": 51754,
+      "essentialScore": 1,
+      "strictPass": true,
+      "missingCriteria": [
+        "c4"
+      ],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [],
+      "patchSha256": "ec5ee49ff372233318b0360574c38df63b27c9caafbd37c83ad0d95e3c490535"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR106672-hard",
+      "arm": "cache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "08b5243c-fdc9-48f7-879f-6690b2d17cbd",
+      "wallMs": 673388,
+      "toolCalls": 94,
+      "filesRead": 44,
+      "normalInputTokens": 671932,
+      "providerCacheReadTokens": 11134886,
+      "outputTokens": 93333,
+      "thinkingTokens": 76472,
+      "essentialScore": 0.8571428571428571,
+      "strictPass": false,
+      "missingCriteria": [
+        "c7"
+      ],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [
+        "shared-metrics-must-go-through-enrichsharedmetric-to-merge-l"
+      ],
+      "patchSha256": "42a36f300ba0e795d7462b6a0fda8599736bb0b70e31b52cb921fab45c90c0ad"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR106672-hard",
+      "arm": "nocache",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "transcriptModels": [
+        "Gemini 3.8 Flash (High)"
+      ],
+      "judgeModel": "gemini-3.8-flash-high",
+      "session": "95e7ec8a-2a3b-4c7b-ab80-ea5076b87968",
+      "wallMs": 1009925,
+      "toolCalls": 144,
+      "filesRead": 76,
+      "normalInputTokens": 734522,
+      "providerCacheReadTokens": 15019372,
+      "outputTokens": 151737,
+      "thinkingTokens": 126117,
+      "essentialScore": 0.8571428571428571,
+      "strictPass": false,
+      "missingCriteria": [
+        "c7"
+      ],
+      "targetedTest": null,
+      "timedOut": false,
+      "noteIds": [],
+      "patchSha256": "09eb636ca3638268b6785f4545c0d64a2ca12abc55f79ca9dc85d4ca523d92e2"
+    }
+  ]
+}

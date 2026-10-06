@@ -29,6 +29,9 @@ const tasksFile = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json
 const arms = (flags.arm || 'nocache,cache').split(',');
 const CACHE_ARMS = new Set(['cache', 'before', 'after']);
 const model = flags.model || 'gemini-3.8-flash-high';
+const effort = flags.effort || null;
+const transcriptModel = flags['transcript-model'] || (model === 'gemini-3.8-flash-high' ? 'Gemini 3.8 Flash (High)' : null);
+if (flags['strict-model'] && !transcriptModel) throw new Error('--strict-model requires --transcript-model for this model');
 const reps = Number(flags.reps) || 1;
 const tag = flags.tag || 'posthog-gemini-3.8';
 const only = flags.only ? flags.only.split(',') : null;
@@ -58,6 +61,12 @@ function setNotes(wt, arm) {
   fs.mkdirSync(dotThinker, { recursive: true });
   fs.cpSync(notesDir, path.join(dotThinker, 'notes'), { recursive: true });
   fs.writeFileSync(path.join(dotThinker, 'config.json'), JSON.stringify({ version: 1 }, null, 2) + '\n');
+}
+
+function transcriptModels(file) {
+  if (!fs.existsSync(file)) return [];
+  const text = fs.readFileSync(file, 'utf8');
+  return [...new Set([...text.matchAll(/Model Selection` from [^\n]*? to ((?:Gemini|Claude|GPT)[^\n]*?\([^)]*\))/g)].map(m => m[1].trim()))];
 }
 
 function resetWorktree(wt) {
@@ -148,9 +157,11 @@ async function gradePatch(task, patch, summary = '') {
   try {
     process.env.THINKER_LLM = judgeProvider;
     const res = await complete({ model: judgeModel, system: JUDGE_SYSTEM_PROMPT, prompt, schema: GRADE_SCHEMA });
+    if (flags['strict-model'] && res.model !== judgeModel) throw new Error(`judge model mismatch: requested ${judgeModel}, got ${res.model}`);
     const results = res.json?.results || [];
-    return computeGradeScores(task.criteria, results);
+    return { ...computeGradeScores(task.criteria, results), judgeModel: res.model };
   } catch (err) {
+    if (flags['strict-model'] && /judge model mismatch/.test(err.message)) throw err;
     return { error: err.message, essential: 0, all: 0, pass: false };
   }
 }
@@ -174,12 +185,17 @@ async function runAgy(prompt, { arm, cwd, id }) {
     const budget = flags.budget || '750';
     let hookBundle = '';
     try {
-      const input = JSON.stringify(arm === 'after' ? { prompt, session_id: `bench-${id}` } : { prompt });
+      // The task request follows a generic benchmark preamble. Let retrieval see the request first,
+      // while the agent receives the same task text and order in both arms.
+      const hookPrompt = /^Implement the following change/.test(prompt) && prompt.includes('\n\n')
+        ? prompt.split('\n\n').slice(1).join('\n\n') + '\n\n' + prompt.split('\n\n')[0]
+        : prompt;
+      const input = JSON.stringify(arm === 'after' ? { prompt: hookPrompt, session_id: `bench-${id}` } : { prompt: hookPrompt });
       // --client antigravity: plain text, and the intro names no Claude Code ToolSearch
       hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', budget, '--client', 'antigravity'], {
         encoding: 'utf8',
         input,
-        env: { ...process.env, THINKER_NOTES_DIR: notesDir, THINKER_HOLDOUT: 'off', THINKER_LLM: 'gemini' }
+        env: { ...process.env, THINKER_NOTES_DIR: path.join(cwd, '.thinker', 'notes'), THINKER_HOLDOUT: 'off', THINKER_LLM: 'gemini' }
       }).trim();
     } catch (e) {
       console.error('hook prompt error:', e.message);
@@ -202,6 +218,7 @@ Rely directly on the verified file:symbol pointers above and do not re-explore f
       '--output-format', 'json',
       '--dangerously-skip-permissions'
     ];
+    if (effort) args.push('--effort', effort);
     // THINKER_LLM=gemini: a review the agent asks thinker's MCP server for goes to the same provider, never to Claude
     const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1', THINKER_HOLDOUT: 'off', THINKER_LLM: 'gemini', ...(CACHE_ARMS.has(arm) ? {} : { THINKER_MCP: 'off' }) } });
     let o = '', e = '', timedOut = false;
@@ -237,8 +254,8 @@ async function main() {
   const jobs = [];
 
   for (let rep = 0; rep < reps; rep++) {
-    for (const task of tasks) {
-      for (const arm of arms) {
+    for (const [index, task] of tasks.entries()) {
+      for (const arm of flags.counterbalance && (index + rep) % 2 ? [...arms].reverse() : arms) {
         jobs.push({ task, arm, rep });
       }
     }
@@ -277,6 +294,10 @@ async function main() {
       const convId = r.conversation_id;
       const transcriptFile = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId || 'none', '.system_generated', 'logs', 'transcript.jsonl');
       const tools = toolStats(transcriptFile);
+      const actualModels = transcriptModels(transcriptFile);
+      if (flags['strict-model'] && (actualModels.length !== 1 || actualModels[0] !== transcriptModel)) {
+        throw new Error(`${id}: model mismatch: requested ${model}, transcript reported ${actualModels.join(', ') || 'none'}`);
+      }
 
       // Detect rate limit / quota exhaustion / empty run
       if (!r.timed_out && tools.calls === 0 && (!r.usage?.total_tokens || r.usage?.total_tokens === 0)) {
@@ -313,6 +334,8 @@ async function main() {
         arm,
         rep,
         model,
+        effort,
+        actualModels,
         session: convId,
         turns: r.num_turns,
         timed_out: !!r.timed_out,
