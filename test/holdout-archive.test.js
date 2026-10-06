@@ -160,8 +160,8 @@ test('archiving: kinds the sessions never acted on, and notes unserved for a mon
   const o = await orient(store, { task: 'where is fetchRows defined', session: 's', client: 'claude' });
   assert.ok(!o.included.some(n => n.id === loc.id) && !o.more.some(n => n.id === loc.id));
   // lookup by its id still answers; lookup by words does not find it
-  assert.equal(lookup(store, { query: loc.id }).included[0]?.id, loc.id);
-  assert.ok(!lookup(store, { query: 'where is fetchRows defined' }).included.some(n => n.id === loc.id));
+  assert.equal((await lookup(store, { query: loc.id })).included[0]?.id, loc.id);
+  assert.ok(!(await lookup(store, { query: 'where is fetchRows defined' })).included.some(n => n.id === loc.id));
   // the edit hook does not serve an archived rule note
   const cc = createNote(store, { title: 'rows go with their index', kind: 'rule', answers: ['what changes with src/a.js'], body: 'src/a.js changes with its index through the generator', deps: [{ path: 'src/a.js' }] }).note;
   archiveNotes(store, { ids: [cc.id] });

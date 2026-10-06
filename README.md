@@ -90,23 +90,27 @@ Thinker selects notes with
 model. **Access is provided through Thinker's proxy; no TypeSafe account or
 personal API key is required.**
 
-The flow is simple: Thinker shortlists relevant notes locally, sends the
-request and candidates through its proxy to Jev, then uses Jev's relevance
+Thinker searches all eligible notes with Jev, sending the request and note
+descriptions through its proxy in bounded batches, then uses Jev's relevance
 probabilities to choose what the coding agent sees. Thinker
 provisions access automatically and keeps the upstream TypeSafe credential on
 the server. A revocable client token is stored in `~/.thinker/jev-proxy.json`
 with owner-only permissions. Your coding agent still implements the task; learning,
 verification, and review still use your configured agent/model.
 
-The selection defaults are up to eight candidates in one call, a relevance
-threshold of 0.5, and at most two notes within the serving budget. If nothing
-qualifies, nothing is served. Prompt hooks withhold stale notes and avoid
-repeating notes within a session. Broader MCP `orient` requests retain lexical
-ranking. Errors, rate limits, and responses exceeding 1.5 seconds fall back to the built-in
-local ranker, with lexical ranking available if that model is unavailable.
+`lookup` queries and `orient` both use Jev, without a keyword shortlist.
+It reads a note's current `search` description, falling back to its body when
+the description is missing or outdated. Exact-ID lookups and kind-only listings
+are direct. A relevance threshold of 0.5 selects up to two notes for prompt
+hooks, three for `lookup`, or the explicit caller's limit, within the token budget.
+If nothing qualifies, nothing is served. Prompt hooks withhold stale notes and
+avoid repeating notes within a session. Invalid and archived notes stay out of
+query search. Errors, rate limits, and searches exceeding five seconds fall back
+to local ranking (the cross-encoder for hooks, then lexical ranking).
 
-**Data flow:** the request and candidate-note titles, question phrasings, body
-excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to
+**Data flow:** the request and all eligible note titles, question phrasings,
+search descriptions or body excerpts, applicability, file/symbol pointers,
+and freshness pass through Thinker's proxy to
 TypeSafe. The proxy does not log request or note content. Hosted access has
 usage limits; the local ranker takes over when a limit is reached. The cache
 remains stored locally. Hosted ranking is separate from
@@ -117,8 +121,8 @@ for setup guidance and optional personal-key access.
 
 In two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes;
 96% of the notes it served were useful. The runs reported about 160 ms per
-task. These measure retrieval on a supplied candidate pool, not production
-proxy latency or an end-to-end coding speedup. See
+task. These measured the earlier reranker on a supplied candidate pool, not the
+current full-catalog search, production proxy latency, or an end-to-end coding speedup. See
 [the results and limitations](bench/RESULTS.md#serving-jev-2026-10-06-offline-all-54-labelled-tasks-two-runs).
 The coding-agent benchmarks below predate this integration.
 

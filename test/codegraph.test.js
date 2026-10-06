@@ -115,10 +115,10 @@ test('orient and lookup add the code only when asked, in what is left of the bud
   // without the allowance the code only takes what the notes left of the budget
   const zero = await orient(store, { task: 'how is a command invoked, where does invoke call main', backgroundVerify: false, budget: 200, snippets: { budget: 0 } });
   assert.ok(zero.tokens <= 200, String(zero.tokens));
-  const l = lookup(store, { query: 'command-invocation-path', snippets: true });
+  const l = await lookup(store, { query: 'command-invocation-path', snippets: true });
   assert.match(l.text, /Code behind the pointers/);
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ snippets: false }));
-  assert.ok(!lookup(store, { query: 'command-invocation-path', snippets: true }).text.includes('Code behind'));
+  assert.ok(!(await lookup(store, { query: 'command-invocation-path', snippets: true })).text.includes('Code behind'));
   fs.rmSync(path.join(store.dir, 'config.json'));
 });
 

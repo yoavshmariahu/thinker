@@ -161,7 +161,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     } else r.capped = true;
     // 3. phrasings for notes that have none for their present text
     if (afford()) {
-      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && (!n.says?.length || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
+      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && (!n.says?.length || !n.search || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
       if (need.length) {
         if (dry) r.phrased = need.length;
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }

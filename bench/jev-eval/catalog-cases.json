@@ -1,0 +1,49 @@
+[
+  {
+    "id": "session-cached-tokens",
+    "observation": "The benchmark reader must sum input_tokens alone for Codex usage events. The cached_input_tokens number is a subset, so adding it again inflates totals.",
+    "targets": {"codex-input-tokens-already-includes-cached-input-tokens": "covered"}
+  },
+  {
+    "id": "pr-transient-anchors",
+    "observation": "A note whose only anchor is a generated coverage report must be rejected. Build and run artifacts are temporary; use the source that creates the report as its dependency instead.",
+    "targets": {"build-and-run-output-cannot-be-note-dependencies": "covered"}
+  },
+  {
+    "id": "session-parser-handoff",
+    "observation": "When an AST-hashed dependency is checked by a teammate without tree-sitter, compare a stored secondary regex hash. Different extraction engines must not make unchanged code appear stale.",
+    "targets": {"ast-vs-regex-engine-mismatch-across-teammates-can-cause-fals": "covered"}
+  },
+  {
+    "id": "pr-conflict-warning",
+    "observation": "The store now reports a diagnostic naming a shared note file that contains git merge markers, rather than silently ignoring it. The conflicted note is still excluded from lookup until its JSON is repaired.",
+    "targets": {"a-git-merge-conflict-on-a-shared-note-file-makes-the-note-in": "contradicts"}
+  },
+  {
+    "id": "session-maintenance-lock",
+    "observation": "Maintenance is protected by a timestamped lock; another invocation within its lock window returns skipped:locked instead of running a second batch.",
+    "targets": {"background-maintenance-how-it-s-triggered-and-de-duplicated": "covered"}
+  },
+  {
+    "id": "pr-review-evidence-cleanup",
+    "observation": "Reviews remain read-only with respect to knowledge notes. A new cleanup command removes local review evidence artifacts older than 30 days but must never remove, retire, or rewrite the knowledge notes used in those reviews.",
+    "targets": {"a-review-never-writes-to-the-cache": "extends"}
+  },
+  {
+    "id": "session-input-output-separation",
+    "observation": "Codex cached_input_tokens is already inside input_tokens and must not be added again. The dashboard must also keep generated output tokens in a separate counter instead of labelling the combined total as input.",
+    "targets": {"codex-input-tokens-already-includes-cached-input-tokens": "extends"}
+  },
+  {
+    "id": "pr-build-artifact-serving",
+    "observation": "The artifact download service adds byte-range request support so clients can resume interrupted downloads of compiled bundles.",
+    "targets": {},
+    "unrelated": ["build-and-run-output-cannot-be-note-dependencies"]
+  },
+  {
+    "id": "pr-new-audio-domain",
+    "observation": "Streaming audio resampling must retain fractional phase between chunks; resetting phase on every packet causes audible clicks at packet boundaries.",
+    "targets": {},
+    "unrelated": ["codex-input-tokens-already-includes-cached-input-tokens"]
+  }
+]
