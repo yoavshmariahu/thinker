@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "records": [
+    {
+      "repo": "grafana",
+      "task": "PR133090-hard",
+      "arm": "hook",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "1f796c82-37c8-4daf-b6e9-95ddf07efb48",
+      "turns": 17,
+      "wallMs": 82750,
+      "toolCalls": 16,
+      "inputTokens": 509399,
+      "outputTokens": 8469,
+      "reportedCostUsd": 0.5258562,
+      "injectedNotes": [],
+      "essentialScore": 0,
+      "essentialPass": false,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "59ec999d148ca32e88d578718729216e202c1602cdf7353a1bc3774981079289"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133090-hard",
+      "arm": "nocache",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "6d93bc7b-1c4d-43f6-a6fc-7106277fdf33",
+      "turns": 15,
+      "wallMs": 66206,
+      "toolCalls": 14,
+      "inputTokens": 350115,
+      "outputTokens": 6979,
+      "reportedCostUsd": 0.42460739999999997,
+      "injectedNotes": [],
+      "essentialScore": 0,
+      "essentialPass": false,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "c7f1a52a5fd559195b0af214ca3f298b2336c6547c767255b630fa88b937cdb3"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133148-hard",
+      "arm": "hook",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "585b7e8b-0388-4a31-bad0-bb2ad22d5815",
+      "turns": 27,
+      "wallMs": 157072,
+      "toolCalls": 26,
+      "inputTokens": 1330864,
+      "outputTokens": 11432,
+      "reportedCostUsd": 1.0310576,
+      "injectedNotes": [],
+      "essentialScore": 0.8333333333333334,
+      "essentialPass": false,
+      "judgeModel": "claude-opus-5-5",
+      "tests": "pass",
+      "diffSha256": "a973e91bdbd90972aac1829704ccc129f073ed72c7128db303431216cd30dc01"
+    },
+    {
+      "repo": "grafana",
+      "task": "PR133148-hard",
+      "arm": "nocache",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "fc1552d4-5346-4eb9-a7f6-b3bca650310e",
+      "turns": 27,
+      "wallMs": 166998,
+      "toolCalls": 26,
+      "inputTokens": 1449313,
+      "outputTokens": 13537,
+      "reportedCostUsd": 1.1962044,
+      "injectedNotes": [],
+      "essentialScore": 1,
+      "essentialPass": true,
+      "judgeModel": "claude-opus-5-5",
+      "tests": "pass",
+      "diffSha256": "4df2a098feff62ede6fa74c3d8e75a69cc716a3229cb915fc0d6aa4528b9d390"
+    },
+    {
+      "repo": "mitmproxy",
+      "task": "PR8295-hard",
+      "arm": "hook",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "a44e4ac3-cf4e-4926-bd19-ef95482f02c2",
+      "turns": 10,
+      "wallMs": 37527,
+      "toolCalls": 9,
+      "inputTokens": 246944,
+      "outputTokens": 3797,
+      "reportedCostUsd": 0.29202839999999997,
+      "injectedNotes": [
+        "quic-flows-hang-when-allow-hosts-or-ignore-hosts-is-enabled"
+      ],
+      "essentialScore": null,
+      "essentialPass": null,
+      "judgeModel": null,
+      "tests": null,
+      "diffSha256": "425831a7a2192e728ffdfa37d88bc6caad8a3af799011acd6e8f7070cd403a6d"
+    },
+    {
+      "repo": "mitmproxy",
+      "task": "PR8295-hard",
+      "arm": "nocache",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "7fb4efd5-b2de-43f9-a505-85c6b6bca792",
+      "turns": 19,
+      "wallMs": 108729,
+      "toolCalls": 18,
+      "inputTokens": 600789,
+      "outputTokens": 10829,
+      "reportedCostUsd": 0.6786864,
+      "injectedNotes": [],
+      "essentialScore": null,
+      "essentialPass": null,
+      "judgeModel": null,
+      "tests": null,
+      "diffSha256": "1790a29870633c11ee3d183b24a00c7fcf19d40b0c1a68ff7879aeeef4f15d4e"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR105793-hard",
+      "arm": "hook",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "5e5f48b8-171c-418b-9537-28b707ac9d51",
+      "turns": 28,
+      "wallMs": 178891,
+      "toolCalls": 27,
+      "inputTokens": 1278161,
+      "outputTokens": 18763,
+      "reportedCostUsd": 1.0993782000000005,
+      "injectedNotes": [
+        "slack-app-http-entry-points-and-api-map"
+      ],
+      "essentialScore": 1,
+      "essentialPass": true,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "4f4a5f44337b84f87bf3587dc2f5a63c07b3d716800f7c183ea38dd066def092"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR105793-hard",
+      "arm": "nocache",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "34b8e461-f48d-4d4f-8b9f-0eb390dbbc84",
+      "turns": 25,
+      "wallMs": 171201,
+      "toolCalls": 24,
+      "inputTokens": 1021235,
+      "outputTokens": 15653,
+      "reportedCostUsd": 0.970498,
+      "injectedNotes": [],
+      "essentialScore": 1,
+      "essentialPass": true,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "68d22e7d155257eff8b80d64bd7015e28a1a5d80c2bc5b67928d71ed981c829c"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR107042-hard",
+      "arm": "hook",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "023847bb-e970-4ab6-8786-96ca791fc01d",
+      "turns": 35,
+      "wallMs": 214689,
+      "toolCalls": 34,
+      "inputTokens": 1251410,
+      "outputTokens": 10186,
+      "reportedCostUsd": 0.8132086000000001,
+      "injectedNotes": [],
+      "essentialScore": 0.8,
+      "essentialPass": false,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "81769e24a97df6e48d5763f677df9fecc23a247a47e670b0493d1f141040f76d"
+    },
+    {
+      "repo": "posthog",
+      "task": "PR107042-hard",
+      "arm": "nocache",
+      "model": [
+        "claude-opus-5-5"
+      ],
+      "transcriptModels": [
+        "claude-opus-5-5"
+      ],
+      "effort": "medium",
+      "session": "4b49ddf3-81f8-4b49-a88c-3fc6fa4d34e6",
+      "turns": 36,
+      "wallMs": 139457,
+      "toolCalls": 35,
+      "inputTokens": 1363821,
+      "outputTokens": 12366,
+      "reportedCostUsd": 0.9348268000000001,
+      "injectedNotes": [],
+      "essentialScore": 0.8,
+      "essentialPass": false,
+      "judgeModel": "claude-opus-5-5",
+      "tests": null,
+      "diffSha256": "60640978c28757db98001701f1f3a1a38844a0e152c7215bae9e13657df6caa8"
+    }
+  ]
+}

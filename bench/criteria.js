@@ -7,10 +7,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { complete } from '../src/llm.js';
+import { complete, resolveModel } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly } from './judge-protocol.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
+const strictIndex = argv.indexOf('--strict-model');
+const STRICT_MODEL = strictIndex >= 0;
+if (STRICT_MODEL) argv.splice(strictIndex, 1);
 const ji = argv.indexOf('--judge');
 const JUDGE = ji < 0 ? 'sonnet' : argv.splice(ji, 2)[1];
 const [cmd, tasksFile, ...tags] = argv;
@@ -84,11 +87,13 @@ if (cmd === 'build') {
     const r = await complete({ model: JUDGE, schema: GRADE_SCHEMA,
       system: JUDGE_SYSTEM_PROMPT,
       prompt: `REQUEST:\n${t.prompt}\n\nCRITERIA:\n${t.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nCODE AFTER PATCH (around each change):\n${context || '(not available)'}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}` });
+    const expectedModel = resolveModel('claude', JUDGE);
+    if (STRICT_MODEL && r.model !== expectedModel) throw new Error(`judge model mismatch: requested ${expectedModel}, got ${r.model}`);
     const res = r.json.results; const by = Object.fromEntries(res.map(x => [x.id, x.verdict]));
     const usable = t.criteria.filter(c => c.calibrated !== false);
     const ess = usable.filter(c => c.essential), all = usable;
     const frac = cs => cs.length ? cs.filter(c => by[c.id] === 'met').length / cs.length : 1;
-    return { judge: JUDGE, essential: frac(ess), all: frac(all), extra: usable.some(c => !c.essential) ? frac(usable.filter(c => !c.essential)) : null, pass: ess.every(c => by[c.id] === 'met'), results: res };
+    return { judge: JUDGE, resolvedModel: r.model, essential: frac(ess), all: frac(all), extra: usable.some(c => !c.essential) ? frac(usable.filter(c => !c.essential)) : null, pass: ess.every(c => by[c.id] === 'met'), results: res };
   };
   const byId = Object.fromEntries(spec.tasks.map(t => [t.id, t]));
   if (cmd === 'calibrate') {

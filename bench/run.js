@@ -18,6 +18,7 @@ const repo = path.join(HERE, 'repos', repoName);
 const tasksFile = flags.tasks || path.join(HERE, 'tasks', `${repoName}.json`);
 const arms = (flags.arm || 'nocache,cache').split(',');
 const model = flags.model || 'sonnet';
+const effort = flags.effort || null;
 const reps = Number(flags.reps) || 1;
 const tag = flags.tag || new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
 const only = flags.only ? flags.only.split(',') : null;
@@ -82,6 +83,16 @@ function toolStats(file) {
   return { ...stats, filesRead: stats.filesRead.size };
 }
 
+function transcriptModels(file) {
+  if (!fs.existsSync(file)) return [];
+  const models = new Set();
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    let entry; try { entry = JSON.parse(line); } catch { continue; }
+    if (entry.type === 'assistant' && entry.message?.model) models.add(entry.message.model);
+  }
+  return [...models];
+}
+
 const CLI = path.join(HERE, '..', 'src', 'cli.js');
 const HOOK_PROMPT = `Context injected as <thinker-cache> comes from a cache of notes about this repository whose code dependencies are verified against the current code when served. Use it to skip re-deriving what it states.`;
 
@@ -97,7 +108,12 @@ function injectedIds(file) {
 
 function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
   const a = ['-p', '--model', model, '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--strict-mcp-config', '--max-turns', String(flags['max-turns'] || 60)];
-  if (!allowEdit) a.push('--disallowedTools', 'Edit,Write,NotebookEdit,mcp__thinker__remember,mcp__thinker__feedback');
+  if (flags['isolated-settings']) a.push('--setting-sources', '');
+  if (effort) a.push('--effort', effort);
+  const disallowed = [];
+  if (flags['no-subagents']) disallowed.push('Task');
+  if (!allowEdit) disallowed.push('Edit', 'Write', 'NotebookEdit', 'mcp__thinker__remember', 'mcp__thinker__feedback');
+  if (disallowed.length) a.push('--disallowedTools', disallowed.join(','));
   // --tool-search off: Claude Code offers MCP tools as deferred names whose schemas cost a
   // ToolSearch call before the first use, which an agent handed a <thinker-cache> bundle
   // often never pays. `off` puts the schemas in the prompt instead, so an arm measures
@@ -187,7 +203,10 @@ async function main() {
   const tasks = spec.tasks.filter(t => !only || only.includes(t.id));
   const summary = [];
   const jobs = [];
-  for (let rep = 0; rep < reps; rep++) for (const task of tasks) for (const arm of arms) jobs.push({ task, arm, rep });
+  for (let rep = 0; rep < reps; rep++) for (const [index, task] of tasks.entries()) {
+    const orderedArms = flags.counterbalance && (index + rep) % 2 ? [...arms].reverse() : arms;
+    for (const arm of orderedArms) jobs.push({ task, arm, rep });
+  }
   const conc = Number(flags.conc) || 1;
   async function worker(wi) {
     const cwd = makeWorktree(wi);
@@ -212,6 +231,10 @@ async function main() {
           console.log(`${id} LIMIT hit (${(r.result || '').slice(0, 60)}); waiting 10 min`); resetWorktree(cwd);
           await new Promise(res => setTimeout(res, 10 * 60_000)); continue;
         }
+        const resolvedModels = Object.keys(r.modelUsage || {});
+        if (flags['strict-model'] && (resolvedModels.length !== 1 || resolvedModels[0] !== model)) {
+          throw new Error(`${id}: model mismatch: requested ${model}, got ${resolvedModels.join(', ') || 'none'} (${(r.result || '').slice(0, 100)})`);
+        }
         break;
       }
       if (!r) continue;
@@ -223,6 +246,9 @@ async function main() {
         process.stdout.write(distill.trim().split('\n').map(l => '    ' + l).join('\n') + '\n');
       }
       const tools = toolStats(transcriptPath(r.session_id, cwd));
+      const actualModels = Object.keys(r.modelUsage || {});
+      const transcriptModelIds = transcriptModels(transcriptPath(r.session_id, cwd));
+      if (flags['strict-model'] && transcriptModelIds.some(m => m !== model)) throw new Error(`${id}: transcript model mismatch: ${transcriptModelIds.join(', ')}`);
       tools.injected = injectedIds(transcriptPath(r.session_id, cwd));
       try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); } catch {}
       let grade = null, diff = null;
@@ -239,7 +265,9 @@ async function main() {
         }
       } else if (task.gold && !flags['no-judge']) { try { grade = await judge(task, r.result || ''); } catch (e) { grade = { error: e.message }; } }
       const rec = {
-        id, task: task.id, area: task.area, arm, rep, model, toolSearch: TOOL_SEARCH, session: r.session_id,
+        id, task: task.id, area: task.area, arm, rep, model, effort, actualModels, transcriptModelIds,
+        isolatedSettings: Boolean(flags['isolated-settings']), noSubagents: Boolean(flags['no-subagents']), strictModel: Boolean(flags['strict-model']),
+        toolSearch: TOOL_SEARCH, session: r.session_id,
         turns: r.num_turns, wall_ms: r.wall_ms, api_ms: r.duration_api_ms, cost: r.total_cost_usd,
         in_tokens: (r.usage?.input_tokens || 0) + (r.usage?.cache_creation_input_tokens || 0) + (r.usage?.cache_read_input_tokens || 0),
         out_tokens: r.usage?.output_tokens || 0, tools, grade, result: r.result, is_error: r.is_error, diff, distill,
