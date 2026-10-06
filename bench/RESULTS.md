@@ -701,6 +701,18 @@ had been confirmed to act on, one with three confirmations. No intrinsic propert
 sessions do with it; only the (request, note) pair does. The facets stay useful descriptively: 29 of 347 notes
 type as `an_external_tool_changing`, meaning no dep hash can falsify them.
 
+### Catalog search and reconciliation prototype (2026-10-06)
+
+`bench/jev-eval/catalog-eval.mjs` compares a full-corpus Jev scan using bodies or
+stored `search` descriptions with the existing four-note session shortlist,
+then separately tests full-body `covered` / `extends` / `contradicts` / `unrelated`
+decisions. The frozen local snapshot has 328 non-invalid notes, 61 with search
+descriptions. On nine constructed observations, the local baseline finds all
+seven labelled targets and returns no notes on the two no-target cases. This is
+a plumbing/relationship probe, not a held-out quality result. Live API execution
+is pending explicit approval to send the private snapshot; no Jev result is
+claimed. See [the research record](../research/jev-note-catalog/README.md).
+
 ## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
 
 Every ranking number above scores a served note as "on target" when it rests on a file the merged fix changed.
