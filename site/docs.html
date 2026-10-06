@@ -503,7 +503,8 @@
     .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
     .bar {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 3.4rem;
       align-items: center;
       gap: 0.5rem;
       height: 16px;
@@ -517,7 +518,7 @@
       display: block;
       height: 10px;
       width: var(--w);
-      max-width: calc(100% - 3.5rem);
+      max-width: 100%;
       border-radius: 0 4px 4px 0;
       background: #111111;
       flex: none;
@@ -1038,7 +1039,7 @@ export THINKER_TELEMETRY=off
 
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Bug detection</div>
-          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">3 more of 10</span> regressions.</h3>
+          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">30% more</span> regressions.</h3>
           <p class="bench-lede">Ten reversed fixes from an open-source repository, each reviewed with and without thinker's notes. Regressions caught:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
