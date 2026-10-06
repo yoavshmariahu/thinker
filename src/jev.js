@@ -79,25 +79,23 @@ export const RELEVANCE_CRITERIA = {
   false: 'The note is about a neighbouring topic. It may share words with the request but does not bear on carrying it out.',
 };
 
-export function buildRequest(query, notes, { model = JEV_DEFAULTS.model } = {}) {
+// `subject` names the thing the notes are judged against in the state, and `question` writes the
+// per-note instruction. Serving judges notes against a request; review judges them against a change
+// (review.js:narrowRelated). Everything else is shared.
+export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject = 'developer_request', criteria = RELEVANCE_CRITERIA, question = null } = {}) {
+  const ask = question || (i => ({
+    request: query,
+    question: `Would the note at \`candidate_notes[${i}]\` help a developer carry out \`request\`? Weigh its \`claim\` and \`answers_the_questions\`; \`code_it_points_at\` tells you which code it governs.`,
+  }));
   const questions = {};
-  notes.forEach((n, i) => {
-    questions[`rel${i}`] = {
-      type: 'noul',
-      instructions: {
-        request: query,
-        question: `Would the note at \`candidate_notes[${i}]\` help a developer carry out \`request\`? Weigh its \`claim\` and \`answers_the_questions\`; \`code_it_points_at\` tells you which code it governs.`,
-      },
-      criteria: RELEVANCE_CRITERIA,
-    };
-  });
-  return { model, state: { developer_request: query, candidate_notes: notes.map(noteRecord) }, questions };
+  notes.forEach((n, i) => { questions[`rel${i}`] = { type: 'noul', instructions: ask(i), criteria }; });
+  return { model, state: { [subject]: query, candidate_notes: notes.map(noteRecord) }, questions };
 }
 
 // One probability per candidate, in the order given. Throws on any transport or API failure so the
 // caller falls back to the cross-encoder; a hook must never fail because a network call did.
 export async function jevScores(query, notes, cfg = {}) {
-  const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs, fetchImpl = fetch } = cfg;
+  const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs, fetchImpl = fetch, subject, criteria, question } = cfg;
   if (!key) throw new Error('no jev key');
   if (!notes.length) return [];
   const ctl = new AbortController();
@@ -106,7 +104,7 @@ export async function jevScores(query, notes, cfg = {}) {
     const res = await fetchImpl(JEV_ENDPOINT, {
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildRequest(query, notes, { model })),
+      body: JSON.stringify(buildRequest(query, notes, { model, subject, criteria, question })),
       signal: ctl.signal,
     });
     if (!res.ok) throw new Error(`jev ${res.status}`);

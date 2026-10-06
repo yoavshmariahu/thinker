@@ -129,3 +129,37 @@ test('a key on the machine never switches Jev on inside the test suite', () => w
   assert.equal(jevConfig(store).enabled, true, 'THINKER_JEV=on still wins');
   delete process.env.THINKER_JEV; delete process.env.THINKER_TEST;
 }));
+
+test('review narrows its related notes with Jev and falls back to BM25 when the call fails', async () => {
+  const { narrowRelated, changeRecord } = await import('../src/review.js');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevrev-'));
+  const prev = process.env.THINKER_HOME, prevTest = process.env.THINKER_TEST;
+  process.env.THINKER_HOME = home; delete process.env.THINKER_TEST;
+  try {
+    saveKey('k');
+    const logged = [];
+    const store = { config: () => ({}), log: r => logged.push(r) };
+    const related = [note('a'), note('b'), note('c')];
+    const change = { files: [{ path: 'src/a.js', hunks: [{ lines: ['+const widgetCount = 1;'] }] }] };
+    const symbols = [{ path: 'src/a.js', changed: ['f'] }];
+
+    // the change goes over as named fields, not a bag of words
+    const rec = changeRecord(change, symbols);
+    assert.deepEqual(rec.files_changed, ['src/a.js']);
+    assert.deepEqual(rec.definitions_touched, ['f']);
+    assert.ok(rec.identifiers_added.includes('widgetCount'));
+
+    const ok = await narrowRelated({ ...store, config: () => ({ jev: { fetchImpl: okFetch([0.9, 0.2, 0.7]) } }) }, related, change, symbols, { max: 6 });
+    assert.deepEqual(ok.related.map(n => n.id), ['a', 'c'], 'only those above the floor are consulted');
+    assert.deepEqual(ok.scores, [0.9, 0.7]);
+
+    const bad = await narrowRelated({ ...store, config: () => ({ jev: { fetchImpl: async () => ({ ok: false, status: 500 }) } }) }, related, change, symbols, { max: 2 });
+    assert.deepEqual(bad.related.map(n => n.id), ['a', 'b'], "BM25's choice stands when the call fails");
+    assert.equal(bad.scores, null);
+    assert.equal(logged.filter(r => r.op === 'jev-error' && r.where === 'review').length, 1, 'the failure is logged');
+  } finally {
+    prev === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prev);
+    prevTest === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = prevTest);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
