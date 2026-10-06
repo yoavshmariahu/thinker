@@ -115,18 +115,11 @@
       color: #444444;
       font-weight: 400;
       letter-spacing: -0.02em;
-      margin-bottom: 0.65rem;
+      margin-bottom: 2rem;
       max-width: 580px;
       line-height: 1.45;
     }
 
-    p.hero-outcome {
-      font-size: 1rem;
-      color: #555555;
-      line-height: 1.55;
-      max-width: 640px;
-      margin-bottom: 2rem;
-    }
 
     /* Action Container */
     .install-container {
@@ -374,19 +367,27 @@
       border-color: #16a34a;
     }
 
-    /* Benchmark Hero Card */
-    .benchmark-card {
-      margin-top: 2.25rem;
+    /* Benchmark cards: one per framing */
+    .benchmark-cards {
+      margin-top: 2.5rem;
       width: 100%;
-      max-width: 640px;
+      max-width: 680px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem;
+    }
+
+    .benchmark-card {
       background: #fafafa;
       border: 1px solid #e5e7eb;
       border-radius: 10px;
-      padding: 1.15rem 1.35rem;
+      padding: 1.1rem 1.2rem 1rem;
       text-align: left;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
       cursor: pointer;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease;
     }
 
     .benchmark-card:hover {
@@ -396,53 +397,21 @@
       transform: translateY(-1px);
     }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.85rem;
-      padding-bottom: 0.65rem;
-      border-bottom: 1px solid #f0f0f0;
-    }
-
-    .card-title {
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.84rem;
-      color: #111827;
-      font-weight: 500;
-    }
-
-    .card-title .terminal-prompt {
-      color: #9ca3af;
-      margin-right: 0.35rem;
-    }
-
-    .card-tag {
+    .metric-kicker {
       font-size: 0.72rem;
-      font-weight: 500;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
       color: #6b7280;
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
-    }
-
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1.25rem;
-    }
-
-    .metric-item {
-      display: flex;
-      flex-direction: column;
+      margin-bottom: 0.45rem;
     }
 
     .metric-num {
-      font-size: 1.15rem;
+      font-size: 1.85rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
+      letter-spacing: -0.035em;
+      line-height: 1;
+      color: #111111;
     }
 
     .metric-num.gain {
@@ -450,37 +419,59 @@
     }
 
     .metric-label {
-      font-size: 0.78rem;
+      font-size: 0.82rem;
       color: #111111;
-      font-weight: 600;
-      margin-top: 0.25rem;
+      font-weight: 500;
+      margin-top: 0.4rem;
+      line-height: 1.35;
     }
 
-    .metric-sub {
-      font-size: 0.72rem;
-      color: #888888;
-      margin-top: 0.1rem;
+    .metric-models {
+      list-style: none;
+      margin-top: 0.8rem;
+      padding-top: 0.7rem;
+      border-top: 1px solid #ebebeb;
+      display: flex;
+      flex-direction: column;
+      gap: 0.32rem;
     }
 
-    .card-footer {
-      margin-top: 0.85rem;
-      padding-top: 0.65rem;
-      border-top: 1px solid #f0f0f0;
-      font-size: 0.76rem;
-      color: #6b7280;
+    .metric-models li {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.76rem;
+      color: #6b7280;
+      font-variant-numeric: tabular-nums;
     }
 
-    .card-footer-cta {
+    .metric-models li span:last-child {
       color: #111111;
       font-weight: 600;
       white-space: nowrap;
     }
 
-    .benchmark-card:hover .card-footer-cta {
+    .metric-models .before {
+      color: #9ca3af;
+      font-weight: 400;
+    }
+
+    .metric-cta {
+      margin-top: auto;
+      padding-top: 0.8rem;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #111111;
+    }
+
+    .benchmark-card:hover .metric-cta {
       text-decoration: underline;
+    }
+
+    .benchmark-caption {
+      margin-top: 0.7rem;
+      font-size: 0.76rem;
+      color: #9ca3af;
     }
 
     .ci-link {
@@ -525,13 +516,14 @@
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       width: 100%;
-      max-width: 760px;
-      max-height: 85vh;
+      max-width: 720px;
+      max-height: 88vh;
       display: flex;
       flex-direction: column;
       box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
       overflow: hidden;
       animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: left;
     }
 
     @keyframes modalIn {
@@ -540,18 +532,25 @@
     }
 
     .modal-header {
-      padding: 1.25rem 1.5rem;
+      padding: 1.1rem 1.5rem;
       border-bottom: 1px solid #f0f0f0;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
     }
 
     .modal-title {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 600;
       letter-spacing: -0.02em;
       color: #111111;
+    }
+
+    .modal-subtitle {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 0.15rem;
     }
 
     .btn-close {
@@ -571,72 +570,209 @@
     }
 
     .modal-body {
-      padding: 1.5rem;
+      padding: 0 1.5rem 1.5rem;
       overflow-y: auto;
     }
 
-    .modal-note {
+    .bench-section {
+      padding: 1.5rem 0 1.35rem;
+    }
+
+    .bench-section + .bench-section {
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .bench-kicker {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 0.3rem;
+    }
+
+    .bench-headline {
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #111111;
+      line-height: 1.35;
+      margin-bottom: 0.3rem;
+    }
+
+    .bench-headline .gain { font-weight: 700; }
+
+    .bench-lede {
       font-size: 0.85rem;
-      color: #666666;
-      margin-bottom: 1.25rem;
+      color: #6b7280;
       line-height: 1.5;
+      margin-bottom: 1.1rem;
     }
 
-    .modal-section-title {
-      font-size: 1rem;
-      margin-bottom: 0.55rem;
+    .bench-legend {
+      display: flex;
+      gap: 1.1rem;
+      font-size: 0.74rem;
+      color: #6b7280;
+      margin-bottom: 0.75rem;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.88rem;
+    .bench-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
     }
 
-    th, td {
-      padding: 0.75rem 0.9rem;
-      border-bottom: 1px solid #f0f0f0;
+    .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 8px;
+      border-radius: 2px;
+      background: #111111;
     }
 
-    th {
+    .swatch.before { background: #b4b4bb; }
+
+    /* Paired bars: one row per model, two bars per row */
+    .bench-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .bench-row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr) 86px;
+      gap: 0 1rem;
+      align-items: center;
+    }
+
+    .bench-model {
+      min-width: 0;
+    }
+
+    .bench-model-name {
+      font-size: 0.86rem;
       font-weight: 600;
       color: #111111;
-      background: #fafafa;
-      font-size: 0.82rem;
       letter-spacing: -0.01em;
     }
 
-    th small {
-      color: #888888;
-      font-weight: 400;
+    .bench-model-sub {
+      font-size: 0.72rem;
+      color: #9ca3af;
+      margin-top: 0.1rem;
     }
 
-    tr:last-child td {
-      border-bottom: none;
+    .bench-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
     }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      height: 16px;
+      font-size: 0.74rem;
+      color: #444444;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .bar i {
+      display: block;
+      height: 10px;
+      width: var(--w);
+      max-width: calc(100% - 3.5rem);
+      border-radius: 0 4px 4px 0;
+      background: #111111;
+      flex: none;
+    }
+
+    .bar.before i { background: #b4b4bb; }
+
+    .bar.after { color: #111111; font-weight: 600; }
+
+    .bench-delta {
+      text-align: right;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #15803d;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .bench-delta small {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: #6b7280;
+      letter-spacing: 0;
+      margin-top: 0.1rem;
+    }
+
+    .bench-method {
+      margin-top: 1.1rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .bench-method summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #111111;
+      font-size: 0.78rem;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .bench-method summary::-webkit-details-marker { display: none; }
+
+    .bench-method summary::before {
+      content: "";
+      width: 0; height: 0;
+      border-left: 5px solid #111111;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      transition: transform 0.15s ease;
+    }
+
+    .bench-method[open] summary::before { transform: rotate(90deg); }
+
+    .bench-method p {
+      margin-top: 0.6rem;
+    }
+
+    .bench-method p + p { margin-top: 0.4rem; }
 
     .gain {
       color: #15803d;
       font-weight: 600;
     }
 
-    .nodiff {
-      color: #9ca3af;
-    }
-
     @media (max-width: 600px) {
       h1 { font-size: 2.75rem; }
       p.subtitle { font-size: 1.05rem; }
-      .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.75rem;
+      .benchmark-cards {
+        grid-template-columns: 1fr;
+        max-width: 420px;
       }
-      .card-footer {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.35rem;
+      .metric-num { font-size: 1.6rem; }
+      .modal-overlay { padding: 0.75rem; }
+      .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
+      .bench-row {
+        grid-template-columns: minmax(0, 1fr) 72px;
+        row-gap: 0.35rem;
       }
+      .bench-model { grid-column: 1 / -1; }
+      .bench-delta { font-size: 0.85rem; }
       .btn-group {
         flex-direction: column;
         width: 100%;
@@ -680,7 +816,6 @@
   <main>
     <h1>thinker</h1>
     <p class="subtitle">A knowledge cache for your coding agents</p>
-    <p class="hero-outcome">Catch regressions against past fixes and team rules in CI. Give coding agents the same repository knowledge to make better changes.</p>
 
     <div class="install-container">
       <!-- State 1: Action Buttons -->
@@ -721,31 +856,32 @@
       </div>
     </div>
 
-    <!-- Benchmark Hero Card -->
-    <div class="benchmark-card" onclick="openModal()" title="View bug detection and coding-task token benchmarks">
-      <div class="card-header">
-        <div class="card-title">
-          <span class="terminal-prompt">$</span> bug detection &amp; coding efficiency
-        </div>
-        <span class="card-tag">Paired evaluations</span>
+    <!-- Benchmark cards -->
+    <div class="benchmark-cards">
+      <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
+        <div class="metric-kicker">Bug detection</div>
+        <div class="metric-num gain">+30 pts</div>
+        <div class="metric-label">More regressions caught in code review, on every model</div>
+        <ul class="metric-models">
+          <li><span>Claude Opus 5</span><span><span class="before">70% &rarr;</span> 100%</span></li>
+          <li><span>GPT-6.1 Sol</span><span><span class="before">60% &rarr;</span> 90%</span></li>
+          <li><span>Gemini 3.1 Pro</span><span><span class="before">60% &rarr;</span> 90%</span></li>
+        </ul>
+        <div class="metric-cta">See how we measured &rarr;</div>
       </div>
-      <div class="metrics-grid">
-        <div class="metric-item">
-          <div class="metric-num gain">+30% of cases</div>
-          <div class="metric-label">Historical bug detection</div>
-          <div class="metric-sub">3 more of 10 with notes, in each model cohort</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">18&ndash;19% less</div>
-          <div class="metric-label">Input tokens on coding tasks</div>
-          <div class="metric-sub">across 3 separate model cohorts</div>
-        </div>
-      </div>
-      <div class="card-footer">
-        <span>Historical fix recall and real PR coding tasks · see methods</span>
-        <span class="card-footer-cta">View results &rarr;</span>
+      <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
+        <div class="metric-kicker">Efficiency</div>
+        <div class="metric-num gain">&minus;18 to 19%</div>
+        <div class="metric-label">Input tokens per coding task, on every model</div>
+        <ul class="metric-models">
+          <li><span>Claude Fable</span><span><span class="before">1.25M &rarr;</span> 1.02M</span></li>
+          <li><span>Gemini 3.8 Flash</span><span><span class="before">16.6M &rarr;</span> 13.4M</span></li>
+          <li><span>GPT-6 Astra</span><span><span class="before">473k &rarr;</span> 384k</span></li>
+        </ul>
+        <div class="metric-cta">See how we measured &rarr;</div>
       </div>
     </div>
+    <div class="benchmark-caption">Same model, same task, with and without thinker &middot; real changes from open-source repositories</div>
 
     <a class="ci-link" href="docs.html#review">See how CI review catches regressions &rarr;</a>
 
@@ -755,34 +891,98 @@
   </main>
 
   <div class="modal-overlay" id="modal-overlay" onclick="handleBackdrop(event)">
-    <div class="modal-card" id="modal-card">
+    <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-header">
-        <div class="modal-title">Benchmark Results</div>
-        <button class="btn-close" onclick="closeModal()">&times;</button>
+        <div>
+          <div class="modal-title" id="modal-title">Benchmarks</div>
+          <div class="modal-subtitle">Every number is a paired run: the same model on the same task, with and without thinker.</div>
+        </div>
+        <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
-        <h3 class="modal-section-title">Bug detection in PR review</h3>
-        <p class="modal-note">We reversed 10 historical fixes in <a href="https://github.com/kubernetes/autoscaler">Kubernetes Autoscaler</a> and asked each model to review the changes with and without notes. Detection rate is the share of reviews that identified the original failure: <strong>Opus rose from 70% to 100%; GPT Sol and Gemini rose from 60% to 90%</strong>. Notes were mined from these same fixes, so this measures recall of known bugs, not detection of unseen bugs.</p>
-        <h3 class="modal-section-title">Input tokens on coding tasks</h3>
-        <p class="modal-note">Each model worked on the same real PR tasks with and without Thinker. We compare input tokens per task, including cached context reads; the percentage is the reduction from the run without Thinker.</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Claude Fable<br><small>20 PostHog tasks</small></th>
-              <th>Gemini 3.8 Flash<br><small>14 PostHog tasks</small></th>
-              <th>GPT-6 Astra<br><small>21 Grafana tasks</small></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Input tokens per task</td>
-              <td class="gain">18% less</td>
-              <td class="gain">19% less</td>
-              <td class="gain">19% less</td>
-            </tr>
-          </tbody>
-        </table>
+
+        <section class="bench-section" aria-labelledby="bench-bugs">
+          <div class="bench-kicker">Bug detection</div>
+          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">3 more of 10</span> regressions with thinker.</h3>
+          <p class="bench-lede">Ten reversed fixes from an open-source repository, reviewed by each model with and without thinker's notes. Share of regressions caught:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 reviews each</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 70%"></i>70%</div>
+                <div class="bar after"><i style="--w: 100%"></i>100%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>7 &rarr; 10 of 10</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 60%"></i>60%</div>
+                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 60%"></i>60%</div>
+                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+            </div>
+          </div>
+          <details class="bench-method">
+            <summary>How we measured</summary>
+            <p>We took ten merged bug fixes from an open-source repository and reversed each one, putting a known bug back into the code. Each model reviewed every change twice under identical settings: once on its own, once with the notes thinker had learned from the original fixes. A catch is an error or warning on the changed production code that explains the actual failure, not a comment on a missing test.</p>
+            <p>Because thinker had seen the original fixes, this measures how well a model recovers knowledge the repository already holds: the regressions a team has fixed before. It does not measure detection of never-seen bugs. One review per case and model; one model gained four catches and lost one. In a control run with the notes' text blanked out, the same model caught 4 of 10 instead of 9.</p>
+          </details>
+        </section>
+
+        <section class="bench-section" aria-labelledby="bench-tokens">
+          <div class="bench-kicker">Efficiency</div>
+          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer input tokens</span> per coding task.</h3>
+          <p class="bench-lede">Real coding tasks from merged pull requests in open-source repositories, run with and without thinker. Input tokens per task, including cached context:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>1.25M</div>
+                <div class="bar after"><i style="--w: 82%"></i>1.02M</div>
+              </div>
+              <div class="bench-delta">&minus;18%<small>17% fewer tool calls</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>16.6M</div>
+                <div class="bar after"><i style="--w: 81%"></i>13.4M</div>
+              </div>
+              <div class="bench-delta">&minus;19%<small>22% fewer tool calls</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>473k</div>
+                <div class="bar after"><i style="--w: 81%"></i>384k</div>
+              </div>
+              <div class="bench-delta">&minus;19%<small>18% fewer tool calls</small></div>
+            </div>
+          </div>
+          <details class="bench-method">
+            <summary>How we measured</summary>
+            <p>Each task is a real change from a merged pull request, described to the agent by its symptom only. Every model ran each task twice in identical setups, with and without thinker, and we compare the average per task. Input tokens count everything the model read, cached context included, since that is what the agent spent. Task sets and tooling differ by model, so compare within a row, not across rows.</p>
+            <p>Correctness was graded on fixed acceptance criteria and was not traded away: up for one model (80% to 89% of criteria met), unchanged for one, and within one task for the third. Each model also made fewer tool calls and finished faster.</p>
+          </details>
+        </section>
+
       </div>
     </div>
   </div>
@@ -935,9 +1135,15 @@
       });
     }
 
-    function openModal() {
+    function openModal(sectionId) {
       const modal = document.getElementById('modal-overlay');
       modal.classList.add('active');
+      const body = modal.querySelector('.modal-body');
+      body.scrollTop = 0;
+      if (sectionId === 'bench-tokens') {
+        const section = document.getElementById(sectionId).closest('.bench-section');
+        if (section) body.scrollTop = section.offsetTop - body.offsetTop;
+      }
     }
 
     function closeModal() {
