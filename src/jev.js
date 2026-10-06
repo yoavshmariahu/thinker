@@ -122,8 +122,11 @@ export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject
     request: query,
     question: `Would the note at \`candidate_notes[${i}]\` help a developer carry out \`request\`? Weigh its \`claim\` and \`answers_the_questions\`; \`code_it_points_at\` tells you which code it governs.`,
   }));
+  // `criteria` may be one object shared by every question, or a function of the index when each
+  // question defines its own (review's step gates: gates.js).
+  const crit = typeof criteria === 'function' ? criteria : () => criteria;
   const questions = {};
-  notes.forEach((n, i) => { questions[`rel${i}`] = { type: 'noul', instructions: ask(i), criteria }; });
+  notes.forEach((n, i) => { questions[`rel${i}`] = { type: 'noul', instructions: ask(i), criteria: crit(i) }; });
   return { model, state: { [subject]: query, candidate_notes: notes.map(noteRecord) }, questions };
 }
 
