@@ -587,24 +587,6 @@
       margin-bottom: 0.55rem;
     }
 
-    .benchmark-section + .benchmark-section {
-      margin-top: 1.75rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid #f0f0f0;
-    }
-
-    .benchmark-section-title {
-      font-size: 1rem;
-      margin-bottom: 0.55rem;
-    }
-
-    .benchmark-table-scroll { overflow-x: auto; }
-    .benchmark-table { min-width: 520px; }
-
-    .benchmark-cases { margin: 0.25rem 0 1.25rem; font-size: 0.85rem; }
-    .benchmark-cases summary { cursor: pointer; color: #111111; font-weight: 600; }
-    .benchmark-cases .benchmark-table-scroll { margin-top: 0.75rem; }
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -761,7 +743,7 @@
       </div>
       <div class="card-footer">
         <span>Historical fix recall and real PR coding tasks · see methods</span>
-        <span class="card-footer-cta">View full report &rarr;</span>
+        <span class="card-footer-cta">View results &rarr;</span>
       </div>
     </div>
 
@@ -779,56 +761,28 @@
         <button class="btn-close" onclick="closeModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <section class="benchmark-section" aria-labelledby="bug-detection-title">
-          <h3 class="benchmark-section-title" id="bug-detection-title">Bug detection: recall of past fixes</h3>
-          <p class="modal-note">Ten known fixes in <a href="https://github.com/kubernetes/autoscaler">Kubernetes Autoscaler</a> were reversed at one commit. Each model reviewed the same changes with and without notes mined from those fixes. A catch required an actionable finding on changed production code that explained the original failure.</p>
-          <div class="benchmark-table-scroll">
-            <table class="benchmark-table">
-              <thead><tr><th>Review model</th><th>No notes</th><th>With notes</th><th>Gain</th></tr></thead>
-              <tbody>
-                <tr><td>Claude Opus 5</td><td>70% (7/10)</td><td class="gain">100% (10/10)</td><td class="gain">+30 points</td></tr>
-                <tr><td>GPT-6.1 Sol, high</td><td>60% (6/10)</td><td class="gain">90% (9/10)</td><td class="gain">+30 points</td></tr>
-                <tr><td>Gemini 3.1 Pro High</td><td>60% (6/10)</td><td class="gain">90% (9/10)</td><td class="gain">+30 points</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <details class="benchmark-cases">
-            <summary>See the ten fixes and paired outcomes</summary>
-            <div class="benchmark-table-scroll">
-              <table class="benchmark-table">
-                <thead><tr><th>Fix</th><th>Opus</th><th>Sol</th><th>Gemini</th></tr></thead>
-                <tbody>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10325">#10325</a> · stale OOM</td><td>Both</td><td>Both</td><td>Both</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10178">#10178</a> · checkpoint cleanup</td><td>Both</td><td>Both</td><td>Both</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10141">#10141</a> · DaemonSet updates</td><td>Notes only</td><td>Notes only</td><td>Both</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10349">#10349</a> · AWS placeholder</td><td>Both</td><td>No notes only</td><td>Both</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10258">#10258</a> · zone label</td><td>Both</td><td>Notes only</td><td>Notes only</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10094">#10094</a> · transient resize</td><td>Notes only</td><td>Both</td><td>Notes only</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9949">#9949</a> · Scaleway state</td><td>Both</td><td>Notes only</td><td>Notes only</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10001">#10001</a> · Machine phase</td><td>Notes only</td><td>Notes only</td><td>Neither</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9725">#9725</a> · OOM window</td><td>Both</td><td>Both</td><td>Both</td></tr>
-                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9691">#9691</a> · JSON Patch paths</td><td>Both</td><td>Both</td><td>Both</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <p class="modal-note">This tests recall of historical fixes: notes were mined from the same fixes later reversed. One review per case and model. It does not estimate detection of unseen bugs. Sol gained four catches and lost one. The no-note and note-backed review modes also use different prompts and code context. In a separate Sol control, hiding note text while keeping the note-backed context caught 4 of 10, versus 9 of 10 with full notes.</p>
-        </section>
-        <section class="benchmark-section" aria-labelledby="coding-tokens-title">
-          <h3 class="benchmark-section-title" id="coding-tokens-title">Coding agent efficiency: input tokens</h3>
-          <p class="modal-note">Separate paired coding tasks from merged PostHog and Grafana pull requests. Input counts include reused context reads; each row compares the same model and task set with and without Thinker.</p>
-          <div class="benchmark-table-scroll">
-            <table class="benchmark-table">
-              <thead><tr><th>Model and tasks</th><th>No cache / task</th><th>With cache / task</th><th>Change</th></tr></thead>
-              <tbody>
-                <tr><td>Claude Fable · 20 PostHog</td><td>1.25M</td><td>1.02M</td><td class="gain">18% less</td></tr>
-                <tr><td>Gemini 3.8 Flash · 14 PostHog</td><td>16.6M</td><td>13.4M</td><td class="gain">19% less</td></tr>
-                <tr><td>GPT-6 Astra · 21 Grafana</td><td>473k</td><td>384k</td><td class="gain">19% less</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="modal-note">Task sets and token accounting differ by model. These token results measure coding work, not the Autoscaler review experiment above.</p>
-        </section>
+        <h3 class="modal-section-title">Bug detection in PR review</h3>
+        <p class="modal-note">We reversed 10 historical fixes in <a href="https://github.com/kubernetes/autoscaler">Kubernetes Autoscaler</a> and asked each model to review the changes with and without notes. Detection rate is the share of reviews that identified the original failure: <strong>Opus rose from 70% to 100%; GPT Sol and Gemini rose from 60% to 90%</strong>. Notes were mined from these same fixes, so this measures recall of known bugs, not detection of unseen bugs.</p>
+        <h3 class="modal-section-title">Input tokens on coding tasks</h3>
+        <p class="modal-note">Each model worked on the same real PR tasks with and without Thinker. We compare input tokens per task, including cached context reads; the percentage is the reduction from the run without Thinker.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Claude Fable<br><small>20 PostHog tasks</small></th>
+              <th>Gemini 3.8 Flash<br><small>14 PostHog tasks</small></th>
+              <th>GPT-6 Astra<br><small>21 Grafana tasks</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Input tokens per task</td>
+              <td class="gain">18% less</td>
+              <td class="gain">19% less</td>
+              <td class="gain">19% less</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
