@@ -557,7 +557,6 @@
     .gh-event .gh-avatar { position: absolute; left: -2.25rem; top: -0.05rem; box-shadow: 0 0 0 3px #fff; }
     .gh-avatar-sm { width: 1.35rem; height: 1.35rem; }
     .gh-bot { font-size: 0.66rem; color: #656d76; border: 1px solid #d0d7de; border-radius: 2em; padding: 0 0.4rem; line-height: 1.5; vertical-align: middle; }
-    .gh-review-state { margin-left: auto; font-size: 0.72rem; color: #1f2328; background: #eff2f5; border: 1px solid #d0d7de; border-radius: 2em; padding: 0.1rem 0.55rem; }
     .gh-comment, .gh-file { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
     .gh-comment-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
     .gh-md { padding: 0.9rem 1rem 0.25rem; }
@@ -578,7 +577,6 @@
     .gh-pass { color: #1a7f37; font-weight: 600; white-space: nowrap; }
     .gh-warn { color: #9a6700; }
     .gh-fail { color: #cf222e; font-weight: 600; }
-    .gh-review-state.gh-changes { color: #cf222e; background: #ffebe9; border-color: #ff8182; }
     .gh-details { margin: 0.4rem 0 0.8rem; font-size: 0.82rem; }
     .gh-details summary { cursor: pointer; color: #0969da; font-weight: 500; }
     .gh-details ul { margin-top: 0.5rem; color: #57606a; }
@@ -615,7 +613,6 @@
       .gh-timeline::before { left: 0.6rem; }
       .gh-event .gh-avatar { left: -1.6rem; width: 1.5rem; height: 1.5rem; }
       .gh-inline { margin-left: 0.75rem; }
-      .gh-review-state { margin-left: 0; }
     }
 
     /* Responsive */
@@ -920,7 +917,6 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
             <div class="gh-event">
               <span class="gh-avatar" aria-hidden="true"></span>
               <span><strong>thinker</strong> <span class="gh-bot">bot</span> reviewed 4 minutes ago</span>
-              <span class="gh-review-state gh-changes">Changes requested</span>
             </div>
 
             <article class="gh-comment">
