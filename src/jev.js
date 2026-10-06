@@ -2,12 +2,12 @@
 // against the request, and the selection happens in code. Opt-in; without a key the cross-encoder
 // (dense.js) serves as before, so nothing here is required to run thinker.
 //
-// Measured on 20 of the 54 labelled ranking tasks (judge gpt-6-sol, the labels in
-// bench/runs/ranking-lab-2026-10-04), against the cross-encoder default on all 54:
-//   two notes, floor 0.5: 0.94 of served notes useful, 11 of 27 important notes reached
-//   the cross-encoder default:  0.96 useful, 16 of 70 important notes reached
-// so about twice the share of important notes at the same precision, and neither serves anything
-// on a task where no useful note exists. ~170 ms and ~6k tokens a prompt. n=20, one run, one judge.
+// Measured on all 54 labelled ranking tasks, two runs (judge gpt-6-sol, the labels in
+// bench/runs/ranking-lab-2026-10-04), against the cross-encoder default on the same 54:
+//   two notes, floor 0.5: 0.96 of served notes useful, 40 of 70 important notes reached, 33 of 54 tasks
+//   the cross-encoder default:  0.96 useful, 16 of 70 important notes reached, 23 of 54 tasks
+// so 2.5x the important notes at the same precision, and neither serves anything on a task where no
+// useful note exists. Both runs were identical on this arm. ~160 ms and ~10k tokens a prompt.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';

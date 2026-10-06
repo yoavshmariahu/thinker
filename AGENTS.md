@@ -712,11 +712,13 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   prose blob of the same note (false positives 8 to 5). There is no fallback
   below the floor: a Noul near 0 is the model saying the note does not bear on
   the request, and serving nothing was right on every labelled task that had
-  nothing useful. Measured on 20 of the 54 labelled tasks against the same
-  `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.94 of served notes
-  useful and 11 of 27 important notes reached, against the cross-encoder's 0.96
-  and 16 of 70 — about twice the reach at the same precision, ~170 ms and ~6k
-  tokens a prompt. Caveat: n=20, one run, one judge.
+  nothing useful. Measured on all 54 labelled tasks, two runs, against the
+  same `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.96 of served
+  notes useful, 40 of 70 important notes reached and 33 of 54 tasks served
+  something useful, against the cross-encoder's 0.96, 16 of 70 and 23 of 54 —
+  2.5x the reach at the same precision, ~160 ms and ~10k tokens a prompt. Both
+  runs were identical on the default arm. One judge, one prompt, and Jev was
+  handed the labelled candidate pool.
   Jev is the only thing in thinker that needs a credential of its own. The key
   is read from `THINKER_JEV_KEY`, `JEV_API_KEY` or `TYPESAFE_API_KEY`, else from
   `~/.thinker/jev-key` (mode 0600, written by `thinker setup` or `thinker ranker
