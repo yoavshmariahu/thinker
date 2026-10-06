@@ -64,7 +64,7 @@ async function rankerCommand(ctx) {
   // `thinker ranker --jev-key <key>` configures Jev; `--no-jev-key` forgets it. The key is written to the
   // machine's thinker home, never into the repository.
   if (flags['jev-key']) { const where = jev.saveKey(flags['jev-key']); out(`jev key saved to ${where} (owner-readable only)`); return; }
-  if (flags['no-jev-key'] || pos[0] === 'forget-jev-key') { out(jev.forgetKey() ? `removed ${jev.keyFile()}` : `no key at ${jev.keyFile()}`); return; }
+  if (flags['no-jev-key'] || pos[0] === 'forget-jev-key') { out(jev.forgetKey() ? `removed ${jev.keyFile()}; hosted Jev is now used (THINKER_JEV=off for local only)` : `no key at ${jev.keyFile()}; hosted Jev needs no personal key`); return; }
   if (pos[0] === 'fetch') {
     const before = await rankerStatus();
     if (!before.runtime) { out(`the ranking runtime (@huggingface/transformers) is not installed: ${before.error || ''}\nrun \`npm ci --omit=dev --ignore-scripts\` in thinker's app directory, or \`thinker update\``); process.exitCode = 1; return; }
@@ -78,9 +78,8 @@ async function rankerCommand(ctx) {
   out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
   if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
   const j = jev.jevStatus(store);
-  out(`jev: ${j.enabled ? 'on' : 'off'}${j.key ? ` (key from ${j.source})` : ' (no key)'}; ${j.model}, floor ${j.floor}, ${j.maxNotes} note${j.maxNotes === 1 ? '' : 's'}`);
-  if (!j.key) out('  a key turns it on and it reaches about twice the share of important notes at the same precision:\n  thinker ranker --jev-key <key>   (https://console.typesafe.ai/keys)');
-  else if (j.enabled) out('  jev chooses what is served; the cross-encoder above serves whenever a call fails');
+  out(`jev: ${j.enabled ? 'on' : 'off'} (${j.mode === 'hosted' ? 'Thinker hosted access; no API key needed' : `personal key from ${j.source}`}); ${j.model}, floor ${j.floor}, ${j.maxNotes} note${j.maxNotes === 1 ? '' : 's'}`);
+  if (j.enabled) out(`  the local ranker takes over on errors, invalid responses or after ${j.timeoutMs} ms; THINKER_JEV=off uses local only`);
 }
 
 async function astCommand(ctx) {
