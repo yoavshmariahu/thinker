@@ -1,0 +1,374 @@
+[
+  {
+    "id": "A-10325",
+    "pr": 10325,
+    "source": "kubernetes/autoscaler#10325",
+    "title": "VPA: ignore stale lastState OOMs in the quick-OOM path",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10325",
+    "mergedAt": "2026-10-04T07:34:23Z",
+    "proposed": [
+      {
+        "title": "Quick-OOM eligibility requires a recent termination",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "quick-oom-eligibility-requires-a-recent-termination",
+        "title": "Quick-OOM eligibility requires a recent termination",
+        "kind": "rule",
+        "body": "Symptom: VPA InPlace repeatedly treats a days-old, short-lived container OOM as a fresh quick OOM on updater cycles.\nRoot cause: vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go:UpdatePriorityCalculator.AddPod inspected LastTerminationState for OOMKilled and short runtime without checking termination age; InPlace preserves that state.\nFix pattern: Require both FinishedAt minus StartedAt and the supplied now minus FinishedAt to be strictly less than EvictAfterOOMThreshold before granting quick-OOM eligibility; reuse the existing threshold.\nConstraints: Applies to the quick-OOM eligibility path in all update modes. A stale OOM must fall through ordinary update eligibility checks, which may still permit an update; Recreate eviction already clears the retained termination state.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+            "symbol": "UpdatePriorityCalculator"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17324
+  },
+  {
+    "id": "A-10178",
+    "pr": 10178,
+    "source": "kubernetes/autoscaler#10178",
+    "title": "VPA recommender: fix checkpoint garbage collection timeout",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10178",
+    "mergedAt": "2026-09-28T08:30:34Z",
+    "proposed": [
+      {
+        "title": "Give checkpoint writing and garbage collection independent timeouts",
+        "kind": "rule"
+      },
+      {
+        "title": "Record checkpoint cleanup completion only after successful collection",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "give-checkpoint-writing-and-garbage-collection-independent-t",
+        "title": "Give checkpoint writing and garbage collection independent timeouts",
+        "kind": "rule",
+        "body": "Symptom: Orphaned VPA checkpoints accumulate when checkpoint writing exhausts its timeout before cleanup starts.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.RunOnce previously passed one write-limited context to both operations in recommender.MaintainCheckpoints.\nFix pattern: In vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.MaintainCheckpoints, create separate timeout contexts for writing and garbage collection from the shared parent; create the cleanup context when cleanup starts.\nConstraints: Applies when checkpoint storage is enabled and cleanup is due. Independent child timeouts prevent writing from exhausting cleanup's budget, but both operations remain subject to parent cancellation.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "RunOnce"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "MaintainCheckpoints"
+          }
+        ]
+      },
+      {
+        "id": "record-checkpoint-cleanup-completion-only-after-successful-c",
+        "title": "Record checkpoint cleanup completion only after successful collection",
+        "kind": "rule",
+        "body": "Symptom: Failed orphaned-checkpoint cleanup is treated as completed and is not retried on the next recommender run.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.MaintainCheckpoints previously advanced lastCheckpointGC before cleanup, while vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go:clusterStateFeeder.GarbageCollectCheckpoints did not return failures.\nFix pattern: Return listing failures immediately; continue deleting eligible checkpoints after individual deletion failures and aggregate those errors. Advance lastCheckpointGC only when garbage collection returns nil.\nConstraints: Once cleanup is due, any returned error must leave the completion timestamp unchanged so the next run retries. Successful collection advances the timestamp and restores interval-based scheduling.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go",
+            "symbol": "clusterStateFeeder"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "MaintainCheckpoints"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 20726
+  },
+  {
+    "id": "A-10141",
+    "pr": 10141,
+    "source": "kubernetes/autoscaler#10141",
+    "title": "VPA updater: fix unready DaemonSet updates",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10141",
+    "mergedAt": "2026-09-27T16:12:30Z",
+    "proposed": [
+      {
+        "title": "Use desired DaemonSet size for VPA eviction restrictions",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+        "title": "Use desired DaemonSet size for VPA eviction restrictions",
+        "kind": "rule",
+        "body": "Symptom: VPA cannot resize DaemonSet pods to recover after reduced memory limits cause all pods to become unready.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go:PodsRestrictionFactoryImpl.getReplicaCount used Status.NumberReady as the desired replica count, rejecting workloads with no ready pods.\nFix pattern: Derive DaemonSet replica count from Status.DesiredNumberScheduled so loss of readiness does not prevent recovery updates.\nConstraints: Zero desired scheduled pods still produces an error. Unready pods remain subject to eviction limits; vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go:TestEvictReplicatedByDaemonSet verifies that a five-pod DaemonSet permits only two evictions at a 0.5 eviction fraction, even with zero ready pods.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+            "symbol": "PodsRestrictionFactoryImpl"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+            "symbol": "TestEvictReplicatedByDaemonSet"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17684
+  },
+  {
+    "id": "A-10349",
+    "pr": 10349,
+    "source": "kubernetes/autoscaler#10349",
+    "title": "Fix instance name extraction for placeholder nodes when ASG name contains '/'",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10349",
+    "mergedAt": "2026-09-24T19:40:26Z",
+    "proposed": [
+      {
+        "title": "Preserve complete AWS placeholder names when parsing provider IDs",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-complete-aws-placeholder-names-when-parsing-provide",
+        "title": "Preserve complete AWS placeholder names when parsing provider IDs",
+        "kind": "rule",
+        "body": "Symptom: Cluster-autoscaler cannot associate or delete placeholder nodes whose ASG names contain '/', eventually halting scaling after MaxNodeStartupTime.\nRoot cause: cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:AwsRefFromProviderId split the provider ID on '/', truncating the placeholder name needed for ASG association.\nFix pattern: Capture the complete placeholder name in cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:validAwsRefIdRegex and use that capture directly in AwsRefFromProviderId; preserve the original ProviderID.\nConstraints: The placeholder branch applies only when the instance name starts with the placeholder prefix and must retain subsequent slashes. An ordinary name containing that prefix internally must use the ordinary branch; invalid formats must still be rejected. These boundaries are covered by cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go:TestAwsRefFromProviderId.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "AwsRefFromProviderId"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "validAwsRefIdRegex"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go",
+            "symbol": "TestAwsRefFromProviderId"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 18379
+  },
+  {
+    "id": "A-10258",
+    "pr": 10258,
+    "source": "kubernetes/autoscaler#10258",
+    "title": "Add topology.kubernetes.io/zone to CAPI extracted template labels",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10258",
+    "mergedAt": "2026-09-15T13:45:22Z",
+    "proposed": [
+      {
+        "title": "CAPI scale-up simulation must preserve stable zone labels",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "capi-scale-up-simulation-must-preserve-stable-zone-labels",
+        "title": "CAPI scale-up simulation must preserve stable zone labels",
+        "kind": "rule",
+        "body": "Symptom: Cluster API scale-up does not trigger for pods requiring topology.kubernetes.io/zone.\nRoot cause: cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go:extractNodeLabels copies a predefined label set; omitting the stable zone label deprived simulation templates of required topology metadata.\nFix pattern: Explicitly copy the stable zone label alongside the deprecated zone label, and verify source-to-template preservation in cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go:TestNodeGroupTemplateNodeInfo.\nConstraints: Applies to templates extracting labels from existing nodes; preserve nonempty source values through setLabelIfNotEmpty. This pattern does not provide zone metadata missing from the source node.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+            "symbol": "extractNodeLabels"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go",
+            "symbol": "TestNodeGroupTemplateNodeInfo"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16534
+  },
+  {
+    "id": "A-10094",
+    "pr": 10094,
+    "source": "kubernetes/autoscaler#10094",
+    "title": "VPA InPlace: treat ResizeError as deferred, not infeasible",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10094",
+    "mergedAt": "2026-08-04T07:52:30Z",
+    "proposed": [
+      {
+        "title": "Defer transient kubelet resize errors without caching infeasibility",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "defer-transient-kubelet-resize-errors-without-caching-infeas",
+        "title": "Defer transient kubelet resize errors without caching infeasibility",
+        "kind": "rule",
+        "body": "Symptom: After a transient kubelet resize error, VPA skips later higher resource recommendations until the Updater restarts.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go:PodsInPlaceRestrictionImpl.CanInPlaceUpdate classified ResizeStatusError as InPlaceInfeasible, caching the failed recommendation; retries required a later recommendation with a lower resource.\nFix pattern: Map ResizeStatusError to InPlaceDeferred so the next loop can retry without recording permanent infeasibility.\nConstraints: Applies to transient kubelet resize errors in InPlace mode; preserve InPlaceInfeasible for true capacity infeasibility (ResizeInfeasible).",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestrictionImpl"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17386
+  },
+  {
+    "id": "A-9949",
+    "pr": 9949,
+    "source": "kubernetes/autoscaler#9949",
+    "title": "scaleway: report node in error as InstanceCreating so CA detects it faster",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9949",
+    "mergedAt": "2026-07-21T22:53:43Z",
+    "proposed": [
+      {
+        "title": "Scaleway creation errors must retain the creating state",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "scaleway-creation-errors-must-retain-the-creating-state",
+        "title": "Scaleway creation errors must retain the creating state",
+        "kind": "rule",
+        "body": "Symptom: Cluster Autoscaler is slow to detect a Scaleway node that could not be created.\nRoot cause: cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go:fromScwStatus populated creation-error details without explicitly setting InstanceCreating.\nFix pattern: Map NodeStatusCreationError to InstanceCreating while preserving ErrorInfo, including the creation_error code and failure message.\nConstraints: This mapping applies to Scaleway creation failures; do not generalize it to other statuses. cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go:TestFromScwStatus checks both the creating state and error information.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go",
+            "symbol": "fromScwStatus"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go",
+            "symbol": "TestFromScwStatus"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16400
+  },
+  {
+    "id": "A-10001",
+    "pr": 10001,
+    "source": "kubernetes/autoscaler#10001",
+    "title": "cloudprovider/clusterapi: Implement machine phase check during the scale up",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10001",
+    "mergedAt": "2026-07-21T13:44:14Z",
+    "proposed": [
+      {
+        "title": "Require Failed phase before tracking a machine as failed",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "require-failed-phase-before-tracking-a-machine-as-failed",
+        "title": "Require Failed phase before tracking a machine as failed",
+        "kind": "rule",
+        "body": "Symptom: Machines still Provisioning are tracked as failed, potentially making their node group unhealthy after maxNodeProvisionTime.\nRoot cause: cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go:machineController.findScalableResourceProviderIDs treated a failure message alone as sufficient evidence of failure.\nFix pattern: Require status.phase to equal machinePhaseFailed before appending a synthetic failed provider ID and taking the failed-machine continue branch.\nConstraints: This legacy branch requires both a failure message and phase Failed; a missing or different phase must fall through to subsequent handling. The PR identifies this failed-state handling as deprecated and intended for eventual removal.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machineController"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machinePhaseFailed"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machinePhaseFailed"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17256
+  },
+  {
+    "id": "A-9725",
+    "pr": 9725,
+    "source": "kubernetes/autoscaler#9725",
+    "title": "fix(vpa): do not discard fresh OOMs near aggregation boundary",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9725",
+    "mergedAt": "2026-06-11T17:42:43Z",
+    "proposed": [
+      {
+        "title": "Anchor OOM staleness to the latest memory sample",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "anchor-oom-staleness-to-the-latest-memory-sample",
+        "title": "Anchor OOM staleness to the latest memory sample",
+        "kind": "rule",
+        "body": "Symptom: VPA discards a recent OOM as \"too old\" near a memory aggregation boundary, preventing the expected memory bump-up.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/model/container.go:ContainerState.RecordOOM used WindowEnd as its staleness reference; usage samples advance that boundary up to a full interval ahead of the latest real sample.\nFix pattern: Compare event age against lastMemorySampleStart, the latest observed memory sample, and skip the staleness check when that reference is zero.\nConstraints: Preserve the single aggregation interval cutoff: reject timestamps strictly before lastMemorySampleStart minus GetMemoryAggregationIntervalDuration(). Do not substitute WindowEnd, wall-clock time, or the full interval-times-count window.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "ContainerState"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "GetMemoryAggregationIntervalDuration"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "GetMemoryAggregationIntervalDuration"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17462
+  },
+  {
+    "id": "A-9691",
+    "pr": 9691,
+    "source": "kubernetes/autoscaler#9691",
+    "title": "vpa/admission-controller: escape extended resource names in JSONPatch paths",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9691",
+    "mergedAt": "2026-06-10T12:53:58Z",
+    "proposed": [
+      {
+        "title": "Escape resource and annotation keys before constructing JSONPatch paths",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "escape-resource-and-annotation-keys-before-constructing-json",
+        "title": "Escape resource and annotation keys before constructing JSONPatch paths",
+        "kind": "rule",
+        "body": "Symptom: Pods requesting extended resources such as GPUs can bypass VPA resource caps when admission patches fail and webhook failures are ignored.\nRoot cause: vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:GetAddResourceRequirementValuePatch inserted resource names directly into JSONPatch paths, treating slashes inside names as path separators.\nFix pattern: Use vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:escapeJSONPatchPath on each raw key segment before interpolation; replace ~ with ~0 first, then / with ~1, so nvidia.com/gpu becomes nvidia.com~1gpu.\nConstraints: Escape individual key segments, not the complete path. Resource names and annotation names share this encoding through GetAddResourceRequirementValuePatch, GetAddAnnotationPatch and GetRemoveAnnotationPatch in vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go; structural separators and standard cpu/memory names remain unchanged.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "escapeJSONPatchPath"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "GetAddResourceRequirementValuePatch"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "GetAddAnnotationPatch"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "GetRemoveAnnotationPatch"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 18486
+  }
+]

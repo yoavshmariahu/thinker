@@ -1,0 +1,12 @@
+[
+  {"id":"A-10325","redactedHit":false,"reason":"No finding; full-note cached review had identified stale quick OOM."},
+  {"id":"A-10178","redactedHit":true,"reason":"Warns at changed line 159 that failed checkpoint cleanup suppresses retries; matches one historical failure."},
+  {"id":"A-10141","redactedHit":false,"reason":"No finding; full-note cached review had identified the DaemonSet desired-size failure."},
+  {"id":"A-10349","redactedHit":true,"reason":"Identifies slash truncation in placeholder names at changed line 233; full-note cached review missed this failure."},
+  {"id":"A-10258","redactedHit":false,"reason":"No finding; full-note cached review had identified the lost stable zone label."},
+  {"id":"A-10094","redactedHit":false,"reason":"No finding; both original arms had identified cached infeasible resize errors."},
+  {"id":"A-9949","redactedHit":false,"reason":"No finding; full-note cached review had identified the lost Scaleway creation state."},
+  {"id":"A-10001","redactedHit":false,"reason":"No finding; full-note cached review had identified the missing Failed-phase guard."},
+  {"id":"A-9725","redactedHit":true,"reason":"Identifies rejection of fresh OOM events near an aggregation boundary at changed line 208."},
+  {"id":"A-9691","redactedHit":true,"reason":"Identifies unescaped slash in resource names at changed line 59; also flags annotation tilde escaping."}
+]

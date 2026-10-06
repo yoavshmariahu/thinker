@@ -1,0 +1,1866 @@
+[
+  {
+    "id": "A-10325",
+    "pr": 10325,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10325",
+    "sha": "cd7235a0aa4117597d6bdf4cd98201947d2160fe",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go": [
+        123,
+        132
+      ],
+      "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator_test.go": [
+        322
+      ]
+    },
+    "order": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "elapsedMs": 168928,
+      "tokens": 29834,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 0,
+        "related": 5,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+          "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+          "line": 123,
+          "message": "Dropping the staleness condition introduces a bug because a container's `LastTerminationState` is retained until its next restart. A pod that had a quick OOM in the distant past but has since run stably will permanently evaluate `quickOOM = true`. This permanently bypasses the `MinChangePriority` threshold, causing the stable pod to be incorrectly evicted for negligible resource recommendation changes.",
+          "evidence": "-\t\t\tnow.Sub(terminationState.Terminated.FinishedAt.Time) < evictOOMThreshold {",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-6cc31f8cc990cdaa30285f6b"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change intentionally removes the staleness check for quick OOMs (as seen by the deleted test), but introduces a bug. Because Kubernetes retains a container's `LastTerminationState` indefinitely until the container restarts again, a pod that experienced a quick OOM in the past and subsequently stabilized will perpetually be flagged as `quickOOM = true`. This permanently bypasses the `MinChangePriority` threshold for the pod's lifetime, causing it to be aggressively evicted for any microscopic change in the VPA recommendation."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 27680,
+      "tokens": 11477,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 5,
+        "direct": 0,
+        "related": 5,
+        "assessed": 5,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+          "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "vpa-quick-oom-must-check-if-oom-is-recent",
+          "title": "VPA Quick OOM must check if OOM is recent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10325"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "title": "VPA InPlace: Transient Resize Errors vs Infeasible",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+          "line": 123,
+          "message": "The change removes the condition that checks if an OOM occurred recently, which contradicts the rule requiring this check to prevent continuous updates for stale OOMs under InPlace mode.",
+          "evidence": "-\t\t\tterminationState.Terminated.FinishedAt.Sub(terminationState.Terminated.StartedAt.Time) < evictOOMThreshold &&\n-\t\t\tnow.Sub(terminationState.Terminated.FinishedAt.Time) < evictOOMThreshold {\n+\t\t\tterminationState.Terminated.FinishedAt.Sub(terminationState.Terminated.StartedAt.Time) < evictOOMThreshold {",
+          "confidence": 0.95,
+          "note": "vpa-quick-oom-must-check-if-oom-is-recent",
+          "inChange": true,
+          "notes": [
+            "vpa-quick-oom-must-check-if-oom-is-recent"
+          ],
+          "id": "f-7c0f6dbcd9fc9cd14d4ce0ec"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change directly contradicts the established note 'vpa-quick-oom-must-check-if-oom-is-recent' by removing the check that ensures quick OOMs are recent, and deleting the corresponding test case for stale quick OOMs."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10178",
+    "pr": 10178,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10178",
+    "sha": "44107975d23e34cf19b9b7045c87c0f3715b9121",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/docs/flags.md": [
+        71
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/config/config.go": [
+        44,
+        116,
+        188,
+        273
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go": [
+        20,
+        78,
+        289,
+        296,
+        297,
+        309,
+        310,
+        312,
+        324,
+        329
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder_test.go": [
+        1074
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go": [
+        57,
+        156,
+        159,
+        160,
+        190,
+        191,
+        192,
+        213,
+        226
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go": [
+        163
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/routines/recommender_test.go": [
+        19,
+        32,
+        349
+      ]
+    },
+    "order": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "elapsedMs": 51247,
+      "tokens": 18635,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 8,
+        "direct": 2,
+        "related": 6,
+        "assessed": 8,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+          "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder_test.go",
+          "vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go",
+          "vertical-pod-autoscaler/pkg/recommender/routines/recommender_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "independent-context-timeouts-for-vpa-checkpoint-maintenance",
+          "title": "Independent context timeouts for VPA checkpoint maintenance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:MaintainCheckpoints; 13 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "aggregating-errors-during-item-level-garbage-collection",
+          "title": "Aggregating errors during item-level garbage collection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go:GarbageCollectCheckpoints; 12 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "title": "VPA InPlace: Transient Resize Errors vs Infeasible",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "vpa-quick-oom-must-check-if-oom-is-recent",
+          "title": "VPA Quick OOM must check if OOM is recent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10325"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-latest-sample-time-instead-of-windowend-for-staleness-ch",
+          "title": "Use latest sample time instead of WindowEnd for staleness checks",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9725"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go",
+          "line": 289,
+          "message": "The change removes error aggregation from garbage collection. Instead of accumulating item failures with errors.Join() and returning them to the caller, it now just logs the error and continues silently.",
+          "evidence": "func (feeder *clusterStateFeeder) GarbageCollectCheckpoints(ctx context.Context) {\n...\n\t\tif !allVPAKeys[vpaID] {\n\t\t\tif err := feeder.vpaCheckpointClient.VerticalPodAutoscalerCheckpoints(checkpoint.Namespace).Delete(ctx, checkpoint.Name, metav1.DeleteOptions{}); err != nil {\n\t\t\t\tklog.ErrorS(err, \"Orphaned VPA checkpoint cleanup - failed to delete\", \"checkpoint\", klog.KObj(checkpoint))\n\t\t\t\tcontinue\n\t\t\t}\n...\n}",
+          "confidence": 1,
+          "note": "aggregating-errors-during-item-level-garbage-collection",
+          "inChange": true,
+          "notes": [
+            "aggregating-errors-during-item-level-garbage-collection"
+          ],
+          "id": "f-e8d0e34ec3859ca846b5c2f9"
+        },
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+          "line": 154,
+          "message": "The change removes independent context timeouts for writing and garbage-collecting checkpoints, meaning a timeout during writing will instantly abort garbage collection. It also updates the last-run timestamp (lastCheckpointGC) unconditionally before the operation completes.",
+          "evidence": "func (r *recommender) MaintainCheckpoints(ctx context.Context) {\n\tif r.useCheckpoints {\n\t\tr.checkpointWriter.StoreCheckpoints(ctx, r.updateWorkerCount)\n\n\t\tif time.Since(r.lastCheckpointGC) > r.checkpointsGCInterval {\n\t\t\tr.lastCheckpointGC = time.Now()\n\t\t\tr.clusterStateFeeder.GarbageCollectCheckpoints(ctx)\n\t\t}\n\t}\n}",
+          "confidence": 1,
+          "note": "independent-context-timeouts-for-vpa-checkpoint-maintenance",
+          "inChange": false,
+          "notes": [
+            "independent-context-timeouts-for-vpa-checkpoint-maintenance"
+          ],
+          "id": "f-2db1cf96b8075e4754b7fd8b"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The proposed change reverts two critical fixes related to VPA checkpoint maintenance. It strips the independent context timeouts, meaning checkpoint writes and GC share a context, violating the rule that one timing out shouldn't instantly fail the other. It also removes the aggregation of item-level errors during GC, switching to logging them and returning silently rather than using `errors.Join()` to propagate failures to the caller."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 130036,
+      "tokens": 32730,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 2,
+        "related": 6,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+          "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder_test.go",
+          "vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go",
+          "vertical-pod-autoscaler/pkg/recommender/routines/recommender_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+          "line": 160,
+          "message": "Updating `lastCheckpointGC` unconditionally before calling `GarbageCollectCheckpoints` drops the retry mechanism on failure. Since `GarbageCollectCheckpoints` now shares a context timeout with `StoreCheckpoints`, it can be starved of time and fail with context expiration. Because the timestamp is already updated and the error is dropped, failures will be silently ignored instead of retrying on the next run.",
+          "evidence": "-\t\t\tif err := r.clusterStateFeeder.GarbageCollectCheckpoints(gcCtx); err != nil {\n-\t\t\t\tklog.ErrorS(err, \"Checkpoint garbage collection failed to complete, will retry next run\")\n-\t\t\t} else {\n-\t\t\t\tr.lastCheckpointGC = time.Now()\n-\t\t\t}\n+\t\t\tr.lastCheckpointGC = time.Now()\n+\t\t\tr.clusterStateFeeder.GarbageCollectCheckpoints(ctx)",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-66acd381a772b4473ce0cd2c"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes the independent timeout for checkpoint garbage collection and no longer tracks its errors. By updating `lastCheckpointGC` unconditionally, the recommender drops its retry logic for failed cleanups. Since GC now shares a context with checkpoint writing, it is vulnerable to timeout starvation if writing is slow, causing orphaned checkpoints to accumulate silently without being retried on subsequent runs."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10141",
+    "pr": 10141,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10141",
+    "sha": "e29b8194d8bfaedddc43b843300d4e3994040cb9",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go": [
+        151,
+        152,
+        154
+      ],
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go": [
+        642,
+        643,
+        644,
+        645,
+        646,
+        647,
+        649,
+        650,
+        651,
+        652,
+        653,
+        657,
+        658,
+        659,
+        660,
+        662,
+        663,
+        664,
+        665,
+        666,
+        667,
+        669,
+        670,
+        671,
+        673,
+        674,
+        675,
+        676,
+        677,
+        678,
+        679
+      ]
+    },
+    "order": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "elapsedMs": 48608,
+      "tokens": 15177,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 6,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+          "line": 154,
+          "message": "Broken invariant: getReplicaCount now returns the observed number of ready pods (Status.NumberReady) for DaemonSets, whereas it returns the desired configured replica count (Spec.Replicas) for all other controller types (ReplicationController, ReplicaSet, StatefulSet).",
+          "evidence": "return int(ds.Status.NumberReady), nil",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-c048d419ecf88db77475a418"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+          "line": 641,
+          "message": "A test case verifying that pods can be evicted even when no pods are ready was dropped, masking the semantic change in how getReplicaCount evaluates DaemonSets with zero ready pods.",
+          "evidence": "-\t\t\tname:                   \"Evict two pods (half of 5) even if no pods are ready.\",",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-02f82df586cf63dad16d461a"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change modifies getReplicaCount for DaemonSets to return Status.NumberReady instead of Status.DesiredNumberScheduled. This breaks the function's invariant of returning the desired/configured replica count (as it still does for ReplicaSets and StatefulSets using Spec.Replicas). Additionally, a test case that validated eviction behavior when zero pods are ready was removed, hiding the impact of this change."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 38236,
+      "tokens": 14784,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go:getReplicaCount; 6 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "title": "VPA InPlace: Transient Resize Errors vs Infeasible",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "vpa-quick-oom-must-check-if-oom-is-recent",
+          "title": "VPA Quick OOM must check if OOM is recent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10325"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aggregating-errors-during-item-level-garbage-collection",
+          "title": "Aggregating errors during item-level garbage collection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+          "line": 151,
+          "message": "The change replaces `DesiredNumberScheduled` with `NumberReady` when determining the replica count for a DaemonSet, which violates the rule. As noted, using `NumberReady` will cause VPA to fail to scale up DaemonSet pods if they all crash and become unready. The accompanying test case for the zero-ready scenario ('Evict two pods... even if no pods are ready') was also removed.",
+          "evidence": "-\t\tif ds.Status.DesiredNumberScheduled == 0 {\n-\t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s has no desired scheduled pods\", creator.Namespace, creator.Name)\n+\t\tif ds.Status.NumberReady == 0 {\n+\t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n \t\t}\n-\t\treturn int(ds.Status.DesiredNumberScheduled), nil\n+\t\treturn int(ds.Status.NumberReady), nil",
+          "confidence": 0.99,
+          "note": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "inChange": true,
+          "notes": [
+            "use-desirednumberscheduled-for-daemonset-target-size-instead"
+          ],
+          "id": "f-a701195be46f405b86ce2991"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change introduces a regression by reverting DaemonSet scale evaluation to use `NumberReady` instead of `DesiredNumberScheduled`. This directly violates the rule about determining DaemonSet target sizes, recreating the exact bug where VPA fails to scale up if all pods become unready."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10349",
+    "pr": 10349,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10349",
+    "sha": "86dfb2c5716bd3df45b8d240ad3b252881d5f17c",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go": [
+        223,
+        228,
+        231,
+        234
+      ],
+      "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go": [
+        311
+      ]
+    },
+    "order": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "elapsedMs": 33555,
+      "tokens": 12254,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 4,
+        "direct": 1,
+        "related": 3,
+        "assessed": 4,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "rests on cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:AwsRefFromProviderId; 14 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+          "line": 234,
+          "message": "The change removes regex capture groups and reintroduces strings.Split to extract the instance name. This incorrectly truncates placeholder node names containing slashes, violating the explicit constraint to preserve them.",
+          "evidence": "splitted := strings.Split(id[7:], \"/\")\n\treturn &AwsInstanceRef{\n\t\tProviderID: id,\n\t\tName:       splitted[1],\n\t}, nil",
+          "confidence": 1,
+          "note": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "inChange": true,
+          "notes": [
+            "aws-cloud-provider-parse-placeholder-node-names-containing-s"
+          ],
+          "id": "f-72cf009fda475d206e312305"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change introduces a regression by using strings.Split instead of regex capture groups to parse AWS provider IDs. This breaks the parsing of placeholder node names containing slashes and deletes the tests meant to protect against this exact bug."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 91559,
+      "tokens": 19913,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 3,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+          "line": 220,
+          "message": "The second branch of the regex is missing the '^' start anchor. This allows strings containing 'aws:///' as a substring to pass regex validation, leading to incorrect parsing since the hardcoded id[7:] slice blindly assumes the string starts precisely with 'aws:///'.",
+          "evidence": "var validAwsRefIdRegex = regexp.MustCompile(fmt.Sprintf(`^aws\\:\\/\\/\\/[-0-9a-z]*\\/[-0-9a-z]*(\\/[-0-9a-z\\.]*)?$|aws\\:\\/\\/\\/[-0-9a-z]*\\/%s.*$`, placeholderInstanceNamePrefix))",
+          "confidence": 1,
+          "inChange": false,
+          "notes": [],
+          "id": "f-82b5647f0704789ddefbe934"
+        },
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+          "line": 234,
+          "message": "Instance names containing slashes are incorrectly truncated. strings.Split separates the string on all slashes, so splitted[1] only captures the first path segment of the name. A test verifying instance names with slashes (issue #8305) was dropped, breaking this invariant.",
+          "evidence": "splitted := strings.Split(id[7:], \"/\")\n\treturn &AwsInstanceRef{\n\t\tProviderID: id,\n\t\tName:       splitted[1],",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-cf1a12fa1c5b5b9627db6e58"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change introduces two parsing bugs: it truncates instance names containing slashes because strings.Split splits the remainder of the string on all slashes instead of just the first, and it drops the start anchor from the second regex branch, allowing arbitrary strings to pass validation and be sliced incorrectly."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10258",
+    "pr": 10258,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10258",
+    "sha": "e557c6d03a02da023146263f2a6ebe2dbfaf21a5",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go": [
+        657
+      ],
+      "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go": [
+        1591,
+        1602
+      ]
+    },
+    "order": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "elapsedMs": 22789,
+      "tokens": 10050,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 3,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+          "line": 657,
+          "message": "The function extracts the stable region label (`corev1.LabelZoneRegionStable`) but the stable zone label extraction (`corev1.LabelTopologyZone`) was removed. This leaves it extracting the deprecated zone label (`corev1.LabelZoneFailureDomain`) without its stable counterpart, which is asymmetric and likely unintended.",
+          "evidence": "setLabelIfNotEmpty(m, node.Labels, corev1.LabelZoneRegionStable)\n\n\tsetLabelIfNotEmpty(m, node.Labels, corev1.LabelZoneFailureDomain)\n-\tsetLabelIfNotEmpty(m, node.Labels, corev1.LabelTopologyZone)",
+          "confidence": 0.9,
+          "inChange": false,
+          "notes": [],
+          "id": "f-2a12ad121a1ef7037096def5"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes the extraction of the standard `corev1.LabelTopologyZone` label while retaining `corev1.LabelZoneRegionStable`, leading to asymmetric handling where the stable region is extracted but the stable zone is not."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 22969,
+      "tokens": 9972,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 4,
+        "direct": 1,
+        "related": 3,
+        "assessed": 4,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "rests on cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go:extractNodeLabels; 1 changed line in it, naming what the note names"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+          "line": 657,
+          "message": "The change removes the extraction of the corev1.LabelTopologyZone label, violating the constraint that autoscaled template nodes must retain topology labels to satisfy pod scheduling requirements during simulation.",
+          "evidence": "-\tsetLabelIfNotEmpty(m, node.Labels, corev1.LabelTopologyZone)",
+          "confidence": 0.9,
+          "note": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "inChange": false,
+          "notes": [
+            "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul"
+          ],
+          "id": "f-f11d2c436ec02fb8ee1e2032"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change removes the extraction of the topology.kubernetes.io/zone label, which violates a known constraint requiring this label for cluster-api scale-up simulations."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10094",
+    "pr": 10094,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10094",
+    "sha": "2aa3bd492c6efd475ab47827c9f052fe1185fe80",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/docs/features.md": [
+        232
+      ],
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go": [
+        65,
+        67,
+        159,
+        160,
+        161
+      ],
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction_test.go": [
+        1135,
+        1145
+      ]
+    },
+    "order": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "elapsedMs": 67745,
+      "tokens": 18757,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "title": "VPA InPlace: Transient Resize Errors vs Infeasible",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go:CanInPlaceUpdate; 6 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "vpa-quick-oom-must-check-if-oom-is-recent",
+          "title": "VPA Quick OOM must check if OOM is recent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10325"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aggregating-errors-during-item-level-garbage-collection",
+          "title": "Aggregating errors during item-level garbage collection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "independent-context-timeouts-for-vpa-checkpoint-maintenance",
+          "title": "Independent context timeouts for VPA checkpoint maintenance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+          "line": 161,
+          "message": "The change treats ResizeStatusError as InPlaceInfeasible, which violates the constraint to reserve InPlaceInfeasible for true capacity infeasibility. Returning InPlaceInfeasible caches the transient error in infeasibleAttempts, preventing retries unless the recommendation requests fewer resources.",
+          "evidence": "case utils.ResizeStatusError:\n\t\t\t\t// Error during resize, will retry if recommendation changes.\n\t\t\t\tklog.V(4).ErrorS(nil, \"Not retrying in-place resize because the kubelet reported an error; VPA will retry only after a recommendation changes\", \"pod\", klog.KObj(pod))\n\t\t\t\treturn utils.InPlaceInfeasible",
+          "confidence": 0.95,
+          "note": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "inChange": true,
+          "notes": [
+            "vpa-inplace-transient-resize-errors-vs-infeasible"
+          ],
+          "id": "f-8cb6f9b306a193e847937b46"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change re-introduces a bug by mapping transient kubelet errors (ResizeStatusError) to InPlaceInfeasible instead of InPlaceDeferred. As warned by the cache note, this causes transient errors to be incorrectly cached as permanent capacity infeasibility, blocking retries and causing the VPA to get stuck."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 108775,
+      "tokens": 23999,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 6,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+          "line": 160,
+          "message": "`klog.V(4)` returns a `klog.Verbose` object which does not have an `ErrorS` method in the klog package. This will result in a compile error.",
+          "evidence": "klog.V(4).ErrorS(nil, \"Not retrying in-place resize because the kubelet reported an error; VPA will retry only after a recommendation changes\", \"pod\", klog.KObj(pod))",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-cf7b059457e4b326291edbb1"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change introduces a compile error by calling `ErrorS` on a `klog.Verbose` object, as `klog.V()` only supports `Info` level methods. Additionally, there is a logical bug: mapping a transient kubelet error to `InPlaceInfeasible` causes the attempt to be cached as permanently infeasible. Under the existing caching logic, such pods are only ever retried if a future recommendation requests strictly fewer resources, contradicting the new comment that it will retry if the recommendation simply changes."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-9949",
+    "pr": 9949,
+    "source": "https://github.com/kubernetes/autoscaler/pull/9949",
+    "sha": "ba4654be5287a1594c1a9646164f87609d0c286f",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go": [
+        285
+      ],
+      "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go": [
+        657,
+        658,
+        659,
+        660
+      ]
+    },
+    "order": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "elapsedMs": 28928,
+      "tokens": 10571,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 5,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes the `InstanceCreating` state assignment for nodes with a `CreationError` status, aligning it with other error statuses like `Deleted` and `Locked`. The corresponding test case was also correctly updated to reflect this change. No bugs were found."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 27812,
+      "tokens": 11704,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 6,
+        "direct": 1,
+        "related": 5,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "rests on cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go:fromScwStatus; 1 changed line in it, naming what the note names"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "vpa-inplace-transient-resize-errors-vs-infeasible",
+          "title": "VPA InPlace: Transient Resize Errors vs Infeasible",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go",
+          "line": 285,
+          "message": "The change removes the mapping of creation error status to the InstanceCreating state. This violates the constraint that Cluster Autoscaler requires creation errors to be set on instances actively in the InstanceCreating state, which might cause it to ignore the error information and wait for a long timeout.",
+          "evidence": "case scalewaygo.NodeStatusCreationError:\n\t\tst.ErrorInfo = &cloudprovider.InstanceErrorInfo{",
+          "confidence": 1,
+          "note": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "inChange": false,
+          "notes": [
+            "map-node-creation-errors-to-instancecreating-for-faster-ca-d"
+          ],
+          "id": "f-b25525a8727d24d62f89c184"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change removes the mapping of node creation errors to the `InstanceCreating` state in the Scaleway provider, violating a rule designed to allow Cluster Autoscaler to fail fast on creation errors."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-10001",
+    "pr": 10001,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10001",
+    "sha": "5e5cae4e95660956f863ca3a1996dae240253597",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go": [
+        69,
+        689,
+        690,
+        691,
+        692,
+        693,
+        694,
+        695,
+        696
+      ],
+      "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go": [
+        493,
+        1407,
+        2084
+      ]
+    },
+    "order": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "elapsedMs": 72809,
+      "tokens": 18630,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [
+          {
+            "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+            "reason": "The change removes the deprecated check for 'status.phase == Failed', fulfilling the note's constraint but rendering its core fix pattern obsolete.",
+            "correction": ""
+          }
+        ],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "rests on cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go:findScalableResourceProviderIDs; 26 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "map-node-creation-errors-to-instancecreating-for-faster-ca-d",
+          "title": "Map node creation errors to InstanceCreating for faster CA detection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "escape-special-characters-in-jsonpatch-paths",
+          "title": "Escape special characters in JSONPatch paths",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9691"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aggregating-errors-during-item-level-garbage-collection",
+          "title": "Aggregating errors during item-level garbage collection",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Reviewed the change against the provided notes. The change correctly removes the deprecated 'Failed' phase check from the clusterapi provider, which matches the constraint described in the note. The note 'check-machine-phase-before-marking-as-failed-in-clusterapi-p' is now outdated since its primary fix pattern is no longer applicable. No violations or other bugs were found."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 144360,
+      "tokens": 29405,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 6,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go",
+          "line": 2085,
+          "message": "The test case `includeFailedMachineWithNodeRef` intends to simulate a failed machine but sets `status.errorMessage` instead of `status.failureMessage`. Since the controller now exclusively relies on `status.failureMessage` to detect failed machines, this test machine will not be identified as failed.",
+          "evidence": "unstructured.SetNestedField(machine.Object, \"ErrorMessage\", \"status\", \"errorMessage\")",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-9d4070a2a29ed11f08807a3f"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The controller logic was correctly updated to identify failed machines solely by the presence of `status.failureMessage` (dropping the deprecated `phase` check). However, a test caller was not correctly updated: `TestNodeGroupNodesInstancesStatus` removed the `phase` setup but still sets `status.errorMessage` instead of `status.failureMessage`, causing the simulated failed machine to be treated as a normal machine."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-9725",
+    "pr": 9725,
+    "source": "https://github.com/kubernetes/autoscaler/pull/9725",
+    "sha": "086fa0e7f8b4cd25c082e86ef891bd36e22ce6df",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/pkg/recommender/model/container.go": [
+        207,
+        208
+      ],
+      "vertical-pod-autoscaler/pkg/recommender/model/container_test.go": [
+        212
+      ]
+    },
+    "order": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "elapsedMs": 16891,
+      "tokens": 9041,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 0,
+        "related": 5,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+          "vertical-pod-autoscaler/pkg/recommender/model/container_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+          "line": 207,
+          "message": "Replacing lastMemorySampleStart with WindowEnd reverts a bug fix (kubernetes/autoscaler#8548), causing fresh OOMs near an interval boundary to be wrongly discarded.",
+          "evidence": "if timestamp.Before(container.WindowEnd.Add(-1 * container.GetMemoryAggregationIntervalDuration())) {",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-0fe0ef63fd03b7bf2f1559b5"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change reintroduces a bug by using WindowEnd instead of lastMemorySampleStart to check for old OOMs. This causes fresh OOM events landing just before an interval boundary to be incorrectly discarded. The regression is further evidenced by the removal of the specific test case (TestRecordOOMFreshOOMNearWindowBoundaryIsNotDiscarded) that previously prevented this behavior."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 28825,
+      "tokens": 11221,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 5,
+        "direct": 0,
+        "related": 5,
+        "assessed": 5,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+          "vertical-pod-autoscaler/pkg/recommender/model/container_test.go"
+        ],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "use-latest-sample-time-instead-of-windowend-for-staleness-ch",
+          "title": "Use latest sample time instead of WindowEnd for staleness checks",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9725"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "independent-context-timeouts-for-vpa-checkpoint-maintenance",
+          "title": "Independent context timeouts for VPA checkpoint maintenance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+          "line": 209,
+          "message": "The change reverts the staleness check to use WindowEnd instead of lastMemorySampleStart. This violates the rule which requires comparing against the most recently observed memory sample time, as WindowEnd can inaccurately reflect the latest observed time and wrongly drop fresh OOMs.",
+          "evidence": "+\tif timestamp.Before(container.WindowEnd.Add(-1 * container.GetMemoryAggregationIntervalDuration())) {",
+          "confidence": 0.95,
+          "note": "use-latest-sample-time-instead-of-windowend-for-staleness-ch",
+          "inChange": false,
+          "notes": [
+            "use-latest-sample-time-instead-of-windowend-for-staleness-ch"
+          ],
+          "id": "f-81e5a59713d1ff62a970c86d"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The proposed change reverts a fix for OOM staleness checking, reintroducing `WindowEnd` as the reference point instead of `lastMemorySampleStart`, which directly violates the established constraint for the VPA recommender. It also deletes the corresponding regression test."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  {
+    "id": "A-9691",
+    "pr": 9691,
+    "source": "https://github.com/kubernetes/autoscaler/pull/9691",
+    "sha": "776680ceca597acd89ad91838fe19355107b1f3b",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "expect": {
+      "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go": [
+        42,
+        51,
+        54,
+        59
+      ],
+      "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util_test.go": [
+        0
+      ]
+    },
+    "order": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "elapsedMs": 44438,
+      "tokens": 15465,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 6,
+        "direct": 1,
+        "related": 5,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "escape-special-characters-in-jsonpatch-paths",
+          "title": "Escape special characters in JSONPatch paths",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9691"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:escapeJSONPatchPath, vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:GetAddResourceRequirementValuePatch; 9 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "check-machine-phase-before-marking-as-failed-in-clusterapi-p",
+          "title": "Check machine phase before marking as failed in clusterapi provider",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "aws-cloud-provider-parse-placeholder-node-names-containing-s",
+          "title": "AWS Cloud Provider: Parse placeholder node names containing slashes",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-desirednumberscheduled-for-daemonset-target-size-instead",
+          "title": "Use DesiredNumberScheduled for DaemonSet target size instead of NumberReady",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-topology-kubernetes-io-zone-for-capi-scale-up-simul",
+          "title": "Preserve topology.kubernetes.io/zone for CAPI scale-up simulation",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10258"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "independent-context-timeouts-for-vpa-checkpoint-maintenance",
+          "title": "Independent context timeouts for VPA checkpoint maintenance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10178"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+          "line": 42,
+          "message": "Annotation patch generation now only escapes '/' but fails to escape '~' (with '~0') before escaping '/', violating the fix pattern and constraints for JSONPatch paths.",
+          "evidence": "-\t\tPath:  fmt.Sprintf(\"/metadata/annotations/%s\", escapeJSONPatchPath(annotationName)),\n+\t\tPath:  fmt.Sprintf(\"/metadata/annotations/%s\", strings.ReplaceAll(annotationName, \"/\", \"~1\")),",
+          "confidence": 1,
+          "note": "escape-special-characters-in-jsonpatch-paths",
+          "inChange": true,
+          "notes": [
+            "escape-special-characters-in-jsonpatch-paths"
+          ],
+          "locations": [
+            {
+              "file": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+              "line": 59,
+              "message": "The change removes JSONPatch escaping for extended resources, which violates the requirement to escape special characters like '~' and '/' to prevent invalid JSONPatch paths.",
+              "evidence": "-\t\tPath:  fmt.Sprintf(\"/spec/containers/%d/resources/%s/%s\", i, kind, escapeJSONPatchPath(string(resource))),\n+\t\tPath:  fmt.Sprintf(\"/spec/containers/%d/resources/%s/%s\", i, kind, resource),",
+              "severity": "error",
+              "confidence": 1,
+              "inChange": true
+            }
+          ],
+          "id": "f-de251bde0474b1ac973922f4"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change improperly removes the JSONPatch path escaping mechanism, leaving resource paths unescaped and annotation paths partially escaped. This directly violates the established requirement to escape special characters, which will cause admission patches to fail for resources like GPUs."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "baseline": {
+      "elapsedMs": 39268,
+      "tokens": 12261,
+      "models": {
+        "gemini/gemini-3.1-pro-high": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 5,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+          "line": 43,
+          "message": "JSON patch path escaping is incomplete: it replaces `/` with `~1` but no longer escapes `~` to `~0` as required by RFC 6901.",
+          "evidence": "Path:  fmt.Sprintf(\"/metadata/annotations/%s\", strings.ReplaceAll(annotationName, \"/\", \"~1\")),",
+          "confidence": 1,
+          "inChange": false,
+          "notes": [],
+          "id": "f-c1280026437bbfebfa226b16"
+        },
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+          "line": 59,
+          "message": "JSON patch path escaping was entirely removed for the resource name, which will produce invalid paths for extended resources containing slashes (e.g., `nvidia.com/gpu`).",
+          "evidence": "Path:  fmt.Sprintf(\"/spec/containers/%d/resources/%s/%s\", i, kind, resource),",
+          "confidence": 1,
+          "inChange": true,
+          "notes": [],
+          "id": "f-274a5485977f2f8db74a5594"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes proper JSON Patch path escaping (RFC 6901). For annotations, `~` is no longer escaped to `~0`, meaning annotations containing a tilde could result in malformed JSON patches. For resource requirements, escaping was completely removed, which breaks path generation for extended resource names containing slashes. Additionally, all tests covering these escaping scenarios were deleted."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  }
+]

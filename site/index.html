@@ -429,8 +429,8 @@
 
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.85rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.25rem;
     }
 
     .metric-item {
@@ -587,6 +587,24 @@
       margin-bottom: 0.55rem;
     }
 
+    .benchmark-section + .benchmark-section {
+      margin-top: 1.75rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .benchmark-section-title {
+      font-size: 1rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .benchmark-table-scroll { overflow-x: auto; }
+    .benchmark-table { min-width: 520px; }
+
+    .benchmark-cases { margin: 0.25rem 0 1.25rem; font-size: 0.85rem; }
+    .benchmark-cases summary { cursor: pointer; color: #111111; font-weight: 600; }
+    .benchmark-cases .benchmark-table-scroll { margin-top: 0.75rem; }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -722,38 +740,28 @@
     </div>
 
     <!-- Benchmark Hero Card -->
-    <div class="benchmark-card" onclick="openModal()" title="View bug detection and coding agent benchmark details">
+    <div class="benchmark-card" onclick="openModal()" title="View bug detection and coding-task token benchmarks">
       <div class="card-header">
         <div class="card-title">
-          <span class="terminal-prompt">$</span> bug detection &amp; agent output
+          <span class="terminal-prompt">$</span> bug detection &amp; coding efficiency
         </div>
-        <span class="card-tag">Measured on real PRs</span>
+        <span class="card-tag">Paired evaluations</span>
       </div>
       <div class="metrics-grid">
         <div class="metric-item">
-          <div class="metric-num gain">12/12</div>
-          <div class="metric-label">Known-fix regressions found</div>
-          <div class="metric-sub">PostHog fix reversions with a cached note</div>
+          <div class="metric-num gain">3 more / 10</div>
+          <div class="metric-label">Historical bugs caught</div>
+          <div class="metric-sub">with notes, in each of 3 model cohorts</div>
         </div>
         <div class="metric-item">
-          <div class="metric-num gain">2 regressions</div>
-          <div class="metric-label">Found beyond diff review</div>
-          <div class="metric-sub">The diff-only model missed these</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">12 vs 9</div>
-          <div class="metric-label">Agent tasks fully solved</div>
-          <div class="metric-sub">With vs without Thinker, 20 paired runs</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-num gain">14% faster</div>
-          <div class="metric-label">Agent task time</div>
-          <div class="metric-sub">2.7m &rarr; 2.3m per task</div>
+          <div class="metric-num gain">18&ndash;19% less</div>
+          <div class="metric-label">Input tokens on coding tasks</div>
+          <div class="metric-sub">across 3 separate model cohorts</div>
         </div>
       </div>
       <div class="card-footer">
-        <span>Bug review: PostHog fixes, Claude Sonnet. Agent tasks: Claude Fable.</span>
-        <span class="card-footer-cta">See methods &amp; limits &rarr;</span>
+        <span>Historical fix recall and real PR coding tasks · see methods</span>
+        <span class="card-footer-cta">View full report &rarr;</span>
       </div>
     </div>
 
@@ -771,78 +779,56 @@
         <button class="btn-close" onclick="closeModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <h3 class="modal-section-title">Finding regressions in PR review</h3>
-        <p class="modal-note">
-          On 23 PostHog fix reversions, the cache held a note about 12 fixes. A review using those notes caught all 12 regressions, including two that a review of the diff alone missed. Where no relevant note existed, the cache added no bug detection. The review used Claude Sonnet; these results do not measure new bugs in code the cache has never covered.
-        </p>
-        <h3 class="modal-section-title">Coding agent output on PR tasks</h3>
-        <p class="modal-note">Real tasks from merged pull requests, run with and without Thinker. The table shows task completion separately from time and tool use.</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Dimension</th>
-              <th>Metric</th>
-              <th>Claude Fable<br><small>(Claude Code)</small></th>
-              <th>Gemini 3.8 Flash<br><small>(Antigravity CLI)</small></th>
-              <th>GPT-6 Astra<br><small>(Codex CLI)</small></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Timing</strong></td>
-              <td>Wall clock time</td>
-              <td class="gain">14% faster</td>
-              <td class="gain">8.5% faster</td>
-              <td class="gain">7.0% faster</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Token Usage</strong></td>
-              <td>Input context</td>
-              <td class="gain">18% less</td>
-              <td class="gain">21% less</td>
-              <td class="gain">19% less</td>
-            </tr>
-            <tr>
-              <td>Output tokens</td>
-              <td class="gain">11% less</td>
-              <td class="gain">22% less</td>
-              <td class="gain">11% less</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Tool Efficiency</strong></td>
-              <td>Tool calls</td>
-              <td class="gain">17% fewer</td>
-              <td class="gain">22% fewer</td>
-              <td class="gain">18% fewer</td>
-            </tr>
-            <tr>
-              <td>File reads</td>
-              <td class="nodiff">no diff</td>
-              <td class="gain">27% fewer</td>
-              <td class="gain">14% fewer</td>
-            </tr>
-            <tr>
-              <td><strong>Cost</strong></td>
-              <td>Cost per task</td>
-              <td class="gain">10% cheaper</td>
-              <td class="gain">16% cheaper</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Agent output</strong></td>
-              <td>Essential criteria met</td>
-              <td class="gain">10% improved</td>
-              <td class="nodiff">no diff</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-            <tr>
-              <td>Tasks fully solved</td>
-              <td class="gain">33% more solved</td>
-              <td class="nodiff">no diff</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-          </tbody>
-        </table>
+        <section class="benchmark-section" aria-labelledby="bug-detection-title">
+          <h3 class="benchmark-section-title" id="bug-detection-title">Bug detection: recall of past fixes</h3>
+          <p class="modal-note">Ten known fixes in <a href="https://github.com/kubernetes/autoscaler">Kubernetes Autoscaler</a> were reversed at one commit. Each model reviewed the same changes with and without notes mined from those fixes. A catch required an actionable finding on changed production code that explained the original failure.</p>
+          <div class="benchmark-table-scroll">
+            <table class="benchmark-table">
+              <thead><tr><th>Review model</th><th>No notes</th><th>With notes</th><th>Net gain</th></tr></thead>
+              <tbody>
+                <tr><td>Claude Opus 5</td><td>7 of 10</td><td class="gain">10 of 10</td><td class="gain">+3</td></tr>
+                <tr><td>GPT-6.1 Sol, high</td><td>6 of 10</td><td class="gain">9 of 10</td><td class="gain">+3</td></tr>
+                <tr><td>Gemini 3.1 Pro High</td><td>6 of 10</td><td class="gain">9 of 10</td><td class="gain">+3</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <details class="benchmark-cases">
+            <summary>See the ten fixes and paired outcomes</summary>
+            <div class="benchmark-table-scroll">
+              <table class="benchmark-table">
+                <thead><tr><th>Fix</th><th>Opus</th><th>Sol</th><th>Gemini</th></tr></thead>
+                <tbody>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10325">#10325</a> · stale OOM</td><td>Both</td><td>Both</td><td>Both</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10178">#10178</a> · checkpoint cleanup</td><td>Both</td><td>Both</td><td>Both</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10141">#10141</a> · DaemonSet updates</td><td>Notes only</td><td>Notes only</td><td>Both</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10349">#10349</a> · AWS placeholder</td><td>Both</td><td>No notes only</td><td>Both</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10258">#10258</a> · zone label</td><td>Both</td><td>Notes only</td><td>Notes only</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10094">#10094</a> · transient resize</td><td>Notes only</td><td>Both</td><td>Notes only</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9949">#9949</a> · Scaleway state</td><td>Both</td><td>Notes only</td><td>Notes only</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/10001">#10001</a> · Machine phase</td><td>Notes only</td><td>Notes only</td><td>Neither</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9725">#9725</a> · OOM window</td><td>Both</td><td>Both</td><td>Both</td></tr>
+                  <tr><td><a href="https://github.com/kubernetes/autoscaler/pull/9691">#9691</a> · JSON Patch paths</td><td>Both</td><td>Both</td><td>Both</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p class="modal-note">This tests recall of historical fixes: notes were mined from the same fixes later reversed. One review per case and model. It does not estimate detection of unseen bugs. Sol gained four catches and lost one. The no-note and note-backed review modes also use different prompts and code context. In a separate Sol control, hiding note text while keeping the note-backed context caught 4 of 10, versus 9 of 10 with full notes.</p>
+        </section>
+        <section class="benchmark-section" aria-labelledby="coding-tokens-title">
+          <h3 class="benchmark-section-title" id="coding-tokens-title">Coding agent efficiency: input tokens</h3>
+          <p class="modal-note">Separate paired coding tasks from merged PostHog and Grafana pull requests. Input counts include reused context reads; each row compares the same model and task set with and without Thinker.</p>
+          <div class="benchmark-table-scroll">
+            <table class="benchmark-table">
+              <thead><tr><th>Model and tasks</th><th>No cache / task</th><th>With cache / task</th><th>Change</th></tr></thead>
+              <tbody>
+                <tr><td>Claude Fable · 20 PostHog</td><td>1.25M</td><td>1.02M</td><td class="gain">18% less</td></tr>
+                <tr><td>Gemini 3.8 Flash · 14 PostHog</td><td>16.6M</td><td>13.4M</td><td class="gain">19% less</td></tr>
+                <tr><td>GPT-6 Astra · 21 Grafana</td><td>473k</td><td>384k</td><td class="gain">19% less</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="modal-note">Task sets and token accounting differ by model. These token results measure coding work, not the Autoscaler review experiment above.</p>
+        </section>
       </div>
     </div>
   </div>

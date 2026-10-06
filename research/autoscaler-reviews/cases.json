@@ -1,0 +1,143 @@
+{
+  "repo": "kubernetes/autoscaler",
+  "base": "40889a675092c0939c59160fc5270273db4e0555",
+  "rule": "Newest first-parent merge since 2026-05-01 with a fix-like branch name, 1–120 changed production Go lines (excluding test/e2e paths), <=200 total changed lines, <=10 files, and a clean reverse application at the fixed base; first 10.",
+  "cases": [
+    {
+      "id": "A-10325",
+      "pr": 10325,
+      "sha": "cd7235a0aa4117597d6bdf4cd98201947d2160fe",
+      "parent": "7a7f63f9bac4ae1a39f2a6627a443c6bb8d9a393",
+      "subject": "Merge pull request #10325 from locker95/fix/vpa-stale-quick-oom",
+      "codeLines": 5,
+      "totalLines": 42,
+      "files": [
+        "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+        "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator_test.go"
+      ]
+    },
+    {
+      "id": "A-10178",
+      "pr": 10178,
+      "sha": "44107975d23e34cf19b9b7045c87c0f3715b9121",
+      "parent": "482f759b86f78281f7f4f5339d40d36a18c39534",
+      "subject": "Merge pull request #10178 from dippynark/vpa-recommender-fix-checkpoint-gc-timeout",
+      "codeLines": 44,
+      "totalLines": 81,
+      "files": [
+        "vertical-pod-autoscaler/docs/flags.md",
+        "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+        "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go",
+        "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder_test.go",
+        "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+        "vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go",
+        "vertical-pod-autoscaler/pkg/recommender/routines/recommender_test.go"
+      ]
+    },
+    {
+      "id": "A-10141",
+      "pr": 10141,
+      "sha": "e29b8194d8bfaedddc43b843300d4e3994040cb9",
+      "parent": "68a32eaf7625bde17229256238f364aed6797651",
+      "subject": "Merge pull request #10141 from dippynark/vpa-updater-fix-unready-daemonset-updates",
+      "codeLines": 6,
+      "totalLines": 89,
+      "files": [
+        "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go"
+      ]
+    },
+    {
+      "id": "A-10349",
+      "pr": 10349,
+      "sha": "86dfb2c5716bd3df45b8d240ad3b252881d5f17c",
+      "parent": "11cddea31c67a802d8499b90de845c82a335fc46",
+      "subject": "Merge pull request #10349 from ketanjani21/fix-issue-8305-placeholder-asg-slash",
+      "codeLines": 16,
+      "totalLines": 36,
+      "files": [
+        "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+        "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go"
+      ]
+    },
+    {
+      "id": "A-10258",
+      "pr": 10258,
+      "sha": "e557c6d03a02da023146263f2a6ebe2dbfaf21a5",
+      "parent": "67f7a418c248086f145df2d599496c31fdecc145",
+      "subject": "Merge pull request #10258 from SISheogorath/fix/cluster-api-zone-wareness",
+      "codeLines": 1,
+      "totalLines": 3,
+      "files": [
+        "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+        "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+      ]
+    },
+    {
+      "id": "A-10094",
+      "pr": 10094,
+      "sha": "2aa3bd492c6efd475ab47827c9f052fe1185fe80",
+      "parent": "d801cb53610a1ed04c652224e2cea3433ef9e3bf",
+      "subject": "Merge pull request #10094 from iho/fix/vpa-10093-infeasible-transient-error",
+      "codeLines": 10,
+      "totalLines": 16,
+      "files": [
+        "vertical-pod-autoscaler/docs/features.md",
+        "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+        "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction_test.go"
+      ]
+    },
+    {
+      "id": "A-9949",
+      "pr": 9949,
+      "sha": "ba4654be5287a1594c1a9646164f87609d0c286f",
+      "parent": "ef7601a092111400f686262210f7d99627159cfc",
+      "subject": "Merge pull request #9949 from Tomy2e/scw-fix-error-state",
+      "codeLines": 1,
+      "totalLines": 10,
+      "files": [
+        "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go",
+        "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go"
+      ]
+    },
+    {
+      "id": "A-10001",
+      "pr": 10001,
+      "sha": "5e5cae4e95660956f863ca3a1996dae240253597",
+      "parent": "5fa17580986f438c847da2dd3727dc8744be411a",
+      "subject": "Merge pull request #10001 from LucasAndFlores/fix/check-machine-phase-clusterapi",
+      "codeLines": 28,
+      "totalLines": 34,
+      "files": [
+        "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+        "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go"
+      ]
+    },
+    {
+      "id": "A-9725",
+      "pr": 9725,
+      "sha": "086fa0e7f8b4cd25c082e86ef891bd36e22ce6df",
+      "parent": "92d4f0528f3aff87ff3044da20ce1747d349b990",
+      "subject": "Merge pull request #9725 from ulascansenturk/fix/8548-oom-discarded-too-old",
+      "codeLines": 9,
+      "totalLines": 45,
+      "files": [
+        "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+        "vertical-pod-autoscaler/pkg/recommender/model/container_test.go"
+      ]
+    },
+    {
+      "id": "A-9691",
+      "pr": 9691,
+      "sha": "776680ceca597acd89ad91838fe19355107b1f3b",
+      "parent": "cb8ec19c524f24c50a3846b3c6dc862c3c6cbcdf",
+      "subject": "Merge pull request #9691 from sophieliu15/fix-511327683",
+      "codeLines": 13,
+      "totalLines": 166,
+      "files": [
+        "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+        "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util_test.go"
+      ]
+    }
+  ]
+}

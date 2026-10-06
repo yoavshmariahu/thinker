@@ -1,0 +1,17 @@
+{
+  "cohort": "gemini-3.1-pro-high",
+  "rubric": "Error/warning in a changed production file within six lines of the reversed fix, explaining the historical failure mechanism",
+  "inSample": true,
+  "cases": [
+    { "id": "A-10325", "pr": 10325, "baselineHit": true, "cachedHit": true, "reason": "Both explain stale LastTerminationState causing unnecessary VPA updates." },
+    { "id": "A-10178", "pr": 10178, "baselineHit": true, "cachedHit": true, "reason": "Both catch lost GC retry; cache also catches discarded item delete errors." },
+    { "id": "A-10141", "pr": 10141, "baselineHit": true, "cachedHit": true, "reason": "Both identify NumberReady instead of desired DaemonSet count; cache explains zero-ready failure directly." },
+    { "id": "A-10349", "pr": 10349, "baselineHit": true, "cachedHit": true, "reason": "Both identify slash-truncated AWS placeholder name." },
+    { "id": "A-10258", "pr": 10258, "baselineHit": false, "cachedHit": true, "reason": "Baseline says the removed label is asymmetric and likely unintended without scheduling consequence; cache explains missing topology label in scale-up simulation." },
+    { "id": "A-10094", "pr": 10094, "baselineHit": false, "cachedHit": true, "reason": "Baseline only flags possible klog compile error; cache explains transient resize becoming infeasible and suppressing retry." },
+    { "id": "A-9949", "pr": 9949, "baselineHit": false, "cachedHit": true, "reason": "Baseline approves change with no findings; cache explains delayed CA recognition of Scaleway creation error." },
+    { "id": "A-10001", "pr": 10001, "baselineHit": false, "cachedHit": false, "reason": "Baseline reports only a test issue; cache misreads future-looking note caveat and marks note outdated." },
+    { "id": "A-9725", "pr": 9725, "baselineHit": true, "cachedHit": true, "reason": "Both explain WindowEnd boundary incorrectly discards fresh OOM samples." },
+    { "id": "A-9691", "pr": 9691, "baselineHit": true, "cachedHit": true, "reason": "Both identify JSONPatch escaping failures in annotations and resource names." }
+  ]
+}
