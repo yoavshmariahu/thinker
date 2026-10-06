@@ -91,7 +91,7 @@ cache at twice the input price and never read again.
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
-| `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; removed symbols still referenced |
+| `src/review.js` | `thinker review`, a mode of the command line (there is no MCP tool; see "Reviewing a change"): a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -844,7 +844,7 @@ readable; new behaviors stay local.
   into a finding. The report carries `behaviors`, one line per behavior in
   play (`upheld`, `violated`, `revised`, `unrelated`, or `consulted` on a dry
   run) with whether it was already violated before the change, rendered under
-  "Desired behaviors" and returned by the MCP `review` tool.
+  "Desired behaviors" and in `--json`.
 - **This repository's own** (`thinker system`, `.thinker/SYSTEM.md`), written
   2026-10-03: a review never writes to the cache; verification never rewrites
   or retires a behavior; serving and assessment never rewrite a shared note's
@@ -859,7 +859,14 @@ readable; new behaviors stay local.
 
 `thinker review` (`review.js`) turns the cache around: instead of serving notes
 to an agent about to make a change, it checks a change against them. The MCP
-tool `review` is the same for an agent before it commits. What it is for,
+is a mode of the command line, not a tool an agent calls: the MCP tool was
+removed on 2026-10-06 because agents did not reach for it (14 MCP calls of any
+kind against 2094 orients on the machine that built it, while the 161 reviews
+that ran came from the CLI and the pull request action) and because it is the
+wrong shape for a tool call -- several model calls over a whole change, minutes,
+longer than some clients allow -- with findings a person has to act on. An agent
+working in a repository gets the cache through the serving path instead: the
+prompt hook, `orient`, `lookup` and the edit hook's late notes. What review is for,
 decided 2026-10-04 on real PostHog history (`bench/RESULTS.md`, "Real bugs on
 PostHog"): regressions of a fix the cache holds a note about (caught 12 of 12,
 including the ones the diff alone missed) and violations of written
@@ -910,7 +917,7 @@ review prompt.
   cannot be grepped; a method's name is a warning, a top-level name an error).
   The co-change hint (a partner file of a changed file that is not in the
   change) went on 2026-10-03, and the rest of co-change on 2026-10-04.
-- **Kinds** (`--kinds behavior`, MCP `kinds: ["behavior"]`): only notes of
+- **Kinds** (`--kinds behavior`): only notes of
   those kinds are consulted. With the desired behaviors alone the default
   strategy becomes one call per behavior in play (`per-note`), which gives a
   verdict for each and leaves out the no-notes baseline, since only the rules

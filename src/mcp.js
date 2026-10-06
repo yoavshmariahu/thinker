@@ -10,8 +10,6 @@ import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
 import { listBehaviors, behaviorsSummary } from './behavior.js';
 import { initAst } from './ast.js';
-import { review, renderReview, resolveScope } from './review.js';
-import { startVerification, readVerification, renderVerification, taskContext } from './verification.js';
 import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
@@ -120,37 +118,13 @@ function registerTools() {
     return text(r.error ? r.error : r.text);
   });
 
-  retrieval('review', {
-    title: 'Review a change against the cache',
-    // Not for the agent's own initiative: "during implementation, supply task context" had Gemini call it at the
-    // end of every run and lose three minutes to each call that outran the client's tool timeout (bench/RESULTS.md,
-    // "Tool intro"). It is called when a person asks for a review, and says how long it takes.
-    description: 'Only when the user asks for a review or verification of a change; do not call it on your own to check work in progress, it is slow (several model calls over the whole change, minutes, longer than some clients allow a tool call) and its findings need a person to act on. Supply the task context you were given. Action start freezes a snapshot, runs the repository\'s verification contract in Docker and reviews asynchronously; status with runId returns structured failures and human evidence once, when the user asks for the result, not by polling. Default assess checks the change against the desired behaviors of the system (rules a person wrote; the code must uphold them: a violation of a fixed one is an error, a mutable one may be revised only by a change that edits its note) and against the cached notes that rest on the changed code or bear on it (invariants, conventions, traps). Reports violations and bugs with file:line and evidence, every behavior in play with its outcome (upheld, violated, revised), and removed symbols still referenced. With kinds ["behavior"] only the desired behaviors are consulted, one call per behavior in play. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD.',
-    inputSchema: {
-      action: z.enum(['assess', 'start', 'status']).optional().describe('assess: inspect code now. start: freeze a snapshot, run the base verification contract in Docker and review asynchronously. status: retrieve structured results and human evidence.'),
-      runId: z.string().optional().describe('Run id for status.'),
-      previous: z.string().optional().describe('Previous verification run; carries task context forward and compares failures.'),
-      task: z.object({ request: z.string(), criteria: z.array(z.object({ text: z.string(), source: z.enum(['user', 'agent']).optional(), checks: z.array(z.string()).optional(), tests: z.array(z.object({ check: z.string(), name: z.string(), file: z.string().optional() })).optional() })).optional(), intendedChanges: z.array(z.string()).optional(), rationale: z.string().optional(), questions: z.array(z.string()).optional() }).optional().describe('Relevant task context. Link criteria to exact tests with check id, name, and repository-relative file. Attribution and links are not execution evidence.'),
-      paths: z.array(z.string()).optional().describe('Limit the review to these paths.'),
-      staged: z.boolean().optional().describe('Review the index instead of the working tree.'),
-      base: z.string().optional().describe('A branch or commit: review everything since the merge base with it (e.g. "origin/main").'),
-      state: z.boolean().optional().describe('No change: audit the current code of the paths against the notes resting on it.'),
-      max: z.number().int().min(1).max(30).optional().describe('Maximum notes to assess with the model (default 12).'),
-      kinds: z.array(z.string()).optional().describe('Consult only notes of these kinds, e.g. ["behavior"] for the desired behaviors alone.'),
-    },
-  }, async ({ action = 'assess', runId, previous, task, paths, staged, base, state, max, kinds }) => {
-    try {
-      if (action !== 'assess') {
-        if (paths?.length || state) throw new Error('Verification runs cover a full snapshot, not selected paths or state audits');
-        const r = action === 'status' ? readVerification(store.repo, runId) : await startVerification(store, { task, previous, staged, base, caller: 'mcp' });
-        return { content: [{ type: 'text', text: renderVerification(r) }], structuredContent: r };
-      }
-      const scope = resolveScope(store.repo, { base, staged, state });
-      const r = await review(store, { scope, task: taskContext(task), paths: paths || [], max: max || 12, kinds });
-      return text(renderReview(r));
-    } catch (e) { return text(`review failed: ${String(e.message || e).slice(0, 300)}`); }
-  });
-
+  // `review` was a tool here until 2026-10-06 and is now a mode of the command line instead.
+  // Agents did not reach for it: 14 MCP calls of any kind against 2094 orients on the machine that
+  // built it, while the 161 reviews that did run came from the CLI and the pull request action. It is
+  // also the wrong shape for a tool call — several model calls over a whole change, minutes, longer
+  // than some clients allow — and its findings need a person. `thinker review` has every capability
+  // the tool had, verification runs included (--run, --start, --status). See "Reviewing a change"
+  // in AGENTS.md and the README.
   retrieval('remember', {
     title: 'Save a reusable note',
     description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: rule (what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and why), map (where something is handled, a call path, a module map), howto, behavior. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,

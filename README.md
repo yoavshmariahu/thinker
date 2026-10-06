@@ -276,9 +276,8 @@ Desired behaviors (2 in play; thinker system lists them all):
   revised    [mutable] The CLI entry validates before invoking (entry-validates-too)  — the change edits the behavior note
 ```
 
-Agents reach them the same way: the MCP `review` tool returns the section
-above, and `lookup` with `kind: "behavior"` lists every behavior (or the ones
-about a query) before a change is made.
+Agents reach them through `lookup` with `kind: "behavior"`, which lists every
+behavior (or the ones about a query) before a change is made.
 
 The cache is treated as evidence, not truth. Before anything is assessed, each
 consulted note is re-hashed against the code **before** the change: a note that
@@ -298,8 +297,25 @@ changed code first), `--model` picks the model (`reviewModel` in
 `.thinker/config.json`, default `sonnet`), `--chunks n` reviews a large change
 in chunks of files, `--verify` re-checks every finding with a second call,
 `--json` gives the report as data, and `--strict` exits 2 on an error-severity
-finding, for CI. Agents have the same review as the MCP tool `review`, for a
-check before they commit.
+finding, for CI.
+
+Review is a mode you run, not a tool an agent calls: it makes several model
+calls over the whole change, takes minutes, and its findings need a person. Ask
+for it when you want it:
+
+```
+thinker review                      # the working tree against HEAD
+thinker review --base origin/main   # everything on this branch
+thinker review --staged             # what is about to be committed
+thinker review --ref <commit>       # one commit, read from git alone
+thinker review --state src/auth     # no change: today's code against the notes on it
+thinker review --run                # the verification contract in Docker, then review a frozen snapshot
+```
+
+While you are *writing* the change, the cache reaches you another way and needs
+no command: the prompt hook puts the notes resting on what you are working on
+into each request, and the edit hook adds the rules resting on a file as you
+edit it.
 
 The notes a review draws on most are records of past fixes: what the symptom
 was, where the root cause sat, what kind of change resolved it. `thinker
