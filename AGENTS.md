@@ -950,6 +950,24 @@ review prompt.
   nothing at all when only behaviors were consulted. "No findings" on such a
   change is not a clean bill. On 24 bug-introducing PostHog pull requests a
   note rested on the file holding the bug in one.
+- Step gates (`gates.js`, with a Jev key): one call decides which of the review's
+  optional steps this change is worth, instead of each being a flag that is on
+  or off for every change alike. Speculative fan-out: every gate is asked in the
+  same request, they cannot see one another, and code consumes the answers that
+  apply. A gate only fills a flag the caller left unset, never overrides one it
+  passed, never runs for the `nocache` baseline, and makes no call on a dry run.
+  `worth_reviewing` (act 0.15) decides whether to ask a model anything;
+  `callers` (0.5) and `verify` (0.6) set those strategy flags; `chunks` (0.6)
+  splits a large change; `tests` (0.5) only reports that running the tests would
+  settle it. The thresholds are not symmetric: skipping a step is invisible, so
+  the bar to skip is high and an uncertain answer does the work, and any failure
+  leaves every step where review has it without gates. Measured live on
+  contrasting changes: a comment reflow scores 0.03 on `worth_reviewing` against
+  0.96 for an off-by-one, `callers` 0.85 on a signature change against 0.13 on a
+  local loop bound, `tests` 0.78 on a cache key against 0.03 on the reflow. The
+  gates read `changeRecord`, which carries the changed lines themselves: without
+  them `worth_reviewing` scored a comment reflow 0.61, since file names, counts
+  and identifiers describe the shape of a change and not what it does.
 - Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
   `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
   one call with every consulted note, `nocache` is the same model with no

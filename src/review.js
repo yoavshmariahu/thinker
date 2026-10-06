@@ -27,6 +27,7 @@ import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
 import { jevConfig, jevScores } from './jev.js';
+import { reviewGates, changeRecord } from './gates.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
 // bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
@@ -303,20 +304,7 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
 export const orderConsulted = (direct, related, strong) =>
   [...direct.filter(strong), ...related, ...direct.filter(n => !strong(n))];
 
-// What Jev is shown of the change: named fields, not the bag of words BM25 ranks on.
-export function changeRecord(change, symbols) {
-  const freq = new Map();
-  for (const f of change.files) for (const h of f.hunks) for (const l of h.lines) {
-    if (!l.startsWith('+')) continue;
-    const code = l.slice(1).replace(/\/\/.*$|#.*$/, '').replace(/(["'`])(?:\\.|(?!\1).)*\1/g, ' ');
-    for (const m of code.matchAll(/[A-Za-z_][A-Za-z0-9_]{3,}/g)) freq.set(m[0], (freq.get(m[0]) || 0) + 1);
-  }
-  return {
-    files_changed: change.files.map(f => f.path).slice(0, 40),
-    definitions_touched: symbols.flatMap(s => s.changed).slice(0, 40),
-    identifiers_added: [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([w]) => w),
-  };
-}
+export { changeRecord };
 
 const RELATED_CRITERIA = {
   true: 'The note states something that bears on this change: a constraint the change must respect, a rule about the code it alters, or a trap it risks.',
@@ -796,6 +784,22 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
     order = orderConsulted(direct, related, strong);
   }
   report.symbols = symbols.filter(s => s.changed.length || s.removed.length).map(s => ({ path: s.path, changed: s.changed, removed: s.removed.map(r => r.qualified) }));
+  // Step gates (gates.js): one call decides which optional steps this change is worth. A gate only
+  // fills in a flag the caller left unset, never overrides one it passed, and never runs for the
+  // no-notes baseline, whose point is to be unchanged. A dry run makes no call and keeps the defaults.
+  if (!dry && strat.mode !== 'nocache') {
+    const g = await reviewGates(store, change, symbols);
+    report.gates = g.source === 'jev' ? Object.fromEntries(Object.entries(g.gates).map(([k, v]) => [k, v.p])) : undefined;
+    if (g.source === 'jev') {
+      if (strategy.callers === undefined) strat.callers = g.gates.callers.run;
+      if (strategy.verify === undefined) strat.verify = g.gates.verify.run;
+      if (strategy.chunks === undefined && g.gates.chunks.run) strat.chunks = 4;
+      report.testsWouldSettleIt = g.gates.tests.run || undefined;
+      // Nothing a model could usefully be asked: say so rather than spend a call on it. The
+      // deterministic findings above still stand, and the bar is deliberately high (0.15).
+      if (!g.gates.worth_reviewing.run) report.noBehaviourChange = true;
+    }
+  }
   report.findings.push(...deterministicFindings(repo, change, symbols, reader));
   const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
@@ -803,7 +807,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   for (const n of consulted) { const e = exposures.get(n.id); if (e.staleBefore.length) report.notes.staleBefore.push({ id: n.id, title: n.title, changed: e.staleBefore }); }
   const covered = new Set(direct.flatMap(n => (n.deps || []).map(d => d.path)));
   report.notes.uncovered = change.files.filter(f => f.status !== 'D' && CODE_EXT.test(f.path) && !covered.has(f.path)).map(f => f.path);
-  const queue = consulted.slice(0, max);
+  const queue = report.noBehaviourChange ? [] : consulted.slice(0, max);
   report.notes.assessed = dry ? 0 : queue.length;
   // desired behaviors among the consulted notes: whether the change edits each one's note decides
   // whether a mutable one may be revised by it (noteFileChanged)
@@ -952,6 +956,11 @@ export function renderReview(r, { verbose = false } = {}) {
   const n = r.notes;
   const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
   L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
+  if (r.gates) {
+    const ran = Object.entries(r.gates).filter(([k, p]) => k !== 'worth_reviewing' && k !== 'tests' && p != null);
+    const on = ran.filter(([k, p]) => p >= (k === 'callers' ? 0.5 : 0.6)).map(([k, p]) => `${k} ${p.toFixed(2)}`);
+    L.push(`  steps: ${on.length ? on.join(', ') : 'none beyond the diff'}${r.noBehaviourChange ? '; no behaviour change, so nothing was asked of the model' : ''}${r.testsWouldSettleIt ? '; running the tests would settle this better than reading it' : ''}`);
+  }
   const blind = blindSpot(r);
   if (blind) L.push(`⚠ ${blind.text}`);
   if (r.findings.length) {
