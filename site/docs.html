@@ -9,7 +9,9 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    :root { --nav-h: 80px; }
+
+    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-h) + 20px); }
 
     body {
       background-color: #ffffff;
@@ -26,13 +28,11 @@
       top: 0;
       background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid #e5e7eb;
       z-index: 50;
-      height: 60px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 2rem;
+      padding: 1.5rem 2rem;
     }
 
     .brand {
@@ -50,30 +50,54 @@
 
     .nav-links { display: flex; align-items: center; gap: 0.6rem; }
 
-    .btn-back-nav, .btn-benchmark {
-      color: #111111;
+    .btn-back-nav {
+      color: #444444;
       text-decoration: none;
       font-size: 0.85rem;
       font-weight: 500;
-      padding: 0.45rem 0.85rem;
-      border: 1px solid #e5e7eb;
+      padding: 0.45rem 0.75rem;
       border-radius: 6px;
       transition: all 0.15s ease;
       letter-spacing: -0.01em;
       display: inline-flex;
       align-items: center;
-      background: #ffffff;
-      cursor: pointer;
+      line-height: 1.2;
+      border: 1px solid transparent;
     }
 
-    .btn-back-nav:hover, .btn-benchmark:hover { background: #fafafa; border-color: #111111; }
+    .btn-back-nav:hover {
+      color: #000000;
+      background: #f5f5f5;
+    }
+
+    .btn-benchmark {
+      background: transparent;
+      border: 1px solid #e5e5e5;
+      color: #111111;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+      display: inline-flex;
+      align-items: center;
+      line-height: 1.2;
+    }
+
+    .btn-benchmark:hover {
+      border-color: #111111;
+      background: #fafafa;
+    }
 
     /* Layout */
     .docs-container {
       display: flex;
       max-width: 1240px;
       margin: 0 auto;
-      min-height: calc(100vh - 60px);
+      min-height: calc(100vh - var(--nav-h));
     }
 
     aside {
@@ -82,8 +106,8 @@
       border-right: 1px solid #e5e7eb;
       padding: 2rem 1.25rem 3rem 0;
       position: sticky;
-      top: 60px;
-      height: calc(100vh - 60px);
+      top: var(--nav-h);
+      height: calc(100vh - var(--nav-h));
       overflow-y: auto;
     }
 
@@ -619,7 +643,7 @@
     @media (max-width: 860px) {
       aside { display: none; }
       main { padding: 2rem 1.25rem 4rem; }
-      header { padding: 0 1.25rem; }
+      header { padding: 1rem 1.25rem; --nav-h: 64px; }
       .outcomes, .loop { grid-template-columns: 1fr; }
       h1 { font-size: 1.9rem; }
     }
@@ -1393,7 +1417,7 @@ export THINKER_TELEMETRY=off
         if (item) item.classList.add('active');
       }
       function update() {
-        const line = 100;
+        const line = 120;
         let best = sections[0];
         for (const s of sections) {
           if (s.getBoundingClientRect().top <= line) best = s; else break;
