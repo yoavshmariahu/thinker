@@ -805,14 +805,14 @@ thinker setup --build --yes</code></pre>
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
         </div>
         <p>
-          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. Hosted <a href="#jev">Jev through Thinker’s proxy</a> is the default, with no personal TypeSafe key required. The local ranker stays installed as a fallback. <code>thinker ranker</code> shows the configured ranking mode.
+          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. <code>thinker ranker</code> shows the configured ranking mode.
         </p>
       </section>
 
       <section id="jev">
         <h2>Jev through Thinker</h2>
         <p>
-          Thinker uses hosted note selection with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Thinker provides access through its proxy. You do not need a TypeSafe account or personal API key.</strong>
+          Thinker selects notes with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Access is provided through Thinker's proxy. No TypeSafe account or personal API key is required.</strong>
         </p>
         <h3>How it works</h3>
         <ol>
@@ -825,7 +825,7 @@ thinker setup --build --yes</code></pre>
         </p>
         <h3>Fallback and local ranking</h3>
         <p>
-          The hosted implementation uses a 1,500 ms client timeout. Errors, rate limits, invalid responses, and timeouts fall back to the built-in local cross-encoder (23 MB), then lexical ranking if that model is unavailable. <code>thinker ranker</code> reports configuration and local-model availability. <code>thinker ranker fetch</code> downloads a missing model; <code>thinker update</code> repairs a missing runtime.
+          Hosted Jev uses a 1,500 ms client timeout. Errors, rate limits, invalid responses, and timeouts fall back to the built-in local cross-encoder (23 MB), then lexical ranking if that model is unavailable. <code>thinker ranker</code> reports configuration and local-model availability. <code>thinker ranker fetch</code> downloads a missing model; <code>thinker update</code> repairs a missing runtime.
         </p>
         <p>To use local note ranking, set this in <code>.thinker/config.json</code>:</p>
         <pre><code>{ "jev": false }</code></pre>
@@ -1212,7 +1212,7 @@ thinker system md                   <span class="code-comment"># write them as .
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. The <a href="#jev">hosted Jev integration</a> scores a shortlist through Thinker’s proxy and keeps up to two qualifying notes, without requiring a personal API key. Existing releases use local ranking or an optional personal-key Jev connection; API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. <a href="#jev">Hosted Jev</a> scores a shortlist through Thinker’s proxy and Thinker keeps up to two qualifying notes, without requiring a personal API key. API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
@@ -1317,7 +1317,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is the default; the client timeout is 1,500 ms. <a href="#jev">Rollout and data handling</a></td></tr>
+              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is the default; the client timeout is 1,500 ms. <a href="#jev">Setup and data handling</a></td></tr>
               <tr><td><code>ce</code></td><td>Local fallback ranker: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to disable it. With Jev also disabled, ranking uses words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>

@@ -26,6 +26,7 @@ import { outlineText, references, countable } from './codegraph.js';
 import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
+import { jevConfig, jevScores } from './jev.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
 // bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
@@ -294,8 +295,56 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
       .map(n => ({ n, s: (0.6 * (Q.scores.get(n.id) || 0) / maxQ + 0.4 * (B.scores.get(n.id) || 0) / maxB) * weight(n) }))
       .sort((a, b) => b.s - a.s).slice(0, relatedMax).map(x => x.n);
   }
-  const order = [...direct.filter(strong), ...related, ...direct.filter(n => !strong(n))];
-  return { direct, related, exposures, symbols, order };
+  const order = orderConsulted(direct, related, strong);
+  return { direct, related, exposures, symbols, order, strong };
+}
+
+// A strong direct note first, then the related ones, then the direct notes resting on a whole file.
+export const orderConsulted = (direct, related, strong) =>
+  [...direct.filter(strong), ...related, ...direct.filter(n => !strong(n))];
+
+// What Jev is shown of the change: named fields, not the bag of words BM25 ranks on.
+export function changeRecord(change, symbols) {
+  const freq = new Map();
+  for (const f of change.files) for (const h of f.hunks) for (const l of h.lines) {
+    if (!l.startsWith('+')) continue;
+    const code = l.slice(1).replace(/\/\/.*$|#.*$/, '').replace(/(["'`])(?:\\.|(?!\1).)*\1/g, ' ');
+    for (const m of code.matchAll(/[A-Za-z_][A-Za-z0-9_]{3,}/g)) freq.set(m[0], (freq.get(m[0]) || 0) + 1);
+  }
+  return {
+    files_changed: change.files.map(f => f.path).slice(0, 40),
+    definitions_touched: symbols.flatMap(s => s.changed).slice(0, 40),
+    identifiers_added: [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([w]) => w),
+  };
+}
+
+const RELATED_CRITERIA = {
+  true: 'The note states something that bears on this change: a constraint the change must respect, a rule about the code it alters, or a trap it risks.',
+  false: 'The note is about other code or another concern. Sharing identifiers or file names with the change is not enough.',
+};
+
+// The related notes are BM25's best by shared identifiers, and it fills every slot whether or not
+// anything fits: on 16 grafana regression cases every review consulted exactly six related notes,
+// none of which carried the signal — the note that catches a regression arrives `direct`, by dep
+// hash. With a Jev key the slots carry what actually bears on the change, judged a note at a time.
+// Any failure leaves BM25's choice, so a review never fails because a network call did.
+export async function narrowRelated(store, related, change, symbols, { max = 6 } = {}) {
+  const cfg = jevConfig(store);
+  if (!cfg.enabled || !related.length) return { related: related.slice(0, max), scores: null };
+  try {
+    const scores = await jevScores(changeRecord(change, symbols), related, {
+      ...cfg,
+      subject: 'the_change',
+      criteria: RELATED_CRITERIA,
+      question: i => ({ question: `Does the note at \`candidate_notes[${i}]\` bear on \`the_change\`? \`the_change\` names the files it touches, the definitions it alters and the identifiers it adds.` }),
+    });
+    const kept = related.map((n, i) => ({ n, s: scores[i] })).filter(x => x.s >= cfg.floor)
+      .sort((a, b) => b.s - a.s).slice(0, max);
+    return { related: kept.map(x => x.n), scores: kept.map(x => Number(x.s.toFixed(2))) };
+  } catch (e) {
+    store.log({ op: 'jev-error', where: 'review', error: String(e.message).slice(0, 200) });
+    return { related: related.slice(0, max), scores: null };
+  }
 }
 
 // The finding that needs no model: a definition the change removed that is still referred to
@@ -732,11 +781,25 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   report.integrity = scope.state ? null : gateIntegrity(change, reader);
   report.task = task || null;
   if (!change.files.length) { report.empty = true; return report; }
-  const { direct, related, exposures, symbols, order } = selectNotes(notes, change, reader, { relatedMax: strat.related ? 6 : 0 });
+  // With a Jev key the BM25 pool is widened and Jev picks the slots that actually bear on the change;
+  // without one, BM25's own best six stand, as before. A dry run makes no model call, so it keeps BM25.
+  const RELATED_MAX = 6;
+  const jevOn = !dry && strat.related && jevConfig(store).enabled;
+  let { direct, related, exposures, symbols, order, strong } = selectNotes(notes, change, reader, { relatedMax: strat.related ? (jevOn ? RELATED_MAX * 2 : RELATED_MAX) : 0 });
+  let relatedJev = null;
+  if (jevOn && related.length) {
+    const narrowed = await narrowRelated(store, related, change, symbols, { max: RELATED_MAX });
+    related = narrowed.related; relatedJev = narrowed.scores;
+    order = orderConsulted(direct, related, strong);
+  } else if (related.length > RELATED_MAX) {
+    related = related.slice(0, RELATED_MAX);
+    order = orderConsulted(direct, related, strong);
+  }
   report.symbols = symbols.filter(s => s.changed.length || s.removed.length).map(s => ({ path: s.path, changed: s.changed, removed: s.removed.map(r => r.qualified) }));
   report.findings.push(...deterministicFindings(repo, change, symbols, reader));
   const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
+  if (relatedJev) report.notes.relatedJev = relatedJev; // what Jev scored the kept related notes, when it chose them
   for (const n of consulted) { const e = exposures.get(n.id); if (e.staleBefore.length) report.notes.staleBefore.push({ id: n.id, title: n.title, changed: e.staleBefore }); }
   const covered = new Set(direct.flatMap(n => (n.deps || []).map(d => d.path)));
   report.notes.uncovered = change.files.filter(f => f.status !== 'D' && CODE_EXT.test(f.path) && !covered.has(f.path)).map(f => f.path);
@@ -748,7 +811,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
   const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
-  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
+  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : relatedJev ? 'bears on the change (jev)' : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
     // a change too large for one call is taken in chunks of files, the files the notes rest on first
