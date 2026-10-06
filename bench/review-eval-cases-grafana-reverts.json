@@ -1,0 +1,437 @@
+{
+ "repo": "grafana",
+ "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+ "minedAt": "2026-10-06",
+ "cases": [
+  {
+   "id": "V-133030-visual-refresh-fix-sticky-background-col",
+   "kind": "revert",
+   "pr": 133030,
+   "sha": "675b26f5856",
+   "date": "2026-09-18",
+   "subject": "Visual refresh: Fix sticky background colors (#133030)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 9,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-132979-fixes-cut-focus",
+   "kind": "revert",
+   "pr": 132979,
+   "sha": "f085524b1c9",
+   "date": "2026-09-18",
+   "subject": "Modals: Fixes cut focus (#132979)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 42,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132877-ensure-usecomboboxfloat-does-not-cause-e",
+   "kind": "revert",
+   "pr": 132877,
+   "sha": "339c8161461",
+   "date": "2026-09-18",
+   "subject": "Combobox: Ensure useComboboxFloat does not cause excessive rerenders (#132877)",
+   "noted": [
+    "rule",
+    "rule"
+   ],
+   "size": {
+    "lines": 23,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132966-handle-aggregate-discovery-format-from-a",
+   "kind": "revert",
+   "pr": 132966,
+   "sha": "3bdabb21d49",
+   "date": "2026-09-17",
+   "subject": "router: handle aggregate discovery format from apiextensions (#132966)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 55,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132940-fix-v2-save-failing-with-resourceversion",
+   "kind": "revert",
+   "pr": 132940,
+   "sha": "d0e5844a929",
+   "date": "2026-09-17",
+   "subject": "Dashboards: Fix v2 save failing with resourceVersion set on create (#132940)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 5,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132931-gate-missing-features-behind-feature-fla",
+   "kind": "revert",
+   "pr": 132931,
+   "sha": "54c9d2575a4",
+   "date": "2026-09-17",
+   "subject": "Text: Gate missing features behind feature flag (#132931)",
+   "noted": [
+    "rule",
+    "rule"
+   ],
+   "size": {
+    "lines": 82,
+    "files": 6
+   }
+  },
+  {
+   "id": "V-132860-remove-b-alternation-from-key-regex-to-p",
+   "kind": "revert",
+   "pr": 132860,
+   "sha": "d9e458c09e3",
+   "date": "2026-09-17",
+   "subject": "fix(logs): remove \\B alternation from key regex to prevent catastrophic backtracking (#132860)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 2,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132745-fix-a11y-keyboard-interactions",
+   "kind": "revert",
+   "pr": 132745,
+   "sha": "185645e5887",
+   "date": "2026-09-17",
+   "subject": "Notebooks: Fix A11y Keyboard Interactions (#132745)",
+   "noted": [
+    "rule",
+    "rule"
+   ],
+   "size": {
+    "lines": 17,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-132840-fix-search-field-values",
+   "kind": "revert",
+   "pr": 132840,
+   "sha": "a178369468b",
+   "date": "2026-09-17",
+   "subject": "LibraryPanels: Fix search field values (#132840)",
+   "noted": [
+    "rule",
+    "rule",
+    "howto"
+   ],
+   "size": {
+    "lines": 61,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-132876-stop-requesting-unused-team-search-expla",
+   "kind": "revert",
+   "pr": 132876,
+   "sha": "466b5d5e6fd",
+   "date": "2026-09-17",
+   "subject": "IAM: stop requesting unused team search explanations (#132876)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 1,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132861-query-editor-fix-long-datasource-errors-",
+   "kind": "revert",
+   "pr": 132861,
+   "sha": "baee51c8950",
+   "date": "2026-09-17",
+   "subject": "Dashboard: Query editor: Fix  long datasource errors instead of widening the page (#132861)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 5,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132769-fix-header-bar-overlapping-the-left-nav-",
+   "kind": "revert",
+   "pr": 132769,
+   "sha": "fade077af4e",
+   "date": "2026-09-17",
+   "subject": "Notebooks: Fix header bar overlapping the left nav at narrow viewports (#132769)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 8,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-132825-github-style-doc-tab-name-casing-fix",
+   "kind": "revert",
+   "pr": 132825,
+   "sha": "f64006b97f7",
+   "date": "2026-09-17",
+   "subject": "Provisioning: Github style doc tab name casing fix (#132825)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 6,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132830-unified-storage-fix-jobs-watch-errors",
+   "kind": "revert",
+   "pr": 132830,
+   "sha": "a6a12083a48",
+   "date": "2026-09-16",
+   "subject": "unified-storage: fix `jobs` Watch errors (#132830)",
+   "noted": [
+    "rule",
+    "rule",
+    "rule"
+   ],
+   "size": {
+    "lines": 67,
+    "files": 5
+   }
+  },
+  {
+   "id": "V-132753-fix-recursive-route-types",
+   "kind": "revert",
+   "pr": 132753,
+   "sha": "1f1eb251e84",
+   "date": "2026-09-16",
+   "subject": "Alerting: fix recursive route types (#132753)",
+   "noted": [
+    "rule"
+   ],
+   "size": {
+    "lines": 15,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132648-fix-mutabledataframe-for-esm-strict-mode",
+   "kind": "revert",
+   "pr": 132648,
+   "sha": "8d38599e07d",
+   "date": "2026-09-16",
+   "subject": "Frontend: Fix MutableDataFrame for ESM strict mode (#132648)",
+   "noted": [
+    "rule",
+    "rule"
+   ],
+   "size": {
+    "lines": 8,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-132674-remove-legacy-investigations-navigation-",
+   "kind": "revert",
+   "pr": 132674,
+   "sha": "d8d06830b5e",
+   "date": "2026-09-18",
+   "subject": "fix(assistant): remove legacy investigations navigation gate (#132674)",
+   "noted": [],
+   "size": {
+    "lines": 33,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-126539-update-dependency-grafana-prometheus-to-",
+   "kind": "revert",
+   "pr": 126539,
+   "sha": "ee234350fa3",
+   "date": "2026-09-18",
+   "subject": "fix(deps): update dependency @grafana/prometheus to v13.1.14 (#126539)",
+   "noted": [],
+   "size": {
+    "lines": 9,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132988-fix-filterinput-story",
+   "kind": "revert",
+   "pr": 132988,
+   "sha": "a957f45cc35",
+   "date": "2026-09-18",
+   "subject": "Chore: fix `FilterInput` story (#132988)",
+   "noted": [],
+   "size": {
+    "lines": 2,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132856-fix-eslint-suppressions-no-explicit-any-",
+   "kind": "revert",
+   "pr": 132856,
+   "sha": "02f04bbac11",
+   "date": "2026-09-18",
+   "subject": "Chore: fix eslint suppressions — no-explicit-any in grafana datasource annotations (#132856)",
+   "noted": [],
+   "size": {
+    "lines": 4,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-131837-fix-query-variable-refresh-reset-to-onda",
+   "kind": "revert",
+   "pr": 131837,
+   "sha": "916b6b3f89d",
+   "date": "2026-09-17",
+   "subject": "Dashboards: Fix query variable refresh reset to onDashboardLoad on v2 UI import (#131837)",
+   "noted": [],
+   "size": {
+    "lines": 4,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132808-fix-focus-ring-appearance",
+   "kind": "revert",
+   "pr": 132808,
+   "sha": "901c2ed6b20",
+   "date": "2026-09-16",
+   "subject": "GrafanaUI: Fix focus ring appearance (#132808)",
+   "noted": [],
+   "size": {
+    "lines": 3,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-129963-write-terminal-sync-status-back-to-repos",
+   "kind": "revert",
+   "pr": 129963,
+   "sha": "dfd0030d55d",
+   "date": "2026-09-16",
+   "subject": "fix: write terminal sync status back to repository on early sync-job failures (#129963)",
+   "noted": [],
+   "size": {
+    "lines": 37,
+    "files": 4
+   }
+  },
+  {
+   "id": "V-132572-fix-nan-undefined-diff-tooltip-in-sandwi",
+   "kind": "revert",
+   "pr": 132572,
+   "sha": "4f3a18aad9c",
+   "date": "2026-09-16",
+   "subject": "Flamegraph: Fix NaN/undefined diff tooltip in sandwich view (#132572)",
+   "noted": [],
+   "size": {
+    "lines": 19,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-132735-fix-eslint-suppressions-no-explicit-any-",
+   "kind": "revert",
+   "pr": 132735,
+   "sha": "1cff24a397c",
+   "date": "2026-09-16",
+   "subject": "Chore: fix eslint suppressions — no-explicit-any in calculateHeatmap editor helper (#132735)",
+   "noted": [],
+   "size": {
+    "lines": 4,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-131464-fix-ensuretags-never-deleting-removed-ta",
+   "kind": "revert",
+   "pr": 131464,
+   "sha": "afbdc71e12d",
+   "date": "2026-09-15",
+   "subject": "Annotations: fix ensureTags never deleting removed tag links (#131464)",
+   "noted": [],
+   "size": {
+    "lines": 2,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132082-fix-for-panels-with-lower-min-height-tha",
+   "kind": "revert",
+   "pr": 132082,
+   "sha": "e210f56df0d",
+   "date": "2026-09-15",
+   "subject": "Dashboards: Fix for panels with lower min height than row height (#132082)",
+   "noted": [],
+   "size": {
+    "lines": 47,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-132620-fix-eslint-suppressions-typescript-eslin",
+   "kind": "revert",
+   "pr": 132620,
+   "sha": "36d74601312",
+   "date": "2026-09-15",
+   "subject": "Chore: fix eslint suppressions — @typescript-eslint/no-explicit-any in moment_wrapper.ts (#132620)",
+   "noted": [],
+   "size": {
+    "lines": 2,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132551-fix-the-styling-for-annotations-inside-a",
+   "kind": "revert",
+   "pr": 132551,
+   "sha": "a3a1968169a",
+   "date": "2026-09-14",
+   "subject": "Alerting: fix the styling for annotations inside alert rules definition (#132551)",
+   "noted": [],
+   "size": {
+    "lines": 15,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-132540-proper-error-message-on-namespace-missma",
+   "kind": "revert",
+   "pr": 132540,
+   "sha": "eaa3b91685c",
+   "date": "2026-09-14",
+   "subject": "fix: proper error message on namespace missmatch (#132540)",
+   "noted": [],
+   "size": {
+    "lines": 12,
+    "files": 1
+   }
+  }
+ ]
+}
