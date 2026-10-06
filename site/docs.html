@@ -753,12 +753,27 @@
         <pre><code><span class="code-comment"># Connect the agents, then ask whether to build the cache</span>
 thinker setup
 
-<span class="code-comment"># Build without asking: merged pull requests (--prs n, default 60)
+<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60)
 # and one exploration per source area (--areas n, default 12)</span>
 thinker setup --build
 
 <span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
 thinker setup --no-build</code></pre>
+        <p>
+          <strong>Working in a large repository?</strong> Setup offers <strong>Full repo</strong> or <strong>Specify project directories</strong>.
+          Enter a project name and comma-separated directories such as <code>apps/web, packages/ui</code>.
+          Thinker saves <code>thinker.project.json</code> and estimates the build for your selection. The installer offers the same choice.
+        </p>
+        <pre><code><span class="code-comment"># Or save a project before onboarding</span>
+thinker project init apps/web packages/ui --name "Web app"
+thinker seed --dry <span class="code-comment"># preview selected exploration areas</span>
+thinker setup --build --yes</code></pre>
+        <p>
+          <code>setup</code>, <code>seed</code>, and <code>mine-prs</code> reuse the saved project.
+          Use <code>--project other.project.json</code> for another selection or <code>--full-repo</code> for one full-repository run.
+          Paths are relative to the repository root. Exploration and history mining focus on the selected directories;
+          retrieval, review, and ongoing learning still use the whole repository cache.
+        </p>
         <p>
           Building runs through your agent's own login: about 5.5M tokens and twenty minutes with the defaults, most of them cached prompt reads. The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
         </p>

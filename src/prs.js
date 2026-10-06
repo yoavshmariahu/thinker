@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { KINDS } from './store.js';
+import { directoryPathspecs } from './project.js';
 
 const gh = (...a) => execFileSync('gh', a, { maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
 
@@ -20,10 +21,11 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
 // note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
 // no pull requests, and its fix commits are what review wants.
 export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
-export function listMergedCommits(repo, { before, after, limit = 100 } = {}) {
+export function listMergedCommits(repo, { before, after, limit = 100, directories = null } = {}) {
   const args = ['log', '--first-parent', '-n', String(Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
   if (before) args.push(`--before=${before}`);
   if (after) args.push(`--after=${after}`);
+  if (directories) args.push('--', ...directoryPathspecs(directories));
 
   let raw = '';
   try {

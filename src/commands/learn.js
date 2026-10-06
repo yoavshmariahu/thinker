@@ -1,3 +1,4 @@
+import { projectFromFlags, includesPath, projectRecordKey } from '../project.js';
 import { learningPlan } from '../learning-evidence.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
 // maintenance run, verification, the exploration sessions of setup (seed), and mining merged pull
@@ -84,7 +85,9 @@ async function checkCommand(ctx) {
 async function seedCommand(ctx) {
   const { flags } = ctx;
   // Bootstrap coverage: one exploration session per source area, distilled.
-  const r = await seed(ctx, { areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
+  const project = projectFromFlags(ctx.repo, flags, { save: !flags.dry });
+  if (project) ctx.out(`Cache build: ${project.name} (${project.directories.join(', ')})`);
+  const r = await seed(ctx, { directories: project?.directories || null, areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
   if (r && r.ok === 0 && !flags.dry) process.exitCode = 1;
   return;
 }
@@ -216,9 +219,10 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   }
 }
 
-export async function seed(ctx, { areas, model, dry, prompts, agent }) {
+export async function seed(ctx, { areas, model, dry, prompts, agent, directories = null }) {
   const { flags, repo, store, out } = ctx;
-  const areaList = discoverAreas(repo, { limit: areas });
+  if (prompts && directories) throw new Error('--prompts cannot be combined with a project selection; use --full-repo for custom prompts.');
+  const areaList = discoverAreas(repo, { limit: areas, directories });
   const list = prompts ? JSON.parse(fs.readFileSync(prompts, 'utf8')).map(p => ({ prompt: p })) : areaList.map(a => {
     if (a.isFile) {
       return {
@@ -231,6 +235,8 @@ export async function seed(ctx, { areas, model, dry, prompts, agent }) {
       prompt: `Orient a new contributor in ${a.dir}/ (${a.n} source files): what this subsystem is responsible for, its main entry points and how control flows into and out of it (cite file:symbol), the two or three things that must change together when extending it, local conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
     };
   });
+  if (!list.length) { out('No source areas found in the selected directories.'); return { ok: 0, total: 0, tokens: 0, failures: [] }; }
+  if (directories) for (const a of list) a.prompt += `\nCache project directories: ${directories.join(', ')}. Focus on this area; follow dependencies outside these directories only when needed to explain it. Use repository-relative file:symbol pointers.`;
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
   let activeAgent = agent || exploreAgent();
   if (!activeAgent) {
@@ -390,6 +396,9 @@ export function exploreCommand(bin, args, { input, ...opts }) {
 // mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first
 export async function mineMore(ctx, { slug, ...opts }) {
   const { repo, store, out } = ctx;
+  const project = projectFromFlags(repo, ctx.flags, { save: !opts.dry });
+  if (project) out(`Cache build: ${project.name} (${project.directories.join(', ')})`);
+  opts.directories = project?.directories || null;
   slug = slug || githubSlug(repo);
   if (!slug && !hasBin('gh')) {
     out('ℹ️  GitHub remote/gh CLI unavailable; falling back to local git history...');
@@ -399,19 +408,21 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance' } = {}) {
+export async function minePrs(ctx, slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
   const useGit = git || !slug || !hasBin('gh');
   const recSlug = slug || 'local';
-  const rec = minedPrs(store, recSlug);
+  const scopeKey = directories ? projectRecordKey(recSlug, directories) : recSlug;
+  const rec = minedPrs(store, scopeKey);
+  if (directories) for (const id of minedPrs(store, recSlug).mined) rec.mined.add(id);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
-  const listFn = useGit ? (s, o) => listMergedCommits(repo, o) : listMergedPrs;
+  const listFn = useGit ? (s, o) => listMergedCommits(repo, { ...o, directories }) : listMergedPrs;
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const listed = before || after
-    ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || !rec.mined.has(p.number))
+    ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length) {
     const sourceName = useGit ? 'git history' : `merged PRs of ${slug}`;
@@ -419,13 +430,15 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
     return { tokens: 0, saved: 0 };
   }
   const failed = new Set();
-  const filtered = listed
+  const scoped = listed.filter(p => !directories || (p.files || []).some(f => includesPath(directories, typeof f === 'string' ? f : f.path || '')));
+  const filtered = scoped
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
       (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (useGit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
-  let candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
+  let candidates = filtered.length ? filtered : scoped.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
   // --fixes: only changes whose message says they fix something (git history has no labels; a repository
   // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
   if (fixes) candidates = candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`));
+  if (directories) out(`        ${scoped.length}/${listed.length} scanned changes touch project directories; later runs continue scanning older history.`);
   const prs = pickPrs(candidates, limit);
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
@@ -445,8 +458,10 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   }
   // PRs the filter passed over are recorded too; failed ones and candidates deferred by the limit are not, so the next run takes them again
   if (!dry) {
-    recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number) && !deferred.has(p.number)));
-    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github' });
+    const completed = listed.filter(p => !failed.has(p.number) && !deferred.has(p.number));
+    recordMinedPrs(store, scopeKey, completed);
+    if (directories) recordMinedPrs(store, recSlug, prs.filter(p => !failed.has(p.number)));
+    store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github' });
   }
   progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
   return { tokens, saved, failed: failed.size, processed: prs.length };

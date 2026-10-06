@@ -7,6 +7,7 @@ import { Store, findRepoRoot } from './store.js';
 import { initAst } from './ast.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
+import { commands as projectCommands } from './commands/project.js';
 import { commands as noteCommands } from './commands/notes.js';
 import { commands as impactCommands } from './commands/impact.js';
 import { commands as cacheCommands } from './commands/cache.js';
@@ -21,7 +22,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'run', 'start', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'run', 'start', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -48,13 +49,18 @@ const HELP = `thinker — knowledge cache for coding agents
 
   setup [--build | --no-build] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
-        [--no-trust] [--yes] [--verbose]
+        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from the code and merged pull requests with pre-flight estimates, and
-                                 an optional PR change benchmark. --build builds without asking, --no-build only wires
+                                 an optional PR change benchmark. --build opts into building; --yes also skips the scope menu. --no-build only wires
                                  things up and lets the cache grow from your sessions; a build also drafts
                                  system behaviors for human review; --verbose adds per-item details
+  project [show]                show the saved thinker.project.json cache build selection
+  project init <dir> [dir…] [--name name] [--project file]
+                                 save repository-relative directories for future cache builds (no model calls)
+                                 setup, seed and mine-prs use thinker.project.json when present; --project selects
+                                 another file, --full-repo ignores it for one run. Retrieval always uses the whole cache.
   connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
                                  server, for every repository that is set up (elsewhere thinker does nothing);
@@ -126,9 +132,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  learn from new session evidence (edits, failures, corrections), with sampled full-trace audits;
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
-  seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
+  seed [--project file | --full-repo] [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs [owner/repo] [--limit n] [--dry] [--git] [--fixes]
+  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
@@ -171,7 +177,7 @@ const HELP = `thinker — knowledge cache for coding agents
 const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
 
 async function main() {
   if (cmd === 'share' || cmd === 'sync' || flags.shared) {

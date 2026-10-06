@@ -334,6 +334,7 @@ export async function setup(ctx) {
     userMcpEntry: ctx.userMcpEntry(),
     clients,
     areas,
+    projectFlags: flags,
     prs,
     prNumber: flags.pr ? Number(flags.pr) : null,
     build,
