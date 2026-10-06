@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { evidencePassages, evidencePacket, refineLearningPlan } from '../src/learning-evidence.js';
+import { condense } from '../src/distill.js';
 
 const read = result => ({ t: 'tool', name: 'Read', input: { file_path: 'src/cache.js' }, result });
 const plan = (events, served = []) => ({ mode: 'evidence', discover: true, served, trace: evidencePacket(events) });
@@ -28,11 +29,28 @@ test('long individual tool results are split so a discovery past the condensatio
   const events = [read('Routine line.\n'.repeat(500) + 'DEEP_DISCOVERY: invalidation follows symbol hashes, preserving unrelated cache entries.')];
   const passages = evidencePassages(events);
   assert.ok(passages.length > 4);
-  const selected = await refineLearningPlan({}, events, plan(events), {
+  const note = { id: 'cache-note', deps: [{ path: 'src/cache.js' }] };
+  const selected = await refineLearningPlan({}, events, plan(events, [note]), {
     judge: scored(p => p.text.includes('DEEP_DISCOVERY') ? .95 : .1), maxChars: 3000,
   });
   assert.match(selected.trace, /DEEP_DISCOVERY/);
+  assert.match(selected.trace, /recorded event metadata:.*src\/cache.js/);
+  assert.deepEqual(selected.served, [note]);
+  assert.ok(!selected.evidenceSelection.selected.includes(0), 'file identity survives without the first span');
   assert.ok(selected.trace.length <= 3000);
+});
+
+test('disabled, failed and uncertain Jev selection preserve full explicit distillation behavior', async () => {
+  const events = Array.from({ length: 40 }, () => read('Original source detail. '.repeat(80)));
+  const base = { ...plan(events), mode: 'full', trace: condense(events) };
+  assert.ok(base.trace.length > 12000);
+  for (const judge of [async () => ({ status: 'disabled' }), async () => ({ status: 'unavailable', reason: 'offline' }), scored(() => .5)]) {
+    const result = await refineLearningPlan({}, events, base, { judge });
+    assert.equal(result.trace, base.trace);
+    assert.equal(result.compact, false);
+    assert.deepEqual(result.served, base.served);
+    assert.equal(result.discover, base.discover);
+  }
 });
 
 test('large Unicode transcripts use bounded batches spread across the entire chronology', async () => {

@@ -56,12 +56,21 @@ export function evidencePassages(events) {
   const passages = [];
   for (const [event, e] of events.entries()) {
     if (!['prompt', 'say', 'tool'].includes(e.t)) continue;
+    // Repeat recorded provenance for every chunk: a span deep inside a Read result
+    // must retain its file identity even when the event's first chunk is omitted.
+    const source = { type: e.t };
+    if (e.t === 'tool') {
+      source.tool = e.name || 'tool';
+      for (const key of ['file_path', 'path', 'target_file', 'file', 'command', 'cmd']) {
+        if (typeof e.input?.[key] === 'string') source[key] = e.input[key].slice(0, key === 'command' || key === 'cmd' ? 300 : 1000);
+      }
+    }
     const text = e.t === 'tool'
       ? `${e.name || 'tool'} ${JSON.stringify(e.input || {})}\n${clean(e.result)}`
       : `${e.t === 'prompt' ? 'USER' : 'AGENT'}: ${clean(e.text)}`;
     if (!text.trim()) continue;
     for (let offset = 0; offset < text.length; offset += PASSAGE_CHARS) {
-      passages.push({ id: passages.length, event, offset, text: text.slice(offset, offset + PASSAGE_CHARS),
+      passages.push({ id: passages.length, event, offset, source, text: text.slice(offset, offset + PASSAGE_CHARS),
         before: text.slice(Math.max(0, offset - CONTEXT_CHARS), offset),
         after: text.slice(offset + PASSAGE_CHARS, offset + PASSAGE_CHARS + CONTEXT_CHARS) });
     }
@@ -103,7 +112,7 @@ function selectionBatches(passages, model) {
   return batches;
 }
 
-const renderPassage = p => `[event ${p.event}; focus chars ${p.offset}-${p.offset + p.text.length}, with adjacent source context]\n${p.before}${p.text}${p.after}`;
+const renderPassage = p => `[event ${p.event}; focus chars ${p.offset}-${p.offset + p.text.length}, with adjacent source context]\n[recorded event metadata: ${JSON.stringify(p.source)}]\n${p.before}${p.text}${p.after}`;
 
 /** Refine a locally eligible plan; semantic selection never changes eligibility. */
 export async function refineLearningPlan(store, events, basePlan, {
@@ -111,7 +120,8 @@ export async function refineLearningPlan(store, events, basePlan, {
 } = {}) {
   if (!basePlan || ['audit', 'skip'].includes(basePlan.mode)) return basePlan;
   const fallback = (status, reason, extra = {}) => ({ ...basePlan,
-    trace: Number.isInteger(maxChars) && maxChars >= 256 && basePlan.trace.length > maxChars ? evidencePacket(events, { maxChars }) : basePlan.trace, compact: true,
+    trace: basePlan.mode !== 'full' && Number.isInteger(maxChars) && maxChars >= 256 && basePlan.trace.length > maxChars ? evidencePacket(events, { maxChars }) : basePlan.trace,
+    compact: basePlan.mode !== 'full',
     evidenceSelection: { status, reason, ...extra } });
   if (!Number.isInteger(maxChars) || maxChars < 256 || !Number.isInteger(maxCandidates) || maxCandidates < 1
     || maxCandidates > 256 || !Number.isFinite(floor) || floor < 0.5 || floor > 1) return fallback('fallback', 'invalid limits');
