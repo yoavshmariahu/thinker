@@ -8,7 +8,7 @@ const SRC='/Users/yoavshmariahu/src/thinker', KEY=process.env.JEVKEY, byId=new M
 for (const d of [`${SRC}/.thinker/notes`,`${SRC}/.thinker/local/notes`]) { if(!existsSync(d))continue;
   for (const f of readdirSync(d).filter(x=>x.endsWith('.json'))) { try{const n=JSON.parse(readFileSync(`${d}/${f}`,'utf8'));byId.set(n.id,n);}catch{} } }
 const NOTES=[...byId.values()];
-const QUERIES=JSON.parse(readFileSync('exp/queries-gold.json','utf8'));
+const QUERIES=JSON.parse(readFileSync('bench/jev-eval/queries-gold.json','utf8'));
 const rec = n => ({kind:n.kind,title:n.title,answers_the_questions:(n.answers||[]).slice(0,5),
   claim:(n.body||'').split('\n').filter(Boolean).slice(0,6).join(' ').slice(0,900),
   code_it_points_at:(n.deps||[]).map(d=>d.symbol?`${d.path}:${d.symbol}`:d.path).slice(0,6),
@@ -74,7 +74,7 @@ for (const {q,cands} of work){
     `      ${gold.has(r.id)?'GOLD':'    '} rel ${r.rel.toFixed(2)} -> D ${r.d.toFixed(2)} fit ${r.fit.toFixed(2)} ${r.agree===null?'UNGATED':r.agree?'agree  ':'MISMATCH'} ${r.trigger.slice(0,30).padEnd(30)} ${r.title.slice(0,36)}`);
   console.log('');
 }
-writeFileSync('exp/typed-serving-v2-results.json',JSON.stringify(res,null,2));
+writeFileSync('bench/jev-eval/typed-serving-v2-results.json',JSON.stringify(res,null,2));
 const sum=a=>({served:res.reduce((s,x)=>s+x[a].served,0),hit:res.reduce((s,x)=>s+x[a].hit,0),fp:res.reduce((s,x)=>s+x[a].fp,0)});
 const g=res.reduce((s,x)=>s+x.gold,0), tok=res.reduce((s,x)=>s+x.tok,0);
 for(const a of ['B','D']){const s=sum(a);

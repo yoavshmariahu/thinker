@@ -671,7 +671,7 @@ not as prose: against one blob of the same note, recall held and false positives
 Scored against the same `gpt-6-sol` labels as every other ranking number here
 (`bench/runs/ranking-lab-2026-10-04`), on 20 of the 54 tasks — grafana 10, mitmproxy 5, posthog 5, stratified
 by largest remainder in file order. 303 candidates, 27 important notes, 15 of 20 tasks have a useful note.
-Harness: the `agent/jev-structured-notes` branch, `exp/hook-jev-arm.mjs`.
+Harness: `bench/jev-eval/hook-jev-arm.mjs`.
 
 | arm | served | useful share | important share | important notes | tasks hit | served when nothing useful |
 |---|---|---|---|---|---|---|
@@ -692,7 +692,7 @@ favourable — production generates its own candidates. The stored `l6` scores i
 raw-note-text variant that did not separate, so the `l6` arm there is not the live cross-encoder default.
 
 Measured and rejected the same day: a facet vector typed onto every note (task triggers, an `inert` flag, a
-`machine` flag, a drift surface, a blast score; 347 notes, `exp/type-store.mjs`) as a serving signal. Against
+`machine` flag, a drift surface, a blast score; 347 notes, `bench/jev-eval/type-store.mjs`) as a serving signal. Against
 the 66 notes carrying real attestation labels every facet scored AUC ~0.50 — inert 0.630 (the wrong way),
 machine 0.435, blast 0.480, trigger 0.517–0.541 — and `inert > 0.5` flagged three notes sessions had been
 confirmed to act on, one with three confirmations. No intrinsic property of a note predicts what sessions do

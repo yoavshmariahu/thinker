@@ -1,7 +1,7 @@
 // Persist facets onto notes, versioned by facetKey -- the same pattern phraseNotes uses for `search`/`says`.
-// Writes ONLY into the isolated copy under exp/typed-noteset/. The live cache is never opened for writing.
+// Writes ONLY into the isolated copy under bench/jev-eval/typed-noteset/. The live cache is never opened for writing.
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
-const DIR='exp/typed-noteset', KEY=process.env.JEVKEY;
+const DIR='bench/jev-eval/typed-noteset', KEY=process.env.JEVKEY;
 const FACET_KEY='jev-facets-v2';   // bump this and every note is retyped
 
 const TRIGGER={locating_code:'Finding where something is implemented or handled.',

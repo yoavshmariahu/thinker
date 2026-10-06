@@ -97,7 +97,7 @@ const typed=picked.map((n,i)=>{const g=k=>j.answers[`${k}${i}`];
     enforced_by:g('enforced_by').choice, drift:g('drift_surface').choice,driftConf:g('drift_surface').confidence,
     blast:g('blast').score,volatility:g('volatility').score,
     machine:g('machine_specific').noul,contradicts:g('contradicts_default').noul,actionable:g('actionable_now').noul};});
-writeFileSync('exp/typed-notes.json',JSON.stringify(typed,null,2));
+writeFileSync('bench/jev-eval/typed-notes.json',JSON.stringify(typed,null,2));
 
 for (const t of typed) {
   console.log(`[${t.kind}/${t.status}] ${t.title.slice(0,70)}`);
