@@ -817,7 +817,7 @@ thinker setup --build --yes</code></pre>
         <div class="callout tip">
           <strong>In development.</strong> The hosted integration is being built. Existing releases may still show the earlier personal-key setup; you can skip that prompt and use local ranking while hosted access rolls out.
         </div>
-        <h3>How it will work</h3>
+        <h3>How it works</h3>
         <ol>
           <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically and keeps the upstream TypeSafe credential on its server.</li>
           <li>For each task, Thinker builds a local shortlist. One request through Thinker's proxy asks Jev which notes help with the task.</li>
@@ -838,14 +838,6 @@ thinker setup --build --yes</code></pre>
         <h3>What leaves your machine</h3>
         <p>
           Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
-        </p>
-        <h3>Already configured a personal key?</h3>
-        <p>
-          Personal keys remain an optional compatibility path and use TypeSafe directly. They are not required for hosted access. To switch from a saved personal key to the proxy once hosted access ships:
-        </p>
-        <pre><code>thinker ranker --no-jev-key</code></pre>
-        <p>
-          Also unset <code>THINKER_JEV_KEY</code>, <code>JEV_API_KEY</code>, or <code>TYPESAFE_API_KEY</code> if supplied to the agent. Removing a personal key on a hosted release selects Thinker's proxy; use <code>THINKER_JEV=off</code> or <code>"jev": false</code> to disable Jev. On older releases, removing all personal keys leaves local ranking in use.
         </p>
         <h3>What has been measured</h3>
         <p>
