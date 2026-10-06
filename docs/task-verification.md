@@ -54,42 +54,46 @@ and `gh auth login` completed, save a task as `task.json`:
 
 ```json
 {
-  "request": "Increase retries from three to five; still reject timeouts",
-  "rationale": "Allow more retries while keeping timeout handling",
-  "intendedChanges": ["Raise the retry limit to five"],
+  "request": "Pause a run within two seconds of the runner stopping; resume when they move",
+  "rationale": "Two GPS samples under 0.5 m/s are enough to tell a stop from a slow stride",
+  "intendedChanges": [
+    "Shorten the stop window from five samples to two",
+    "Resume on the first moving sample"
+  ],
+  "questions": ["Should the window stay at five for watches sampling GPS at 0.5 Hz?"],
   "criteria": [{
-    "text": "Timed-out requests are rejected",
-    "tests": [{
-      "check": "unit",
-      "name": "rejects timed-out requests",
-      "file": "test/retry.test.js"
-    }]
+    "text": "A run pauses within two seconds of the runner stopping",
+    "tests": [{ "check": "unit", "name": "pauses within two seconds of a stop", "file": "test/autopause.test.js" }]
+  }, {
+    "text": "A paused run resumes when the runner moves",
+    "tests": [{ "check": "unit", "name": "resumes on the first moving sample", "file": "test/autopause.test.js" }]
   }]
 }
 ```
 
-Replace the test name and file with an existing test in your repository, then run
+Replace the test names and files with existing tests in your repository, then run
 from the PR's checkout:
 
 ```sh
-thinker review --run --base origin/main --task task.json --pr 142 --post
+thinker review --run --base origin/main --task task.json --pr 318 --post
 ```
 
 `--run` waits for execution and assessment; `--post` adds the Markdown report as
 a PR conversation comment using your GitHub CLI login. Each invocation creates
 a new comment. `--pr` selects the destination, not the code being checked.
 For an asynchronous run, use `--start` and later
-`thinker review --status <run-id> --pr 142 --post`. Check that it has completed;
+`thinker review --status <run-id> --pr 318 --post`. Check that it has completed;
 posting status can also publish a partial or outdated report, labeled as such.
 
-For the retry example, an illustrative report could show:
+For the auto-pause example, an illustrative report could show:
 
 | Evidence | What the reviewer learns |
 |---|---|
-| Changed-line anchor: `src/retry.js:18` | The model reads the limit changing to five. |
-| `rejects timed-out requests` passed | The runner observed this named test pass on the snapshot. |
-| Assertion coverage: partial | The model finds timeout rejection covered, but no assertion for the fifth attempt. |
-| Before approving | Inspect or add coverage for a timeout on the final retry. |
+| Changed-line anchor: `src/run/autopause.js:29` | The model reads the stop window shrinking from five samples to two. |
+| `pauses within two seconds of a stop` passed | The runner observed this named test pass on the snapshot. |
+| Assertion coverage: direct, then partial | The model finds the pause covered; no test feeds samples without a GPS fix. |
+| Desired behavior violated: GPS loss never pauses a run | The change removed the fix-filter a note from PR #241 rests on; a fixed behavior makes this an error. |
+| Before approving | Restore the filter, or say in the pull request that the behavior is meant to change. |
 
 The posted report includes provenance and leaves coverage gaps visible. Full
 check logs remain local; posting does not upload them. Ordinary `review --post`
