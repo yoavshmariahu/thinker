@@ -772,6 +772,40 @@ no mode, and the question that ships is the better of the two. The limit: these 
 as reviews, which tests whether the wrapping hurts rather than how differently a real review request reads.
 Harness: `bench/jev-eval/review-shape-arm.mjs`, `JEV_SHAPE` and `JEV_QUESTION`.
 
+### Derived verify verdicts: only the external-tool case is sound (2026-10-06, offline)
+
+`thinker verify` sends every stale note to a model, and 64% of the verdicts here were `still_valid` — a call
+each to read a diff and confirm nothing. The idea was to settle those in code: have Jev type the one surface a
+note could break on (`drift.js:typeDrift`, a Choice over five surfaces; 60 stale notes typed in 709 ms over 5
+batched calls) and let code check that surface. Typed surfaces on 60 stale notes: 25 `a_symbol_moving`,
+16 `a_number_changing`, 9 `a_flag_or_env_var_changing`, 7 `a_path_changing`, 3 `an_external_tool_changing`.
+
+**Checking the numbers a note states was measured unsafe and is not shipped.** Over all 147 stale notes, with
+bindings read as `name = value` / `name: value` / `value for name` rather than bare substrings:
+
+| | |
+|---|---|
+| no number bound to a name in the note text | 100 |
+| a binding, but the name is absent from the code | 34 |
+| a binding whose value differs — the note is wrong | 1 |
+| every binding still matches — the only derivable case | 12 |
+
+So a ceiling of 12 of 147, and reading those 12 showed the ceiling is worthless: the matches are incidental
+numbers in prose, not the note's claim. One, "Benchmark experiment flow and entry points", matched on
+`body=0 question=0` scraped from the phrase `cover: {body: 0, question: 0}` while five of its symbols had
+changed, including `bench/run.js:main` and `ops.js:orient` — it would have been passed as `still_valid` with
+its substantive claims unexamined. The one true catch (the `MIN_COVER` note stating a 0.15 floor the code
+raised to 0.20) buys nothing either, since a wrong note still needs a model to rewrite its body.
+
+**What is shipped** is the one case that needs no inspection of the note's content: a note typed
+`an_external_tool_changing` is re-baselined in code when its deps change, because no change in this
+repository can falsify a claim about a tool outside it, and no model reading a diff of this repository can
+settle one. About 5% of stale notes. It does not raise the note's confidence — nothing confirmed it, the check
+only failed to refute it — and a vanished symbol or file, a low-confidence type, or a note edited since it was
+typed all still go to the model. Earlier in the same work these notes were routed *out* of verification
+entirely, which was worse than the waste it saved: the prompt hooks serve no stale note, so a note never
+re-baselined is never served again.
+
 ## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
 
 Every ranking number above scores a served note as "on target" when it rests on a file the merged fix changed.

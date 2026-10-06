@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
+import { driftKey as driftKeyOf, driftStale, typeDrift } from './drift.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
@@ -21,6 +22,7 @@ export const DEFAULTS = {
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
+  driftPerRun: 40,  // notes typed with the surface they could break on per run (one batched Jev call)
   prs: true,        // distill pull requests merged since maintenance first ran here
   prsPerRun: 3,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
@@ -156,6 +158,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
           if (v.verdict === 'invalid') r.retired++;
           if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
           if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
+          if (v.derived) r.derived = (r.derived || 0) + 1; // settled in code; no model call was made
         } catch { r.errors++; }
       }
     } else r.capped = true;
@@ -167,6 +170,23 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
       }
     } else r.capped = true;
+    // 3b. the surface each note could break on, which verification and the routing above both read.
+    // One batched Jev call for many notes; a note is retyped when its own text changes (driftKey).
+    if (cfg.driftPerRun > 0 && (fns.typeDrift || typeDrift)) {
+      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && n.kind !== 'behavior' && driftStale(n)).slice(0, cfg.driftPerRun);
+      if (need.length) {
+        if (dry) r.typed = need.length;
+        else try {
+          const typed = await (fns.typeDrift || typeDrift)(store, need);
+          for (const t of typed) {
+            const cur = store.get(t.id);
+            // the note may have been corrected while the call was out; its key would no longer match
+            if (cur && t.surface && t.key === driftKeyOf(cur)) store.put({ ...cur, drift: { surface: t.surface, confidence: t.confidence, key: t.key } });
+          }
+          r.typed = typed.length;
+        } catch { r.errors++; }
+      }
+    }
     // 4. pull requests merged since maintenance first ran here; further back is `thinker mine-prs`
     if (cfg.prs && fns.minePrs) {
       if (!state.prsAfter) state.prsAfter = new Date().toISOString();
