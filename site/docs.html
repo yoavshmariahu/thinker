@@ -541,24 +541,82 @@
     .gain { color: #15803d; font-weight: 600; }
 
     /* Evidence report: real HTML keeps the example readable on small screens. */
-    .proof-card { margin: 1.5rem 0 .75rem; border: 1px solid #d9e2df; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 36px #183d2910; }
-    .proof-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: #f3f7f5; border-bottom: 1px solid #d9e2df; }
-    .proof-brand { font-size: .85rem; font-weight: 650; color: #183d29; }
-    .proof-chip { font-size: .7rem; border: 1px solid #c8d8cf; border-radius: 20px; padding: .2rem .6rem; color: #345543; white-space: nowrap; }
-    .proof-content { padding: 1.25rem; }
-    .proof-kicker { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: #66756c; margin-bottom: .4rem; }
-    .proof-title { font-size: 1.2rem; font-weight: 600; letter-spacing: -.025em; color: #162b20; margin-bottom: 1.25rem; }
-    .proof-step { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .8rem; padding: 0 0 1.1rem; }
-    .proof-number { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #eaf3ee; color: #276140; font-size: .75rem; font-weight: 600; }
-    .proof-step strong { display: block; font-size: .85rem; margin-bottom: .25rem; }
-    .proof-step p { font-size: .82rem; margin: 0; color: #526159; }
-    .proof-step code { overflow-wrap: anywhere; font-size: .76rem; }
-    .proof-observed { color: #17663b; font-weight: 600; }
-    .proof-gap { padding: .85rem 1rem; border-radius: 8px; background: #faf6ec; border: 1px solid #eee2c6; }
-    .proof-gap strong { font-size: .8rem; color: #785414; }
-    .proof-gap p { font-size: .8rem; color: #6c5a36; margin: .2rem 0 0; }
-    .proof-footer { border-top: 1px solid #e6ece8; padding: .8rem 1.25rem; font-size: .72rem; color: #607066; background: #fbfcfb; }
-    .proof-caption { font-size: .78rem; color: #6b7280; margin-bottom: 1.5rem; }
+    /* Proof of correctness: a pull request review as GitHub renders one */
+    .gh { margin: 1.5rem 0 0.5rem; color: #1f2328; font-size: 0.84rem; line-height: 1.5; }
+    .gh code { font-size: 0.78rem; background: #eff1f3; color: #1f2328; margin: 0; padding: 0.1em 0.35em; white-space: nowrap; }
+    .gh-details code, .gh-fine code { white-space: normal; }
+    .gh-muted { color: #656d76; }
+    .gh-fine { font-size: 0.78rem; color: #656d76; }
+    .gh-pr { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0 0 0.85rem; }
+    .gh-pr-title { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; color: #1f2328; }
+    .gh-pr-num { font-weight: 400; color: #656d76; }
+    .gh-pr-state { font-size: 0.76rem; font-weight: 500; color: #fff; background: #1f883d; border-radius: 2em; padding: 0.2rem 0.65rem; line-height: 1.4; }
+    .gh-timeline { position: relative; padding-left: 2.25rem; }
+    .gh-timeline::before { content: ""; position: absolute; left: 0.95rem; top: 0; bottom: 0; width: 2px; background: #d0d7de; }
+    .gh-event { position: relative; display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; padding: 0.15rem 0 0.9rem; color: #656d76; }
+    .gh-event strong { color: #1f2328; }
+    .gh-avatar { display: inline-block; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: #1f2328 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fff' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23fff' fill-opacity='0.5'/%3E%3C/svg%3E") center / 70% no-repeat; flex: none; }
+    .gh-event .gh-avatar { position: absolute; left: -2.25rem; top: -0.05rem; box-shadow: 0 0 0 3px #fff; }
+    .gh-avatar-sm { width: 1.35rem; height: 1.35rem; }
+    .gh-bot { font-size: 0.66rem; color: #656d76; border: 1px solid #d0d7de; border-radius: 2em; padding: 0 0.4rem; line-height: 1.5; vertical-align: middle; }
+    .gh-review-state { margin-left: auto; font-size: 0.72rem; color: #1f2328; background: #eff2f5; border: 1px solid #d0d7de; border-radius: 2em; padding: 0.1rem 0.55rem; }
+    .gh-comment, .gh-file { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
+    .gh-comment-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
+    .gh-md { padding: 0.9rem 1rem 0.25rem; }
+    .gh-md h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; color: #1f2328; margin: 0 0 0.6rem; padding-bottom: 0.35rem; border-bottom: 1px solid #d8dee4; }
+    .gh-md h2 { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.92rem; font-weight: 600; letter-spacing: 0; color: #1f2328; margin: 1.15rem 0 0.5rem; padding: 0.65rem 0 0.3rem; border-top: none; border-bottom: 1px solid #d8dee4; }
+    .gh-md p { font-size: 0.84rem; color: #1f2328; margin: 0 0 0.7rem; line-height: 1.5; }
+    .gh-md ul, .gh-md ol { margin: 0 0 0.7rem 1.4rem; font-size: 0.84rem; }
+    .gh-md li { margin-bottom: 0.3rem; }
+    .gh-md li ul { margin: 0.25rem 0 0 1.1rem; }
+    .gh-md li ul li { color: #57606a; }
+    .gh-md table { border-collapse: collapse; width: 100%; margin: 0 0 0.7rem; font-size: 0.8rem; }
+    .gh-md th, .gh-md td { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+    .gh-md td:first-child { min-width: 9.5rem; }
+    .gh-md th { background: #f6f8fa; font-weight: 600; }
+    .gh-md tr:nth-child(2n) td { background: #f6f8fa; }
+    .gh-md blockquote { margin: 0 0 0.7rem; padding: 0.15rem 0 0.15rem 0.8rem; border-left: 3px solid #d0d7de; color: #57606a; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.76rem; overflow-wrap: anywhere; }
+    .gh-scroll { overflow-x: auto; }
+    .gh-pass { color: #1a7f37; font-weight: 600; white-space: nowrap; }
+    .gh-warn { color: #9a6700; }
+    .gh-details { margin: 0.4rem 0 0.8rem; font-size: 0.82rem; }
+    .gh-details summary { cursor: pointer; color: #0969da; font-weight: 500; }
+    .gh-details ul { margin-top: 0.5rem; color: #57606a; }
+    .gh-tag { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 2em; padding: 0.12rem 0.5rem; line-height: 1.5; vertical-align: middle; white-space: nowrap; }
+    .tag-agent { color: #0a4a9e; background: #ddf4ff; }
+    .tag-runner { color: #116329; background: #dafbe1; }
+    .tag-cache { color: #5a2fb5; background: #ece6ff; }
+    .tag-model { color: #7d5300; background: #fff4ca; }
+    .tag-reviewer { color: #3f4650; background: #eaeef2; }
+    .gh-file-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
+    .gh-file-head code { background: transparent; padding: 0; font-size: 0.8rem; }
+    .gh-file-head .gh-muted { margin-left: auto; font-size: 0.76rem; }
+    .gh-file-icon { width: 0.9rem; height: 0.9rem; border: 1.5px solid #656d76; border-radius: 2px; display: inline-block; }
+    .gh-diff { border-collapse: collapse; width: 100%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.74rem; line-height: 1.55; }
+    .gh-diff td { padding: 0 0.6rem; white-space: pre; color: #1f2328; }
+    .gh-diff td:first-child, .gh-diff td:nth-child(2) { width: 2.4rem; min-width: 2.4rem; color: #8c959f; text-align: right; user-select: none; }
+    .gh-diff .gh-hunk td { background: #ddf4ff; color: #57606a; padding: 0.25rem 0.6rem; }
+    .gh-diff .gh-add td { background: #e6ffec; }
+    .gh-diff .gh-add td:first-child, .gh-diff .gh-add td:nth-child(2) { background: #ccffd8; color: #1f2328; }
+    .gh-diff .gh-del td { background: #ffebe9; }
+    .gh-diff .gh-del td:first-child, .gh-diff .gh-del td:nth-child(2) { background: #ffcecb; color: #1f2328; }
+    .gh-sign { display: inline-block; width: 1rem; color: #656d76; }
+    .gh-diff .gh-comment-row td { padding: 0; white-space: normal; text-align: left; width: auto; }
+    .gh-inline { margin: 0.5rem 0.75rem 0.6rem 3.1rem; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .gh-inline .gh-md { padding: 0.75rem 0.9rem 0.1rem; }
+    .gh-caption { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; }
+    .gh-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; margin: 1rem 0 1.5rem; }
+    .gh-legend-item { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 10px; padding: 0.95rem 1.05rem 0.4rem; }
+    .gh-legend-item .gh-tag { margin-bottom: 0.55rem; }
+    .gh-legend-item p { font-size: 0.86rem; line-height: 1.55; margin-bottom: 0.5rem; }
+    @media (max-width: 760px) {
+      .gh-legend { grid-template-columns: 1fr; }
+      .gh-timeline { padding-left: 1.6rem; }
+      .gh-timeline::before { left: 0.6rem; }
+      .gh-event .gh-avatar { left: -1.6rem; width: 1.5rem; height: 1.5rem; }
+      .gh-inline { margin-left: 0.75rem; }
+      .gh-review-state { margin-left: 0; }
+    }
 
     /* Responsive */
     @media (max-width: 860px) {
@@ -846,22 +904,143 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
 
       <section id="proof-of-correctness">
         <h2>Proof of correctness</h2>
-        <p>Give reviewers an evidence trail from <strong>what you asked for</strong> to <strong>what actually ran</strong>. Thinker can execute the repository’s required checks, connect named test results to acceptance criteria, and post the report directly on your pull request.</p>
-        <p>For example: increase a request’s retry limit from three to five, while still rejecting timeouts. The report shows the implementation, the observed test result, and what still needs a reviewer’s judgment.</p>
+        <p>
+          Agent-written code arrives with a diff and a claim that it works. A reviewer has to ask three more things: <strong>what the agent set out to do and why</strong>, <strong>how that was tested</strong>, and <strong>what the repository already knows that the agent did not</strong>. Thinker posts the answers as one review on the pull request, each part marked by where it came from: the agent, the test runner, the cache, or a model's reading.
+        </p>
+        <p>
+          The example below is a review of one change: raise a request's retry limit from three to five, and still reject timeouts. The named test passed. The cache remembered that the limit lives in two places, and the diff changed one of them.
+        </p>
 
-        <figure class="proof-card" aria-label="Illustrative pull request evidence report for a retry limit change">
-          <div class="proof-top"><span class="proof-brand">thinker / change review</span><span class="proof-chip">PR comment · example</span></div>
-          <div class="proof-content">
-            <div class="proof-kicker">Requested change</div>
-            <div class="proof-title">Five retries. Timeouts still rejected.</div>
-            <div class="proof-step"><span class="proof-number">1</span><div><strong>Trace the implementation</strong><p><code>src/retry.js:18</code> raises the retry limit to five.<br>Changed-line evidence · model reading</p></div></div>
-            <div class="proof-step"><span class="proof-number">2</span><div><strong>Observe the named test</strong><p><span class="proof-observed">✓ rejects timed-out requests — passed</span><br><code>test/retry.test.js</code> · observed by the Node reporter</p></div></div>
-            <div class="proof-step"><span class="proof-number">3</span><div><strong>Read what the assertion establishes</strong><p>The assertion checks rejection after a timeout. It leaves timeout handling on the fifth attempt untested.<br>Coverage assessment · model reading</p></div></div>
-            <div class="proof-gap"><strong>Before approving</strong><p>Does timeout rejection still work on the final retry? Add or inspect a test for that edge case.</p></div>
+        <figure class="gh" aria-label="Example pull request review posted by thinker">
+          <div class="gh-pr">
+            <span class="gh-pr-title">Raise request retries from three to five <span class="gh-pr-num">#142</span></span>
+            <span class="gh-pr-state">Open</span>
           </div>
-          <figcaption class="proof-footer">Frozen candidate · checks from the trusted base · task and test links supplied by the agent</figcaption>
+          <div class="gh-timeline">
+            <div class="gh-event">
+              <span class="gh-avatar" aria-hidden="true"></span>
+              <span><strong>thinker</strong> <span class="gh-bot">bot</span> reviewed 2 minutes ago</span>
+              <span class="gh-review-state">Commented</span>
+            </div>
+
+            <article class="gh-comment">
+              <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>thinker</strong> <span class="gh-bot">bot</span> <span class="gh-muted">left a review</span></div>
+              <div class="gh-md">
+                <h1>Change review: needs-review</h1>
+                <p><strong>Requested change:</strong> Increase retries from three to five; still reject timeouts.</p>
+
+                <h2>Why and how <span class="gh-tag tag-agent">supplied by the agent</span></h2>
+                <p><strong>Reason for the approach (supplied by the agent):</strong> The limit is a single constant read by the retry loop, so raising it keeps timeout handling on the existing rejection path.</p>
+                <ol>
+                  <li>Raise the retry limit to five
+                    <ul><li>Seen in the diff at <code>src/retry.js:18</code>: <code>MAX_RETRIES</code> goes from 3 to 5 <span class="gh-tag tag-model">model reading</span></li></ul>
+                  </li>
+                </ol>
+
+                <h2>Evidence for the requested behavior <span class="gh-tag tag-runner">observed by the runner</span></h2>
+                <div class="gh-scroll">
+                <table>
+                  <thead><tr><th>Criterion</th><th>Observed result</th><th>What the assertion supports or leaves open</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>Timed-out requests are rejected</td>
+                      <td><span class="gh-pass">✓ passed</span> unit: rejects timed-out requests (<code>test/retry.test.js</code>)</td>
+                      <td><strong>partial:</strong> the assertion checks that one timed-out request rejects; nothing counts attempts, so the fifth attempt is never reached (<code>test/retry.test.js:41</code>) <span class="gh-tag tag-model">model reading</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                </div>
+                <p class="gh-fine">The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.</p>
+                <p><strong>Desired behaviors directly in play:</strong></p>
+                <ul><li>A timed-out request is rejected, never retried past the limit: <strong>upheld</strong> (human-authored) <span class="gh-tag tag-model">model reading</span></li></ul>
+
+                <h2>Checks run <span class="gh-tag tag-runner">observed by the runner</span></h2>
+                <div class="gh-scroll">
+                <table>
+                  <thead><tr><th>Check</th><th>Result</th><th>Observed tests</th></tr></thead>
+                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>41 passed; 0 skipped</td></tr></tbody>
+                </table>
+                </div>
+                <p><strong>Gate integrity:</strong> no pattern-based weakening signals found. No test was skipped, removed or rewritten; no CI filter changed.</p>
+
+                <h2>Code assessment <span class="gh-tag tag-cache">from the cache</span></h2>
+                <p>0 errors; 1 warning. This is a model reading of the change, not an executed check.</p>
+                <ul>
+                  <li><code>src/retry.js:18</code> — <code>MAX_RETRIES</code> is 5, but the timeout branch at line 22 still guards with the literal <code>n &lt; 3</code>, so a timed-out request is still given up after three attempts: the requested change does not reach timeouts. <strong>Basis:</strong> The retry limit is compared in two places and drifted once, <em>source PR #87</em>. <strong>Evidence:</strong> <code>if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3)</code> at line 22 is unchanged.</li>
+                </ul>
+                <p class="gh-fine">1 comment on a changed line is posted inline.</p>
+
+                <h2>Before approving <span class="gh-tag tag-reviewer">for the reviewer</span></h2>
+                <ul>
+                  <li>Does the fifth attempt happen for a timed-out request? The linked test asserts rejection, not the attempt count.</li>
+                  <li>Inspect the 1 warning finding above.</li>
+                </ul>
+
+                <details class="gh-details">
+                  <summary>Evidence source and scope</summary>
+                  <ul>
+                    <li>The task framing came from the calling agent via MCP at 2026-10-06T09:14Z. The criteria and test links are the agent's interpretation.</li>
+                    <li>The checks came from the verification contract at base <code>3f2a9c1e07d4</code> and ran against frozen snapshot <code>b81c44d0a9e2</code>. CI acceptance: not established.</li>
+                    <li>unit command: <code>node --test --test-reporter=/thinker/reporter.mjs test/*.test.js</code>.</li>
+                    <li>The code assessment read the change against frozen notes. A clean model assessment does not replace a human reading of the diff.</li>
+                    <li>Run <code>7c1e2d</code>; 2026-10-06T09:14Z to 09:17Z.</li>
+                  </ul>
+                </details>
+              </div>
+            </article>
+
+            <div class="gh-file">
+              <div class="gh-file-head"><span class="gh-file-icon" aria-hidden="true"></span><code>src/retry.js</code><span class="gh-muted">1 comment</span></div>
+              <div class="gh-scroll">
+              <table class="gh-diff" aria-label="Diff of src/retry.js">
+                <tbody>
+                  <tr class="gh-hunk"><td colspan="2"></td><td>@@ -15,8 +15,8 @@ import { request } from './http.js';</td></tr>
+                  <tr><td>16</td><td>16</td><td>// Attempts after the first. A timeout past the limit rejects; it is never retried.</td></tr>
+                  <tr><td>17</td><td>17</td><td></td></tr>
+                  <tr class="gh-del"><td>18</td><td></td><td><span class="gh-sign">-</span>const MAX_RETRIES = 3;</td></tr>
+                  <tr class="gh-add"><td></td><td>18</td><td><span class="gh-sign">+</span>const MAX_RETRIES = 5;</td></tr>
+                  <tr class="gh-comment-row"><td colspan="3">
+                    <div class="gh-inline">
+                      <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>thinker</strong> <span class="gh-bot">bot</span> <span class="gh-muted">commented on line 18</span></div>
+                      <div class="gh-md">
+                        <p><strong class="gh-warn">warning</strong> <code>MAX_RETRIES</code> is 5, but the timeout branch at line 22 still guards with the literal <code>n &lt; 3</code>, so a timed-out request is still given up after three attempts.</p>
+                        <blockquote>if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3) return withRetry(fn, n + 1);</blockquote>
+                        <p class="gh-fine"><code>retry-limit-two-places</code> · The retry limit is compared in two places and drifted once · learned from PR #87, 82% <span class="gh-tag tag-cache">from the cache</span></p>
+                      </div>
+                    </div>
+                  </td></tr>
+                  <tr><td>19</td><td>19</td><td></td></tr>
+                  <tr><td>20</td><td>20</td><td>export async function withRetry(fn, n = 0) {</td></tr>
+                  <tr><td>21</td><td>21</td><td>  try { return await fn(); } catch (err) {</td></tr>
+                  <tr><td>22</td><td>22</td><td>    if (err.code === 'ETIMEDOUT' &amp;&amp; n &lt; 3) return withRetry(fn, n + 1);</td></tr>
+                  <tr><td>23</td><td>23</td><td>    throw err;</td></tr>
+                </tbody>
+              </table>
+              </div>
+            </div>
+          </div>
+          <figcaption class="gh-caption">Illustrative review, condensed. A real one carries every check result, every finding, and the full provenance block.</figcaption>
         </figure>
-        <p class="proof-caption">Illustrative excerpt, condensed for clarity. Actual reports include check results, findings, coverage gaps, and evidence provenance.</p>
+
+        <h3>What each part rests on</h3>
+        <div class="gh-legend">
+          <div class="gh-legend-item">
+            <span class="gh-tag tag-agent">supplied by the agent</span>
+            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, and acceptance criteria linked to named tests (<code>task.json</code> on the CLI, the <code>review</code> tool over MCP). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
+          </div>
+          <div class="gh-legend-item">
+            <span class="gh-tag tag-runner">observed by the runner</span>
+            <p><strong>How it was tested.</strong> The checks are the commands committed in <code>.thinker/verification.json</code> on the base branch, run in Docker on a frozen snapshot of the candidate; thinker's reporter records each named test as passed, skipped or failed and matches it to the criterion it was linked to. The candidate cannot replace its own checks, and a skipped or missing test is called out, not quietly counted as a pass.</p>
+          </div>
+          <div class="gh-legend-item">
+            <span class="gh-tag tag-cache">from the cache</span>
+            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions. A finding names the note and the pull request it was learned from. In the example the diff is one line and the test is green; only the cache knew that the limit is compared in two places, because a fix once corrected exactly that drift.</p>
+          </div>
+          <div class="gh-legend-item">
+            <span class="gh-tag tag-model">model reading</span>
+            <p><strong>Labeled, never silent.</strong> Wherever a model read a line of the diff or an assertion, the review says so. An observed pass is a fact about the snapshot; whether its assertions cover the request is a judgment, and the review leaves that judgment, under <em>Before approving</em>, to the reviewer.</p>
+          </div>
+        </div>
 
         <h3>Run it and post the evidence</h3>
         <p>First, commit <code>.thinker/verification.json</code> on the trusted base. This contract pins the Docker image and required check commands; a candidate cannot replace its own evaluation commands. Docker, a configured review model, and an authenticated GitHub CLI (<code>gh auth login</code>) are required for this flow.</p>
