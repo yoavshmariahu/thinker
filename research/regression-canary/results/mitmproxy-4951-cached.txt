@@ -1,0 +1,22 @@
+thinker review: working tree against HEAD, 1 file; 1 note consulted (1 on the changed code, 0 related), 1 assessed with gpt-6.1-sol (~16k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/platform/windows.py:82  Removing AttributeError from the recovery handler breaks recovery when the resolver connection is uninitialized: accessing self.wfile can raise AttributeError, bypassing _connect() and the retry.  [note recover-from-an-uninitialized-windows-transparent-mode-resol, 98%]
+           finding: f-9cebeb51c8677a036b8ed541
+           evidence: write((ip, port), self.wfile) | -            except (EOFError, OSError, AttributeError): | +            except (EOFError, OSError): | self._connect() | return self.original_addr(csock)
+
+### Review thoroughness
+
+| Decision | What happened | Basis |
+|---|---|---|
+| Code assessment | assessed | Default configuration; Jev not evaluated |
+| Caller context | skipped | Default configuration; Jev not evaluated |
+| Split review | skipped | Default configuration; Jev not evaluated |
+| Verify findings | skipped | Default configuration; Jev not evaluated |
+| Run tests | not-recommended | Default configuration; Jev not evaluated |
+
+Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.
+
+Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.
+
+Impact review: 1b8e6fb3-fe03-4480-a578-3e3f9d1cad7a · attach with thinker impact link-review <run-id> --pr <number>

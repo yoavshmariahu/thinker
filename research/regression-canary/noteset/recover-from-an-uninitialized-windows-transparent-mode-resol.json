@@ -1,0 +1,55 @@
+{
+  "id": "recover-from-an-uninitialized-windows-transparent-mode-resol",
+  "title": "Recover from an uninitialized Windows transparent-mode resolver connection",
+  "kind": "rule",
+  "answers": [
+    "Transparent mode raises AttributeError before connecting to the upstream host",
+    "Windows original-destination lookup fails because wfile is missing",
+    "How should the Windows resolver recover before its first connection?"
+  ],
+  "body": "Symptom: Transparent mode raises AttributeError when resolving the original destination before the upstream connection has been established.\nRoot cause: mitmproxy/platform/windows.py:Resolver.original_addr writes to self.wfile before it has been initialized.\nFix pattern: Include AttributeError alongside EOFError and OSError in the lookup's recovery handler; call Resolver._connect to initialize wfile, then retry original_addr.\nConstraints: This recovery applies to the Windows resolver's original-destination lookup with an uninitialized connection; it does not establish a general policy for catching AttributeError elsewhere.",
+  "applies": "Windows transparent-mode original-destination resolution in Resolver.original_addr.",
+  "tags": [
+    "windows",
+    "transparent-mode",
+    "original-destination",
+    "connection-initialization"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/platform/windows.py",
+      "symbol": "Resolver.original_addr",
+      "hash": "sha256:779612ccacbe9eab3188b20b",
+      "line": 71,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 2,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mitmproxy/platform/windows.py",
+      "symbol": "Resolver._connect",
+      "hash": "sha256:67aa3328eab9199195c9cb62",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#4951"
+  },
+  "created": "2026-10-06T23:35:44.933Z",
+  "verified": "2026-10-06T23:35:44.933Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

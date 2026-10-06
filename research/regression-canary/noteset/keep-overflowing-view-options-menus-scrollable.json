@@ -1,0 +1,43 @@
+{
+  "id": "keep-overflowing-view-options-menus-scrollable",
+  "title": "Keep overflowing view options menus scrollable",
+  "kind": "rule",
+  "answers": [
+    "The view options menu overflows.",
+    "How do I keep long content-view menus usable?",
+    "Where is the content-view dropdown positioned?"
+  ],
+  "body": "Symptom: The view options menu overflows when its list becomes too tall.\nRoot cause: The dropdown used by web/src/js/components/contentviews/ViewSelector.tsx:ViewSelector lacked a menu height limit and vertical scrolling.\nFix pattern: Bound dropdown menu height and enable vertical scrolling; this fix uses max-height: 250px and overflow-y: scroll. ViewSelector also uses top-end placement.\nConstraints: The height and scrolling treatment lives in shared dropdown styling; the top-end placement is configured specifically in ViewSelector. This pattern addresses menu overflow, not option selection behavior.",
+  "applies": "Content-view selector layout and dropdown menus with long option lists.",
+  "tags": [
+    "content-views",
+    "dropdown",
+    "overflow",
+    "css"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/components/contentviews/ViewSelector.tsx",
+      "symbol": "ViewSelector",
+      "hash": "sha256:56fef9bb80526020b879ee90",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6697"
+  },
+  "created": "2026-10-06T23:34:31.133Z",
+  "verified": "2026-10-06T23:34:31.133Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

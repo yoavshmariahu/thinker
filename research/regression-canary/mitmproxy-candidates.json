@@ -1,0 +1,450 @@
+{
+  "repo": "mitmproxy/mitmproxy",
+  "base": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "mitmproxy-8141",
+      "pr": 8141,
+      "sha": "5a4a12888e73f6e0de2b7daf1eb91a21349ee814",
+      "parent": "c665530916f745a73d4f82db3f8778583d61674e",
+      "subject": "fix: skip inject_event when inject flow type is wrong (#8141)",
+      "codeLines": 3,
+      "totalLines": 8,
+      "files": [
+        "mitmproxy/addons/proxyserver.py",
+        "test/mitmproxy/addons/test_proxyserver.py"
+      ],
+      "production": [
+        "mitmproxy/addons/proxyserver.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-8059",
+      "pr": 8059,
+      "sha": "6a480469e1a0ea3758cabbde10402a4ccce22b95",
+      "parent": "a9c3dafa0f10a8cb36e8453ce91575f92a53e841",
+      "subject": "Fix some typos in function docstrings(#8059)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "mitmproxy/tools/console/consoleaddons.py"
+      ],
+      "production": [
+        "mitmproxy/tools/console/consoleaddons.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7988",
+      "pr": 7988,
+      "sha": "f51edd5cbaf148ef1ce81ac4af1f300cb42eb588",
+      "parent": "5d28de8231b36ce06b8d362ad27a39d197af49f7",
+      "subject": "Fix TypeScript build (#7988)",
+      "codeLines": 2,
+      "totalLines": 73,
+      "files": [
+        "CHANGELOG.md",
+        "web/package-lock.json",
+        "web/package.json",
+        "web/src/js/components/Modes/Popover.tsx"
+      ],
+      "production": [
+        "web/src/js/components/Modes/Popover.tsx"
+      ]
+    },
+    {
+      "id": "mitmproxy-7981",
+      "pr": 7981,
+      "sha": "765428645920a7622a04365def2434f747f43fb4",
+      "parent": "08a947bd6787959a711f660486bb801ab90b9388",
+      "subject": "docs: fix typos in some files (#7981)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "examples/contrib/webscanner_helper/proxyauth_selenium.py"
+      ],
+      "production": [
+        "examples/contrib/webscanner_helper/proxyauth_selenium.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7905",
+      "pr": 7905,
+      "sha": "1e6c7ad5bae3efe89508688b9c6a1af2930b95d3",
+      "parent": "1110c95879f2c731230be40cb9bcc84b30f4a883",
+      "subject": "Don't `return` in `finally` block (PEP 765) (#7905)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "mitmproxy/addons/script.py"
+      ],
+      "production": [
+        "mitmproxy/addons/script.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7841",
+      "pr": 7841,
+      "sha": "12ee8193c0514690b073914f516353baba8b14a9",
+      "parent": "e9603eee9e37bdc6b955e1dd1f1db6a4ad3ef4f2",
+      "subject": "fix a flow reader bug found with fuzzing (#7841)",
+      "codeLines": 2,
+      "totalLines": 3,
+      "files": [
+        "mitmproxy/io/io.py",
+        "test/mitmproxy/io/test_io.py"
+      ],
+      "production": [
+        "mitmproxy/io/io.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7752",
+      "pr": 7752,
+      "sha": "2d5db47bb8b08b1313e119cb985aa82cb5beae6c",
+      "parent": "b5ac8e62ea633a7a7211d735fabe6008fb64ece0",
+      "subject": "Fix type for `Master.opts` to accept `None` (#7752)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/master.py"
+      ],
+      "production": [
+        "mitmproxy/master.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7666",
+      "pr": 7666,
+      "sha": "b089c5fb83a43af2cb290d501013e23367102d6f",
+      "parent": "d0ee0edfbc7cfe602e94f5885e504736b59d9ee1",
+      "subject": "fix #7452 (#7666)",
+      "codeLines": 4,
+      "totalLines": 21,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/savehar.py",
+        "test/mitmproxy/addons/test_savehar.py",
+        "test/mitmproxy/data/flows/diff_data.har"
+      ],
+      "production": [
+        "mitmproxy/addons/savehar.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7624",
+      "pr": 7624,
+      "sha": "3c7c3ccfd599a5f89a451c3c4b302f1b7c5c1144",
+      "parent": "cc6da7a8192c29e4ca8813832968414c18a8071f",
+      "subject": "fixup url.unparse (#7624)",
+      "codeLines": 59,
+      "totalLines": 61,
+      "files": [
+        "mitmproxy/http.py",
+        "mitmproxy/net/http/url.py",
+        "test/mitmproxy/net/http/test_url.py"
+      ],
+      "production": [
+        "mitmproxy/http.py",
+        "mitmproxy/net/http/url.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7605",
+      "pr": 7605,
+      "sha": "63f6af8b0a6b6c5d52dce87780475329242cf095",
+      "parent": "f373ccf45be7037804f03597906ba398290a254e",
+      "subject": "Fix change_upstream_proxy.py example (#7605)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "examples/contrib/change_upstream_proxy.py"
+      ],
+      "production": [
+        "examples/contrib/change_upstream_proxy.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7249",
+      "pr": 7249,
+      "sha": "8ef97b1f6786cde5b79789d0ef903c47d4951eb3",
+      "parent": "96a1b934be0309fc244656aea2cd69b736e93c00",
+      "subject": "docs: fix admonition (#7249)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "mitmproxy/proxy/layers/http/_hooks.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/layers/http/_hooks.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7183",
+      "pr": 7183,
+      "sha": "9369bc8d76fd62d893c83b61a02b28bffb4b2d2c",
+      "parent": "65db82f4cf0c294a3e9de103c4789ba4b9b19a41",
+      "subject": "Fix error while changing string-based options (#7183)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/tools/console/grideditor/col_bytes.py"
+      ],
+      "production": [
+        "mitmproxy/tools/console/grideditor/col_bytes.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7036",
+      "pr": 7036,
+      "sha": "4f1bc6fc9a921152abb0485a33cf2dd918cd2568",
+      "parent": "fa1633842acaeb84a94fbffc6db22850422514ac",
+      "subject": "Do not block local mode connections (#7036)",
+      "codeLines": 3,
+      "totalLines": 18,
+      "files": [
+        "mitmproxy/addons/block.py",
+        "test/mitmproxy/addons/test_block.py"
+      ],
+      "production": [
+        "mitmproxy/addons/block.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-7022",
+      "pr": 7022,
+      "sha": "bbf5df326a92da46150c9f7574f75c30cf0bd84e",
+      "parent": "30ecc2dfbc0d0195933cb67005ca6e99027436f6",
+      "subject": "Fix decompressing fake pointers in DNS messages (#7022)",
+      "codeLines": 30,
+      "totalLines": 44,
+      "files": [
+        "mitmproxy/net/dns/domain_names.py",
+        "test/mitmproxy/net/dns/test_domain_names.py"
+      ],
+      "production": [
+        "mitmproxy/net/dns/domain_names.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-6796",
+      "pr": 6796,
+      "sha": "bfbd777cbb35850c432194912df71485f76e2d9a",
+      "parent": "61b094ac36ecde0bfef825b1763a1deec15621ad",
+      "subject": "Fix certs for unicode domains (#6796)",
+      "codeLines": 2,
+      "totalLines": 8,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/tlsconfig.py",
+        "test/mitmproxy/addons/test_tlsconfig.py"
+      ],
+      "production": [
+        "mitmproxy/addons/tlsconfig.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-6728",
+      "pr": 6728,
+      "sha": "a8603cac0d86b29c4904a69121e92bb23934fb27",
+      "parent": "ee5aac0a1286e4a5af360d2679028c29f028d1fa",
+      "subject": "fix some typos (#6728)",
+      "codeLines": 4,
+      "totalLines": 6,
+      "files": [
+        "examples/addons/tcp-simple.py",
+        "examples/contrib/httpdump.py",
+        "test/bench/benchmark.py"
+      ],
+      "production": [
+        "examples/addons/tcp-simple.py",
+        "examples/contrib/httpdump.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-6697",
+      "pr": 6697,
+      "sha": "a128672ec7e229230b44a21316340a10f90815b5",
+      "parent": "a91989b7ba6b1385ae8d0961415ea216509d1ea5",
+      "subject": "Fix Bug view options menu (#6697)",
+      "codeLines": 2,
+      "totalLines": 7,
+      "files": [
+        "CHANGELOG.md",
+        "web/src/css/dropdown.less",
+        "web/src/js/components/contentviews/ViewSelector.tsx"
+      ],
+      "production": [
+        "web/src/js/components/contentviews/ViewSelector.tsx"
+      ]
+    },
+    {
+      "id": "mitmproxy-6386",
+      "pr": 6386,
+      "sha": "e6e354cf38c52047246f6e47e12c970cc2133b2f",
+      "parent": "c851a055c30a50ecb2aeca01ae6e727464474d3d",
+      "subject": "web: don't crash when opening options (#6386)",
+      "codeLines": 9,
+      "totalLines": 11,
+      "files": [
+        "CHANGELOG.md",
+        "mitmproxy/addonmanager.py",
+        "mitmproxy/addons/savehar.py"
+      ],
+      "production": [
+        "mitmproxy/addonmanager.py",
+        "mitmproxy/addons/savehar.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-6029",
+      "pr": 6029,
+      "sha": "04d9249ab18cd7bd8b54958714d24614f27863b5",
+      "parent": "87577578925d28b6f1c8f00ffb6b283bfa80c993",
+      "subject": "Command signature inspection fix (#6029) (#6032)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "mitmproxy/command.py"
+      ],
+      "production": [
+        "mitmproxy/command.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-6008",
+      "pr": 6008,
+      "sha": "33a81a0eadc0196e5352ac9aa5189ac4deea3d64",
+      "parent": "8e7564e9954f7ec49eab60102abb8db3366d3bc6",
+      "subject": "Fixed typo in `__init__.py` (#6008)",
+      "codeLines": 8,
+      "totalLines": 8,
+      "files": [
+        "mitmproxy/proxy/__init__.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/__init__.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-5982",
+      "pr": 5982,
+      "sha": "884fd60e26b8beaa3785ea3d708c2d4386707f93",
+      "parent": "2b10e3f3a79aef4e4c077a4ea056ebb3bb493ddb",
+      "subject": "fix #5972 (#5982)",
+      "codeLines": 5,
+      "totalLines": 5,
+      "files": [
+        "mitmproxy/addons/next_layer.py"
+      ],
+      "production": [
+        "mitmproxy/addons/next_layer.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-5749",
+      "pr": 5749,
+      "sha": "b9dc95cb8c3e2ea65800a0f01d9348d056dd32f6",
+      "parent": "e24f93e263743d101190826049f0f2ef372bad7c",
+      "subject": "fix a race condition in `ConnectionHandler.drain_writers` (#5749)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/proxy/server.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/server.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-5676",
+      "pr": 5676,
+      "sha": "201651c357a2bba0f389b189fc0df1f85dc5de5b",
+      "parent": "c77decf054b2a5a8edce40e9d8a3462ee5a42a44",
+      "subject": "Fixed docstring of console.view.eventlog (#5676)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/tools/console/consoleaddons.py"
+      ],
+      "production": [
+        "mitmproxy/tools/console/consoleaddons.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-5384",
+      "pr": 5384,
+      "sha": "4771e42b446619ab82f06bcf50a9954b472ab5e6",
+      "parent": "02b982f000c6ee07217e2be7894b0daae10dab4a",
+      "subject": "Fix typo in http-trailers.py (#5384)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "examples/addons/http-trailers.py"
+      ],
+      "production": [
+        "examples/addons/http-trailers.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-5352",
+      "pr": 5352,
+      "sha": "4a2ca7563108d2256909309c770feb0c5b481397",
+      "parent": "4069830d4848c8f7114746bd598ba54a7b3c7b57",
+      "subject": "remove overambitious assertion found with fuzzing, fix #5343 (#5352)",
+      "codeLines": 7,
+      "totalLines": 7,
+      "files": [
+        "mitmproxy/proxy/layers/http/__init__.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/layers/http/__init__.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-4951",
+      "pr": 4951,
+      "sha": "b1c1cd3f2f4b32c2569597573181f11352d71c5d",
+      "parent": "27e69651f6c5d6cbd4a8dbe549d809bc68cc3446",
+      "subject": "Fixes AttributeError in transparent mode (#4951)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/platform/windows.py"
+      ],
+      "production": [
+        "mitmproxy/platform/windows.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-4932",
+      "pr": 4932,
+      "sha": "6398dc308a85fb3e42aaeb09ae311c05afe92daa",
+      "parent": "1c93a9369683b1d6f978d4cbee7e528f58ca8b09",
+      "subject": "WebSockets: don't assert that server is connected upon initialization (#4932)",
+      "codeLines": 1,
+      "totalLines": 1,
+      "files": [
+        "mitmproxy/proxy/layers/websocket.py"
+      ],
+      "production": [
+        "mitmproxy/proxy/layers/websocket.py"
+      ]
+    },
+    {
+      "id": "mitmproxy-4803",
+      "pr": 4803,
+      "sha": "8c03f7bf8b2ef63eb1a7c6440d392680b77126b2",
+      "parent": "35596bd5e405e3cb950e7b960607bd93175d8497",
+      "subject": "Fix warning in pytest (#4803)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "mitmproxy/http.py"
+      ],
+      "production": [
+        "mitmproxy/http.py"
+      ]
+    }
+  ]
+}

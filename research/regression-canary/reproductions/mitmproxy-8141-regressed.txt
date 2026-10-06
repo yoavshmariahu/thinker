@@ -1,0 +1,118 @@
+..F............s
+=================================== FAILURES ===================================
+_______________________________ test_inject_fail _______________________________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x107807ed0>
+
+    async def test_inject_fail(caplog) -> None:
+        ps = Proxyserver()
+        ps.inject_websocket(tflow.tflow(), True, b"test")
+        assert "Cannot inject WebSocket messages into non-WebSocket flows." in caplog.text
+        ps.inject_tcp(tflow.tflow(), True, b"test")
+        assert "Cannot inject TCP messages into non-TCP flows." in caplog.text
+        ps.inject_tcp(tflow.ttcpflow(), True, b"test")
+        assert "Flow is not from a live connection." in caplog.text
+    
+        ps.inject_udp(tflow.tflow(), True, b"test")
+        assert "Cannot inject UDP messages into non-UDP flows." in caplog.text
+        ps.inject_udp(tflow.tudpflow(), True, b"test")
+        assert "Flow is not from a live connection." in caplog.text
+    
+        ps.inject_websocket(tflow.twebsocketflow(), True, b"test")
+        assert "Flow is not from a live connection." in caplog.text
+        ps.inject_websocket(tflow.ttcpflow(), True, b"test")
+        assert "Cannot inject WebSocket messages into non-WebSocket flows" in caplog.text
+    
+        # str must not reach inject_event (issue #5808).
+>       ps.inject_websocket("@focus", True, b"test")  # type: ignore[arg-type]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/mitmproxy/addons/test_proxyserver.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+mitmproxy/command.py:322: in wrapper
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+mitmproxy/addons/proxyserver.py:347: in inject_websocket
+    self.inject_event(event)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Proxyserver(0 active conns)
+event = WebSocketMessageInjected(flow='@focus', message='test')
+
+    def inject_event(self, event: events.MessageInjected):
+        connection_id: str | tuple
+>       if event.flow.client_conn.transport_protocol != "udp":
+           ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'str' object has no attribute 'client_conn'
+
+mitmproxy/addons/proxyserver.py:317: AttributeError
+------------------------------ Captured log call -------------------------------
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:340 Cannot inject WebSocket messages into non-WebSocket flows.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:349 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:354 Cannot inject TCP messages into non-TCP flows.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:360 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:360 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:365 Cannot inject UDP messages into non-UDP flows.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:371 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:371 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:349 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:340 Cannot inject WebSocket messages into non-WebSocket flows.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:349 Flow is not from a live connection.
+WARNING  mitmproxy.addons.proxyserver:proxyserver.py:340 Cannot inject WebSocket messages into non-WebSocket flows.
+=============================== warnings summary ===============================
+mitmproxy/flowfilter.py:604: 14 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:604: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:613
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:613: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString('"', escChar="\\")
+
+mitmproxy/flowfilter.py:614
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:614: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString("'", escChar="\\")
+
+mitmproxy/flowfilter.py:618: 17 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:618: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:623
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:623: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:628
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:628: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(FUrl.make)
+
+mitmproxy/flowfilter.py:633
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:633: PyparsingDeprecationWarning: 'infixNotation' deprecated - use 'infix_notation'
+    pp.infixNotation(
+
+mitmproxy/flowfilter.py:642
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:642: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    return expr.setParseAction(lambda x: FAnd(x) if len(x) != 1 else x)
+
+mitmproxy/flowfilter.py:664
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/flowfilter.py:664: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    flt = bnf.parseString(s, parseAll=True)[0]
+
+../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'
+    return fn(self, *args, **kwargs)
+
+mitmproxy/command_lexer.py:24
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-8141/mitmproxy/command_lexer.py:24: PyparsingDeprecationWarning: 'leaveWhitespace' deprecated - use 'leave_whitespace'
+    ).leaveWhitespace()
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: tagMap is deprecated. Please use TAG_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/mitmproxy/addons/test_proxyserver.py::test_inject_fail - Attribut...
+1 failed, 14 passed, 1 skipped, 42 warnings in 1.20s

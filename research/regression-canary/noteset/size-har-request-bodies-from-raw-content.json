@@ -1,0 +1,54 @@
+{
+  "id": "size-har-request-bodies-from-raw-content",
+  "title": "Size HAR request bodies from raw content",
+  "kind": "rule",
+  "answers": [
+    "HAR export crashes for malformed flows",
+    "Which content property should HAR request bodySize use?",
+    "Export flows with invalid Content-Encoding"
+  ],
+  "body": "Symptom: HAR export crashes when a flow contains malformed content encoding.\nRoot cause: mitmproxy/addons/savehar.py:SaveHar computed request bodySize using request.content, whose decoding can raise ValueError.\nFix pattern: Compute byte-size metadata from request.raw_content, returning 0 for absent or empty bytes, without decoding the body.\nConstraints: Applies to HAR request bodySize, not decoded payload text. test/mitmproxy/addons/test_savehar.py:test_content_raises verifies HAR export succeeds even when both request.content and response.content raise ValueError.",
+  "applies": "HAR request body-size calculation and export robustness for malformed content encoding.",
+  "tags": [
+    "har",
+    "content-encoding",
+    "body-size"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/savehar.py",
+      "symbol": "SaveHar",
+      "hash": "sha256:3d3c5d2ff50dd7a84be80c7c",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "test/mitmproxy/addons/test_savehar.py",
+      "symbol": "test_content_raises",
+      "hash": "sha256:26f99b8a364fc138d31a5b80",
+      "line": 243,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7666"
+  },
+  "created": "2026-10-06T23:32:59.917Z",
+  "verified": "2026-10-06T23:32:59.917Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

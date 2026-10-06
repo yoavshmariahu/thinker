@@ -559,6 +559,32 @@ V2–V5 no longer apply to the base `a0621fe` and were skipped).
   the base cannot be reverted onto it once the surrounding code has moved.
   New revert cases need a newer base.
 
+### Historical regression recall canary, 2026-10-06
+
+GPT-6.1 Sol with high reasoning, pinned for note generation and both review
+arms. Fifteen compact mitmproxy fixes were selected before model outputs,
+learned into 16 notes, and individually reversed at one fixed base. Each pair
+compares `nocache` with holistic note-backed review; arm order alternates.
+
+| cohort | no Thinker | Thinker | review tokens, no Thinker / Thinker |
+|---|---:|---:|---:|
+| mitmproxy canary | 8/15 | **15/15** | 251,938 / 268,789 |
+| existing Autoscaler Sol cohort | 6/10 | 9/10 | 184,927 / 191,053 |
+| descriptive aggregate | 14/25 | **24/25** | 436,865 / 459,842 |
+
+The canary has seven Thinker-only catches and no losses, with 6.7% more review
+tokens. Note generation used another 255,217 tokens. All 30 reviews completed
+without model errors; every target note was retrieved. Seven bugs were also
+reproduced with upstream tests that pass on fixed code and fail after the
+production reversal. The other eight have source/PR validation only.
+
+This is **in-sample historical-fix recall**, not unseen-bug detection. Full
+reverse review diffs include removed tests and changelog entries. No clean
+controls or repeated samples were run. The aggregate keeps the original ten
+Autoscaler results; it matches model/effort but spans different Thinker
+revisions. The canary passes the expansion gate; further repositories have
+not been run. [Protocol, cases, raw results, scoring, and reproductions](../research/regression-canary/README.md).
+
 ### Real bugs on PostHog, 2026-10-04: regressions and bug-introducing pull requests
 
 Two case sets mined from PostHog's history against the posthog-v3 noteset (259

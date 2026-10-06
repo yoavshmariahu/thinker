@@ -1,0 +1,42 @@
+{
+  "id": "preserve-upstream-proxy-mode-when-selecting-the-http-layer",
+  "title": "Preserve upstream proxy mode when selecting the HTTP layer",
+  "kind": "rule",
+  "answers": [
+    "Which HTTP mode should upstream proxy connections use?",
+    "How should NextLayer choose between upstream and regular HTTP mode?",
+    "Why is upstream proxy traffic being handled in regular HTTP mode?"
+  ],
+  "body": "Invariant: The HTTP layer added in this stack-construction branch must use HTTPMode.upstream when context.layers[0] is a modes.HttpUpstreamProxy, and HTTPMode.regular otherwise.\nEnforcement: mitmproxy/addons/next_layer.py:NextLayer checks the first context layer before constructing layers.HttpLayer.\nFailure if skipped: Unconditionally selecting HTTPMode.regular assigns regular HTTP handling to an upstream proxy stack.\nConstraints: This rule applies to the HTTP-layer construction branch shown here; it does not establish mode-selection rules for other branches.",
+  "applies": "HTTP mode selection in the affected NextLayer stack-construction branch.",
+  "tags": [
+    "upstream-proxy",
+    "http",
+    "layer-selection"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer",
+      "hash": "sha256:39e7850e83f5a6e7025da2c9",
+      "line": 78,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 28,
+        "refs": 63
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#5982"
+  },
+  "created": "2026-10-06T23:35:10.259Z",
+  "verified": "2026-10-06T23:35:10.259Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

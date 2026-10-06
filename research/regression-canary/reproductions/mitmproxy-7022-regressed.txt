@@ -1,0 +1,50 @@
+.....F
+=================================== FAILURES ===================================
+____________________ test_record_data_contains_fake_pointer ____________________
+
+    def test_record_data_contains_fake_pointer():
+        # \xd2\a2 and \xc2\x00 seem like domain name compression pointers but are actually part of some other data type
+        buffer = (
+            b"\xfc\xc7\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00\x06google\x03com\x00\x00\x06\x00\x01\xc0\x0c\x00\x06\x00"
+            + b"\x01\x00\x00\x008\x00&\x03ns1\xc0\x0c\tdns-admin\xc0\x0c&\xd2\xa2\xc2\x00\x00\x03\x84\x00\x00\x03\x84\x00"
+            + b"\x00\x07\x08\x00\x00\x00<"
+        )
+        assert (
+>           domain_names.decompress_from_record_data(buffer, 40, 78, domain_names.cache())
+            == b"\x03ns1\x06google\x03com\x00\tdns-admin\x06google\x03com\x00&\xd2\xa2\xc2\x00\x00\x03\x84\x00\x00\x03"
+            + b"\x84\x00\x00\x07\x08\x00\x00\x00<"
+        )
+
+test/mitmproxy/net/dns/test_domain_names.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+mitmproxy/net/dns/domain_names.py:153: in decompress_from_record_data
+    ) = unpack_from_with_compression(buffer, offset + data_offset, cached_names)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+mitmproxy/net/dns/domain_names.py:54: in unpack_from_with_compression
+    label, _ = unpack_from_with_compression(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+buffer = b'\xfc\xc7\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00\x06google\x03com\x00\x00\x06\x00\x01\xc0\x0c\x00\x06\x00\x01\x00\x00\x008\x00&\x03ns1\xc0\x0c\tdns-admin\xc0\x0c&\xd2\xa2\xc2\x00\x00\x03\x84\x00\x00\x03\x84\x00\x00\x07\x08\x00\x00\x00<'
+offset = 4770
+cache = {12: ('google.com', 12), 44: ('google.com', 2), 56: ('google.com', 2), 59: None, ...}
+
+    def unpack_from_with_compression(
+        buffer: bytes, offset: int, cache: Cache
+    ) -> tuple[str, int]:
+        if offset in cache:
+            result = cache[offset]
+            if result is None:
+                raise struct.error(f"unpack encountered domain name loop")
+        else:
+            cache[offset] = None  # this will indicate that the offset is being unpacked
+            start_offset = offset
+            labels = []
+            while True:
+>               (size,) = _LABEL_SIZE.unpack_from(buffer, offset)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               struct.error: unpack_from requires a buffer of at least 4771 bytes for unpacking 1 bytes at offset 4770 (actual buffer size is 78)
+
+mitmproxy/net/dns/domain_names.py:50: error
+=========================== short test summary info ============================
+FAILED test/mitmproxy/net/dns/test_domain_names.py::test_record_data_contains_fake_pointer
+1 failed, 5 passed in 0.07s

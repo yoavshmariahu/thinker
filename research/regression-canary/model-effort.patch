@@ -1,0 +1,12 @@
+diff --git a/src/llm.js b/src/llm.js
+index 9b7ccfa..b4cd388 100644
+--- a/src/llm.js
++++ b/src/llm.js
+@@ -477,6 +477,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
+     else if (p === 'codex') {
+       const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+       if (resolvedModel) args.push('--model', resolvedModel);
++      if (process.env.THINKER_CODEX_REASONING_EFFORT) args.push('--strict-config', '--config', `model_reasoning_effort="${process.env.THINKER_CODEX_REASONING_EFFORT}"`);
+       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
+       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+       usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage || null);

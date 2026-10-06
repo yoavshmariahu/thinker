@@ -1,0 +1,54 @@
+{
+  "id": "local-mode-bypasses-client-ip-blocking",
+  "title": "Local mode bypasses client IP blocking",
+  "kind": "rule",
+  "answers": [
+    "Why are local mode connections blocked?",
+    "Should block_private or block_global affect local mode?",
+    "Local mode fails when the peer address is public on macOS"
+  ],
+  "body": "Symptom: Local mode connections are rejected by the block addon based on their peer IP address.\nRoot cause: mitmproxy/addons/block.py:Block.client_connected applied address-based blocking without exempting local mode; on macOS, the peer address may be the interface's public IP.\nFix pattern: In Block.client_connected, return early for clients whose proxy_mode is mode_specs.LocalMode, before applying private/global address blocking; preserve the existing loopback exemption.\nConstraints: This exemption applies to local mode regardless of peer address. Other proxy modes retain address-based safeguards. test/mitmproxy/addons/test_block.py:test_ignore_local_mode verifies that a local client with a private peer address is accepted with block_private enabled.",
+  "applies": "Client connection filtering in the block addon, particularly changes to mode exemptions or private/global IP blocking.",
+  "tags": [
+    "local-mode",
+    "client-connections",
+    "ip-blocking"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/block.py",
+      "symbol": "Block.client_connected",
+      "hash": "sha256:8a384592d4fd350884beb255",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "test/mitmproxy/addons/test_block.py",
+      "symbol": "test_ignore_local_mode",
+      "hash": "sha256:845467f0642d420f95cea713",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7036"
+  },
+  "created": "2026-10-06T23:33:45.395Z",
+  "verified": "2026-10-06T23:33:45.395Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

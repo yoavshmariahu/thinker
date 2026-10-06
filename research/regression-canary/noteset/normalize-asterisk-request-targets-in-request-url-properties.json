@@ -1,0 +1,63 @@
+{
+  "id": "normalize-asterisk-request-targets-in-request-url-properties",
+  "title": "Normalize asterisk request targets in request URL properties",
+  "kind": "rule",
+  "answers": [
+    "How should an asterisk request target appear in the request URL?",
+    "Why does a request URL have a trailing star?",
+    "Where should '*' be handled for pretty URLs?"
+  ],
+  "body": "Invariant: Request URL properties must render the '*' request target as an empty URL path while preserving the stored request path.\nEnforcement: mitmproxy/http.py:Request.url and mitmproxy/http.py:Request.pretty_url each normalize the path before calling url.unparse.\nLayering: mitmproxy/net/http/url.py:unparse appends the supplied path without interpreting '*'; request-target semantics belong in the request properties.\nConstraints: Keep both properties aligned when composing full URLs; Request.url retains its separate authority-format branch. Skipping normalization appends '*' to the rendered URL.",
+  "applies": "Changes to request URL rendering or asterisk-target handling.",
+  "tags": [
+    "http",
+    "url",
+    "request-target"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Request.url",
+      "hash": "sha256:761a8ab27e4f217b744dc64a",
+      "line": 792,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Request.pretty_url",
+      "hash": "sha256:9752d849595265a3db3ca85f",
+      "line": 824,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": "mitmproxy/net/http/url.py",
+      "symbol": "unparse",
+      "hash": "sha256:6bd991b8d46827e30cd70181",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7624"
+  },
+  "created": "2026-10-06T23:33:23.914Z",
+  "verified": "2026-10-06T23:33:23.914Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "url-reconstruction-preserves-string-or-byte-representation"
+  ]
+}

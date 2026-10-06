@@ -1,0 +1,56 @@
+{
+  "id": "url-reconstruction-preserves-string-or-byte-representation",
+  "title": "URL reconstruction preserves string or byte representation",
+  "kind": "rule",
+  "answers": [
+    "Why does a reconstructed byte URL contain b'...' notation?",
+    "How do I build a URL from byte components?",
+    "What type does url.unparse return?"
+  ],
+  "body": "Symptom: Reconstructing a URL from byte components produces Python byte-literal notation instead of a usable byte URL.\nRoot cause: mitmproxy/net/http/url.py:unparse used string interpolation for byte components.\nFix pattern: Select string or byte construction based on the scheme type, preserving the corresponding return type; test/mitmproxy/net/http/test_url.py:test_unparse covers byte reconstruction.\nConstraints: Use consistently typed string or byte components and supply an explicit path; the overloads do not promise support for mixed representations.",
+  "applies": "Calls to url.unparse that reconstruct URLs from string or byte components.",
+  "tags": [
+    "http",
+    "url",
+    "bytes"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/http/url.py",
+      "symbol": "unparse",
+      "hash": "sha256:6bd991b8d46827e30cd70181",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "test/mitmproxy/net/http/test_url.py",
+      "symbol": "test_unparse",
+      "hash": "sha256:f99e4ee34367356fef5cba3a",
+      "line": 73,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7624"
+  },
+  "created": "2026-10-06T23:33:23.883Z",
+  "verified": "2026-10-06T23:33:23.883Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalize-asterisk-request-targets-in-request-url-properties"
+  ]
+}

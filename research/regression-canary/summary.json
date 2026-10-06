@@ -1,0 +1,61 @@
+{
+  "canary": {
+    "baseline": {
+      "hits": 8,
+      "cases": 15,
+      "tokens": 251938,
+      "elapsedMs": 130485,
+      "findings": 8
+    },
+    "cached": {
+      "hits": 15,
+      "cases": 15,
+      "tokens": 268789,
+      "elapsedMs": 200452,
+      "findings": 15
+    }
+  },
+  "historical": {
+    "baseline": {
+      "hits": 6,
+      "cases": 10,
+      "tokens": 184927,
+      "elapsedMs": 139517,
+      "findings": 8
+    },
+    "cached": {
+      "hits": 9,
+      "cases": 10,
+      "tokens": 191053,
+      "elapsedMs": 178643,
+      "findings": 11
+    }
+  },
+  "aggregate": {
+    "baseline": {
+      "hits": 14,
+      "cases": 25,
+      "tokens": 436865,
+      "elapsedMs": 270002,
+      "findings": 16
+    },
+    "cached": {
+      "hits": 24,
+      "cases": 25,
+      "tokens": 459842,
+      "elapsedMs": 379095,
+      "findings": 26
+    }
+  },
+  "wins": 7,
+  "losses": 0,
+  "exactMcNemarP": 0.015625,
+  "miningTokens": 255217,
+  "notesSaved": 16,
+  "gate": {
+    "validPairs": 15,
+    "positiveNetGain": true,
+    "expansionDecision": "passed; semantic and harness audit in audit.json"
+  },
+  "limitation": "Historical fix recall, selected compact reversible fixes, one sample, no clean controls. Cross-run aggregation uses different Thinker revisions."
+}

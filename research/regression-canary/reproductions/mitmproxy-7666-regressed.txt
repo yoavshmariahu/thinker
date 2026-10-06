@@ -1,0 +1,148 @@
+...............F.....F
+=================================== FAILURES ===================================
+___________________________ test_savehar[diff_data] ____________________________
+
+log_file = PosixPath('/Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/test/mitmproxy/data/flows/diff_data.mitm')
+tmp_path = PosixPath('/private/var/folders/7p/7lxmjqsx5yn3s4z30dfq5jnm0000gn/T/pytest-of-yoavshmariahu/pytest-650/test_savehar_diff_data_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109ddb050>
+
+    @pytest.mark.parametrize(
+        "log_file", [pytest.param(x, id=x.stem) for x in test_dir.glob("data/flows/*.mitm")]
+    )
+    def test_savehar(log_file: Path, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(version, "VERSION", "1.2.3")
+        s = SaveHar()
+    
+        flows = io.read_flows_from_paths([log_file])
+    
+        s.export_har(flows, types.Path(tmp_path / "testing_flow.har"))
+        expected_har = json.loads(log_file.with_suffix(".har").read_bytes())
+        actual_har = json.loads(Path(tmp_path / "testing_flow.har").read_bytes())
+    
+>       assert actual_har == expected_har
+E       AssertionError: assert {'log': {'cre...sion': '1.2'}} == {'log': {'cre...sion': '1.2'}}
+E         
+E         Differing items:
+E         {'log': {'creator': {'comment': '', 'name': 'mitmproxy', 'version': '1.2.3'}, 'entries': [{'cache': {}, 'request': {'b......}, {...}, {...}, {...}, {...}, ...], ...}, 'serverIPAddress': '54.188.33.22', ...}], 'pages': [], 'version': '1.2'}} != {'log': {'creator': {'comment': '', 'name': 'mitmproxy', 'version': '1.2.3'}, 'entries': [{'cache': {}, 'request': {'b......}, {...}, {...}, {...}, {...}, ...], ...}, 'serverIPAddress': '54.188.33.22', ...}], 'pages': [], 'version': '1.2'}}
+E         Use -v to get more diff
+
+test/mitmproxy/addons/test_savehar.py:173: AssertionError
+_____________________________ test_content_raises ______________________________
+
+    def test_content_raises():
+        flow = tflow.tflow(
+            req=tutils.treq(content=b"foo", headers=((b"content-encoding", b"utf8"),)),
+            resp=tutils.tresp(content=b"foo", headers=((b"content-encoding", b"utf8"),)),
+        )
+        with pytest.raises(ValueError):
+            _ = flow.request.content
+        with pytest.raises(ValueError):
+            _ = flow.response.content
+        # should not raise
+>       assert SaveHar().make_har([flow])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/mitmproxy/addons/test_savehar.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+mitmproxy/addons/savehar.py:58: in make_har
+    entries.append(self.flow_entry(f, servers_seen))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+mitmproxy/addons/savehar.py:249: in flow_entry
+    "bodySize": len(flow.request.content) if flow.request.content else 0,
+                                             ^^^^^^^^^^^^^^^^^^^^
+mitmproxy/http.py:339: in content
+    return self.get_content()
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Request(GET address:22/path), strict = True
+
+    def get_content(self, strict: bool = True) -> bytes | None:
+        """
+        Similar to `Message.content`, but does not raise if `strict` is `False`.
+        Instead, the compressed message body is returned as-is.
+        """
+        if self.raw_content is None:
+            return None
+        ce = self.headers.get("content-encoding")
+        if ce:
+            try:
+                content = encoding.decode(self.raw_content, ce)
+                # A client may illegally specify a byte -> str encoding here (e.g. utf8)
+                if isinstance(content, str):
+>                   raise ValueError(f"Invalid Content-Encoding: {ce}")
+E                   ValueError: Invalid Content-Encoding: utf8
+
+mitmproxy/http.py:398: ValueError
+=============================== warnings summary ===============================
+mitmproxy/flowfilter.py:604: 14 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:604: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:613
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:613: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString('"', escChar="\\")
+
+mitmproxy/flowfilter.py:614
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:614: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString("'", escChar="\\")
+
+mitmproxy/flowfilter.py:618: 17 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:618: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:623
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:623: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:628
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:628: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(FUrl.make)
+
+mitmproxy/flowfilter.py:633
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:633: PyparsingDeprecationWarning: 'infixNotation' deprecated - use 'infix_notation'
+    pp.infixNotation(
+
+mitmproxy/flowfilter.py:642
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:642: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    return expr.setParseAction(lambda x: FAnd(x) if len(x) != 1 else x)
+
+mitmproxy/flowfilter.py:664
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/flowfilter.py:664: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    flt = bnf.parseString(s, parseAll=True)[0]
+
+../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+test/mitmproxy/addons/test_savehar.py::TestHardumpOption::test_filter
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'
+    return fn(self, *args, **kwargs)
+
+mitmproxy/command_lexer.py:24
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7666/mitmproxy/command_lexer.py:24: PyparsingDeprecationWarning: 'leaveWhitespace' deprecated - use 'leave_whitespace'
+    ).leaveWhitespace()
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: tagMap is deprecated. Please use TAG_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+../canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/ldap3/utils/asn1.py:50: DeprecationWarning: typeMap is deprecated. Please use TYPE_MAP instead.
+    from pyasn1.codec.ber.encoder import tagMap, typeMap, AbstractItemEncoder
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/mitmproxy/addons/test_savehar.py::test_savehar[diff_data] - Asser...
+FAILED test/mitmproxy/addons/test_savehar.py::test_content_raises - ValueErro...
+2 failed, 20 passed, 56 warnings in 0.28s

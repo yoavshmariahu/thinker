@@ -1,0 +1,80 @@
+F...........
+=================================== FAILURES ===================================
+___________________________ TestFlowReader.test_fuzz ___________________________
+
+self = <test_io.TestFlowReader object at 0x1079dd810>
+
+    @given(binary())
+>   @example(b"51:11:12345678901#4:this,8:true!0:~,4:true!0:]4:\\x00,~}")
+               ^^^^^^^
+
+test/mitmproxy/io/test_io.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../canary-venv/lib/python3.13/site-packages/hypothesis/core.py:1472: in _raise_to_user
+    raise the_error_hypothesis_found
+test/mitmproxy/io/test_io.py:26: in test_fuzz
+    for _ in reader.stream():
+             ^^^^^^^^^^^^^^^
+mitmproxy/io/io.py:73: in stream
+    yield flow.Flow.from_state(compat.migrate_flow(loaded))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+flow_data = None
+
+    def migrate_flow(flow_data: dict[bytes | str, Any]) -> dict[bytes | str, Any]:
+        while True:
+>           flow_version = flow_data.get(b"version", flow_data.get("version"))
+                           ^^^^^^^^^^^^^
+E           AttributeError: 'NoneType' object has no attribute 'get'
+E           Falsifying explicit example: test_fuzz(
+E               self=<test_io.TestFlowReader object at 0x1079dd810>,
+E               data=b'0:~',
+E           )
+
+mitmproxy/io/compat.py:506: AttributeError
+=============================== warnings summary ===============================
+mitmproxy/flowfilter.py:604: 14 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:604: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:613
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:613: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString('"', escChar="\\")
+
+mitmproxy/flowfilter.py:614
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:614: PyparsingDeprecationWarning: 'escChar' argument is deprecated, use 'esc_char'
+    | pp.QuotedString("'", escChar="\\")
+
+mitmproxy/flowfilter.py:618: 17 warnings
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:618: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:623
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:623: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(cls.make)
+
+mitmproxy/flowfilter.py:628
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:628: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    f.setParseAction(FUrl.make)
+
+mitmproxy/flowfilter.py:633
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:633: PyparsingDeprecationWarning: 'infixNotation' deprecated - use 'infix_notation'
+    pp.infixNotation(
+
+mitmproxy/flowfilter.py:642
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:642: PyparsingDeprecationWarning: 'setParseAction' deprecated - use 'set_parse_action'
+    return expr.setParseAction(lambda x: FAnd(x) if len(x) != 1 else x)
+
+mitmproxy/flowfilter.py:664
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/reproduce-mitmproxy-7841/mitmproxy/flowfilter.py:664: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    flt = bnf.parseString(s, parseAll=True)[0]
+
+../canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466
+  /Users/yoavshmariahu/src/thinker/.worktrees/regression-six-repos/bench/canary-venv/lib/python3.13/site-packages/pyparsing/util.py:466: PyparsingDeprecationWarning: 'parseAll' argument is deprecated, use 'parse_all'
+    return fn(self, *args, **kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/mitmproxy/io/test_io.py::TestFlowReader::test_fuzz - AttributeErr...
+1 failed, 11 passed, 39 warnings in 0.15s

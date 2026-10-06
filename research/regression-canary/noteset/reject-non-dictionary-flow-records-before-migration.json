@@ -1,0 +1,42 @@
+{
+  "id": "reject-non-dictionary-flow-records-before-migration",
+  "title": "Reject non-dictionary flow records before migration",
+  "kind": "rule",
+  "answers": [
+    "Why does loading a malformed flow dump fail unexpectedly?",
+    "How should the flow reader handle a null record?",
+    "Where should decoded flow records be validated?"
+  ],
+  "body": "Symptom: Loading a malformed flow dump containing a null record fails without the intended invalid-flow handling.\nRoot cause: mitmproxy/io/io.py:FlowReader passed decoded tnetstring values to flow migration without checking that they were dictionaries.\nFix pattern: Validate the decoded value before migration inside the existing ValueError handler, so invalid records become FlowReadException errors.\nConstraints: Applies to tnetstring flow records; the dictionary check validates the outer type only, not the contents of a flow state.",
+  "applies": "Reading tnetstring flow dumps through FlowReader, especially malformed records that decode successfully.",
+  "tags": [
+    "flow-reader",
+    "input-validation",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/io/io.py",
+      "symbol": "FlowReader",
+      "hash": "sha256:8b1976864a7c68de22330b71",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 19,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7841"
+  },
+  "created": "2026-10-06T23:32:43.957Z",
+  "verified": "2026-10-06T23:32:43.957Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,1 @@
+{"body":"We don't want the block addon, which safeguards against public internet access for regular proxies, to interfere with local mode. On macOS, the peername here is our interface's IP address, which may be public.","mergedAt":"2024-07-25T10:15:23Z","title":"Do not block local mode connections","url":"https://github.com/mitmproxy/mitmproxy/pull/7036"}

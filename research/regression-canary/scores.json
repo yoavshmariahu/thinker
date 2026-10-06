@@ -1,0 +1,92 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both report missing early returns after incompatible-flow validation at changed production lines 340/342; both identify invalid event dispatch. Upstream test_inject_fail independently reproduces AttributeError."
+  },
+  {
+    "id": "mitmproxy-7841",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached identifies the removed dictionary validation and invalid values entering migration at changed line 73. Upstream fuzz test independently reproduces AttributeError."
+  },
+  {
+    "id": "mitmproxy-7666",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify malformed content encoding crashing HAR export at changed line 249. Cached also identifies decoded versus raw size. Upstream test_content_raises and HAR fixture test independently fail on reversal."
+  },
+  {
+    "id": "mitmproxy-7624",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached identifies byte inputs becoming a string containing byte-literal notation at changed unparse line 88. Upstream test_unparse independently reproduces the mismatch."
+  },
+  {
+    "id": "mitmproxy-7183",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached identifies AttrMap lacking get_text and the need to unwrap base_widget at changed line 44, matching the upstream bug report."
+  },
+  {
+    "id": "mitmproxy-7036",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify removed LocalMode exemption causing non-loopback local traffic to be blocked at changed line 34. Upstream test_ignore_local_mode reproduces the regression."
+  },
+  {
+    "id": "mitmproxy-7022",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify unhandled struct.error for ordinary RDATA bytes resembling compression pointers at changed line 153. Upstream fake-pointer test reproduces the failure."
+  },
+  {
+    "id": "mitmproxy-6796",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify x509.DNSName rejecting Unicode after IDNA removal at changed line 652. Upstream Unicode certificate test reproduces ValueError."
+  },
+  {
+    "id": "mitmproxy-6697",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached main location only flags placement, but its warning-level secondary location at dropdown.less:8 identifies loss of max-height and vertical scrolling causing overflow. That changed production location matches the historical failure and satisfies the rubric."
+  },
+  {
+    "id": "mitmproxy-6386",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify hardump descriptive text incorrectly passed as the choices argument at changed line 85. They isolate the historical registration mistake, although neither main message explicitly names the downstream options-page crash."
+  },
+  {
+    "id": "mitmproxy-6032",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached identifies postponed annotations left as strings causing unknown-type CommandError at changed line 75, matching the historical command execution failure."
+  },
+  {
+    "id": "mitmproxy-5982",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify upstream contexts incorrectly receiving HTTPMode.regular at changed line 415, precisely the mode-propagation defect fixed historically."
+  },
+  {
+    "id": "mitmproxy-5749",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline returns no findings. Cached identifies live dictionary iteration across writer.drain await causing RuntimeError when transports change, at changed line 336."
+  },
+  {
+    "id": "mitmproxy-5352",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both identify late data for removed streams now raising AssertionError at changed line 1041; both explicitly distinguish data from permitted protocol-error events."
+  },
+  {
+    "id": "mitmproxy-4951",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline explicitly declines to treat AttributeError as a supported recoverable failure and returns no findings. Cached identifies uninitialized wfile bypassing connection setup/retry at changed line 82, matching the PR."
+  }
+]

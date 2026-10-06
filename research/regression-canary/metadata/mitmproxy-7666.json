@@ -1,0 +1,1 @@
+{"body":"#### Description\r\n\r\nUsing `raw_content` and not `content` is the correct thing to do anyhow.\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n\r\nCloses #7559\r\n","mergedAt":"2025-04-23T12:30:50Z","title":"fix #7452","url":"https://github.com/mitmproxy/mitmproxy/pull/7666"}

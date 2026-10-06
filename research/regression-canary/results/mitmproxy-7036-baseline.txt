@@ -1,0 +1,28 @@
+thinker review: working tree against HEAD, 2 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/block.py:34  Removing the local-mode exemption causes local-mode connections with private, non-loopback peer addresses to be killed when block_private is enabled. The deleted test demonstrates this case with peername 192.168.1.1 and previously required the connection to remain allowed.  [from the code, 96%]
+           finding: f-9829507f1b57dbc533bfe990
+           evidence: Removed guard: `if address.is_loopback or isinstance(client.proxy_mode, mode_specs.LocalMode):`. Replacement: `if address.is_loopback:`. The subsequent branch sets `client.error = "Connection killed by block_private."` when `ctx.options.block_private and address.is_private`. The deleted test configu
+
+Verdicts:
+  nocache        nocache: The change removes the local-mode exemption and breaks the previously tested allowance for local connections with private peer addresses.
+
+Gate integrity — needs review:
+  test/mitmproxy/addons/test_block.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+### Review thoroughness
+
+| Decision | What happened | Basis |
+|---|---|---|
+| Code assessment | assessed | Baseline configuration; Jev not evaluated |
+| Caller context | skipped | Baseline configuration; Jev not evaluated |
+| Split review | skipped | Baseline configuration; Jev not evaluated |
+| Verify findings | skipped | Baseline configuration; Jev not evaluated |
+| Run tests | not-recommended | Baseline configuration; Jev not evaluated |
+
+Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.
+
+Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.
+
+Impact review: c6204991-b86a-4b97-8b5a-a1fd3f8bff1a · attach with thinker impact link-review <run-id> --pr <number>
