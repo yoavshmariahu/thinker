@@ -836,14 +836,6 @@ thinker setup --build --yes</code></pre>
         <p>
           Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The proxy does not log request or note content. Hosted access has usage limits, with local fallback when a limit is reached. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
         </p>
-        <h3>Already configured a personal key?</h3>
-        <p>
-          Personal keys are optional and use TypeSafe directly. To switch from a saved personal key to Thinker’s proxy:
-        </p>
-        <pre><code>thinker ranker --no-jev-key</code></pre>
-        <p>
-          Also unset <code>THINKER_JEV_KEY</code>, <code>JEV_API_KEY</code>, or <code>TYPESAFE_API_KEY</code> if supplied to the agent. Removing a personal key selects Thinker's proxy; use <code>THINKER_JEV=off</code> or <code>"jev": false</code> to disable Jev.
-        </p>
         <h3>What has been measured</h3>
         <p>
           Across two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes and 96% of served notes were useful, at about 160 ms per task. These runs used a supplied candidate pool and measure retrieval, not production proxy latency or an end-to-end coding speedup. The coding and review benchmarks elsewhere on this page predate the hosted integration.
