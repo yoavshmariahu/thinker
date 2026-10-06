@@ -3,9 +3,11 @@
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { rank } from '/Users/yoavshmariahu/src/thinker/src/rank.js';
 const R='/Users/yoavshmariahu/src/thinker', LAB=`${R}/bench/runs/ranking-lab-2026-10-04`, KEY=process.env.JEVKEY;
-const SETS=[ {lab:'grafana3',  tasks:'grafana-hard',  notes:'grafana-v3',           take:10},
-             {lab:'mitmproxy', tasks:'mitmproxy-hard',notes:'mitmproxy-systematic', take:5},
-             {lab:'posthog',   tasks:'posthog-hard',  notes:'posthog-v3',           take:5} ];
+const TAKE = process.env.JEV_TAKE ? Number(process.env.JEV_TAKE) : Infinity;   // per set; default all
+const RUN  = process.env.JEV_RUN || '1';
+const SETS=[ {lab:'grafana3',  tasks:'grafana-hard',  notes:'grafana-v3',           take:Math.min(TAKE,28)},
+             {lab:'mitmproxy', tasks:'mitmproxy-hard',notes:'mitmproxy-systematic', take:Math.min(TAKE,12)},
+             {lab:'posthog',   tasks:'posthog-hard',  notes:'posthog-v3',           take:Math.min(TAKE,14)} ];
 // strip the harness preamble: RESULTS.md says the hook is handed the bare request
 const bare = p => { const ps=p.split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
   return ps.filter(s=>!/^Implement the following change/i.test(s)).join('\n\n') || p; };
@@ -79,6 +81,6 @@ const arms=[
 console.log('arm                  served  useful-share  important-share  important notes  tasks hit  served-when-none-useful');
 for (const a of arms) console.log(
   `${a.name.padEnd(20)} ${String(a.served).padStart(5)}      ${a.us.toFixed(2)}          ${a.is.toFixed(2)}        ${String(a.impSeen).padStart(2)}/${impTotal}          ${String(a.hitTasks).padStart(2)}/${work.length}        ${a.blank}`);
-writeFileSync('bench/jev-eval/hook-jev-arm-results.json',JSON.stringify({tasks:work.length,impTotal,usefulTasks,arms},null,2));
+writeFileSync(`bench/jev-eval/hook-jev-arm-results-run${RUN}.json`,JSON.stringify({tasks:work.length,impTotal,usefulTasks,arms},null,2));
 console.log('\n* l6 = ms-marco cross-encoder scores as stored in the lab run; which text variant they were computed on is unverified, so indicative only, NOT the production ce1 default.');
-console.log('judge: gpt-6-sol (existing labels, no new judge pass). 20 of 54 tasks, stratified by largest remainder, file order.');
+console.log(`judge: gpt-6-sol (existing labels, no new judge pass). run ${RUN}, ${work.length} tasks, file order.`);

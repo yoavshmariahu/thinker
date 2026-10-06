@@ -284,8 +284,8 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
 export async function confirmJevKey({ out = console.log, stdin = process.stdin, stdout = process.stdout, readlineFn = null } = {}) {
   if (jevKey()) { out(`  ${c.dim(`Jev key already configured (${keyFile()}); serving will use it.`)}`); return 'existing'; }
   out(`  ${c.bold('Which ranker should choose the notes you are served?')} ${c.dim('— optional')}`);
-  out(`    • ${c.bold('Jev')} ${c.dim('(TypeSafe System One)')} reaches about ${c.cyan('twice the share of the notes that matter')} at the same precision,`);
-  out(`      and serves nothing when nothing fits. About ${c.cyan('170 ms')} and ${c.cyan('6k tokens')} a prompt, on a key of your own.`);
+  out(`    • ${c.bold('Jev')} ${c.dim('(TypeSafe System One)')} reaches ${c.cyan('2.5x as many of the notes that matter')} at the same precision,`);
+  out(`      and serves nothing when nothing fits. About ${c.cyan('160 ms')} and ${c.cyan('10k tokens')} a prompt, on a key of your own.`);
   out(`    • ${c.bold('Built-in ranker')} is a 23 MB local model: no key, no network, nothing to pay for.`);
   out(`    • ${c.dim('Recommended: Jev, if you have a key. Get one at https://console.typesafe.ai/keys')}`);
   out(`    • ${c.dim('Either way you can change it later: thinker ranker --jev-key <key>, or THINKER_JEV=off')}`);
