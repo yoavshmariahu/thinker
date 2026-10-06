@@ -67,3 +67,5 @@ To recompute this report without model calls, extract `evidence.tar.gz` at the r
 Five tasks per model, one new run per task, historical rather than concurrent controls, unchanged failures, and no-note Opus tasks limit interpretation. The next useful experiment would separately compare note selection and review verification on held-out cases. No additional runs were launched for that hypothesis.
 
 Validation: the full telemetry-disabled test suite passed after restoring the production source: 429 passed, 5 skipped, 0 failed. The report generator reconciles all Sol model-event tokens and checks the recorded exact models.
+
+Follow-up: [manual audit of the five verification calls](thoroughness.md), including their added explanations, repeated evidence and unresolved limits.

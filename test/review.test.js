@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
+import { impactFile } from '../src/impact-journal.js';
 import { hashDep } from '../src/deps.js';
 import { parseDiff, resolveScope, makeReader, collectChange, changedSymbols, noteExposure, selectNotes, deterministicFindings, review, renderReview, clusterFindings, blindSpot } from '../src/review.js';
 
@@ -312,4 +313,40 @@ test('the blind spot is said up front when most changed code files carry no note
   assert.equal(blindSpot({ ...base, notes: { ...base.notes, uncovered: [] }, strategy: {} }), null);
   assert.equal(blindSpot({ ...base, files: [...base.files, { path: 'c.py', status: 'M' }, { path: 'd.py', status: 'M' }, { path: 'e.py', status: 'M' }], strategy: {} }), null, 'two of five is not most of the change');
   assert.match(renderReview({ ...base, strategy: { mode: 'ensemble' } }), /\n⚠ Blind on all 2 changed code files/);
+});
+
+test('thoroughness retains before/after evidence, failures and all verification model calls in the journal', async t => {
+  const { store, write } = fixture(t);
+  write('src/core.py', CORE.replace('validate(ctx)\n        return', 'pass\n        return'));
+  const findings = [
+    { file: 'src/core.py', line: 5, severity: 'error', message: 'Retained but less severe', evidence: 'old evidence' },
+    { file: 'src/core.py', line: 15, severity: 'warning', message: 'Withdraw this claim', evidence: 'old claim' },
+    { file: 'src/core.py', line: 25, severity: 'error', message: 'Check fails', evidence: 'needs checking' },
+  ];
+  let assessed = false;
+  const r = await review(store, { strategy: { mode: 'per-note', verify: true, related: false },
+    assess: async () => { const f = assessed ? [] : findings; assessed = true; return { verdict: 'violation', reason: 'fixture', findings: f, model: 'fixture/reviewer', tokens: 10 }; },
+    verify: async (_store, f, _change, _reader, { context }) => {
+      assert.match(context.around, /class Command/);
+      assert.match(context.hunks, /validate/);
+      if (f.line === 25) throw new Error('fixture unavailable');
+      return { real: f.line === 5, severity: 'warning', reason: 'Compared the guard with its use', tokens: 12, model: 'fixture/verifier' };
+    } });
+  assert.equal(r.models['fixture/verifier'], 2);
+  const audit = r.thoroughness;
+  assert.equal(audit.decisions.find(d => d.step === 'verify').source, 'caller');
+  assert.equal(audit.decisions.find(d => d.step === 'verify').status, 'incomplete');
+  assert.deepEqual(audit.verifications.map(v => v.outcome), ['retained', 'dropped', 'error']);
+  assert.equal(audit.verifications[0].before.severity, 'error');
+  assert.equal(audit.verifications[0].after.severity, 'warning');
+  assert.equal(audit.verifications[0].before.evidence, 'old evidence');
+  assert.equal(audit.verifications[0].assessment, 'unassessed');
+  assert.equal(audit.summary.severityChanged, 1);
+  assert.equal(audit.summary.tokens, null, 'failed call usage is unknown, never zero');
+  const event = r.impact.events.find(e => e.op === 'impact-review');
+  assert.deepEqual(event.thoroughness, audit);
+  const journal = fs.readFileSync(impactFile(store), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(journal.find(e => e.op === 'impact-review').thoroughness.summary.dropped, 1);
+  assert.match(renderReview(r), /Review thoroughness/);
+  assert.match(renderReview(r), /Added value: not yet adjudicated/);
 });

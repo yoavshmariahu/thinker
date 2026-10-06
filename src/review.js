@@ -28,6 +28,7 @@ import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
 import { jevConfig, jevScores } from './jev.js';
 import { reviewGates, changeRecord } from './gates.js';
+import { startThoroughness, finishThoroughness, renderThoroughness } from './review-thoroughness.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
 // bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
@@ -698,17 +699,22 @@ export async function assessNoCache(store, change, symbols, reader, { model, cal
 
 // A second look at one finding: the claim, the hunks of its file and the code around its line,
 // and the question whether the code shown really has that problem. Drops what is not confirmed.
-export async function verifyFinding(store, f, change, reader, { model } = {}) {
+export function verificationContext(f, change, reader) {
   const file = change.files.find(x => x.path === f.file);
   const hunks = file ? renderFileDiff(file).slice(0, 8000) : '(the file is not in the change)';
   const text = f.file ? reader.after(f.file) : null;
   const around = text && f.line ? text.split('\n').map((l, i) => `${i + 1}: ${l}`).slice(Math.max(0, f.line - 40), f.line + 40).join('\n').slice(0, 8000) : '(no code)';
+  return { hunks, around, inventory: changeInventory(change) };
+}
+
+export async function verifyFinding(store, f, change, reader, { model, context = verificationContext(f, change, reader) } = {}) {
+  const { hunks, around, inventory } = context;
   const res = await complete({ model, maxTokens: 600, accounting: { store, purpose: 'review-verify', phase: 'review' },
     schema: { type: 'object', properties: { real: { type: 'boolean' }, severity: { type: 'string', enum: ['error', 'warning', 'info'] }, reason: { type: 'string' } }, required: ['real', 'severity', 'reason'] },
     system: 'You check one finding from a code review against the code. Confirm it (real=true) only when the code shown has the problem the finding describes; a finding that rests on a claim the code does not show, describes a pre-existing condition the change did not cause, claims a file is missing from the change although the list of files in the change names it, or restates a comment rather than a defect is not real. Give the severity the code supports. Everything you need is in this message: do not use tools or read files.',
-    prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\n${changeInventory(change)}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
+    prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\n${inventory}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
   const v = res.json || {};
-  return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0, tokens: tokensOf(res) || 0 };
+  return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0, tokens: tokensOf(res) ?? null, model: `${res.provider}/${res.model}` };
 }
 
 // A small model says whether a note bears on the change at all, from the note and a summary of the
@@ -738,7 +744,7 @@ export async function review(store, options = {}) {
       if (!options.dry) {
         report.runId = runId;
         report.findings = (report.findings || []).map(f => ({ ...f, id: findingId(f) }));
-        const event = tryImpact(store, { op: 'impact-review', runId, pr, startedAt, completedAt: new Date().toISOString(), head: options.scope?.head === 'worktree' || options.scope?.head === 'index' ? context.head : options.scope?.head, branch: context.branch, scope: options.scope, model: report.model, tokens: report.tokens > 0 || !report.notes?.assessed && !report.errors?.length ? report.tokens ?? 0 : null, findings: report.findings, notes: report.notes, errors: report.errors || [] });
+        const event = tryImpact(store, { op: 'impact-review', runId, pr, startedAt, completedAt: new Date().toISOString(), head: options.scope?.head === 'worktree' || options.scope?.head === 'index' ? context.head : options.scope?.head, branch: context.branch, scope: options.scope, model: report.model, tokens: report.tokens > 0 || !report.notes?.assessed && !report.errors?.length ? report.tokens ?? 0 : null, findings: report.findings, notes: report.notes, thoroughness: report.thoroughness, errors: report.errors || [] });
         report.impact = { recorded: !!event, pr: pr || null, events: event ? [...impactContext.getStore().calls, event] : [] };
       }
       return report;
@@ -749,7 +755,7 @@ export async function review(store, options = {}) {
   });
 }
 
-async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, strategy = {}, kinds, task } = {}) {
+async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, verify = verifyFinding, strategy = {}, kinds, task } = {}) {
   const only = Array.isArray(kinds) && kinds.length ? new Set(kinds) : null;
   const strat = { ...DEFAULT_STRATEGY, ...(only && !strategy.mode ? { mode: 'per-note' } : {}), ...strategy };
   const repo = store.repo;
@@ -787,8 +793,9 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   // Step gates (gates.js): one call decides which optional steps this change is worth. A gate only
   // fills in a flag the caller left unset, never overrides one it passed, and never runs for the
   // no-notes baseline, whose point is to be unchanged. A dry run makes no call and keeps the defaults.
+  let gateResult;
   if (!dry && strat.mode !== 'nocache') {
-    const g = await reviewGates(store, change, symbols);
+    const g = gateResult = await reviewGates(store, change, symbols);
     report.gates = g.source === 'jev' ? Object.fromEntries(Object.entries(g.gates).map(([k, v]) => [k, v.p])) : undefined;
     if (g.source === 'jev') {
       if (strategy.callers === undefined) strat.callers = g.gates.callers.run;
@@ -800,6 +807,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
       if (!g.gates.worth_reviewing.run) report.noBehaviourChange = true;
     }
   }
+  report.thoroughness = startThoroughness(gateResult, strategy, strat, change, symbols, { dry, baseline: strat.mode === 'nocache' });
   report.findings.push(...deterministicFindings(repo, change, symbols, reader));
   const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
@@ -864,17 +872,25 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
       report.verified = { kept: 0, dropped: [] };
       clustered = (await Promise.all(clustered.map(async f => {
         if (f.severity === 'info' || !f.file) return f;
+        const entry = { before: { ...f, id: findingId(f) }, context: null, outcome: 'pending', after: null, tokens: null, model: null, assessment: 'unassessed' };
+        report.thoroughness.verifications.push(entry);
+        const began = performance.now();
         try {
-          const v = await verifyFinding(store, f, change, reader, { model: report.model });
+          entry.context = verificationContext(f, change, reader);
+          const v = await verify(store, f, change, reader, { model: report.model, context: entry.context });
+          Object.assign(entry, { outcome: v.real ? 'retained' : 'dropped', reason: v.reason, tokens: v.tokens ?? null, model: v.model || null, after: v.real ? { severity: v.severity } : null });
+          if (v.model) report.models[v.model] = (report.models[v.model] || 0) + 1;
           report.cost += v.cost || 0; report.tokens += v.tokens || 0;
           if (!v.real) { report.verified.dropped.push({ file: f.file, line: f.line, message: f.message.slice(0, 120), reason: v.reason }); return null; }
           report.verified.kept++;
           return { ...f, severity: v.severity, verified: v.reason };
-        } catch (e) { report.errors.push({ id: `verify ${f.file}:${f.line}`, error: String(e.message || e).slice(0, 200) }); return f; }
+        } catch (e) { entry.outcome = 'error'; entry.reason = String(e.message || e).slice(0, 200); report.errors.push({ id: `verify ${f.file}:${f.line}`, error: entry.reason }); return f; }
+        finally { entry.elapsedMs = Math.round(performance.now() - began); }
       }))).filter(Boolean);
     }
     report.findings.push(...clustered);
   }
+  finishThoroughness(report, { dry, callers });
   report.behaviors = behaviorReport(consulted, report, revisable, dry);
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
@@ -956,11 +972,6 @@ export function renderReview(r, { verbose = false } = {}) {
   const n = r.notes;
   const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
   L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
-  if (r.gates) {
-    const ran = Object.entries(r.gates).filter(([k, p]) => k !== 'worth_reviewing' && k !== 'tests' && p != null);
-    const on = ran.filter(([k, p]) => p >= (k === 'callers' ? 0.5 : 0.6)).map(([k, p]) => `${k} ${p.toFixed(2)}`);
-    L.push(`  steps: ${on.length ? on.join(', ') : 'none beyond the diff'}${r.noBehaviourChange ? '; no behaviour change, so nothing was asked of the model' : ''}${r.testsWouldSettleIt ? '; running the tests would settle this better than reading it' : ''}`);
-  }
   const blind = blindSpot(r);
   if (blind) L.push(`⚠ ${blind.text}`);
   if (r.findings.length) {
@@ -994,6 +1005,7 @@ export function renderReview(r, { verbose = false } = {}) {
     if (r.verified) L.push('', `Verification: ${r.verified.kept} finding${r.verified.kept === 1 ? '' : 's'} confirmed, ${r.verified.dropped.length} dropped${r.verified.dropped.length ? ': ' + r.verified.dropped.map(d => `${d.file}:${d.line} (${d.reason.slice(0, 100)})`).join('; ') : ''}`);
   }
   if (r.integrity?.findings.length) { L.push('', 'Gate integrity — needs review:'); for (const f of r.integrity.findings) L.push(`  ${f.file}${f.line ? ':' + f.line : ''}: ${f.message} (${f.certainty})`); }
+  if (r.thoroughness) L.push('', renderThoroughness(r.thoroughness));
   if (r.runId) L.push('', `Impact review: ${r.runId}${r.impact?.pr ? ` · PR #${r.impact.pr}` : ' · attach with thinker impact link-review <run-id> --pr <number>'}${r.impact?.recorded === false ? ' · recording unavailable' : ''}`);
   return L.join('\n');
 }

@@ -94,3 +94,9 @@ test('an empty change is never gated', async () => await withJev(async () => {
   const r = await reviewGates(store({ fetchImpl: reply([1, 1, 1, 1, 1]) }), { files: [] }, []);
   assert.equal(r.source, 'default');
 }));
+
+test('audit score retains precision when rounding would cross the action threshold', async () => await withJev(async () => {
+  const r = await reviewGates(store({ fetchImpl: reply(NAMES.map(() => 0.59999)) }), change, symbols);
+  assert.equal(r.gates.verify.p, 0.59999);
+  assert.equal(r.gates.verify.run, false);
+}));
