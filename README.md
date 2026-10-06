@@ -95,6 +95,34 @@ Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
 Old sync settings are ignored.
 
+## Proof of correctness
+
+Thinker can post a PR report connecting the requested behavior to executed test
+results, code evidence, and the questions a reviewer still needs to resolve.
+For example, a change from three retries to five can show that
+`rejects timed-out requests` passed, while flagging that its assertion leaves
+timeouts on the final retry untested.
+
+With a verification contract committed on the trusted base and acceptance
+criteria linked to named tests in `task.json`, run:
+
+```sh
+thinker review --run --base origin/main --task task.json --pr 142 --post
+```
+
+This runs the required checks in Docker against a frozen snapshot, assesses the
+code, and posts the report as a PR conversation comment through your `gh` login.
+Run it from the PR's checkout; `--pr` selects the comment destination only.
+The report distinguishes observed results from the model's reading of test
+coverage, and identifies skipped tests, missing evidence, and changes that may
+weaken verification. Full logs stay local.
+
+A passing test establishes that its assertions passed on that snapshot; a human
+still judges whether they cover the request. This is local execution evidence,
+not a formal proof or signed CI attestation. Existing CI checks still apply.
+See the [visual example](https://zerotime.dev/docs.html#proof-of-correctness)
+and [setup and posting guide](docs/task-verification.md#proof-of-correctness-on-a-pull-request).
+
 ## Review a change against the cache
 
 For verification while an agent is implementing a task, use `thinker review
