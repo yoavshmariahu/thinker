@@ -1,0 +1,33 @@
+.message-launcher {
+  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 60;
+  padding: 0.8rem 1rem; border: 1px solid #ddd; border-radius: 999px;
+  background: #111; color: #fff; font: 500 0.85rem -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 3px 16px #0002; cursor: pointer;
+}
+.message-launcher:hover, .message-send:hover { background: #333; }
+.message-dialog {
+  margin: auto; width: min(480px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem);
+  overflow: auto; padding: 2rem; border: 1px solid #e5e5e5; border-radius: 16px;
+  color: #111; background: white; box-shadow: 0 16px 60px #0003;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.message-dialog::backdrop { background: #0006; }
+.message-dialog h2 { font-size: 1.4rem; margin: 0 1rem 0.5rem 0; letter-spacing: -0.03em; }
+.message-dialog p { color: #666; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1rem; }
+.message-close { position: absolute; top: 0.65rem; right: 0.8rem; background: none; border: 0; font-size: 1.6rem; color: #555; cursor: pointer; }
+.message-dialog label { display: block; font-size: 0.85rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+.message-dialog label span { font-weight: 400; color: #666; }
+.message-dialog textarea, .message-dialog input {
+  display: block; width: 100%; box-sizing: border-box; padding: 0.7rem; border: 1px solid #ccc;
+  border-radius: 6px; background: #fff; color: #111; font: inherit; font-size: 16px;
+}
+.message-dialog textarea { resize: vertical; min-height: 120px; }
+.message-send { border: 0; border-radius: 6px; padding: 0.75rem 1rem; background: #111; color: #fff; font: inherit; font-size: 0.9rem; cursor: pointer; }
+.message-send:disabled { opacity: 0.6; cursor: wait; }
+.message-dialog .message-status { margin: 1rem 0; color: #333; }
+.message-launcher:focus-visible, .message-dialog :focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .message-launcher { right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .message-dialog { padding: 1.5rem; }
+  body { padding-bottom: 4.5rem; }
+}

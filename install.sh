@@ -6,10 +6,9 @@
 # wires the tool; then run `thinker setup` inside a repository to set it up.
 # A repository that is not set up is served nothing and learns nothing.
 #
-# The thinker repository is private, so you need access to it and a GitHub
-# token with read access, exported as GITHUB_TOKEN:
+# Thinker is open source; no access code or GitHub token is required.
 #
-#   Open https://zerotime.dev, enter your access code, and copy the install command.
+#   curl -fsSL https://zerotime.dev/dist/install.sh | bash
 #
 # --build does everything for a repository that has no cache yet: installs the
 # tool, builds the cache from the code and merged pull requests, and wires it
@@ -134,7 +133,7 @@ main() {
       die "could not download $url with the token provided (does it have read access to $ghrepo?)"
     fi
     curl -fsSL -H "Accept: application/vnd.github.raw" -o "$out" "$url" 2>/dev/null && return 0
-    die "could not download $url: the thinker repository is private, so export GITHUB_TOKEN (a token with read access) and retry"
+    die "could not download $url: check connectivity and the repository/ref, or set GITHUB_TOKEN if GitHub rate-limits the request"
   }
 
   # --- prerequisites -----------------------------------------------------

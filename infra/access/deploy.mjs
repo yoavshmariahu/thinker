@@ -9,6 +9,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 
 const config = JSON.parse(fs.readFileSync(new URL('./production.json', import.meta.url)));
+if (config.publicSite) { await import('./public-deploy.mjs'); process.exit(0); }
 const root = path.resolve(import.meta.dirname, '../..');
 const work = path.join(root, '.access-work');
 fs.mkdirSync(work, { recursive: true, mode: 0o700 });

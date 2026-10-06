@@ -1,3 +1,21 @@
+# Public website
+
+The site, docs and current installer/downloads are public. `production.json` sets
+`publicSite: true`; `deploy.mjs` uses `public-deploy.mjs` and `public-gateway.js`.
+The homepage and docs include a GitHub link and the shared message widget.
+Old signed distribution URLs still resolve, so existing clients keep updating.
+The S3 origin stays private and the existing CloudFront/WAF configuration is preserved.
+
+From an isolated worktree, run `node infra/access/deploy.mjs prepare`, inspect
+`.access-work/public-plan.json`, then run `node infra/access/deploy.mjs apply`.
+Preparation tests routing in the AWS edge runtime. Apply backs up existing
+objects and the prior LIVE function, uploads the pages, message assets and installer,
+publishes routing, and invalidates the changed URLs. It does not rebuild the CLI archive.
+Run `THINKER_TEST=1 node infra/access/smoke.mjs` after propagation.
+Keep `.access-work/public-*` backups outside the worktree before cleanup.
+
+The material below documents the retired code gate and remains for rollback only.
+
 # Website access gateway
 
 `zerotime.dev` uses CloudFront distribution `E2QP47JPHAN302` and the private

@@ -55,7 +55,7 @@ try {
     REVOKE CREATE ON SCHEMA public FROM PUBLIC;
     GRANT CONNECT ON DATABASE thinker_metrics TO thinker_metrics_writer, thinker_metrics_reader;
     GRANT USAGE ON SCHEMA public TO thinker_metrics_writer, thinker_metrics_reader;
-    GRANT SELECT, INSERT ON reports TO thinker_metrics_writer;
+    GRANT SELECT, INSERT ON reports, website_messages TO thinker_metrics_writer;
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO thinker_metrics_reader;
   `);
 } finally { await metrics.end(); }

@@ -77,4 +77,12 @@ CREATE OR REPLACE VIEW v_kind_distribution AS
 SELECT k.kind, sum(k.count) AS total_notes, count(DISTINCT k.install_id) AS installs_count
 FROM cache_kinds k JOIN v_latest_installs l USING (file_key)
 GROUP BY k.kind;
+CREATE TABLE IF NOT EXISTS website_messages (
+  id UUID PRIMARY KEY,
+  message TEXT NOT NULL CHECK (length(btrim(message)) BETWEEN 1 AND 5000),
+  email TEXT CHECK (email IS NULL OR length(email) <= 254),
+  page TEXT NOT NULL CHECK (length(page) <= 256),
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_website_messages_received ON website_messages (received_at DESC);
 COMMIT;

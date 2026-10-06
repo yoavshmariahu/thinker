@@ -252,6 +252,27 @@ async function provision() {
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.messagesCardId) {
+    state.messagesCardId = (await api('/card', 'POST', {
+      name: 'Website messages', display: 'table', collection_id: state.collectionId,
+      description: 'Messages visitors explicitly send. Separate from usage telemetry. Email is optional.',
+      visualization_settings: {}, dataset_query: { database: db.id, type: 'native', native: {
+        query: 'SELECT received_at, message, email, page FROM website_messages ORDER BY received_at DESC, id DESC', 'template-tags': {}
+      } }
+    })).id;
+    save();
+  }
+  if (!state.messagesId) {
+    state.messagesId = (await api('/dashboard', 'POST', { name: 'Messages', collection_id: state.collectionId,
+      description: 'All messages sent from the website, newest first, with an optional reply email.' })).id;
+    save();
+  }
+  if (state.messagesDashboardVersion !== 1) {
+    await api(`/dashboard/${state.messagesId}`, 'PUT', { parameters: [], dashcards: [{ id: -1,
+      card_id: state.messagesCardId, row: 0, col: 0, size_x: 24, size_y: 16, parameter_mappings: [] }] });
+    state.messagesDashboardVersion = 1; save();
+  }
+  console.log(`Messages: http://localhost:3030/dashboard/${state.messagesId}`);
   console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
@@ -293,6 +314,12 @@ async function verify() {
     if (result.status !== 'completed') throw new Error(`Saved query failed: ${name}`);
     console.log(`PASS: ${name} (${result.data.rows.length} rows)`);
   }
+  if (!state.messagesId || !state.messagesCardId) throw new Error('Messages dashboard missing; run refresh');
+  const messages = await api(`/dashboard/${state.messagesId}`);
+  if (!messages.dashcards.some(card => card.card_id === state.messagesCardId)) throw new Error('Messages table missing');
+  const messageResult = await api(`/card/${state.messagesCardId}/query`, 'POST', { ignore_cache: true });
+  if (messageResult.status !== 'completed') throw new Error('Messages query failed');
+  console.log(`Website messages: ${messageResult.data.rows.length} rows`);
   const privileges = await api('/dataset', 'POST', { database: state.databaseId, type: 'native', native: {
     query: "SELECT current_user, has_table_privilege(current_user, 'public.reports', 'SELECT') AS can_read, has_table_privilege(current_user, 'public.reports', 'INSERT,UPDATE,DELETE,TRUNCATE') AS can_write, (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) AS tls", 'template-tags': {} } });
   const row = privileges.data?.rows?.[0];
