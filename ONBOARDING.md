@@ -4,7 +4,7 @@ Run the installer from your repository, then start a new agent session.
 Use `thinker setup --build` to build a local cache from code and merged pull
 requests, or `thinker setup --no-build` to learn from future sessions.
 
-Notes are stored locally. The hosted Jev integration in development will send
+Notes are stored locally. Hosted Jev sends
 your request and candidate-note excerpts through Thinker’s proxy to TypeSafe;
 learning and review use your configured agent/model.
 Personal backups use `thinker export backup.tgz` and
@@ -17,10 +17,10 @@ Setup has two steps:
 1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
 2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Choose **Full repo** or **Specify project directories**. For a project, enter a name and comma-separated repository-relative directories; setup saves `thinker.project.json`. Setup shows estimated build time and token usage for the selection before asking whether to build. Outside a terminal, building requires an explicit flag such as `--build`.
 
-We're moving Jev note selection to **Thinker hosted access**, with automatic
-provisioning and no personal TypeSafe key required. This is in development;
-existing releases may still offer the earlier personal-key prompt. You can
-skip that prompt and use local ranking while hosted access rolls out.
+Jev note selection defaults to **Thinker hosted access**, with automatic
+provisioning and no personal TypeSafe key required, including with `--yes`.
+The service is live and this source version uses it by default; earlier release
+archives may still offer the personal-key prompt until updated.
 
 Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it;
 this does not disable Jev ranking.
@@ -31,11 +31,13 @@ A paired PR benchmark runs during setup only when requested with `--benchmark` o
 
 ## Jev through Thinker
 
-The hosted integration is in development. Its intended setup is:
+Hosted setup is automatic:
 
 1. Run `thinker setup` to connect your agents and choose whether to build a cache.
 2. Thinker provisions hosted Jev access automatically. No TypeSafe account or
    personal API key is needed; the upstream credential stays on Thinker's server.
+   A revocable client token is saved in `~/.thinker/jev-proxy.json` with owner-only
+   permissions and renewed on expiry.
 3. Start a new agent session and work as usual. `thinker ranker` reports the
    selected ranking mode and local fallback availability.
 
@@ -49,7 +51,8 @@ cross-encoder, then lexical ranking if that model is unavailable. Broader MCP
 
 Your request and candidate-note titles, question phrasings, body excerpts,
 file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe.
-The cache stays local. Hosted enrollment and ranking are separate from
+The proxy does not log request or note content. Hosted access has usage limits;
+reaching one falls back locally. The cache stays local. Hosted enrollment and ranking are separate from
 telemetry and from the coding agent used for learning, verification, and review.
 `THINKER_TELEMETRY=off` does not disable these model calls.
 
