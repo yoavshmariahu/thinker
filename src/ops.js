@@ -294,7 +294,8 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   const packed = pack(top, budget, { minRel: 0.35 });
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
-  packed.more = (lexical.length > ranked.length ? lexical : ranked).filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, lexical.length > ranked.length ? 3 : 6).map(r => r.note);
+  const moreCandidates = jev !== null ? ranked : (lexical.length > ranked.length ? lexical : ranked);
+  packed.more = moreCandidates.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, jev === null && lexical.length > ranked.length ? 3 : 6).map(r => r.note);
   // a held-out session: what would have been served is logged and nothing is; the notes are not
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {

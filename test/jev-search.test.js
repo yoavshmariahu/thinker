@@ -81,7 +81,9 @@ test('a successful no-match decision is final, while a failed request falls back
   const query = 'retry worker requests';
   assert.ok(rank([n], { query, mode: 'lookup' }).length);
   assert.equal((await lookup(store, { query })).included.length, 0);
-  assert.equal((await orient(store, { task: query })).included.length, 0);
+  const empty = await orient(store, { task: query });
+  assert.equal(empty.included.length, 0);
+  assert.equal(empty.more.length, 0, 'rejected lexical candidates must not reappear as recommended titles');
   store.config = () => ({ jev: { enabled: true, key: 'test', fetchImpl: async () => ({ ok: false, status: 503 }) }, ce: false, snippets: false });
   assert.equal((await lookup(store, { query })).included[0].id, n.id);
   assert.equal((await orient(store, { task: query })).included[0].id, n.id);
