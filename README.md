@@ -45,10 +45,9 @@ everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
 
 Then work with your agent as usual. Thinker selects relevant notes for each
-request automatically. With a TypeSafe API key, **Jev** scores candidate notes
-in one batched request and Thinker serves up to two that meet its relevance
-threshold. Without a key, the built-in local ranker works offline.
-See [using Jev](#using-jev-for-note-selection) for setup and data handling.
+request automatically. We're building **hosted Jev through Thinker's proxy**
+so note selection can use Jev without a personal TypeSafe account or API key.
+See [Jev through Thinker](#jev-through-thinker) for the rollout and data flow.
 
 To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
 
@@ -84,55 +83,43 @@ Notes:
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
-## Using Jev for note selection
+## Jev through Thinker
 
-[Jev](https://docs.typesafe.ai/concepts/system-one) is TypeSafe's System One
-model for structured decisions. Thinker uses its relevance probabilities to
-select existing notes; your coding agent still implements the task, and your
-configured agent/model still handles learning, verification, and review.
+We're building hosted note selection with
+[Jev](https://docs.typesafe.ai/concepts/system-one), TypeSafe's System One
+model. **Thinker will provide access through its proxy; users won't need to
+create a TypeSafe account or supply an API key.** This integration is in
+development. Existing releases may still show the earlier personal-key setup;
+that is not a requirement for the hosted flow.
 
-Interactive `thinker setup` offers Jev or the built-in ranker. Get a key from
-the [TypeSafe console](https://console.typesafe.ai/keys), paste it during setup,
-or configure it later:
+The flow is simple: Thinker shortlists relevant notes locally, sends the
+request and candidates through its proxy to Jev, then uses Jev's relevance
+probabilities to choose what the coding agent sees. The hosted implementation
+provisions access automatically and keeps the upstream TypeSafe credential on
+the server. Your coding agent still implements the task; learning,
+verification, and review still use your configured agent/model.
 
-```bash
-thinker ranker --jev-key <your-typesafe-api-key>
-thinker ranker                 # show Jev and local-ranker status
-```
+The selection defaults are up to eight candidates in one call, a relevance
+threshold of 0.5, and at most two notes within the serving budget. If nothing
+qualifies, nothing is served. Prompt hooks withhold stale notes and avoid
+repeating notes within a session. Broader MCP `orient` requests retain lexical
+ranking. Errors, rate limits, and slow responses fall back to the built-in
+local ranker, with lexical ranking available if that model is unavailable.
 
-The saved key lives in `~/.thinker/jev-key` (or `$THINKER_HOME/jev-key`), with
-owner-only permissions, outside the repository. You can instead supply
-`THINKER_JEV_KEY`, `JEV_API_KEY`, or `TYPESAFE_API_KEY` in the environment of the
-agent running Thinker; those are checked in that order before the saved key.
-`setup --yes` skips the key prompt and uses an existing key if available.
+**Data flow:** the request and candidate-note titles, question phrasings, body
+excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to
+TypeSafe. The cache remains stored locally. Hosted ranking is separate from
+telemetry: `THINKER_TELEMETRY=off` does not disable model calls. Set
+`"jev": false` in `.thinker/config.json`, or `THINKER_JEV=off` in the agent's
+environment, to use local note ranking. See [onboarding](ONBOARDING.md#jev-through-thinker)
+for rollout guidance and the optional personal-key compatibility path.
 
-By default, Thinker sends up to eight candidates from its local lexical
-ranking to `jev-latest` in one call. It keeps at most two with relevance
-probability at least 0.5, within the serving budget. If none meets the
-threshold, it serves none. Prompt hooks still withhold stale notes and avoid
-repeating notes already served in the session. Broader MCP `orient` requests
-use lexical ranking rather than this two-note selection path.
-
-**What is sent:** your request and structured candidate-note records, including
-titles, question phrasings, body excerpts, file/symbol pointers, and freshness,
-go to TypeSafe's API. Notes remain stored locally. Jev uses your TypeSafe API
-account separately from your coding-agent subscription and from Thinker telemetry.
-
-A failed call or the default four-second timeout falls back to the local
-cross-encoder (23 MB, fetched by the installer and kept by `thinker update`).
-If that is unavailable or disabled, lexical ranking remains available.
-Set `"jev": false` in `.thinker/config.json`, or `THINKER_JEV=off` in the
-agent's environment, to turn off Jev. `thinker ranker --no-jev-key` removes the
-saved key; environment keys must be unset separately. More settings and
-troubleshooting are in [ONBOARDING.md](ONBOARDING.md#using-jev).
-
-Early offline evaluation found 17 of 18 served notes useful and reached 11 of
-27 important notes across 20 tasks. The run reported about 170 ms and 6k tokens
-per prompt. These are preliminary retrieval results, not an end-to-end speedup:
-the evaluation supplied a broader candidate pool than production, and the
-cross-encoder baseline covered a different task set. See
-[the results and limitations](bench/RESULTS.md#serving-jev-2026-10-06-offline-20-of-the-54-labelled-tasks).
-The coding-agent benchmarks below predate this Jev integration.
+In two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes;
+96% of the notes it served were useful. The runs reported about 160 ms per
+task. These measure retrieval on a supplied candidate pool, not production
+proxy latency or an end-to-end coding speedup. See
+[the results and limitations](bench/RESULTS.md#serving-jev-2026-10-06-offline-all-54-labelled-tasks-two-runs).
+The coding-agent benchmarks below predate this integration.
 
 ## Large repositories: choose your project
 
@@ -178,9 +165,9 @@ the project file adds no retrieval filter.
 Thinker learns and stores notes locally in `.thinker/local/notes/`, which is
 ignored by Git. It does not publish notes or synchronize them with a team.
 Older committed notes remain readable; updates to those notes stay local.
-Local storage does not mean all processing is offline: Jev receives the
-selection inputs described above, and learning and review use your configured
-model provider.
+Local storage does not mean all processing is offline: hosted Jev will receive
+selection inputs through Thinker’s proxy as described above. Existing direct
+Jev access, learning, and review use their configured model providers.
 
 Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
@@ -547,7 +534,7 @@ integration tests that intentionally exercise installation or scheduling.
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Optional Jev ranking sends the request and candidate-note records to TypeSafe as described above; disabling telemetry does not disable model calls.
+Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Jev ranking sends the request and candidate-note records for model processing; the hosted flow will route them through Thinker’s proxy to TypeSafe. Disabling telemetry does not disable model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 

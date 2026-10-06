@@ -805,62 +805,51 @@ thinker setup --build --yes</code></pre>
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
         </div>
         <p>
-          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. Setup also offers <a href="#jev">Jev for note selection</a> using your TypeSafe API key. Without a key, the built-in local ranker works offline. <code>thinker ranker</code> shows both configurations.
+          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. We’re building <a href="#jev">hosted Jev through Thinker’s proxy</a>, with no personal TypeSafe key required. Existing releases can use the built-in local ranker while hosted access rolls out. <code>thinker ranker</code> shows the configured ranking mode.
         </p>
       </section>
 
       <section id="jev">
-        <h2>Using Jev for note selection</h2>
+        <h2>Jev through Thinker</h2>
         <p>
-          <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>, makes structured relevance judgments so Thinker can select the notes that help with your request. Your coding agent still implements the task; learning, verification, and review still use your configured agent/model.
-        </p>
-        <h3>Set up your key</h3>
-        <p>
-          Get an API key from the <a href="https://console.typesafe.ai/keys">TypeSafe console</a> and paste it when interactive <code>thinker setup</code> offers Jev, or configure it later:
-        </p>
-        <pre><code>thinker ranker --jev-key &lt;your-typesafe-api-key&gt;
-thinker ranker <span class="code-comment"># show Jev and local-ranker status</span></code></pre>
-        <p>
-          The key is saved outside the repository in <code>~/.thinker/jev-key</code> (or <code>$THINKER_HOME/jev-key</code>), with owner-only permissions. Environment keys take precedence: <code>THINKER_JEV_KEY</code>, then <code>JEV_API_KEY</code>, then <code>TYPESAFE_API_KEY</code>. They must be available to the agent process running Thinker; the saved key also works for desktop agents launched outside your shell. Thinker does not load a repository <code>.env</code> file for this setting.
-        </p>
-        <p>
-          You can choose the built-in offline ranker or leave the key blank during setup. <code>setup --yes</code> skips the key prompt; noninteractive setup uses an existing key if present. <code>thinker ranker</code> reports configuration, not a live validation of the key.
-        </p>
-        <h3>How selection works</h3>
-        <ol>
-          <li>Thinker builds a shortlist with local lexical ranking. Prompt hooks exclude stale notes and notes already served in the session.</li>
-          <li>One call to <code>jev-latest</code> scores up to eight candidates against your request.</li>
-          <li>Thinker keeps up to two notes with relevance probability at least 0.5, within the serving budget. If nothing meets the threshold, nothing is served.</li>
-        </ol>
-        <p>
-          This is the prompt hook's small selection path. Broader MCP <code>orient</code> requests keep lexical ranking. Jev selects existing notes; it does not write new ones.
+          We're building hosted note selection with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Thinker will provide access through its proxy. You won't need a TypeSafe account or personal API key.</strong>
         </p>
         <div class="callout tip">
-          <strong>Local storage, optional API processing.</strong> Jev receives your request and structured candidate-note records: titles, question phrasings, body excerpts, file/symbol pointers, and freshness. Notes remain stored locally. API usage is on your TypeSafe account, separate from your coding-agent subscription and Thinker telemetry. Turning off telemetry does not disable Jev.
+          <strong>In development.</strong> The hosted integration is being built. Existing releases may still show the earlier personal-key setup; you can skip that prompt and use local ranking while hosted access rolls out.
         </div>
-        <h3>Fallback and controls</h3>
+        <h3>How it will work</h3>
+        <ol>
+          <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically and keeps the upstream TypeSafe credential on its server.</li>
+          <li>For each task, Thinker builds a local shortlist. One request through Thinker's proxy asks Jev which notes help with the task.</li>
+          <li>Thinker uses the relevance probabilities to select notes for your coding agent. Your agent still implements the task; learning, verification, and review use your configured agent/model.</li>
+        </ol>
         <p>
-          A failed call or the default four-second timeout falls back to the local cross-encoder (23 MB). The installer fetches it and <code>thinker update</code> keeps it. If the local model is unavailable or disabled, lexical ranking remains available. <code>thinker ranker fetch</code> downloads a missing model; <code>thinker update</code> repairs a missing runtime. Jev failures appear as <code>jev-error</code> in the usage log (<code>~/.thinker/log.jsonl</code> by default).
+          Selection defaults are up to eight candidates, a relevance threshold of 0.5, and at most two notes within the serving budget. If nothing qualifies, nothing is served. Prompt hooks withhold stale notes and avoid repeating notes within the session. Broader MCP <code>orient</code> requests keep lexical ranking.
         </p>
-        <p>To adjust selection, merge this entry into <code>.thinker/config.json</code>; keep the API key outside that file:</p>
-        <pre><code>{
-  "jev": {
-    "enabled": "auto",
-    "model": "jev-latest",
-    "k": 8,
-    "floor": 0.5,
-    "maxNotes": 2,
-    "timeoutMs": 4000
-  }
-}</code></pre>
+        <h3>Fallback and local ranking</h3>
         <p>
-          <code>enabled: "auto"</code> uses Jev when a key is present. Set <code>"jev": false</code> to disable it for this repository, or <code>THINKER_JEV=off</code> in the agent's environment. Other environment overrides are <code>THINKER_JEV_MODEL</code>, <code>THINKER_JEV_K</code>, <code>THINKER_JEV_FLOOR</code>, <code>THINKER_JEV_MAX</code>, and <code>THINKER_JEV_TIMEOUT</code> (milliseconds). These settings do not expand the prompt hook's two-note budget.
+          The hosted implementation uses a 1,500 ms client timeout. Errors, rate limits, invalid responses, and timeouts fall back to the built-in local cross-encoder (23 MB), then lexical ranking if that model is unavailable. <code>thinker ranker</code> reports configuration and local-model availability. <code>thinker ranker fetch</code> downloads a missing model; <code>thinker update</code> repairs a missing runtime.
         </p>
-        <pre><code>thinker ranker --no-jev-key <span class="code-comment"># remove the saved key</span></code></pre>
-        <p>Environment keys must be unset separately. <code>THINKER_JEV=off</code> overrides configured keys.</p>
+        <p>To use local note ranking, set this in <code>.thinker/config.json</code>:</p>
+        <pre><code>{ "jev": false }</code></pre>
+        <p>
+          Or set <code>THINKER_JEV=off</code> in the environment of the agent running Thinker's hooks. This opt-out works with both direct and hosted Jev. It does not change the models used for learning, verification, or review.
+        </p>
+        <h3>What leaves your machine</h3>
+        <p>
+          Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
+        </p>
+        <h3>Already configured a personal key?</h3>
+        <p>
+          Personal keys remain an optional compatibility path and use TypeSafe directly. They are not required for hosted access. To switch from a saved personal key to the proxy once hosted access ships:
+        </p>
+        <pre><code>thinker ranker --no-jev-key</code></pre>
+        <p>
+          Also unset <code>THINKER_JEV_KEY</code>, <code>JEV_API_KEY</code>, or <code>TYPESAFE_API_KEY</code> if supplied to the agent. Removing a personal key on a hosted release selects Thinker's proxy; use <code>THINKER_JEV=off</code> or <code>"jev": false</code> to disable Jev. On older releases, removing all personal keys leaves local ranking in use.
+        </p>
         <h3>What has been measured</h3>
         <p>
-          An early offline evaluation on 20 tasks found 17 of 18 served notes useful and reached 11 of 27 important notes, at about 170 ms and 6k tokens per prompt. It was one run with one judge and a supplied candidate pool broader than production's. The local-ranker baseline covered a different task set, so this does not establish a paired improvement or an end-to-end coding speedup. The coding and review benchmarks elsewhere on this page predate the Jev integration.
+          Across two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes and 96% of served notes were useful, at about 160 ms per task. These runs used a supplied candidate pool and measure retrieval, not production proxy latency or an end-to-end coding speedup. The coding and review benchmarks elsewhere on this page predate the hosted integration.
         </p>
       </section>
 
@@ -1234,7 +1223,7 @@ thinker system md                   <span class="code-comment"># write them as .
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. With a TypeSafe key, <a href="#jev">Jev</a> scores a shortlist in one call and Thinker keeps up to two qualifying notes. Without a key, the local ranker selects a note; API failures also fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. The <a href="#jev">hosted Jev integration in development</a> will score a shortlist through Thinker’s proxy and keep up to two qualifying notes, without requiring a personal API key. Existing releases use local ranking or an optional personal-key Jev connection; API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
@@ -1319,7 +1308,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
               <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
               <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
-              <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Jev and local-ranker status/key management, and tree-sitter grammars for exact symbol boundaries</td></tr>
+              <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and tree-sitter grammars for exact symbol boundaries</td></tr>
               <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
               <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
             </tbody>
@@ -1339,7 +1328,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>jev</code></td><td>Optional API ranking: <code>enabled</code> ("auto"), <code>model</code> ("jev-latest"), <code>k</code> (8), <code>floor</code> (0.5), <code>maxNotes</code> (2), <code>timeoutMs</code> (4000); <code>false</code> disables it. <a href="#jev">Setup and data handling</a></td></tr>
+              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is in development. <a href="#jev">Rollout and data handling</a></td></tr>
               <tr><td><code>ce</code></td><td>Local fallback ranker: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to disable it. With Jev also disabled, ranking uses words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
@@ -1355,7 +1344,7 @@ thinker benchmark report</code></pre>
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Optional <a href="#jev">Jev ranking</a> sends the request and candidate-note records to TypeSafe; learning and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> <a href="#jev">Jev ranking</a> sends the request and candidate-note records for model processing; the hosted flow will route them through Thinker’s proxy to TypeSafe. Learning and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off
