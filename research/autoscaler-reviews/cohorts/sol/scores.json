@@ -1,0 +1,12 @@
+[
+  {"id":"A-10325","baselineHit":true,"cachedHit":true,"reason":"Both identify stale quick-OOM eligibility at changed line 123; cached cites the matching note."},
+  {"id":"A-10178","baselineHit":true,"cachedHit":true,"reason":"Baseline identifies cleanup timestamp advancing before successful GC at changed line 159. Cached identifies that and the shared-deadline failure at changed line 190, citing both matching notes."},
+  {"id":"A-10141","baselineHit":false,"cachedHit":true,"reason":"Only cached identifies NumberReady instead of desired DaemonSet size at changed line 151."},
+  {"id":"A-10349","baselineHit":true,"cachedHit":false,"reason":"Baseline identifies slash truncation in placeholder names at changed line 234. Cached identifies an unanchored regex at changed line 223 but does not identify the historical slash-truncation failure, despite citing the target note."},
+  {"id":"A-10258","baselineHit":false,"cachedHit":true,"reason":"Only cached identifies loss of the stable zone label at changed line 657."},
+  {"id":"A-10094","baselineHit":true,"cachedHit":true,"reason":"Both identify transient resize errors being cached as infeasible at changed line 161."},
+  {"id":"A-9949","baselineHit":false,"cachedHit":true,"reason":"Only cached identifies loss of InstanceCreating state on NodeStatusCreationError, one line from the reversed fix."},
+  {"id":"A-10001","baselineHit":false,"cachedHit":true,"reason":"Only cached identifies missing Failed-phase guard at changed line 695."},
+  {"id":"A-9725","baselineHit":true,"cachedHit":true,"reason":"Both identify fresh OOMs discarded near an aggregation boundary at changed line 208."},
+  {"id":"A-9691","baselineHit":true,"cachedHit":true,"reason":"Both identify unescaped slashes in resource names at changed line 59; baseline also reports tilde escaping at changed line 42."}
+]

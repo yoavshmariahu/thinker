@@ -1,0 +1,31 @@
+diff --git a/src/llm.js b/src/llm.js
+index 9b7ccfa..b4cd388 100644
+--- a/src/llm.js
++++ b/src/llm.js
+@@ -477,6 +477,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
+     else if (p === 'codex') {
+       const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+       if (resolvedModel) args.push('--model', resolvedModel);
++      if (process.env.THINKER_CODEX_REASONING_EFFORT) args.push('--strict-config', '--config', `model_reasoning_effort="${process.env.THINKER_CODEX_REASONING_EFFORT}"`);
+       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
+       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+       usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage || null);
+diff --git a/src/review.js b/src/review.js
+index b2142d3..71b4f38 100644
+--- a/src/review.js
++++ b/src/review.js
+@@ -616,9 +616,11 @@ export async function assessHolistic(store, notes, exposures, change, reader, {
+     const behavior = note.kind === 'behavior';
+     const fixed = note.mutability === 'fixed';
+     const bstate = behavior ? [note.status === 'violated' ? `ALREADY NOT UPHELD before this change${note.violated?.reason ? `: ${note.violated.reason}` : ''}` : '', fixed ? 'fixed: never revised' : revisable.has(note.id) ? 'mutable, and this change edits its note: the text below is the revised behavior' : 'mutable, but this change does not edit its note: it may not revise the behavior'].filter(Boolean).join('; ') : '';
+-    const t = behavior
+-      ? `### [behavior, ${fixed ? 'fixed' : 'mutable'}] ${note.title} (id: ${note.id}; ${bstate}; ${state})\n${String(note.body).slice(0, 2500)}${note.applies ? `\nApplies: ${note.applies}` : ''}`
+-      : `### [${note.kind}] ${note.title} (id: ${note.id}, confidence ${Math.round((note.confidence ?? 0.7) * 100)}%; ${state})\n${String(note.body).slice(0, 2500)}${note.applies ? `\nApplies: ${note.applies}` : ''}`;
++    const t = process.env.THINKER_REDACT_NOTE_TEXT === '1'
++      ? `### [${note.kind}] Cached note text redacted (${state})\n[title, body, applies, and id withheld]`
++      : behavior
++        ? `### [behavior, ${fixed ? 'fixed' : 'mutable'}] ${note.title} (id: ${note.id}; ${bstate}; ${state})\n${String(note.body).slice(0, 2500)}${note.applies ? `\nApplies: ${note.applies}` : ''}`
++        : `### [${note.kind}] ${note.title} (id: ${note.id}, confidence ${Math.round((note.confidence ?? 0.7) * 100)}%; ${state})\n${String(note.body).slice(0, 2500)}${note.applies ? `\nApplies: ${note.applies}` : ''}`;
+     if (used + t.length > 30000) break;
+     (behavior ? rules : shown).push(t); used += t.length;
+   }

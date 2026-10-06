@@ -1,0 +1,547 @@
+[
+  {
+    "id": "A-10325",
+    "pr": 10325,
+    "source": "kubernetes/autoscaler#10325",
+    "title": "VPA: ignore stale lastState OOMs in the quick-OOM path",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10325",
+    "mergedAt": "2026-10-04T07:34:23Z",
+    "proposed": [
+      {
+        "title": "Quick-OOM detection must check OOM age, not just container runtime",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "quick-oom-detection-must-check-oom-age-not-just-container-ru",
+        "title": "Quick-OOM detection must check OOM age, not just container runtime",
+        "kind": "rule",
+        "body": "Symptom: With `updateMode: InPlace` the updater force-updates the same pod every cycle, logging \"Quick OOM detected in pod\", even though the OOM happened days earlier.\nRoot cause: `UpdatePriorityCalculator.AddPod` in vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go only compared `LastTerminationState.Terminated.FinishedAt - StartedAt < evictOOMThreshold`; InPlace never recreates the pod, so stale `lastState.terminated` persists forever.\nFix pattern: when a decision is driven by a container's `LastTerminationState`, gate it on recency as well as duration — also require `now.Sub(Terminated.FinishedAt) < evictOOMThreshold`. Reuse the existing threshold rather than adding a new flag.\nConstraints: no-op for Recreate mode (eviction drops lastState); applies to any new code path reading lastState while InPlace updates are possible, since that status is never cleared there.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+            "symbol": "UpdatePriorityCalculator"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator_test.go",
+            "symbol": "TestDontUpdatePodWithStaleQuickOOM"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 11236
+  },
+  {
+    "id": "A-10178",
+    "pr": 10178,
+    "source": "kubernetes/autoscaler#10178",
+    "title": "VPA recommender: fix checkpoint garbage collection timeout",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10178",
+    "mergedAt": "2026-09-28T08:30:34Z",
+    "proposed": [
+      {
+        "title": "Each recommender loop step needs its own context timeout, and progress timestamps only on success",
+        "kind": "rule"
+      },
+      {
+        "title": "Adding a recommender flag: three places in config.go plus the generated docs/flags.md",
+        "kind": "rule"
+      },
+      {
+        "title": "ClusterStateFeeder GC returns aggregated errors instead of logging them",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "each-recommender-loop-step-needs-its-own-context-timeout-and",
+        "title": "Each recommender loop step needs its own context timeout, and progress timestamps only on success",
+        "kind": "rule",
+        "body": "Symptom: On large clusters the number of VerticalPodAutoscalerCheckpoint objects grows without bound — orphaned checkpoints are never garbage collected, and logs show GC failing to list checkpoints with a context deadline error.\nRoot cause: `routines/recommender.go:RunOnce` wrapped the whole checkpoint step in one `context.WithDeadline(ctx, now+checkpointsWriteTimeout)`, so once checkpoint writing consumed the budget, `GarbageCollectCheckpoints` ran with an already-expired context; worse, `lastCheckpointGC` was set *before* the call, so the failure was recorded as a completed GC and not retried until the next interval.\nFix pattern: give each sub-step its own derived timeout inside the step function (`MaintainCheckpoints` now does `context.WithTimeout(ctx, r.checkpointsWriteTimeout)` for writing and a separate `context.WithTimeout(ctx, r.checkpointsGCTimeout)` for GC), and update the \"last ran\" timestamp only in the success branch so failures are retried on the next interval.\nConstraints: Applies to any periodic/rate-limited step in the recommender loop that shares the parent `RunOnce` context. The parent `ctx` should stay un-narrowed when passed to a step that manages several independently-budgeted operations; timeouts must be positive (validated in `config.ValidateRecommenderConfig`).",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "RunOnce"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "MaintainCheckpoints"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "RunOnce"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "MaintainCheckpoints"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+            "symbol": "RunOnce"
+          }
+        ]
+      },
+      {
+        "id": "adding-a-recommender-flag-three-places-in-config-go-plus-the",
+        "title": "Adding a recommender flag: three places in config.go plus the generated docs/flags.md",
+        "kind": "rule",
+        "body": "A recommender flag must be wired in all of these or it silently misbehaves: a field on `RecommenderConfig`, a default in `DefaultRecommenderConfig()`, a `flag.*Var` registration in `InitRecommenderFlags()`, a guard in `ValidateRecommenderConfig()` for values that cannot be zero/negative (pattern: `klog.ErrorS(nil, \"--flag must be ...\")` then `klog.FlushAndExit(klog.ExitFlushTimeout, 1)`), and then plumbed through `routines/recommender_controller.go:NewRecommenderController` into `RecommenderFactory` → the `recommender` struct field.\n`vertical-pod-autoscaler/docs/flags.md` is auto-generated from these flag definitions and must be regenerated/updated in the same change — its table row (name, type, default, help text) has to match the `flag.DurationVar` call exactly.\nSkipping the factory/controller plumbing leaves the struct field at its zero value (e.g. a zero timeout means every call fails immediately).",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+            "symbol": "InitRecommenderFlags"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+            "symbol": "ValidateRecommenderConfig"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go",
+            "symbol": "NewRecommenderController"
+          },
+          {
+            "path": "vertical-pod-autoscaler/docs/flags.md"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/config/config.go",
+            "symbol": "DefaultRecommenderConfig"
+          }
+        ]
+      },
+      {
+        "id": "clusterstatefeeder-gc-returns-aggregated-errors-instead-of-l",
+        "title": "ClusterStateFeeder GC returns aggregated errors instead of logging them",
+        "kind": "rule",
+        "body": "`input.ClusterStateFeeder.GarbageCollectCheckpoints(ctx) error` returns errors rather than logging-and-returning: list failures become `fmt.Errorf(\"failed to list ...: %w\", err)`, and per-checkpoint delete failures are accumulated with `errors.Join` so the loop keeps going across all namespaces and still reports what failed.\nThe caller (`recommender.MaintainCheckpoints`) is the single place that logs the error and decides whether to record progress — so swallowing the error inside the feeder would silently re-break retry behaviour.\nWhen extending this feeder method, keep continuing past individual delete failures and keep returning the joined error; assert `NoError` in tests (see `input/cluster_feeder_test.go:TestCanCleanupCheckpoints`).",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go",
+            "symbol": "ClusterStateFeeder"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder_test.go",
+            "symbol": "TestCanCleanupCheckpoints"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 11920
+  },
+  {
+    "id": "A-10141",
+    "pr": 10141,
+    "source": "kubernetes/autoscaler#10141",
+    "title": "VPA updater: fix unready DaemonSet updates",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10141",
+    "mergedAt": "2026-09-27T16:12:30Z",
+    "proposed": [
+      {
+        "title": "Replica counts for eviction limits must come from desired counts, not ready counts",
+        "kind": "rule"
+      },
+      {
+        "title": "Cover the all-pods-unready case when touching updater eviction eligibility",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "replica-counts-for-eviction-limits-must-come-from-desired-co",
+        "title": "Replica counts for eviction limits must come from desired counts, not ready counts",
+        "kind": "rule",
+        "body": "Symptom: VPA stops applying recommendations to a workload once all its Pods are unready (e.g. memory limits scaled too low and every Pod OOMs); updater logs \"Failed to obtain replication info ... daemon set ... has no number ready pods\", so the Pods can never be evicted to get bigger limits.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go:PodsRestrictionFactoryImpl.getReplicaCount read ds.Status.NumberReady, a readiness-dependent field, and returned an error when it was 0 — the unready state that most needs an update made the group ineligible.\nFix pattern: derive replica counts from the controller's *desired* count (DaemonSet -> Status.DesiredNumberScheduled; scale-based controllers -> the spec/desired replicas), never from readiness/availability counters. Keep the zero-value error only as a genuine \"no workload here\" guard and word it after the field used.\nConstraints: applies to any replica-count lookup feeding eviction/in-place tolerance (GetCreatorMaps drops creators whose count errors out, so an error here silently disables updates for the whole group). A readiness count is only acceptable where the intent really is \"how many are healthy right now\".",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+            "symbol": "PodsRestrictionFactoryImpl"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+            "symbol": "GetCreatorMaps"
+          }
+        ]
+      },
+      {
+        "id": "cover-the-all-pods-unready-case-when-touching-updater-evicti",
+        "title": "Cover the all-pods-unready case when touching updater eviction eligibility",
+        "kind": "rule",
+        "body": "Tests for eviction eligibility live beside the factory in vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go and are table-driven per controller kind (TestEvictReplicatedByDaemonSet builds the controller status, pods via test.Pod().WithCreator(...), then getRestrictionFactory(..., minReplicas, evictionTolerance, ...)).\nAny change to replica-count or eligibility logic should add a variant where the status' readiness counters are 0 while the desired count is non-zero, and assert both that the creator survives (assert.Len(creatorToSingleGroupStatsMap, 1, \"... should not be skipped\")) and that the usual tolerance arithmetic still allows exactly the expected number of evictions.\nThe creator-map length assertion is what distinguishes \"group silently skipped\" from \"group present but tolerance exhausted\" — without it both failures look like Evict returning an error.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+            "symbol": "TestEvictReplicatedByDaemonSet"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 6499
+  },
+  {
+    "id": "A-10349",
+    "pr": 10349,
+    "source": "kubernetes/autoscaler#10349",
+    "title": "Fix instance name extraction for placeholder nodes when ASG name contains '/'",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10349",
+    "mergedAt": "2026-09-24T19:40:26Z",
+    "proposed": [
+      {
+        "title": "AWS placeholder node names may contain '/' — never split provider IDs on '/'",
+        "kind": "rule"
+      },
+      {
+        "title": "validAwsRefIdRegex capture groups and the len(matches)==4 guard must stay in sync",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "aws-placeholder-node-names-may-contain-never-split-provider",
+        "title": "AWS placeholder node names may contain '/' — never split provider IDs on '/'",
+        "kind": "rule",
+        "body": "Symptom: for an ASG whose name contains '/', the placeholder node's name was truncated (provID `aws:///eu-south-2a/i-placeholder-k8s-node/edge-prod-aeus2a/rika-test-1` yielded name `i-placeholder-k8s-node`). CA then could not associate the placeholder with its ASG, failed to delete it, and all scaling halted once MaxNodeStartupTime elapsed (issue #8305).\nRoot cause: cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:AwsRefFromProviderId derived the name with `strings.Split(id[7:], \"/\")[1]`, which cannot represent a name containing '/'.\nFix pattern: make the validation regex also be the extractor — give each alternative its own capture group (`(%s.*)` for the placeholder branch, `([-0-9a-z]*)(\\/...)?` for ordinary IDs) and read `FindStringSubmatch` groups instead of re-splitting the string.\nConstraints: only placeholder names (prefix `placeholderInstanceNamePrefix`) may contain '/'; real EC2 instance IDs stay in the restricted-charset branch. Anchor both alternatives with `^`...`$` so a name that merely contains `i-placeholder` as a substring (e.g. `i-foo-i-placeholder-bar`) still falls through to the ordinary branch.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "AwsRefFromProviderId"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "validAwsRefIdRegex"
+          }
+        ]
+      },
+      {
+        "id": "validawsrefidregex-capture-groups-and-the-len-matches-4-guar",
+        "title": "validAwsRefIdRegex capture groups and the len(matches)==4 guard must stay in sync",
+        "kind": "rule",
+        "body": "Invariant: `validAwsRefIdRegex` must expose exactly three capture groups (placeholder name, ordinary name, optional trailing segment), because cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:AwsRefFromProviderId rejects the ID unless `len(matches) == 4` and then picks `matches[1]` (placeholder) falling back to `matches[2]` (ordinary).\nAdding, removing or reordering a group — or adding a new alternative without a group — silently makes every provider ID fail validation or returns the wrong segment as the name.\nIf a new ID shape is needed, add its capture group AND extend the selection logic and the `len(matches)` guard together, and cover it in TestAwsRefFromProviderId.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "validAwsRefIdRegex"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go",
+            "symbol": "TestAwsRefFromProviderId"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+            "symbol": "AwsRefFromProviderId"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 5918
+  },
+  {
+    "id": "A-10258",
+    "pr": 10258,
+    "source": "kubernetes/autoscaler#10258",
+    "title": "Add topology.kubernetes.io/zone to CAPI extracted template labels",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10258",
+    "mergedAt": "2026-09-15T13:45:22Z",
+    "proposed": [
+      {
+        "title": "cluster-api scale-from-zero template nodes only carry allowlisted labels",
+        "kind": "rule"
+      },
+      {
+        "title": "Cover clusterapi template-node label changes in TestNodeGroupTemplateNodeInfo",
+        "kind": "howto"
+      }
+    ],
+    "saved": [
+      {
+        "id": "cluster-api-scale-from-zero-template-nodes-only-carry-allowl",
+        "title": "cluster-api scale-from-zero template nodes only carry allowlisted labels",
+        "kind": "rule",
+        "body": "Symptom: pods with a nodeSelector/nodeAffinity or topologySpreadConstraint on a well-known label (e.g. `topology.kubernetes.io/zone`) stay Pending and the cluster-api node group is never scaled up, even though real nodes in that group have the label.\nRoot cause: cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go:extractNodeLabels copies labels from a sample existing node into the simulated template node using an explicit allowlist of `corev1.Label*` constants; any label not listed is dropped, so the simulated node fails predicate checks.\nFix pattern: add the missing well-known label to the allowlist with `setLabelIfNotEmpty(m, node.Labels, corev1.LabelX)` rather than copying labels wholesale — the allowlist intentionally excludes node-specific labels (hostname, instance-id) that must not be baked into a group-wide template.\nConstraints: keep deprecated/stable label pairs together (`corev1.LabelZoneFailureDomain` alongside `corev1.LabelTopologyZone`, region likewise), since providers may set either; labels can also come from the MachineSet/MachineDeployment capacity annotations, so prefer this path only for labels present on real nodes.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+            "symbol": "extractNodeLabels"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+            "symbol": "setLabelIfNotEmpty"
+          }
+        ]
+      },
+      {
+        "id": "cover-clusterapi-template-node-label-changes-in-testnodegrou",
+        "title": "Cover clusterapi template-node label changes in TestNodeGroupTemplateNodeInfo",
+        "kind": "howto",
+        "body": "Changes to the labels or capacity of the clusterapi simulated template node are covered by table-driven cases in cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go:TestNodeGroupTemplateNodeInfo. Each case supplies the sample node's labels and an `expectedNodeLabels` map plus `expectedCapacity`; when you allowlist a new label in extractNodeLabels you must add it to BOTH the input labels and `expectedNodeLabels` of the relevant case, otherwise the test passes vacuously or fails on an unexpected key.\nRun with: `go test ./cloudprovider/clusterapi/... -run TestNodeGroupTemplateNodeInfo` from the `cluster-autoscaler` module directory.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go",
+            "symbol": "TestNodeGroupTemplateNodeInfo"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 5222
+  },
+  {
+    "id": "A-10094",
+    "pr": 10094,
+    "source": "kubernetes/autoscaler#10094",
+    "title": "VPA InPlace: treat ResizeError as deferred, not infeasible",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10094",
+    "mergedAt": "2026-08-04T07:52:30Z",
+    "proposed": [
+      {
+        "title": "Only permanent capacity failures may return InPlaceInfeasible",
+        "kind": "rule"
+      },
+      {
+        "title": "Resize-status mapping is documented in features.md and must stay in sync",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "only-permanent-capacity-failures-may-return-inplaceinfeasibl",
+        "title": "Only permanent capacity failures may return InPlaceInfeasible",
+        "kind": "rule",
+        "body": "Symptom: after a transient kubelet resize failure (e.g. missing memory usage reading), VPA stops resizing the pod — a later, *higher* recommendation is silently skipped until the Updater process restarts.\nRoot cause: vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go:PodsInPlaceRestrictionImpl.CanInPlaceUpdate mapped utils.ResizeStatusError to utils.InPlaceInfeasible, which writes the recommendation into the in-memory infeasibleAttempts cache; that cache is only re-tried when a later recommendation is *lower*, so higher recommendations are permanently filtered.\nFix pattern: return utils.InPlaceDeferred for recoverable/unknown resize states so no infeasible entry is cached and the next updater loop retries; reserve utils.InPlaceInfeasible for states that are genuinely permanent for the same recommendation (utils.ResizeInfeasible — node cannot accommodate it).\nConstraints: applies to every branch of the resize-status switch in CanInPlaceUpdate; do not use InPlaceDeferred for true capacity infeasibility, or the updater will spin retrying a resize the node can never satisfy.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestrictionImpl"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "CanInPlaceUpdate"
+          }
+        ]
+      },
+      {
+        "id": "resize-status-mapping-is-documented-in-features-md-and-must",
+        "title": "Resize-status mapping is documented in features.md and must stay in sync",
+        "kind": "rule",
+        "body": "The kubelet resize-status → VPA decision mapping exists in two places that must change together: the switch in vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go:PodsInPlaceRestrictionImpl.CanInPlaceUpdate, and the \"resize status\" table plus the Infeasible Attempt Tracking section in vertical-pod-autoscaler/docs/features.md. The interface doc comment on PodsInPlaceRestriction.CanInPlaceUpdate also spells out the semantics of each InPlace* return value and is treated as part of the contract.\nWhen altering a mapping, update: the switch case, the doc comment on the interface method, the features.md row, and the corresponding case in TestInPlaceModeResizeStatuses (whose case names state the expected decision, e.g. \"InPlace mode - ResizeStatusError returns InPlaceDeferred\").",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestrictionImpl"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestriction"
+          },
+          {
+            "path": "vertical-pod-autoscaler/docs/features.md"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestrictionImpl"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go",
+            "symbol": "PodsInPlaceRestriction"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 6033
+  },
+  {
+    "id": "A-9949",
+    "pr": 9949,
+    "source": "kubernetes/autoscaler#9949",
+    "title": "scaleway: report node in error as InstanceCreating so CA detects it faster",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9949",
+    "mergedAt": "2026-07-21T22:53:43Z",
+    "proposed": [
+      {
+        "title": "Instance error states must also carry a State (InstanceCreating) for CA to act",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "instance-error-states-must-also-carry-a-state-instancecreati",
+        "title": "Instance error states must also carry a State (InstanceCreating) for CA to act",
+        "kind": "rule",
+        "body": "When mapping a provider node status to cloudprovider.InstanceStatus, setting only ErrorInfo is not enough: core CA inspects InstanceStatus.State to classify an instance, and an unset State leaves the failed instance unclassified so the failure is detected only much later (via unregistered-node timeouts).\n\nFix pattern: for terminal creation failures, set `st.State = cloudprovider.InstanceCreating` *alongside* `st.ErrorInfo` — the combination of \"creating\" + ErrorInfo is what CA reads as a failed scale-up and acts on quickly.\n\nEnforced in `cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go:fromScwStatus` for `scalewaygo.NodeStatusCreationError`. Applies to creation-time errors only; deletion/other failures keep their own state (e.g. InstanceDeleting). Any new status case added to the switch must assign a State, and the table test `TestFromScwStatus` asserts `expectedState` per case.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group.go",
+            "symbol": "fromScwStatus"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/scaleway/scaleway_node_group_test.go",
+            "symbol": "TestFromScwStatus"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 3946
+  },
+  {
+    "id": "A-10001",
+    "pr": 10001,
+    "source": "kubernetes/autoscaler#10001",
+    "title": "cloudprovider/clusterapi: Implement machine phase check during the scale up",
+    "url": "https://github.com/kubernetes/autoscaler/pull/10001",
+    "mergedAt": "2026-07-21T13:44:14Z",
+    "proposed": [
+      {
+        "title": "clusterapi: a machine is only \"failed\" when status.phase == Failed, not just because failureMessage is set",
+        "kind": "rule"
+      },
+      {
+        "title": "clusterapi tests: failed-machine fixtures must set both status.failureMessage and status.phase",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "clusterapi-a-machine-is-only-failed-when-status-phase-failed",
+        "title": "clusterapi: a machine is only \"failed\" when status.phase == Failed, not just because failureMessage is set",
+        "kind": "rule",
+        "body": "Symptom: healthy machines still in `Provisioning` are reported as failed by the clusterapi provider, so the node group is marked unhealthy and scale up stalls (some providers set `status.failureMessage`/`status.errorMessage` transiently while provisioning).\nRoot cause: clusterapi_controller.go:machineController.findScalableResourceProviderIDs treated the mere presence of `status.failureMessage` or `status.errorMessage` as failure.\nFix pattern: before emitting the fake normalized provider ID via createFailedMachineNormalizedProviderID, also read `status.phase` with unstructured.NestedString and require it to equal the `machinePhaseFailed` (\"Failed\") constant; if the phase is absent or different, fall through to the normal (deleting/ready) handling.\nConstraints: message fields alone are not an error signal for unstructured CAPI Machines; a NestedString error must be propagated, not swallowed. The whole failure branch is marked with a TODO to be deleted once CAPI v1.15 is adopted, since the Failed phase is deprecated (v1.10->v1.11 migration), so do not build new logic on top of it.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machineController"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "createFailedMachineNormalizedProviderID"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machinePhaseFailed"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machinePhaseFailed"
+          }
+        ]
+      },
+      {
+        "id": "clusterapi-tests-failed-machine-fixtures-must-set-both-statu",
+        "title": "clusterapi tests: failed-machine fixtures must set both status.failureMessage and status.phase",
+        "kind": "rule",
+        "body": "Invariant: any test that wants machineController.findScalableResourceProviderIDs to classify an unstructured Machine as failed must set the phase in addition to a message, e.g. `unstructured.SetNestedField(machine.Object, \"FailureMessage\", \"status\", \"failureMessage\")` plus `unstructured.SetNestedField(machine.Object, \"Failed\", \"status\", \"phase\")`.\nEnforced by the two-condition check in clusterapi_controller.go:machineController.findScalableResourceProviderIDs; existing fixtures in clusterapi_nodegroup_test.go (TestNodeGroupDecreaseTargetSize, TestNodeGroupWithFailedMachine, TestNodeGroupNodesInstancesStatus) follow this pairing.\nIf the phase is omitted, the machine is handled as a normal/provisioning machine, no `failed-machine-...` normalized provider ID is produced, and assertions about unhealthy node groups or instance error status silently fail.",
+        "deps": [
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup_test.go",
+            "symbol": "TestNodeGroupWithFailedMachine"
+          },
+          {
+            "path": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_controller.go",
+            "symbol": "machineController"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 5841
+  },
+  {
+    "id": "A-9725",
+    "pr": 9725,
+    "source": "kubernetes/autoscaler#9725",
+    "title": "fix(vpa): do not discard fresh OOMs near aggregation boundary",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9725",
+    "mergedAt": "2026-06-11T17:42:43Z",
+    "proposed": [
+      {
+        "title": "Fresh OOMs dropped as \"too old\" near a memory aggregation boundary",
+        "kind": "rule"
+      },
+      {
+        "title": "WindowEnd is an interval boundary, not a proxy for \"now\"",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "fresh-ooms-dropped-as-too-old-near-a-memory-aggregation-boun",
+        "title": "Fresh OOMs dropped as \"too old\" near a memory aggregation boundary",
+        "kind": "rule",
+        "body": "Symptom: a container OOMs, but the recommender logs \"OOM event will be discarded - it is too old\" and no memory bump-up happens, even though the OOM is seconds old.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/model/container.go:ContainerState.RecordOOM compared the OOM timestamp against `WindowEnd - MemoryAggregationInterval`. `WindowEnd` is the end of the current aggregation interval (advanced in `addMemorySample`), so it can sit up to a full interval (24h default) ahead of the newest real sample; a sample crossing a boundary jumps it forward and makes a fresh OOM look >1 interval old.\nFix pattern: anchor staleness/freshness checks to the most recently observed sample time (`container.lastMemorySampleStart`), not to a window/interval boundary, and guard the zero value (`!lastMemorySampleStart.IsZero()`) so the very first OOM on a container is never dropped.\nConstraints: keeps the original \"discard OOMs older than one aggregation interval\" semantics — only the reference point changes. Applies to any staleness comparison against an interval-rounded field; not a replacement for wall-clock-based expiry.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "ContainerState"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "addMemorySample"
+          }
+        ]
+      },
+      {
+        "id": "windowend-is-an-interval-boundary-not-a-proxy-for-now",
+        "title": "WindowEnd is an interval boundary, not a proxy for \"now\"",
+        "kind": "rule",
+        "body": "Invariant: in vertical-pod-autoscaler/pkg/recommender/model/container.go, `ContainerState.WindowEnd` is the end of the current memory aggregation interval. It is anchored to the container's first sample (so boundaries fall at an arbitrary time of day) and is pushed a whole interval forward by `ContainerState.addMemorySample` whenever a sample crosses a boundary — meaning it may lead the newest real sample by up to one full interval.\nUse `lastMemorySampleStart` when you need the latest actually-observed memory sample time; use `WindowEnd` only as the histogram sample time / aggregation key (it is what is passed to `AddSample`/`SubtractSample` on the memory histogram).\nIf you skip this and treat `WindowEnd` as approximately now, recent events get classified as stale and are silently discarded, as happened with OOM handling (kubernetes/autoscaler#8548).",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "ContainerState"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/recommender/model/container.go",
+            "symbol": "AddSample"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 6233
+  },
+  {
+    "id": "A-9691",
+    "pr": 9691,
+    "source": "kubernetes/autoscaler#9691",
+    "title": "vpa/admission-controller: escape extended resource names in JSONPatch paths",
+    "url": "https://github.com/kubernetes/autoscaler/pull/9691",
+    "mergedAt": "2026-06-10T12:53:58Z",
+    "proposed": [
+      {
+        "title": "VPA admission patch paths must escape ~ and / per RFC 6901",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "vpa-admission-patch-paths-must-escape-and-per-rfc-6901",
+        "title": "VPA admission patch paths must escape ~ and / per RFC 6901",
+        "kind": "rule",
+        "body": "Symptom: VPA resource policies (e.g. maxAllowed) are silently bypassed for pods requesting extended resources like nvidia.com/gpu; the API server rejects the webhook patch and, with the default FailurePolicy: Ignore, the pod is admitted unmutated.\nRoot cause: paths were built with fmt.Sprintf straight from the key, so names containing / or ~ produced invalid JSONPointers (vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go:GetAddResourceRequirementValuePatch).\nFix pattern: every user/API-supplied segment interpolated into a PatchRecord.Path must go through escapeJSONPatchPath (~ -> ~0 first, then / -> ~1; order matters or ~1 gets double-escaped). Do not hand-roll a single ReplaceAll for / only.\nConstraints: applies to any new patch builder in this package (resources, annotations, labels, env); the fixed structural segments (/spec/containers/%d/resources/%s) need no escaping, and standard cpu/memory names are unaffected.",
+        "deps": [
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "escapeJSONPatchPath"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util.go",
+            "symbol": "GetAddResourceRequirementValuePatch"
+          },
+          {
+            "path": "vertical-pod-autoscaler/pkg/admission-controller/resource/pod/patch/util_test.go",
+            "symbol": "TestGetAddResourceRequirementValuePatch"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 6861
+  }
+]
