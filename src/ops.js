@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
-import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
+import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
@@ -30,7 +30,6 @@ function normPath(repo, p) {
 // .gemini/, .mcp.json) is NOT: a note about hooks or about the permission classifier has nowhere
 // better to rest, and those notes are worth keeping. They are excluded from the saving estimate
 // instead (usage.js:countsAsReading), not from the cache.
-const TRANSIENT = /(^|\/)(node_modules|dist|coverage|\.next|__pycache__)\/|^bench\/runs\/|^\.thinker\/|\.log$|\.tmp$/;
 
 // Resolve user/agent-provided deps: normalize paths, drop nonexistent files and build output,
 // downgrade unknown symbols to file-level deps. Returns {deps, dropped}.
