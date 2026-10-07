@@ -15,6 +15,8 @@ function judge({ relation = 'unrelated', supports = true, preserve = .98, catalo
     capture(r);
     const answers = Object.fromEntries(Object.entries(r.questions).map(([id]) => [id,
       r.purpose === 'jev-reconcile-search' ? { noul: catalog } :
+      r.purpose === 'jev-grounding-metadata' ? { noul: .01 } :
+      r.purpose === 'jev-grounding' ? { noul: id.startsWith('x') ? .01 : supports ? .97 : .1 } :
       r.purpose === 'jev-reconcile' ? id === 'preserves' ? { noul: preserve } : choice(relation, Object.keys(NOTE_RELATIONS)) :
       choice(supports ? 'supported' : 'insufficient', ['supported', 'contradicted', 'insufficient'])]));
     return { status: 'ok', answers };
@@ -153,4 +155,55 @@ test('a stale extension cannot use its own old claims as grounding evidence', as
     assert.ok(grounding);
     assert.equal(Boolean(grounding.state.prior_note), status === 'fresh');
   }
+});
+
+test('whole evidence stays together when it fits; support and contradiction are independent', async () => {
+  const seen = [];
+  const r = await prepareNotes(store([]), [note()], { evidence: 'setup '.repeat(1800) + evidence,
+    judge: judge({ capture: q => seen.push(q) }) });
+  assert.equal(r.notes.length, 1);
+  assert.equal(seen.filter(q => q.purpose === 'jev-grounding').length, 1);
+  const conflict = await prepareNotes(store([]), [note()], { evidence, judge: async (s, q) => {
+    const r = await judge()(s, q);
+    if (q.purpose === 'jev-grounding') r.answers.x0.noul = .95;
+    return r;
+  } });
+  assert.equal(conflict.notes.length, 0);
+  assert.match(conflict.deferred[0].reason, /conflicts/);
+});
+
+test('metadata must faithfully summarize the grounded body; scope and title cannot smuggle claims', async () => {
+  for (const field of ['title', 'applies']) {
+    const bad = await prepareNotes(store([]), [note('lease', { [field]: 'All leases everywhere are thread safe' })], {
+      evidence, judge: async (s, q) => {
+        const r = await judge()(s, q);
+        if (q.purpose === 'jev-grounding-metadata') r.answers[field].noul = .95;
+        return r;
+      },
+    });
+    assert.equal(bad.notes.length, 0);
+    assert.match(bad.deferred[0].reason, /title or applicability/);
+    assert.match(bad.deferred[0].diagnostics.unsupported[0], /thread safe/);
+  }
+  let metadataCalled = false;
+  await prepareNotes(store([]), [note()], { evidence, judge: judge({ supports: false, capture: q => {
+    if (q.purpose === 'jev-grounding-metadata') metadataCalled = true;
+  } }) });
+  assert.equal(metadataCalled, false, 'ungrounded body cannot support its own metadata');
+});
+
+test('32 body claims are checked in bounded groups and malformed grounding stays retryable', async () => {
+  const seen = [];
+  const result = await prepareNotes(store([]), [note('long', { body: Array.from({length:32}, (_, i) => `Fact ${i}`).join('\n') })], {
+    evidence, judge: judge({ capture: q => seen.push(q) }),
+  });
+  assert.equal(result.notes.length, 1);
+  const grounding = seen.filter(q => q.purpose === 'jev-grounding');
+  assert.equal(grounding.length, 2);
+  assert.equal(grounding.flatMap(q => Object.keys(q.questions)).length, 64);
+  assert.ok(grounding.every(q => Object.keys(q.questions).length <= 32));
+  const invalid = await prepareNotes(store([]), [note()], { evidence, judge: async (s, q) => {
+    const r = await judge()(s, q); if (q.purpose === 'jev-grounding') delete r.answers.s0; return r;
+  } });
+  assert.equal(invalid.retryable, true); assert.equal(invalid.notes.length, 0);
 });

@@ -1,0 +1,38 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2991"
+  },
+  "evidenceRef": "pallets/click#2991",
+  "title": "Read streams from runner.isolation() inside the with block, not after it",
+  "note": {
+    "title": "Read streams from runner.isolation() inside the with block, not after it",
+    "kind": "rule",
+    "answers": [
+      "err.getvalue() fails after runner.isolation exits",
+      "ValueError I/O operation on closed file in test_testing",
+      "how to assert on stderr bytes from CliRunner.isolation"
+    ],
+    "body": "Convention, from a review comment: the stream objects yielded by `CliRunner.isolation()` (including `err`) can be closed when the context manager exits. Exiting drops the reference to the internal StreamMixer, so GC can run StreamMixer.__del__, which closes stderr, stdout and output.\nCall `getvalue()` and make assertions inside the `with runner.isolation() as (out, err, _):` block. See tests/test_testing.py:test_isolation_stderr_errors and test_isolation_flushes_unflushed_stderr.\nAfter the block exits, only use the captured values on `Result` (from `runner.invoke`), not the raw yielded streams.",
+    "applies": "tests that use click.testing.CliRunner.isolation directly",
+    "deps": [
+      {
+        "path": "tests/test_testing.py",
+        "symbol": "test_isolation_stderr_errors"
+      },
+      {
+        "path": "src/click/testing.py",
+        "symbol": "StreamMixer"
+      }
+    ],
+    "tags": [
+      "testing",
+      "CliRunner",
+      "test-convention"
+    ],
+    "confidence": 0.75
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:43.973Z"
+}

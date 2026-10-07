@@ -1,0 +1,37 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Code comments/docstrings: no GitHub links or issue history; short 'why' comments next to the code",
+  "note": {
+    "title": "Code comments/docstrings: no GitHub links or issue history; short 'why' comments next to the code",
+    "kind": "rule",
+    "answers": [
+      "can I link GitHub issues in click docstrings",
+      "how to document rationale for a code choice in click",
+      "maintainer style for comments"
+    ],
+    "body": "Maintainer review on src/click/_termui_impl.py rejected docstrings in pager/_pipepager/edit_files that described PR/issue history, contained GitHub URLs, and covered internals users don't need.\nConvention: don't put GitHub links in docs or code comments. Put a short explanation right above the relevant line instead, e.g. \"split doesn't use posix mode because ...\".\nIssue/PR references go in CHANGES.rst entries using the `:issue:` and `:pr:` roles.",
+    "applies": "comments and docstrings across src/click (maintainer review preference)",
+    "deps": [
+      {
+        "path": "CHANGES.rst"
+      },
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "pager"
+      }
+    ],
+    "tags": [
+      "convention",
+      "docs",
+      "review"
+    ],
+    "confidence": 0.6
+  },
+  "reason": "source evidence conflicts with a proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:08:57.695Z"
+}

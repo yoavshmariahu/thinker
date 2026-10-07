@@ -1,0 +1,34 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2846"
+  },
+  "evidenceRef": "pallets/click#2846",
+  "title": "Testing raw shell completion output via env vars in CliRunner",
+  "note": {
+    "title": "Testing raw shell completion output via env vars in CliRunner",
+    "kind": "howto",
+    "answers": [
+      "how to test zsh completion output in click",
+      "simulate tab completion in a click test",
+      "test_shell_completion zsh_complete env vars"
+    ],
+    "body": "In tests/test_shell_completion.py, call `runner.invoke(cli, env={...})` with `_<PROG>_COMPLETE` set to `<shell>_complete` (e.g. `_CLI_COMPLETE=zsh_complete` for a group named `cli`). Pass `COMP_WORDS` (the words typed so far, e.g. \"a c:\") and `COMP_CWORD` (the index of the word being completed).\nApply `@pytest.mark.usefixtures(\"_patch_for_completion\")` so the invocation goes through the completion path.\nThen assert on `result.output`. For zsh each item is three lines (type, value, help, with `_` meaning no help), so `textwrap.dedent` triple-quoted strings make the expected output easy to read. See test_zsh_full_complete_with_colons.",
+    "applies": "Writing tests for click shell completion output per shell",
+    "deps": [
+      {
+        "path": "tests/test_shell_completion.py",
+        "symbol": "test_zsh_full_complete_with_colons"
+      }
+    ],
+    "tags": [
+      "testing",
+      "shell-completion",
+      "zsh"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:10:05.399Z"
+}

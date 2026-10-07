@@ -1,0 +1,34 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2957"
+  },
+  "evidenceRef": "pallets/click#2957",
+  "title": "Version directive fences in option documentation",
+  "note": {
+    "title": "Version directive fences in option documentation",
+    "kind": "rule",
+    "answers": [
+      "How should I document when an option was added?",
+      "How should I mark a change to an option in the docs?",
+      "What fence syntax should versionadded and versionchanged use?"
+    ],
+    "body": "Convention: docs/options.md uses triple-backtick fences for versionadded and versionchanged directives.\nSyntax: Put the directive name in braces and its version on the opening line, such as ```{versionadded} 4.0; close with ```.\nConstraint: Use this form for these version annotations in option documentation; avoid ::: fences.",
+    "applies": "Version-added and version-changed annotations in docs/options.md.",
+    "deps": [
+      {
+        "path": "docs/options.md"
+      }
+    ],
+    "tags": [
+      "documentation",
+      "version-directives",
+      "options"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:08:48.325Z"
+}

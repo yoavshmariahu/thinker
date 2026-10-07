@@ -1,0 +1,39 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Pass editor filenames as literal argv entries",
+  "note": {
+    "title": "Pass editor filenames as literal argv entries",
+    "kind": "rule",
+    "answers": [
+      "How should Click launch an editor with multiple files?",
+      "Opening a filename containing quotes or semicolons invokes shell commands.",
+      "How do I preserve filenames with shell metacharacters when editing?"
+    ],
+    "body": "Symptom: Opening files in the user's editor can interpret quotes and shell metacharacters in filenames as command syntax.\nRoot cause: src/click/_termui_impl.py:Editor.edit_files previously assembled quoted filenames into a command string passed to a shell.\nFix pattern: Split the configured editor command with shlex.split, append filenames as separate unchanged argv entries, and pass the list to subprocess.Popen without shell=True.\nConstraints: Apply splitting only to the editor command, never to filenames; tests/test_termui.py:test_editor_path_normalization verifies that shell metacharacters remain literal filename content.",
+    "applies": "Editor subprocess invocation through Editor.edit_files.",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "Editor.edit_files"
+      },
+      {
+        "path": "tests/test_termui.py",
+        "symbol": "test_editor_path_normalization"
+      }
+    ],
+    "tags": [
+      "editor",
+      "subprocess",
+      "argv"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:20.702Z"
+}

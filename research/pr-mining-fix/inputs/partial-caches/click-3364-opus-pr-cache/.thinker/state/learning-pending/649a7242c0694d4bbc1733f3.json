@@ -1,0 +1,36 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2957"
+  },
+  "evidenceRef": "pallets/click#2957",
+  "title": "Docs convention: write versionadded/versionchanged as backtick-fenced MyST directives in docs/*.md",
+  "note": {
+    "title": "Docs convention: write versionadded/versionchanged as backtick-fenced MyST directives in docs/*.md",
+    "kind": "rule",
+    "answers": [
+      "version added note not showing in click docs",
+      "how to mark versionchanged in markdown docs",
+      "versionadded directive renders wrong in options docs",
+      "MyST directive syntax for version notes"
+    ],
+    "body": "Symptom: \"New in version X\" / \"Changed in version X\" notices are missing or render wrongly on doc pages like docs/options.md.\nRoot cause: docs/options.md used the colon-fence form `:::{versionadded} 4.0` / `:::` with an empty body. This PR replaced every such use, so the docs build did not handle that form as intended.\nFix pattern: use the backtick-fence form, i.e. a line of ```` ```{versionadded} 4.0 ```` followed by a closing ```` ``` ```` line (the same goes for `{versionchanged}` and other directives). Put the explanatory prose after the directive, as normal text.\nConstraints: applies to the MyST Markdown pages under docs/. When you add or edit version notes, copy the backtick form already used in docs/options.md rather than `:::`.",
+    "applies": "Markdown (MyST) documentation files under docs/, especially version annotation directives",
+    "deps": [
+      {
+        "path": "docs/options.md"
+      }
+    ],
+    "tags": [
+      "docs",
+      "myst",
+      "sphinx",
+      "versionadded",
+      "versionchanged"
+    ],
+    "confidence": 0.6
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:08:36.104Z"
+}

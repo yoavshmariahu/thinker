@@ -1,0 +1,37 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Use shlex.split POSIX mode for external pager commands",
+  "note": {
+    "title": "Use shlex.split POSIX mode for external pager commands",
+    "kind": "rule",
+    "answers": [
+      "Why does PAGER fail when the executable path is quoted or contains spaces?",
+      "Why should shlex.split use posix=True when parsing command strings on Windows?",
+      "How to split PAGER environment variable into argv without retaining quotes?"
+    ],
+    "body": "Symptom: Pager or editor commands with quoted paths containing spaces fail to execute on Windows or POSIX.\nRoot cause: `src/click/_termui_impl.py:pager` called `shlex.split(..., posix=False)`, which preserved surrounding quotes inside argv tokens.\nFix pattern: Use `shlex.split()` in default POSIX mode (`posix=True`) so quotes are stripped from tokens and paths can be cleanly re-quoted by `subprocess`.\nConstraints: Applies when converting user-configured command strings into argv lists for `subprocess.Popen`; quotes must be stripped across platforms.",
+    "applies": "Splitting command strings from environment variables like PAGER into subprocess argv.",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "pager"
+      }
+    ],
+    "tags": [
+      "shlex",
+      "pager",
+      "windows",
+      "argv",
+      "termui"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:10:00.527Z"
+}

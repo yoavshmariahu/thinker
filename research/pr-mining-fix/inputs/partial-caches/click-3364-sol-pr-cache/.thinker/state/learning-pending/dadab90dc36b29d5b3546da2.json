@@ -1,0 +1,48 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Strip command quoting with default POSIX shlex splitting",
+  "note": {
+    "title": "Strip command quoting with default POSIX shlex splitting",
+    "kind": "rule",
+    "answers": [
+      "Why does Click use POSIX shlex splitting for pager and editor commands?",
+      "My quoted Windows pager path is not recognized.",
+      "How should an editor path containing spaces and flags be parsed?"
+    ],
+    "body": "Symptom: A quoted pager executable path can retain its quote characters instead of becoming an unquoted executable token.\nRoot cause: src/click/_termui_impl.py:pager used shlex.split(..., posix=False), which retains quotes in tokens.\nFix pattern: Use default POSIX shlex.split for configured pager and editor commands; src/click/_termui_impl.py:Editor.edit_files follows the same parsing convention.\nConstraints: Paths containing spaces require quoting or supported POSIX escaping. Covered examples include quoted Windows paths with flags and escaped spaces in Unix paths; tests/test_termui.py:test_editor_windows_path_normalization mocks Popen and checks unquoted argv, rather than establishing compatibility with every Windows command syntax.",
+    "applies": "Parsing PAGER and configured editor command strings into subprocess arguments.",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "pager"
+      },
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "Editor.edit_files"
+      },
+      {
+        "path": "tests/test_termui.py",
+        "symbol": "test_editor_path_normalization"
+      },
+      {
+        "path": "tests/test_termui.py",
+        "symbol": "test_editor_windows_path_normalization"
+      }
+    ],
+    "tags": [
+      "pager",
+      "editor",
+      "shlex",
+      "windows"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:20.702Z"
+}

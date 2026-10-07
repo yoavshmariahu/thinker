@@ -52,7 +52,7 @@ test('jevScores returns one probability per note, in order', async () => {
 
 test('jevScores throws on a failed call, an empty body, or a missing answer, so serving falls back', async () => {
   await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: async () => ({ ok: false, status: 429 }) }), /jev 429/);
-  await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: async () => ({ ok: true, json: async () => ({}) }) }), /no answers/);
+  await assert.rejects(jevScores('q', [note('a')], { key: 'k', fetchImpl: async () => ({ ok: true, json: async () => ({}) }) }), /missing answers/);
   await assert.rejects(jevScores('q', [note('a'), note('b')], { key: 'k', fetchImpl: okFetch([0.8]) }), /missing or invalid rel1/);
   await assert.rejects(jevScores('q', [note('a')], { key: null }), /network disabled in tests/);
 });

@@ -7,23 +7,32 @@ import { logModelUsage } from './model-usage.js';
 export async function judgeWithJev(store, { state, questions, purpose, phase = 'learning', ...context }, overrides = {}) {
   const cfg = { ...jevConfig(store), ...overrides };
   if (!cfg.enabled) return { status: 'disabled', reason: 'jev disabled' };
-  let response;
-  try {
-    if (phase !== 'init') {
-      // Deferred import avoids the maintenance -> phrase -> judgment cycle.
-      const { withinDailyCap } = await import('./maintain.js');
-      if (!withinDailyCap(store).ok) return { status: 'unavailable', reason: 'dailyTokens' };
+  // Retry transient transport/schema failures once with the identical model and request.
+  // A valid negative/uncertain judgment is never retried to seek a different answer.
+  const attempts = cfg.learningAttempts === 1 ? 1 : 2;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    let response;
+    try {
+      if (phase !== 'init') {
+        const { withinDailyCap } = await import('./maintain.js');
+        if (!withinDailyCap(store).ok) return { status: 'unavailable', reason: 'dailyTokens' };
+      }
+      response = await jevEvaluate(state, questions, {
+        ...cfg, timeoutMs: cfg.learningTimeoutMs ?? cfg.searchTimeoutMs ?? cfg.timeoutMs,
+        onResponse: r => { response = r; },
+      });
+      logModelUsage(store, { ...context, purpose, phase, attempt }, { ...response, provider: 'typesafe' });
+      return { ...response, status: 'ok', attempts: attempt };
+    } catch (error) {
+      logModelUsage(store, { ...context, purpose, phase, attempt, errorCode: error.code,
+        errorQuestion: error.question, errorReason: error.reason || String(error.message).slice(0, 160) }, {
+        provider: 'typesafe', model: response?.model || cfg.model, usage: response?.usage, failed: true,
+      });
+      const transient = error.retryable || ['AbortError', 'TimeoutError'].includes(error.name) || error.message === 'fetch failed';
+      if (attempt === attempts || !transient || cfg.signal?.aborted) {
+        return { status: 'unavailable', reason: String(error.message).slice(0, 160), attempts: attempt,
+          errorCode: error.code, question: error.question };
+      }
     }
-    response = await jevEvaluate(state, questions, {
-      ...cfg, timeoutMs: cfg.learningTimeoutMs ?? cfg.searchTimeoutMs ?? cfg.timeoutMs,
-      onResponse: r => { response = r; },
-    });
-    logModelUsage(store, { ...context, purpose, phase }, { ...response, provider: 'typesafe' });
-    return { ...response, status: 'ok' };
-  } catch (error) {
-    logModelUsage(store, { ...context, purpose, phase }, {
-      provider: 'typesafe', model: response?.model || cfg.model, usage: response?.usage, failed: true,
-    });
-    return { status: 'unavailable', reason: String(error.message).slice(0, 160) };
   }
 }

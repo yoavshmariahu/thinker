@@ -1,0 +1,43 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Testing editor invocation by mocking subprocess.Popen",
+  "note": {
+    "title": "Testing editor invocation by mocking subprocess.Popen",
+    "kind": "howto",
+    "answers": [
+      "how to test click.edit without launching an editor",
+      "test what argv Editor passes to Popen",
+      "unit test EDITOR path parsing on Windows"
+    ],
+    "body": "tests/test_termui.py:test_editor_path_normalization shows the pattern: `with patch(\"subprocess.Popen\") as mock_popen: mock_popen.return_value.wait.return_value = 0; Editor(editor=cmd).edit_files(files)`.\nRead argv with `mock_popen.call_args[1].get(\"args\") or mock_popen.call_args[0][0]` and assert `call_args[1].get(\"shell\") is None`. Patching `subprocess.Popen` works because edit_files imports subprocess locally.\nFailure paths: `wait.return_value = 1` -> ClickException \"Editing failed\"; `side_effect=OSError(...)` -> ClickException with the OS message.\nWindows-only cases go in a separate test marked `@pytest.mark.skipif(not WIN, ...)` (test_editor_windows_path_normalization). Add a parametrized case there when a new EDITOR/PAGER quoting form comes up.",
+    "applies": "tests for click._termui_impl.Editor and pager command parsing",
+    "deps": [
+      {
+        "path": "tests/test_termui.py",
+        "symbol": "test_editor_path_normalization"
+      },
+      {
+        "path": "tests/test_termui.py",
+        "symbol": "test_editor_windows_path_normalization"
+      },
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "Editor.edit_files"
+      }
+    ],
+    "tags": [
+      "testing",
+      "mock",
+      "editor",
+      "subprocess"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:08:57.695Z"
+}

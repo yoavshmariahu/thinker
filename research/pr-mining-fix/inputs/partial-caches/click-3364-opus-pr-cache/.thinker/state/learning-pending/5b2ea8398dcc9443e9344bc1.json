@@ -1,0 +1,40 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2846"
+  },
+  "evidenceRef": "pallets/click#2846",
+  "title": "Zsh completion: escape colons in the value only when the item has help text; don't change _SOURCE_ZSH",
+  "note": {
+    "title": "Zsh completion: escape colons in the value only when the item has help text; don't change _SOURCE_ZSH",
+    "kind": "rule",
+    "answers": [
+      "zsh tab completion breaks for commands or choices containing a colon",
+      "why does click escape ':' in zsh completion output",
+      "can I change the zsh completion script in click shell_completion.py",
+      "zsh completion shows wrong item or splits description at colon"
+    ],
+    "body": "Symptom: In zsh, a completion item with a colon in its name (e.g. a subcommand `c:d`) shows up truncated, or gets mixed into its description, when the item has help text (issue #2703).\nRoot cause: the installed zsh script (src/click/shell_completion.py:_SOURCE_ZSH) passes items that have help to `_describe`, which splits value from description at the first unescaped colon. Items whose help is the sentinel `_` go to `compadd`, which takes the value literally and has no colon escaping. ZshComplete.format_completion used to emit values without escaping them.\nFix pattern: in src/click/shell_completion.py:ZshComplete.format_completion, write `value.replace(':', r'\\:')` only when help is not `_`. Values without help stay unescaped, because escaping them would corrupt the item. Colons in the help text are never escaped.\nConstraints: treat _SOURCE_ZSH as frozen. Users already have it installed in their shells, so any change to the format has to happen on the Python side in format_completion. The output is `type\\nvalue\\nhelp` per item, and `_` is the 'no help' sentinel that the script checks for. Keep it.",
+    "applies": "Zsh shell completion output in click (ZshComplete and _SOURCE_ZSH)",
+    "deps": [
+      {
+        "path": "src/click/shell_completion.py",
+        "symbol": "ZshComplete.format_completion"
+      },
+      {
+        "path": "src/click/shell_completion.py",
+        "symbol": "_SOURCE_ZSH"
+      }
+    ],
+    "tags": [
+      "shell-completion",
+      "zsh",
+      "escaping",
+      "backward-compat"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:10:05.398Z"
+}

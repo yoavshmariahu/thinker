@@ -147,3 +147,28 @@ test('pickPrs takes fixes first, leaves a share for other changes, and never mor
   assert.equal(pickPrs(many, 6).length, 6, 'a lone non-fix does not leave fix slots idle');
   assert.equal(pickPrs(many, 6).filter(p => /^fix/.test(p.title)).length, 5);
 });
+
+test('partial PR failures override note-source inference until a later successful receipt', t => {
+  const s = store(); t.after(() => fs.rmSync(s.repo, { recursive:true, force:true }));
+  const pr = {number:123,mergedAt:day(5)};
+  fs.writeFileSync(path.join(s.notesDir,'partial.json'),JSON.stringify({id:'partial',kind:'rule',title:'Partial',body:'Saved before a later failed check.',source:{type:'pr',ref:'o/r#123'}}));
+  recordMinedPrs(s,'o/r',[],{failed:[pr]});
+  assert.equal(minedPrs(s,'o/r').mined.has(123),false);
+  recordMinedPrs(s,'o/r',[{number:124,mergedAt:day(6)}]);
+  assert.equal(minedPrs(s,'o/r').mined.has(123),false,'other successes preserve the retry marker');
+  recordMinedPrs(s,'o/r',[pr]);
+  assert.equal(minedPrs(s,'o/r').mined.has(123),true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(path.dirname(s.notesDir),'prs.json')))['o/r'].retry,undefined);
+});
+
+
+test('retry markers also suppress numeric-looking commit hashes inferred from notes', t => {
+  const s = store(); t.after(() => fs.rmSync(s.repo, {recursive:true,force:true}));
+  const pr = {number:1,hash:'12345678abcdef',mergedAt:day(5)};
+  fs.writeFileSync(path.join(s.notesDir,'partial.json'),JSON.stringify({id:'partial',kind:'rule',title:'Partial',body:'Partial',source:{type:'pr',ref:'local#12345678'}}));
+  recordMinedPrs(s,'local',[],{failed:[pr]});
+  assert.equal(minedPrs(s,'local').mined.has(12345678),false);
+  assert.equal(minedPrs(s,'local').mined.has('12345678'),false);
+  recordMinedPrs(s,'local',[pr]);
+  assert.equal(minedPrs(s,'local').mined.has('12345678'),true);
+});

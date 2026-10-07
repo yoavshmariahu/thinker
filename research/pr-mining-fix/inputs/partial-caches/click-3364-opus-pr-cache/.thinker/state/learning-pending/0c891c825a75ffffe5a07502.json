@@ -1,0 +1,38 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2991"
+  },
+  "evidenceRef": "pallets/click#2991",
+  "title": "StreamMixer must close its BytesIOCopy streams before the shared output buffer",
+  "note": {
+    "title": "StreamMixer must close its BytesIOCopy streams before the shared output buffer",
+    "kind": "rule",
+    "answers": [
+      "intermittent error at teardown when using CliRunner from multiple threads",
+      "race in click.testing StreamMixer finalization",
+      "why does StreamMixer define __del__",
+      "I/O on closed file flaky in typer/click tests with threads"
+    ],
+    "body": "Symptom: tests that use CliRunner (for example through typer) from multiple threads fail very rarely (about 1 in 10k runs) with an error during stream cleanup or garbage collection.\nRoot cause: src/click/testing.py:StreamMixer holds `stdout` and `stderr` as BytesIOCopy objects that write into the shared `self.output`. When GC finalized them in arbitrary order, `output` could be closed first, and then a later stream flushing on close wrote into the closed buffer (related to cpython#136248).\nFix pattern: StreamMixer.__del__ closes the streams in a fixed order: stderr, then stdout, then output. Any copy-to stream must be closed before the buffer it copies into.\nConstraints: if you add another BytesIOCopy (or any stream with copy_to=self.output) to StreamMixer, close it in __del__ before `self.output.close()`. This is a separate bug from click#824 (issuecomment-3027263262); this patch does not fix that reproducer. The race is nondeterministic, and no test reproduces it reliably.",
+    "applies": "src/click/testing.py StreamMixer and any stream that copies into a shared buffer",
+    "deps": [
+      {
+        "path": "src/click/testing.py",
+        "symbol": "StreamMixer"
+      }
+    ],
+    "tags": [
+      "testing",
+      "CliRunner",
+      "threading",
+      "gc",
+      "race-condition",
+      "streams"
+    ],
+    "confidence": 0.75
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:43.972Z"
+}

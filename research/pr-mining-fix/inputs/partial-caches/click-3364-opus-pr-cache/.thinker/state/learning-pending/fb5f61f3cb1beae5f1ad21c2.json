@@ -1,0 +1,43 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3151"
+  },
+  "evidenceRef": "pallets/click#3151",
+  "title": "Running Click tests in random order and in parallel to find test pollution (tox env 'random')",
+  "note": {
+    "title": "Running Click tests in random order and in parallel to find test pollution (tox env 'random')",
+    "kind": "howto",
+    "answers": [
+      "how do I run click tests in parallel / randomized order",
+      "test passes alone but fails in the full suite, how to find leaky tests",
+      "what extra tox environments does click have (stress, random)",
+      "flaky test detection with pytest-randomly and pytest-xdist"
+    ],
+    "body": "Run `tox r -e random`. It is defined in pyproject.toml under [tool.tox.env.random] and installs the `tests-random` dependency group (pytest, pytest-randomly, pytest-xdist). The plain `tests` group does not include these plugins.\nThe command is `pytest -v --tb=short --numprocesses=auto --basetemp={env_tmp_dir}`, and you can add more pytest args after `--`. `--numprocesses=auto` starts one xdist worker per core. pytest-randomly shuffles the test order on every run, and a test that leaks global state (for example, the leaky test_echo_via_pager mentioned in the PR) then fails some other test at random.\nTo reproduce an ordering failure, run it again with the seed pytest-randomly prints (`-p randomly -p \"randomly_seed=N\"` or `-p no:randomly` to turn shuffling off). Seed handling is standard pytest-randomly behaviour; this repo doesn't configure it.\nOther extra environments: `tox r -e stress` runs the race-condition stress tests for the test runner's stream lifecycle. A CI workflow, .github/workflows/test-flask.yaml, runs Flask's test suite to catch downstream regressions. All of these are listed in docs/contributing.md.\nIf you add a dependency group or tox env, update both pyproject.toml and uv.lock (the lock file mirrors the dependency groups).",
+    "applies": "Running or debugging Click's test suite, especially order-dependent or flaky tests",
+    "deps": [
+      {
+        "path": "pyproject.toml"
+      },
+      {
+        "path": "docs/contributing.md"
+      },
+      {
+        "path": "uv.lock"
+      }
+    ],
+    "tags": [
+      "testing",
+      "tox",
+      "pytest-xdist",
+      "pytest-randomly",
+      "flaky-tests",
+      "test-pollution"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:06.327Z"
+}
