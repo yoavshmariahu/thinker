@@ -2,6 +2,18 @@
 
 Authors: Codex and Yoav. 2026-10-06.
 
+## Headline scoring, updated at user request
+
+Across seven repositories, **91/100 with Thinker versus 67/100 without** (+24 percentage points). The new five-repository cohort is **67/75 versus 53/75**. This post-run rule counts the failed Gemini baseline on PostHog #104706 as failure to detect and credits its valid Thinker hit. It does not turn the failed response into a valid comparison. Token/latency tables and the original valid-pair analysis below retain their original denominators.
+
+| New cohort (high effort) | Without Thinker | With Thinker |
+|---|---:|---:|
+| opus | 18/25 | 23/25 |
+| sol | 18/25 | 24/25 |
+| gemini | 17/25 | 20/25 |
+
+## Original valid-pair analysis
+
 The five-repository expansion attempted 75 paired historical-regression reviews, evenly assigned to Opus 5.5 high, GPT-6.1 Sol high, and Gemini 3.8 Flash high. Each pair and its cache-building phase use the same exact model and effort. Thinker caught 66/74 target bugs versus 53/74 for diff-only review, with 16 gains and 3 losses. 1 pair(s) remain invalid and are excluded rather than counted as misses; see summary.json for unpaired valid-arm results and costs. These totals describe a mixture of three model cohorts, not a comparison of the models.
 
 The earlier ten Autoscaler and fifteen mitmproxy cases bring the inventory to seven repositories and 100 bugs. Across those historical and new runs, the descriptive counts are 67/99 versus 90/99. Earlier runs used different Thinker revisions. This is recall of bugs whose fixes were available during memory building, not unseen-bug detection.
@@ -40,7 +52,7 @@ The 225 mining operations consumed 3,701,337 reported tokens and saved/merged 32
 
 Each case is a real upstream fix with a clean reverse patch against a pinned base. Codex manually matches warning/error findings to the historical mechanism and changed production locations (including removal anchors, ±6 lines). Each repository's scores.json records matching finding indexes and rationale. Mere proximity, deleted-test complaints and unrelated warnings are not detections. Empty results remain misses. Model errors are invalid and never counted as misses.
 
-[reproduce.py](reproduce.py) provides focused source-mechanism checks across all five repositories: 6 reproduce the failure on reversed source and pass on fixed source. These extract actual source with dependencies/test doubles; they are not full upstream integration tests. The pandas Excel probe also extracts the pinned upstream Index.take implementation, because the locally installed pandas 2.x version has older fill semantics. See [reproductions.json](reproductions.json). The complete Thinker test suite passed with telemetry disabled: 486 passed, 5 skipped, 0 failed at the experiment revision. The rebased report branch also passed all 500 tests (495 passed, 5 skipped, 0 failed); see thinker-tests-current.txt.
+[reproduce.py](reproduce.py) provides focused source-mechanism checks across all five repositories: 6 reproduce the failure on reversed source and pass on fixed source. These extract actual source with dependencies/test doubles; they are not full upstream integration tests. The pandas Excel probe also extracts the pinned upstream Index.take implementation, because the locally installed pandas 2.x version has older fill semantics. See [reproductions.json](reproductions.json). The complete Thinker test suite passed with telemetry disabled: 486 passed, 5 skipped, 0 failed at the experiment revision. The rebased report branch also completed successfully (500 total: 495 passed, 5 skipped, 0 failed); see thinker-tests-current.txt.
 
 ## Limits and next measurement
 

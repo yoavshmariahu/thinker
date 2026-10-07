@@ -501,6 +501,8 @@
 
     .bench-lede { font-size: 0.85rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.1rem; }
 
+    .bench-rows + .bench-lede { margin-top: 1rem; }
+
     .bench-legend { display: flex; gap: 1.1rem; font-size: 0.74rem; color: #6b7280; margin-bottom: 0.75rem; }
 
     .bench-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
@@ -736,13 +738,13 @@
         <div class="outcomes">
           <a class="outcome" href="#review">
             <div class="outcome-kicker">Bug detection</div>
-            <div class="outcome-num">+30%</div>
-            <div class="outcome-label">More regressions caught in code review, on every model tested</div>
+            <div class="outcome-num">91/100</div>
+            <div class="outcome-label">Historical bugs caught across seven repositories, up from 67 without thinker</div>
             <p class="outcome-body">A review checks a change against what the repository already learned: fixes it must not undo, conventions and behaviors it must keep.</p>
             <div class="outcome-cta">How review works &rarr;</div>
           </a>
           <a class="outcome" href="#in-a-session">
-            <div class="outcome-kicker">Efficient coding</div>
+            <div class="outcome-kicker">Efficient coding · earlier revisions</div>
             <div class="outcome-num">&minus;18%</div>
             <div class="outcome-label">Input tokens per coding task, on every model tested</div>
             <p class="outcome-body">Each request gets relevant notes with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
@@ -959,7 +961,7 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
           <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. The MCP tool <code>review</code> is the same thing for an agent before it commits.
         </p>
         <p>
-          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Measured on reversed fixes from an open-source repository, every model tested caught three more of ten regressions with the notes than without them; the ones it added were the regressions a plain reading of the diff missed.
+          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Across 100 reversed historical fixes in seven open-source repositories, Thinker caught 91 versus 67 without the cache. This includes one failed baseline response counted as a miss; the cache had learned the target fixes. The benchmark modal separates model cohorts and explains the scoring.
         </p>
         <pre><code>thinker review                      <span class="code-comment"># the working tree against HEAD</span>
 thinker review --staged             <span class="code-comment"># what is about to be committed</span>
@@ -1354,52 +1356,54 @@ export THINKER_TELEMETRY=off
       <div class="modal-header">
         <div>
           <div class="modal-title" id="modal-title">Benchmarks</div>
-          <div class="modal-subtitle">Every number is a paired run: the same model on the same task, with and without thinker.</div>
+          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker. Scoring and limitations are shown below.</div>
         </div>
         <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
 
         <section class="bench-section" aria-labelledby="bench-bugs">
-          <div class="bench-kicker">Bug detection</div>
-          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">30% more</span> regressions.</h3>
-          <p class="bench-lede">Ten reversed fixes from an open-source repository, each reviewed with and without thinker's notes. Regressions caught:</p>
+          <div class="bench-kicker">Historical regression recall</div>
+          <h3 class="bench-headline" id="bench-bugs"><span class="gain">91 of 100</span> bugs caught, up from 67.</h3>
+          <p class="bench-lede">Seven open-source repositories, 100 reversed fixes. Thinker caught 24 more bugs (+24 percentage points). The five new repositories rotate models equally across 75 cases:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 70%"></i>70%</div>
-                <div class="bar after"><i style="--w: 100%"></i>100%</div>
+                <div class="bar before"><i style="--w: 72%"></i>18/25</div>
+                <div class="bar after"><i style="--w: 92%"></i>23/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+20 pp</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 60%"></i>60%</div>
-                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+                <div class="bar before"><i style="--w: 72%"></i>18/25</div>
+                <div class="bar after"><i style="--w: 96%"></i>24/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+24 pp</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 60%"></i>60%</div>
-                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+                <div class="bar before"><i style="--w: 68%"></i>17/25</div>
+                <div class="bar after"><i style="--w: 80%"></i>20/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+12 pp</div>
             </div>
           </div>
+          <p class="bench-lede">Grafana, PostHog, pandas, scikit-learn and Pydantic: 53/75 → 67/75. Earlier Sol runs on Autoscaler and mitmproxy add 14/25 → 24/25. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
+          <p class="bench-lede">The cache learned these historical fixes. This measures recall, not unseen-bug detection; false-positive rates were not measured. One failed Gemini baseline counts as a miss and its valid Thinker result as a hit, under a post-run scoring change. Excluding that pair gives 67/99 → 90/99. Runs span pinned Thinker revisions.</p>
         </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
           <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
-          <p class="bench-lede">Real coding tasks from merged pull requests, run with and without thinker. Input tokens per task, cached context included:</p>
+          <p class="bench-lede">Historical results from earlier Thinker revisions. A fresh three-task canary per model is next. Input tokens per coding task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>

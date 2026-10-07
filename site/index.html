@@ -635,6 +635,8 @@
       margin-bottom: 1.1rem;
     }
 
+    .bench-rows + .bench-lede { margin-top: 1rem; }
+
     .bench-legend {
       display: flex;
       gap: 1.1rem;
@@ -817,18 +819,18 @@
     <!-- Benchmark cards -->
     <div class="benchmark-cards">
       <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
-        <div class="metric-kicker">Bug detection</div>
-        <div class="metric-num gain">+30%</div>
-        <div class="metric-label">More regressions caught in code review</div>
+        <div class="metric-kicker">Bug detection · 7 repositories</div>
+        <div class="metric-num gain">91/100</div>
+        <div class="metric-label">Historical bugs caught, up from 67 without thinker</div>
         <ul class="metric-models">
-          <li><span>Claude Opus 5</span><span><span class="before">70% &rarr;</span> 100%</span></li>
-          <li><span>GPT-6.1 Sol</span><span><span class="before">60% &rarr;</span> 90%</span></li>
-          <li><span>Gemini 3.1 Pro</span><span><span class="before">60% &rarr;</span> 90%</span></li>
+          <li><span>Claude Opus 5.5</span><span><span class="before">18/25 &rarr;</span> 23/25</span></li>
+          <li><span>GPT-6.1 Sol</span><span><span class="before">18/25 &rarr;</span> 24/25</span></li>
+          <li><span>Gemini 3.8 Flash</span><span><span class="before">17/25 &rarr;</span> 20/25</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
       <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
-        <div class="metric-kicker">Efficiency</div>
+        <div class="metric-kicker">Efficiency · earlier revisions</div>
         <div class="metric-num gain">&minus;18%</div>
         <div class="metric-label">Less tokens per coding task</div>
         <ul class="metric-models">
@@ -852,52 +854,54 @@
       <div class="modal-header">
         <div>
           <div class="modal-title" id="modal-title">Benchmarks</div>
-          <div class="modal-subtitle">Every number is a paired run: the same model on the same task, with and without thinker.</div>
+          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker. Scoring and limitations are shown below.</div>
         </div>
         <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
 
         <section class="bench-section" aria-labelledby="bench-bugs">
-          <div class="bench-kicker">Bug detection</div>
-          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">30% more</span> regressions.</h3>
-          <p class="bench-lede">Ten reversed fixes from an open-source repository, each reviewed with and without thinker's notes. Regressions caught:</p>
+          <div class="bench-kicker">Historical regression recall</div>
+          <h3 class="bench-headline" id="bench-bugs"><span class="gain">91 of 100</span> bugs caught, up from 67.</h3>
+          <p class="bench-lede">Seven open-source repositories, 100 reversed fixes. Thinker caught 24 more bugs (+24 percentage points). The five new repositories rotate models equally across 75 cases:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 70%"></i>70%</div>
-                <div class="bar after"><i style="--w: 100%"></i>100%</div>
+                <div class="bar before"><i style="--w: 72%"></i>18/25</div>
+                <div class="bar after"><i style="--w: 92%"></i>23/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+20 pp</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 60%"></i>60%</div>
-                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+                <div class="bar before"><i style="--w: 72%"></i>18/25</div>
+                <div class="bar after"><i style="--w: 96%"></i>24/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+24 pp</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">10 cases</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">25 cases · high effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 60%"></i>60%</div>
-                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+                <div class="bar before"><i style="--w: 68%"></i>17/25</div>
+                <div class="bar after"><i style="--w: 80%"></i>20/25</div>
               </div>
-              <div class="bench-delta">+30%</div>
+              <div class="bench-delta">+12 pp</div>
             </div>
           </div>
+          <p class="bench-lede">Grafana, PostHog, pandas, scikit-learn and Pydantic: 53/75 → 67/75. Earlier Sol runs on Autoscaler and mitmproxy add 14/25 → 24/25. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
+          <p class="bench-lede">The cache learned these historical fixes. This measures recall, not unseen-bug detection; false-positive rates were not measured. One failed Gemini baseline counts as a miss and its valid Thinker result as a hit, under a post-run scoring change. Excluding that pair gives 67/99 → 90/99. Runs span pinned Thinker revisions.</p>
         </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
           <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
-          <p class="bench-lede">Real coding tasks from merged pull requests, run with and without thinker. Input tokens per task, cached context included:</p>
+          <p class="bench-lede">Historical results from earlier Thinker revisions. A fresh three-task canary per model is next. Input tokens per coding task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
