@@ -13,7 +13,7 @@ from unittest.mock import patch
 from pr_cache import validate_pr_manifest
 from frozen_gh import replay
 from collect_prs import collect
-from guardrails import HERE, MODELS, GuardError, assert_ready, checked_ready, digest, guarded_env, supervised, validate_execution, source_hashes, ROOT
+from guardrails import HERE, MODELS, GUIDANCE, WIRING_MODE, GuardError, assert_ready, assert_served_by_jev, checked_ready, digest, guarded_env, isolated_env, supervised, validate_execution, source_hashes, ROOT
 
 
 class Guards(unittest.TestCase):
@@ -103,17 +103,32 @@ class Guards(unittest.TestCase):
 
     def test_extra_notes_and_overlays_are_rejected(self):
         cache = self.out / 'state/task-sol-thinker/.thinker'
-        for directory in ['local/notes', 'notes', 'local/shared']:
+        # A note that is not in the frozen set is refused either way: in local/notes because no run
+        # of this arm has happened yet (see the remembered-note test), in the legacy directories
+        # because nothing may read from them at all.
+        for directory, reason in [('local/notes', 'appeared before the run'), ('notes', 'inventory'), ('local/shared', 'inventory')]:
             target = cache / directory / 'extra.json'
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text('{}')
-            with self.assertRaisesRegex(GuardError, 'inventory'):
+            with self.subTest(directory=directory), self.assertRaisesRegex(GuardError, reason):
                 assert_ready(self.out, self.tasks)
             target.unlink()
 
     def test_baseline_cache_contamination_rejected(self):
+        import shutil
         (self.out / 'state/task-opus-baseline/.thinker').mkdir(parents=True)
         with self.assertRaisesRegex(GuardError, 'baseline contaminated'): assert_ready(self.out, self.tasks)
+        shutil.rmtree(self.out / 'state/task-opus-baseline/.thinker')
+        # Wiring is the intervention, so the baseline may not carry it either.
+        for leak in ['.mcp.json', '.claude/settings.local.json', '.codex/hooks.json']:
+            file = self.out / 'state/task-sol-baseline' / leak
+            file.parent.mkdir(parents=True, exist_ok=True); file.write_text('{}')
+            with self.subTest(leak=leak), self.assertRaisesRegex(GuardError, 'contaminated'):
+                assert_ready(self.out, self.tasks)
+            top = file.parent if file.parent.name != 'task-sol-baseline' else file
+            shutil.rmtree(top) if top.is_dir() else top.unlink()
+        self.save('task-sol-baseline-wiring.json', {'client': 'claude'})
+        with self.assertRaisesRegex(GuardError, 'no wiring receipt'): assert_ready(self.out, self.tasks)
 
     def test_collection_error_is_not_base_failure(self):
         self.save('task-verify-base-validation.json', {'acceptance': {'returncode': 2, 'passed': 0, 'failures': 0, 'errors': 1}})
@@ -234,16 +249,58 @@ class Guards(unittest.TestCase):
         code = "import pathlib,time; p=pathlib.Path('brain/new/.system_generated/logs/transcript.jsonl'); p.parent.mkdir(parents=True); p.write_text(str(pathlib.Path.cwd())); time.sleep(.3); assert pathlib.Path('fixture.transcript.jsonl').read_text()==str(pathlib.Path.cwd())"
         self.assertIsNone(self.execute(code, native_root=brain)['reason'])
 
+    def test_only_the_wired_arm_gets_the_caches_transports(self):
+        """The baseline keeps the server and hooks off; neither arm can be held out."""
+        base = {'THINKER_MCP': 'off', 'THINKER_HOOKS': 'off'}
+        off, on = isolated_env(base), isolated_env(base, wiring=True)
+        self.assertEqual((off['THINKER_MCP'], off['THINKER_HOOKS']), ('off', 'off'))
+        for key in ['THINKER_MCP', 'THINKER_HOOKS']:
+            self.assertNotIn(key, on)
+        self.assertEqual((on['THINKER_JEV'], on['THINKER_JEV_ALLOW_NETWORK']), ('on', '1'))
+        self.assertNotIn('THINKER_JEV_ALLOW_NETWORK', off)
+        for env in [off, on]:
+            self.assertEqual(env['THINKER_HOLDOUT'], 'off')
+
+    def test_a_cross_encoder_fallback_is_a_failed_run_not_a_cheaper_arm(self):
+        repo = self.out / 'state/task-sol-thinker'
+        log = repo / '.thinker/log.jsonl'
+        write = lambda rows: log.write_text('\n'.join(json.dumps(r) for r in rows))
+        write([{'op': 'intro'}, {'op': 'orient', 'jev': [0.93]}])
+        self.assertEqual(assert_served_by_jev(self.out, 'task-sol', repo)['jevServings'], 1)
+        for case, rows in [('cross-encoder', [{'op': 'orient', 'ce': [7.2]}]),
+                           ('jev failure', [{'op': 'jev-error', 'reason': 'timeout'}, {'op': 'orient', 'jev': [0.9]}]),
+                           ('nothing served', [{'op': 'intro'}])]:
+            with self.subTest(case=case):
+                write(rows)
+                with self.assertRaises(GuardError): assert_served_by_jev(self.out, 'task-sol', repo)
+        log.unlink()
+        with self.assertRaisesRegex(GuardError, 'no usage log'): assert_served_by_jev(self.out, 'task-sol', repo)
+
+    def test_a_remembered_note_counts_only_after_its_own_run(self):
+        """The wired arm is offered `remember`; such a note is recorded, never taken for cache content."""
+        extra = self.out / 'state/task-sol-thinker/.thinker/local/notes/remembered.json'
+        extra.write_text(json.dumps({'id': 'remembered', 'source': {'type': 'agent'}}))
+        with self.assertRaisesRegex(GuardError, 'appeared before the run'):
+            assert_ready(self.out, self.tasks)
+        self.save('task-sol-thinker.json', {'valid': True})
+        assert_ready(self.out, self.tasks)
+        extra.write_text(json.dumps({'id': 'remembered', 'source': {'type': 'pr', 'ref': 'pallets/click#1'}}))
+        with self.assertRaisesRegex(GuardError, 'not agent-authored'):
+            assert_ready(self.out, self.tasks)
+
     def test_protocol_rejects_changed_source_and_model(self):
         (self.out / '.git').write_text('gitdir: fixture')
         (self.out / 'tasks.json').write_text(json.dumps(self.tasks))
-        config = {'guardrailsVersion':2, 'cacheSource':'recent-merged-prs', 'cacheBuildPath':'minePrs', 'prsSha256':digest(self.out/'prs.json'),'models':MODELS,'effort':'high','fallback':False,
+        config = {'guardrailsVersion':3, 'cacheSource':'recent-merged-prs', 'cacheBuildPath':'minePrs', 'prsSha256':digest(self.out/'prs.json'),'models':MODELS,'effort':'high','fallback':False,
                   'tasksSha256':digest(self.out / 'tasks.json'),'thinkerCommit':'head',
+                  'wiring':{'mode':WIRING_MODE,'guidanceSha256':digest(GUIDANCE),'instructionsLimit':2048,'ranker':'jev'},
                   'sourceHashes':{'file':'hash'},'agentSeconds':600}
         with patch('guardrails.ROOT',self.out), patch('guardrails.source_hashes',return_value={'file':'hash'}), patch('guardrails.subprocess.check_output',return_value='head'):
             (self.out / 'execution.json').write_text(json.dumps(config))
             validate_execution(self.out)
-            for key, bad in [('effort','medium'),('thinkerCommit','other'),('sourceHashes',{}),('tasksSha256','changed'),('agentSeconds',99999),('cacheSource','session'),('cacheBuildPath','distillFile'),('prsSha256','changed')]:
+            for key, bad in [('effort','medium'),('thinkerCommit','other'),('sourceHashes',{}),('tasksSha256','changed'),('agentSeconds',99999),('cacheSource','session'),('cacheBuildPath','distillFile'),('prsSha256','changed'),
+                             ('guardrailsVersion',2),('wiring',{'mode':'pasted-retrieval','guidanceSha256':digest(GUIDANCE)}),
+                             ('wiring',{'mode':WIRING_MODE,'guidanceSha256':'edited'})]:
                 value = config[key]; config[key] = bad
                 (self.out / 'execution.json').write_text(json.dumps(config))
                 with self.assertRaises(GuardError): validate_execution(self.out)

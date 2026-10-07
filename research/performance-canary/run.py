@@ -1,7 +1,8 @@
 """Matched coding CLIs; checkpoints preserve failures instead of selective retries."""
 import json,os,subprocess,sys,time,hashlib,re,shutil
 from pathlib import Path
-from guardrails import run_dir, checked_execution, checked_ready, stop, supervised, guarded_env
+from guardrails import run_dir, checked_execution, checked_ready, stop, supervised, guarded_env, checked_wiring, assert_served_by_jev
+import wiring as wiring_mod
 assert os.environ.get('THINKER_TEST')=='1'
 if len(sys.argv) < 3 or sys.argv[1] != 'solve':
  raise SystemExit('Only solve is allowed. Build caches from recent PRs with pipeline.py build; exploration/session distillation is forbidden.')
@@ -17,25 +18,27 @@ def run(t,m,arm):
  if arm not in ['baseline','thinker']:raise ValueError('Session exploration is forbidden')
  checked_ready(OUT,TASKS)
  rules=f"Work only within this repository. Do not inspect parent or sibling directories, git history/remotes, reference patches, hidden evaluator tests or websites. Do not install dependencies, create commits or delegate. Machine-wide memory hooks and MCP are disabled. Use {ROOT}/.venv-perf/bin/python for local probes and relevant tests. Keep the inherited test environment. Stress tests, clearing pytest addopts, disabling plugins, and broad repeated test runs are forbidden. Pytest is limited to 2000 tests and 120 seconds; a violation stops the batch."
- memory=''
- if arm=='thinker':
-  memory=json.loads((RAW/(name+'-retrieval.json')).read_text())['text']
-  memory+='\nYou may execute thinker_lookup "specific question" for more cached knowledge; resolve its pointers inside this checkout. Do not inspect the helper itself.'
- prompt=rules+'\nImplement the requested change, add appropriate tests, run relevant tests, leave the patch uncommitted and summarize the result.\n\nPRIOR REPOSITORY KNOWLEDGE:\n'+(memory or '(none)')+'\n\nREQUEST:\n'+t['prompt']
+ # Both arms receive the same request. The cache reaches the thinker arm the way it reaches a real
+ # session -- the prompt hook's bundle and the MCP server -- so the wiring is the only difference,
+ # and the guidance the agent reads is the shipped text rather than a copy of it in this file.
+ receipt=checked_wiring(OUT,name,'claude' if m=='opus' else 'codex',cwd) if arm=='thinker' else None
+ prompt=rules+'\nImplement the requested change, add appropriate tests, run relevant tests, leave the patch uncommitted and summarize the result.\n\nREQUEST:\n'+t['prompt']
  (RAW/(name+'-prompt.txt')).write_text(prompt)
- env={**guarded_env(cwd,RAW/(name+'.violation.json'),base=ENV),'PATH':str(STATE/'bin')+os.pathsep+ENV['PATH']}
+ env={**guarded_env(cwd,RAW/(name+'.violation.json'),base=ENV,wiring=arm=='thinker'),'PATH':str(STATE/'bin')+os.pathsep+ENV['PATH']}
  env.pop('MAX_THINKING_TOKENS',None)
  if m=='sol':
   home=STATE/('home-'+name);home.mkdir(exist_ok=True);auth=home/'auth.json'
   if not auth.exists():auth.symlink_to('/Users/yoavshmariahu/src/thinker/bench/codex-home/auth.json')
   env['CODEX_HOME']=str(home)
-  cmd=['codex','exec','--json','--ephemeral','--ignore-user-config','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
+  cmd=['codex','exec','--json','--ephemeral','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
  elif m=='opus':
-  cmd=['claude','-p','--model',MODELS[m],'--effort','high','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--disable-slash-commands','--tools','Bash,Read,Write,Edit,Glob,Grep','--permission-mode','bypassPermissions','--max-turns','80']
+  tools=','.join(wiring_mod.tools_for('claude',arm,['Bash','Read','Write','Edit','Glob','Grep']))
+  mcp=wiring_mod.agent_argv('claude',cwd,receipt) if receipt else ['--strict-mcp-config','--mcp-config','{"mcpServers":{}}']
+  cmd=['claude','-p','--model',MODELS[m],'--effort','high','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','',*mcp,'--disable-slash-commands','--tools',tools,'--permission-mode','bypassPermissions','--max-turns','80']
  else:cmd=['agy','-p',prompt,'--model',MODELS[m],'--effort','high','--output-format','json','--mode','accept-edits','--dangerously-skip-permissions','--disable-slash-commands']
  (RAW/(name+'-invocation.json')).write_text(json.dumps({'model':MODELS[m],'effort':'high','cwd':str(cwd),'argv':[x if x!=prompt else '<saved prompt>' for x in cmd],'thinkerCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'testMode':True},indent=2))
  print('START',name,flush=True);start=time.monotonic();timed=False
- execution=supervised(cmd,cwd=cwd,env=env,prefix=RAW/name,seconds=EXECUTION['agentSeconds'],batch=OUT,input_text=None if m=='gemini' else prompt,native_root=Path.home()/'.gemini/antigravity-cli/brain' if m=='gemini' else None)
+ execution=supervised(cmd,cwd=cwd,env=env,prefix=RAW/name,seconds=EXECUTION['agentSeconds'],batch=OUT,input_text=None if m=='gemini' else prompt,native_root=Path.home()/'.gemini/antigravity-cli/brain' if m=='gemini' else None,wiring=arm=='thinker')
  stdout=execution['stdout'];stderr=execution['stderr'];code=execution['returncode'];timed=execution['reason']=='timeout'
  r={'id':name,'task':t['id'],'cohort':m,'arm':arm,'model':MODELS[m],'effort':'high','wallMs':round((time.monotonic()-start)*1000),'returncode':code,'timedOut':timed,'valid':False,'tokens':None,'toolCalls':None,'answer':'','executionFailure':execution['reason']}
  try:
@@ -61,6 +64,9 @@ def run(t,m,arm):
  for d in ['src','tests','docs','CHANGES.rst','CHANGES.md']:
   if (cwd/d).exists():subprocess.run(['git','add','-A','--',d],cwd=cwd,env=env,check=True,capture_output=True)
  (RAW/(name+'.patch')).write_bytes(subprocess.check_output(['git','diff','--cached','--binary','--no-color'],cwd=cwd))
+ if arm=='thinker' and r['valid']:
+  try:r['serving']=assert_served_by_jev(OUT,name,cwd)
+  except Exception as e:r['valid']=False;r['error']=str(e)
  if not r['valid']:stop(OUT,name+': '+r.get('error','invalid result'))
  out.write_text(json.dumps(r,indent=2)+'\n');print('DONE',name,'valid='+str(r['valid']),'tokens='+str(r['tokens']),'seconds='+str(r['wallMs']/1000),flush=True);return r
 if __name__=='__main__':
