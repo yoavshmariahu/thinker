@@ -1,18 +1,35 @@
-import json,os,subprocess,sys,time
+"""Two explicit phases: build all caches, then admit solvers through a global gate."""
+import json
+import os
 from pathlib import Path
-assert os.environ.get('THINKER_TEST')=='1'
-p=Path('research/performance-canary');m=sys.argv[1];tasks=json.loads((p/'tasks.json').read_text());deadline=time.monotonic()+3600
-if (p/'STOPPED.json').exists():raise SystemExit('Canary stopped: do not resume the invalid experiment.')
-for t in tasks:
- for arm in ['verify-base','verify-gold']:
-  v=json.loads((p/'raw'/f"{t['id']}-{arm}-validation.json").read_text());assert v['acceptance']['tests']>0
-  assert v['acceptance']['returncode']!=(0 if arm=='verify-base' else 1)
-while True:
- files=[p/'raw'/f"{t['id']}-{m}-learn.json" for t in tasks]
- for f in files:
-  if f.exists() and not json.loads(f.read_text())['valid']:raise SystemExit('Invalid learning session: '+str(f))
- if all(f.exists() for f in files):break
- if time.monotonic()>deadline:raise SystemExit('Learning not finished within one hour')
- time.sleep(5)
-subprocess.run(['node',str(p/'memory.mjs'),'build',m],check=True)
-subprocess.run(['python3',str(p/'run.py'),'solve',m],check=True)
+import subprocess
+import sys
+from guardrails import run_dir, validate_execution, checked_ready, assert_preflight, supervised, stop, MODELS
+
+HERE = Path(__file__).resolve().parent
+out = run_dir()
+try:
+    execution = validate_execution(out)
+    phase, model = sys.argv[1:3]
+    if phase not in ['build', 'solve'] or model not in MODELS:
+        raise ValueError('pipeline.py build|solve opus|sol|gemini')
+    tasks = json.loads((out / 'tasks.json').read_text())
+    assert_preflight(out, tasks)
+    if phase == 'build':
+        for task in tasks:
+            learned = json.loads((out / 'raw' / f'{task["id"]}-{model}-learn.json').read_text())
+            if learned.get('valid') is not True or learned.get('model') != MODELS[model] or learned.get('effort') != 'high':
+                raise ValueError('Invalid exploration; no cache-building call allowed')
+        result = supervised(['node', str(HERE / 'memory.mjs'), 'build', model], cwd=HERE.parents[1], env=os.environ,
+                            prefix=out / 'raw' / f'build-{model}', seconds=3600, batch=out)
+        if result['reason']:
+            raise ValueError(result['reason'])
+        checked_ready(out, tasks, [model])
+        print('Cache cohort ready. Build every other cohort before explicitly starting solve.')
+    else:
+        checked_ready(out, tasks)
+        # The solver supervises each agent; avoid a second session around its process tree.
+        os.execv(sys.executable, [sys.executable, str(HERE / 'run.py'), 'solve', model])
+except Exception as error:
+    stop(out, error)
+    raise SystemExit(str(error))
