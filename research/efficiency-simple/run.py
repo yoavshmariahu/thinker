@@ -7,6 +7,7 @@ staleness -- what a repository's cache actually looks like when someone sits dow
 
   build <cohort>     the anchor cache, mined by that cohort's own model
   preflight          the acceptance test must fail at base and pass on the upstream fix
+  probe <cohort>     what the cache would serve per task, before a coding run is spent on it
   solve <cohort>     both arms of every task: with the cache and without it
   score <cohort>     the acceptance test against each arm's work, upstream tests restored
 
@@ -280,6 +281,34 @@ def servings(repo):
     return sum(1 for r in rows if r.get('op') == 'orient' and r.get('included'))
 
 
+def probe(cohort):
+    """What the cache would serve for each task, before spending a coding run on it.
+
+    A pair whose cache serves nothing measures the baseline against itself, so coverage is worth
+    knowing first: on Click, mining 20 commits covered 1 of 6 task-cohort pairs.
+    """
+    repo = OUT / f'cache-{cohort}'
+    if not (repo / '.thinker').exists():
+        raise SystemExit(f'build {cohort} first')
+    rows = []
+    for task in TASKS:
+        log = repo / '.thinker/log.jsonl'
+        log.unlink(missing_ok=True)
+        payload = json.dumps({'session_id': f'probe-{cohort}-{task["id"]}', 'cwd': str(repo),
+                              'prompt': task['prompt']})
+        subprocess.run(['node', CLI, 'hook', 'prompt'], cwd=repo, input=payload,
+                       env=env_for(cohort, learning=False, cache=True), capture_output=True, text=True)
+        records = [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.exists() else []
+        served = next((r for r in records if r.get('op') == 'orient'), {})
+        rows.append({'task': task['id'], 'cohort': cohort, 'served': served.get('served') or [],
+                     'scores': served.get('jevTop'), 'ranker': 'jev' if 'jev' in served else 'local'})
+        print(f'{cohort:5s} {task["id"]}: {len(rows[-1]["served"])} served, scores {rows[-1]["scores"]}', flush=True)
+    (OUT / f'probe-{cohort}.json').write_text(json.dumps(rows, indent=2) + '\n')
+    covered = [r['task'] for r in rows if r['served']]
+    print(f'{cohort}: {len(covered)} of {len(TASKS)} tasks covered{": " + ", ".join(covered) if covered else ""}', flush=True)
+    return rows
+
+
 def solve(cohort):
     preflight()
     rows = []
@@ -315,9 +344,11 @@ if __name__ == '__main__':
         build(sys.argv[2])
     elif phase == 'preflight':
         preflight()
+    elif phase == 'probe':
+        probe(sys.argv[2])
     elif phase == 'solve':
         solve(sys.argv[2])
     elif phase == 'score':
         score(sys.argv[2])
     else:
-        raise SystemExit('phases: build <cohort> | preflight | solve <cohort> | score <cohort>')
+        raise SystemExit('phases: build <cohort> | preflight | probe <cohort> | solve <cohort> | score <cohort>')
