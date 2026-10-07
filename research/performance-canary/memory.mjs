@@ -17,9 +17,13 @@ function storeFor(repo){
  const store=new Store(repo).init(),original=store.config.bind(store);
  const cfg={enabled:true,key,model:'jev-1.13.0',searchTimeoutMs:5000,learningTimeoutMs:5000,fetchImpl:async(url,options)=>{
   if(url!==JEV_ENDPOINT||url!=='https://api.typesafe.ai/v1/systemone')throw Error('Unexpected inference destination');
-  const start=performance.now();const r=await fetch(url,options);if(!r.ok)throw Error(`Jev HTTP ${r.status}`);const j=await r.json();
-  fs.appendFileSync(path.join(repo,'.thinker','perf-jev.jsonl'),JSON.stringify({model:j.model,usage:j.usage,durationMs:performance.now()-start})+'\n');
-  if(j.model!=='jev-1.13.0')throw Error('Jev model mismatch');return {ok:true,json:async()=>j};
+  const start=performance.now(),request=JSON.parse(options.body);
+  const record=entry=>fs.appendFileSync(path.join(repo,'.thinker','perf-jev.jsonl'),JSON.stringify({request,...entry,durationMs:performance.now()-start})+'\n');
+  let r,j;
+  try {r=await fetch(url,options);j=await r.json();}
+  catch(error){record({status:r?.status,error:error.message});throw error;}
+  record({status:r.status,model:j.model,usage:j.usage,response:j});
+  if(r.ok&&j.model!=='jev-1.13.0')throw Error('Jev model mismatch');return {ok:r.ok,status:r.status,json:async()=>j};
  }};
  store.config=()=>({...original(),jev:cfg,maintain:{...original().maintain,dailyTokens:1e9}});return store;
 }
@@ -59,13 +63,15 @@ if(mode==='lookup'){
   // Store may save into local/notes; export the merged in-memory corpus explicitly.
   const notes=store.list();
   const immutable=path.join(RAW,prefix+'-notes');fs.mkdirSync(immutable,{recursive:true});
-  const target=path.join(STATE,name),copy=path.join(target,'.thinker','notes');fs.mkdirSync(copy,{recursive:true});
-  const hashes={};for(const n of notes){const file=n.id+'.json',text=JSON.stringify(n,null,2)+'\n';fs.writeFileSync(path.join(immutable,file),text);fs.writeFileSync(path.join(copy,file),text);hashes[file]=crypto.createHash('sha256').update(text).digest('hex');}
+  const target=path.join(STATE,name),targetStore=storeFor(target);
+  if(targetStore.list().length)throw Error('Target cache must start empty');
+  const hashes={};for(const n of notes){const file=n.id+'.json',text=JSON.stringify(n,null,2)+'\n';fs.writeFileSync(path.join(immutable,file),text);targetStore.put(n);hashes[file]=crypto.createHash('sha256').update(text).digest('hex');}
   save(path.join(RAW,prefix+'-note-hashes.json'),hashes);
-  const targetStore=storeFor(target),r0=performance.now(),r=await orient(targetStore,{task:t.prompt,budget:750,maxNotes:2,freshOnly:true,client:'performance-canary'});
+  const r0=performance.now(),r=await orient(targetStore,{task:t.prompt,budget:750,maxNotes:2,freshOnly:true,client:'performance-canary'});
   const logs=fs.existsSync(path.join(target,'.thinker','log.jsonl'))?fs.readFileSync(path.join(target,'.thinker','log.jsonl'),'utf8'):'';
-  if(/"op":"jev-error"/.test(logs))throw Error('Jev serving failed; do not silently substitute another ranker');
-  if(!r.included.length||!r.text?.trim())throw Error('Cache readiness failed: no notes served');
-  save(dest,{text:r.text,included:r.included.map(n=>n.id),retrievalMs:performance.now()-r0,noteCount:notes.length,buildMs:build.wallMs});console.log(name,'notes',notes.length,'served',r.included.length);
+  const error=/"op":"jev-error"/.test(logs)?'Jev serving failed; do not silently substitute another ranker':!r.included.length||!r.text?.trim()?'Cache readiness failed: no notes served':null;
+  save(dest,{valid:!error,error,text:r.text,included:r.included.map(n=>n.id),retrievalMs:performance.now()-r0,noteCount:notes.length,buildMs:build.wallMs});
+  if(error)throw Error(error);
+  console.log(name,'notes',notes.length,'served',r.included.length);
  }
 }else throw Error('build <cohort> | lookup <query>');

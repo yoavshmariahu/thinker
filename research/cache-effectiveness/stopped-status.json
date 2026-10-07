@@ -1,0 +1,39 @@
+{
+  "stopped": {
+    "status": "stopped",
+    "reason": "build-opus: exit 1",
+    "at": 1791361673.2968168
+  },
+  "cacheReceipts": 1,
+  "retrievals": 0,
+  "codingRuns": 0,
+  "caches": [
+    {
+      "cache": "click-3364-gemini-pr-cache",
+      "PRsProcessed": 5,
+      "current": "PR #2991",
+      "notes": 3,
+      "modelCalls": 36,
+      "failedCalls": 0,
+      "pending": 1
+    },
+    {
+      "cache": "click-3364-opus-pr-cache",
+      "PRsProcessed": 20,
+      "current": "PR #2929",
+      "notes": 15,
+      "modelCalls": 196,
+      "failedCalls": 0,
+      "pending": 11
+    },
+    {
+      "cache": "click-3364-sol-pr-cache",
+      "PRsProcessed": 10,
+      "current": "PR #2551",
+      "notes": 7,
+      "modelCalls": 76,
+      "failedCalls": 0,
+      "pending": 3
+    }
+  ]
+}

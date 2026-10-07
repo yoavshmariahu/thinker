@@ -1,0 +1,392 @@
+{
+  "stopped": {
+    "status": "stopped",
+    "reason": "build-opus: exit 1",
+    "at": 1791361673.2968168
+  },
+  "buildsReady": 0,
+  "cases": 0,
+  "cohorts": {
+    "opus": {
+      "baseline": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "setup": {
+        "modelCalls": 196,
+        "failedCalls": 0,
+        "tokens": {
+          "knownTotal": 653024,
+          "unknownRuns": 0
+        },
+        "byPurpose": {
+          "jev-grounding": {
+            "calls": 39,
+            "tokens": {
+              "knownTotal": 114252,
+              "unknownRuns": 0
+            }
+          },
+          "jev-grounding-metadata": {
+            "calls": 24,
+            "tokens": {
+              "knownTotal": 14595,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile": {
+            "calls": 29,
+            "tokens": {
+              "knownTotal": 29717,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile-search": {
+            "calls": 69,
+            "tokens": {
+              "knownTotal": 224327,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs": {
+            "calls": 20,
+            "tokens": {
+              "knownTotal": 133981,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs-repair": {
+            "calls": 15,
+            "tokens": {
+              "knownTotal": 136152,
+              "unknownRuns": 0
+            }
+          }
+        }
+      },
+      "retrieval": {
+        "calls": 1,
+        "tokens": {
+          "knownTotal": 7327,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 128.82883300003596,
+          "unknownRuns": 0
+        }
+      }
+    },
+    "sol": {
+      "baseline": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "setup": {
+        "modelCalls": 76,
+        "failedCalls": 0,
+        "tokens": {
+          "knownTotal": 359443,
+          "unknownRuns": 0
+        },
+        "byPurpose": {
+          "jev-grounding": {
+            "calls": 18,
+            "tokens": {
+              "knownTotal": 40804,
+              "unknownRuns": 0
+            }
+          },
+          "jev-grounding-metadata": {
+            "calls": 11,
+            "tokens": {
+              "knownTotal": 5932,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile": {
+            "calls": 2,
+            "tokens": {
+              "knownTotal": 1489,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile-search": {
+            "calls": 30,
+            "tokens": {
+              "knownTotal": 41690,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs": {
+            "calls": 10,
+            "tokens": {
+              "knownTotal": 175058,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs-repair": {
+            "calls": 5,
+            "tokens": {
+              "knownTotal": 94470,
+              "unknownRuns": 0
+            }
+          }
+        }
+      },
+      "retrieval": {
+        "calls": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      }
+    },
+    "gemini": {
+      "baseline": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 0,
+        "valid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      },
+      "setup": {
+        "modelCalls": 36,
+        "failedCalls": 0,
+        "tokens": {
+          "knownTotal": 289111,
+          "unknownRuns": 0
+        },
+        "byPurpose": {
+          "jev-grounding": {
+            "calls": 8,
+            "tokens": {
+              "knownTotal": 24414,
+              "unknownRuns": 0
+            }
+          },
+          "jev-grounding-metadata": {
+            "calls": 4,
+            "tokens": {
+              "knownTotal": 2166,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile": {
+            "calls": 1,
+            "tokens": {
+              "knownTotal": 780,
+              "unknownRuns": 0
+            }
+          },
+          "jev-reconcile-search": {
+            "calls": 15,
+            "tokens": {
+              "knownTotal": 13795,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs": {
+            "calls": 6,
+            "tokens": {
+              "knownTotal": 174113,
+              "unknownRuns": 0
+            }
+          },
+          "mine-prs-repair": {
+            "calls": 2,
+            "tokens": {
+              "knownTotal": 73843,
+              "unknownRuns": 0
+            }
+          }
+        }
+      },
+      "retrieval": {
+        "calls": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      }
+    }
+  }
+}

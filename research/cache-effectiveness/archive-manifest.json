@@ -1,0 +1,6 @@
+{
+  "archive": "raw-artifacts.tar.gz",
+  "sha256": "ddab5b70e859feda805ce8ea3db7f15f8255cdef377343be6a31a2dcb934486c",
+  "files": 342,
+  "credentialScan": "Compared against current secret environment values and checkout .env; no matches. No auth homes or symlinks included."
+}

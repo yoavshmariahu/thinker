@@ -35,9 +35,9 @@ class Guards(unittest.TestCase):
         for model in MODELS:
             name = f'task-{model}'
             self.save(name + '-pr-build.json', {'valid': True, 'cacheSource':'recent-merged-prs', 'cacheBuildPath':'minePrs', 'model':MODELS[model], 'effort':'high', 'prsSha256':digest(self.out/'prs.json'), 'processedPrs':['pallets/click#1'], 'setupError': None})
-            note = {'id': 'note', 'body': 'supported fact', 'deps': [{'path': 'src/file.py'}], 'status': 'fresh', 'source': {'type':'pr', 'ref':'pallets/click#1'}}
+            note = {'id': 'note', 'kind': 'rule', 'title': 'supported fact', 'body': 'supported fact', 'deps': [{'path': 'src/file.py'}], 'status': 'fresh', 'source': {'type':'pr', 'ref':'pallets/click#1'}}
             source = self.raw / (name + '-pr-notes') / 'note.json'; source.parent.mkdir(); source.write_text(json.dumps(note))
-            target = self.out / 'state' / (name + '-thinker') / '.thinker/notes/note.json'; target.parent.mkdir(parents=True); target.write_bytes(source.read_bytes())
+            target = self.out / 'state' / (name + '-thinker') / '.thinker/local/notes/note.json'; target.parent.mkdir(parents=True); target.write_bytes(source.read_bytes())
             self.save(name + '-pr-note-hashes.json', {'note.json': digest(source)})
             self.save(name + '-thinker-retrieval.json', {'noteCount': 1, 'text': 'supported fact', 'included': ['note']})
 
@@ -72,9 +72,44 @@ class Guards(unittest.TestCase):
                 original = (self.raw / file).read_text(); self.save(file, bad)
                 with self.assertRaises(GuardError): assert_ready(self.out, self.tasks)
                 (self.raw / file).write_text(original)
-        target = self.out / 'state/task-sol-thinker/.thinker/notes/note.json'
+        target = self.out / 'state/task-sol-thinker/.thinker/local/notes/note.json'
         target.write_text('{}')
-        with self.assertRaisesRegex(GuardError, 'hash mismatch'): assert_ready(self.out, self.tasks)
+        with self.assertRaisesRegex(GuardError, 'content mismatch'): assert_ready(self.out, self.tasks)
+
+    def test_product_orientation_mutates_usage_without_changing_frozen_content(self):
+        repo = self.out / 'state/task-sol-thinker'
+        script = """
+            import {Store} from './src/store.js';
+            import {orient} from './src/ops.js';
+            const store = new Store(process.argv[1]).init();
+            const config = store.config.bind(store);
+            store.config = () => ({...config(), jev:{enabled:false}, rerank:false});
+            const result = await orient(store, {task:'supported fact', refreshFirst:false, session:'fixture'});
+            if (!result.text || store.get('note').uses !== 1) throw Error('orientation did not serve');
+        """
+        result = subprocess.run(['node', '--input-type=module', '-e', script, str(repo)], cwd=ROOT,
+                       env=guarded_env(repo, repo/'policy.json'), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        assert_ready(self.out, self.tasks)
+        target = repo / '.thinker/local/notes/note.json'
+        note = json.loads(target.read_text())
+        for key, value in [('body','tampered'), ('deps',[]), ('confidence',0.1),
+                           ('source',{'type':'agent'}), ('answers',['invented'])]:
+            with self.subTest(key=key):
+                target.write_text(json.dumps({**note, key:value}))
+                with self.assertRaisesRegex(GuardError, 'content mismatch'):
+                    assert_ready(self.out, self.tasks)
+        target.write_text(json.dumps(note))
+
+    def test_extra_notes_and_overlays_are_rejected(self):
+        cache = self.out / 'state/task-sol-thinker/.thinker'
+        for directory in ['local/notes', 'notes', 'local/shared']:
+            target = cache / directory / 'extra.json'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('{}')
+            with self.assertRaisesRegex(GuardError, 'inventory'):
+                assert_ready(self.out, self.tasks)
+            target.unlink()
 
     def test_baseline_cache_contamination_rejected(self):
         (self.out / 'state/task-opus-baseline/.thinker').mkdir(parents=True)
@@ -86,7 +121,7 @@ class Guards(unittest.TestCase):
 
     def test_session_notes_cannot_pass_even_with_valid_hashes(self):
         source = self.raw / 'task-sol-pr-notes/note.json'
-        target = self.out / 'state/task-sol-thinker/.thinker/notes/note.json'
+        target = self.out / 'state/task-sol-thinker/.thinker/local/notes/note.json'
         for provenance in [{'type':'agent','ref':'session'}, {'type':'pr','ref':'pallets/click#999'}]:
             note = json.loads(source.read_text()); note['source'] = provenance
             source.write_text(json.dumps(note)); target.write_bytes(source.read_bytes())
