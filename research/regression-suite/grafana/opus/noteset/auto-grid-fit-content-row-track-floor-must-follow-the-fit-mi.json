@@ -1,0 +1,97 @@
+{
+  "id": "auto-grid-fit-content-row-track-floor-must-follow-the-fit-mi",
+  "title": "Auto-grid fit-content row track floor must follow the fit min height, not the row height",
+  "kind": "rule",
+  "answers": [
+    "auto grid panel has empty space / bottom padding below it when content fit is on",
+    "fit content panel shrinks but row still reserves 320px",
+    "why is there dead space between a short panel and the next row in auto grid layout",
+    "how is autoRows computed for AutoGridLayout with min height"
+  ],
+  "body": "Symptom: In an auto-grid dashboard with fit-content and a min height below the row height (e.g. custom 100px or 'short'), a short panel shrinks but the next row starts ~row-height below it, leaving dead space.\nRoot cause: AutoGridLayoutManager.tsx:getAutoRowsTemplate always used the row height as the CSS grid track floor (`minmax(rowHeightPx, max-content)`), so the shared grid row reserved the full row height even when the panel was shorter.\nFix pattern: When fit content is present and fill screen is off, floor the track at `Math.min(rowHeightPx, getFitMinHeightInPixels(minHeight, rowHeight))` ('none' -> 0px, 'tall' clamped to row height). Without fit content the template is unchanged (`minmax(320px, 320px)` / `minmax(320px, auto)` for fill screen).\nConstraints: Every caller must pass minHeight: AutoGridLayoutManager constructor, AutoGridLayoutManager.updateAutoRows (now also called from onMinHeightChanged), and AutoGridLayoutSerializer.ts:deserializeAutoGridLayout (minHeightCombined). Missing one makes the floor stale after load or after editing min height. Only applies when the GrafanaDashboardsAutoHeightPanels flag is on.",
+  "applies": "Dashboard scene auto-grid layout row sizing (autoRows) with content-fit / auto-height panels",
+  "tags": [
+    "dashboards",
+    "auto-grid",
+    "content-fit",
+    "css-grid",
+    "min-height",
+    "layout"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "updateAutoRows",
+      "hash": "sha256:856fa72c5c6af8af94a54b36",
+      "line": 438,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 8,
+        "refs": 8
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "onMinHeightChanged",
+      "hash": "sha256:90a4c45bdbff925ef3aa56f8",
+      "line": 382,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 15
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+      "symbol": "deserializeAutoGridLayout",
+      "hash": "sha256:2721917c150dbbd6d50392b3",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 13
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "AutoGridLayoutManager.updateAutoRows",
+      "hash": "sha256:856fa72c5c6af8af94a54b36",
+      "line": 438,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 8,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:05:39.918Z",
+  "verified": "2026-10-07T00:05:39.918Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lowering-the-auto-grid-track-floor-requires-non-fit-items-to",
+    "testing-auto-grid-content-fit-scenarios-via-the-devenv-dashb"
+  ]
+}

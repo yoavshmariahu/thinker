@@ -1,0 +1,85 @@
+{
+  "id": "indexable-make-indexable-must-return-dataframes-in-their-nat",
+  "title": "indexable/_make_indexable must return dataframes in their native type, never wrapped in narwhals",
+  "kind": "rule",
+  "answers": [
+    "cross_val_score passes narwhals DataFrame to my estimator",
+    "estimator receives wrong dataframe type in cross_val_predict / permutation_test_score",
+    "does indexable convert pandas/polars to narwhals?",
+    "why does my custom estimator get nw.DataFrame instead of pandas"
+  ],
+  "body": "Symptom: in CV tools (cross_val_predict, cross_val_score, permutation_test_score), user estimators received narwhals DataFrame/Series wrappers instead of the pandas/polars/pyarrow objects they were given.\nRoot cause: sklearn/utils/validation.py:_make_indexable returned `nw.from_native(iterable, allow_series=True)` for dataframe-like inputs (regression from #33959). indexable() is used by model_selection to prepare X/y, which then flow unchanged into estimator.fit/predict.\nFix pattern: return the native object as-is (`return iterable`). Narwhals may be used internally for checking or indexing, but anything indexable returns must keep the caller's type.\nConstraints: input type = output type for all containers. The one intended exception is sparse: non-CSR sparse is converted to CSR (csc_array -> csr_array). Lists, tuples, arrays, pandas Index/Series, polars Series and pyarrow arrays come back unchanged. This is enforced by sklearn/utils/tests/test_validation.py:test_indexable_return_type. Do not loosen sklearn/model_selection/tests/test_validation.py:test_cross_val_and_permutation_test_on_dataframe to accept `x.to_native()`. It must check the exact native type.",
+  "applies": "Any change to sklearn.utils.indexable/_make_indexable or the dataframe handling of CV/model_selection utilities",
+  "tags": [
+    "narwhals",
+    "dataframe",
+    "indexable",
+    "cross-validation",
+    "polars",
+    "pandas",
+    "pyarrow"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "_make_indexable",
+      "hash": "sha256:984c2cc6247c836044196ad1",
+      "line": 461,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_validation.py",
+      "symbol": "test_indexable_return_type",
+      "hash": "sha256:c07c1f8d60a2c8a16d700cd8",
+      "line": 2552,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/model_selection/tests/test_validation.py",
+      "symbol": "test_cross_val_and_permutation_test_on_dataframe",
+      "hash": "sha256:698708b6e467c50676c36150",
+      "line": 650,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "indexable",
+      "hash": "sha256:23a45194bf414edb05655d1c",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 18,
+        "refs": 48
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34605"
+  },
+  "created": "2026-10-07T00:30:15.984Z",
+  "verified": "2026-10-07T00:30:15.984Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "check-array-dataframe-input-may-already-be-a-narwhals-datafr"
+  ]
+}

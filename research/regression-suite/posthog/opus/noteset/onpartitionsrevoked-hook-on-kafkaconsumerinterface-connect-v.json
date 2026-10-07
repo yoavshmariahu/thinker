@@ -1,0 +1,92 @@
+{
+  "id": "onpartitionsrevoked-hook-on-kafkaconsumerinterface-connect-v",
+  "title": "onPartitionsRevoked hook on KafkaConsumerInterface.connect: v2 awaits it before unassigning, v1 fires it after unassigning",
+  "kind": "rule",
+  "answers": [
+    "how do I run code when kafka partitions are revoked",
+    "does the revoke hook run before or after unassign",
+    "onPartitionsRevoked consumer v1 vs v2 difference",
+    "react to rebalance in a nodejs kafka consumer"
+  ],
+  "body": "KafkaConsumerInterface.connect (nodejs/src/common/kafka/consumer/index.ts) takes an optional second argument, `onPartitionsRevoked(revokedPartitions: Assignment[]) => Promise<void>`. Both consumer implementations must support it.\nKafkaConsumerV2 awaits the hook before it unassigns the partitions. The analytics lanes run v2 (CONSUMER_USE_V2).\nKafkaConsumer (v1, consumer-v1.ts) stores the hook in connect. Its revoke path calls the hook after unassign and resetRebalanceCoordination, fire-and-forget. Errors are only logged as `partition_revoked_handler_failed`.\nWhen you write a hook: keep it fast, and don't count on it running before unassign. Under v1 it runs late and its failures never surface.\nv1 only sees revokes because its `false` rebalance mode (where node-rdkafka rebalanced on its own) was removed in #105238. Don't bring that mode back, or the hook will never fire.\nThe v1 test in consumer-v1.test.ts sets `consumer['onPartitionsRevoked']` directly and checks that it is called with the revoked assignments.",
+  "applies": "nodejs/src/common/kafka/consumer implementations and their callers",
+  "tags": [
+    "kafka",
+    "rebalance",
+    "consumer",
+    "node-rdkafka"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/common/kafka/consumer/index.ts",
+      "symbol": "KafkaConsumerInterface",
+      "hash": "sha256:e4bd321bb11a3106c49d767e",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+      "symbol": "KafkaConsumer.connect",
+      "hash": "sha256:29d4e40496203f5b2428da44",
+      "line": 607,
+      "missing": false,
+      "fanout": {
+        "files": 931,
+        "sites": 821,
+        "refs": 1979
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.test.ts",
+      "symbol": "onPartitionsRevoked",
+      "hash": "sha256:54ecbf99fec071045124ff6c",
+      "line": 385,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 6,
+        "refs": 25
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.test.ts",
+      "symbol": "consumer",
+      "hash": "sha256:2753a012c92f04103a30debc",
+      "line": 99,
+      "missing": false,
+      "fanout": {
+        "files": 501,
+        "sites": 16,
+        "refs": 1752
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/index.ts",
+      "symbol": "KafkaConsumerInterface.connect",
+      "hash": "sha256:90c6a6dd1f9c0f6883486adc",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 931,
+        "sites": 821,
+        "refs": 1979
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105133"
+  },
+  "created": "2026-10-07T00:15:41.688Z",
+  "verified": "2026-10-07T00:15:41.688Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

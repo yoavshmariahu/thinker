@@ -1,0 +1,55 @@
+{
+  "id": "forward-date-formatting-options-through-openpyxlwriter-initi",
+  "title": "Forward date formatting options through OpenpyxlWriter initialization",
+  "kind": "rule",
+  "answers": [
+    "Why does ExcelWriter with openpyxl ignore my date format?",
+    "How do I preserve custom date and datetime formats in Excel exports?",
+    "What date formatting behavior must openpyxl write and append modes preserve?"
+  ],
+  "body": "Symptom: Excel exports using engine=\"openpyxl\" ignore the requested date_format and datetime_format.\nRoot cause: pandas/io/excel/_openpyxl.py:OpenpyxlWriter.__init__ accepted these options but omitted them from the superclass constructor call.\nFix pattern: Forward both formatting options to the superclass constructor so caller-supplied formats reach the writer's formatting configuration.\nConstraints: Preserve independent date and datetime options in write and append modes for .xlsx and .xlsm; None retains defaults YYYY-MM-DD and YYYY-MM-DD HH:MM:SS respectively, as checked by pandas/tests/io/excel/test_openpyxl.py:test_date_datetime_format.",
+  "applies": "Openpyxl-backed ExcelWriter initialization and date/datetime formatting for .xlsx and .xlsm exports.",
+  "tags": [
+    "excel",
+    "openpyxl",
+    "date-format",
+    "datetime-format"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/excel/_openpyxl.py",
+      "symbol": "OpenpyxlWriter.__init__",
+      "hash": "sha256:0d482300a9d5d9b01259f286",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 106,
+        "sites": 132,
+        "refs": 197
+      }
+    },
+    {
+      "path": "pandas/tests/io/excel/test_openpyxl.py",
+      "symbol": "test_date_datetime_format",
+      "hash": "sha256:dc67885d3ba63aad5138d0a4",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69961"
+  },
+  "created": "2026-10-07T00:25:03.979Z",
+  "verified": "2026-10-07T00:25:03.979Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

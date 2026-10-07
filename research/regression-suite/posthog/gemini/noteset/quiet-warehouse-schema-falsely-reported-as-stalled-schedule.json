@@ -1,0 +1,43 @@
+{
+  "id": "quiet-warehouse-schema-falsely-reported-as-stalled-schedule",
+  "title": "Quiet warehouse schema falsely reported as stalled schedule",
+  "kind": "rule",
+  "answers": [
+    "Why is a quiet warehouse schema marked as stalled with REPAIRED_SCHEMA_ERROR?",
+    "How does stalled_schema_queryset check sync activity without failing on zero-batch runs?",
+    "Why was an external data schema schedule repaired if syncs never stopped running?"
+  ],
+  "body": "Symptom: A quiet data warehouse schema is reported as stalled with REPAIRED_SCHEMA_ERROR despite scheduled syncs completing successfully.\nRoot cause: `products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset` evaluated staleness against `last_synced_at`, which zero-batch runs intentionally do not update.\nFix pattern: Determine last execution time in SQL using `Greatest(last_synced_at, last_full_run)` to distinguish inactive sources from stopped schedules.\nConstraints: When casting JSON timestamp fields in Postgres, filter with an offset-aware ISO regex (`_AWARE_ISO_TIMESTAMP`) before casting to prevent parse errors and session timezone drift.",
+  "applies": "Detecting stalled schedules or querying last run times for external data schemas in warehouse sources.",
+  "tags": [
+    "warehouse-sources",
+    "data-warehouse",
+    "stalled-schedules",
+    "sync-status"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "stalled_schema_queryset",
+      "hash": "sha256:8f4f05a5e49dc0f59109876f",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:19:02.089Z",
+  "verified": "2026-10-07T00:19:02.089Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

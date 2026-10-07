@@ -1,0 +1,57 @@
+{
+  "id": "keep-mcp-discovery-warnings-independent-of-upstream-error-te",
+  "title": "Keep MCP discovery warnings independent of upstream error text",
+  "kind": "rule",
+  "answers": [
+    "What should the warning say when an MCP server cannot list tools?",
+    "Can tool discovery toasts display Error.message?",
+    "Why use fixed recovery text for an added server with no tools?"
+  ],
+  "body": "Invariant: Tool-discovery warning toasts must use fixed recovery text rather than the upstream error reason.\nEnforcement: products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts:DISCOVERY_FAILED and products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts:DISCOVERY_FAILED supply context-specific \"Connected\" or \"Added\" messages directing the user to open the server and retry.\nFailure if skipped: The refresh endpoint's detail can contain fragments of the upstream server's response body, so rendering that reason in a toast can expose upstream content.",
+  "applies": "User-facing warnings for failed Desktop MCP gateway tool listing.",
+  "tags": [
+    "mcp-gateway",
+    "desktop",
+    "error-messages",
+    "information-disclosure"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+      "symbol": "DISCOVERY_FAILED",
+      "hash": "sha256:e558378d8d4dd3ac546947df",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+      "symbol": "DISCOVERY_FAILED",
+      "hash": "sha256:572b546706530e15c3b83162",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#103110"
+  },
+  "created": "2026-10-07T00:20:00.250Z",
+  "verified": "2026-10-07T00:20:00.250Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "report-discovery-failures-separately-from-mcp-connection-suc"
+  ]
+}

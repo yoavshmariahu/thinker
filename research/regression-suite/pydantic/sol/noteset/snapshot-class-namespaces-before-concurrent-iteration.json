@@ -1,0 +1,49 @@
+{
+  "id": "snapshot-class-namespaces-before-concurrent-iteration",
+  "title": "Snapshot class namespaces before concurrent iteration",
+  "kind": "rule",
+  "answers": [
+    "Why does concurrent TypeAdapter construction fail while reading a class?",
+    "Why does creating models or dataclasses with a shared base race?",
+    "How should class namespaces be iterated in free-threaded builds?"
+  ],
+  "body": "Symptom: Concurrent TypeAdapter construction, model/dataclass creation, or model rebuilding can fail because a class dictionary changes size during iteration.\nRoot cause: pydantic/_internal/_decorators.py:_decorator_infos_for_class and pydantic/_internal/_namespace_utils.py:LazyLocalNamespace.data iterate class namespaces that another thread can mutate by first reading annotations; Python 3.14 can add __annotations_cache__ or __annotate_func__.\nFix pattern: Iterate vars(typ).copy().items() when collecting decorators; copy MappingProxyType namespaces before iterating them when assembling lazy locals.\nConstraints: This protects iteration over shared class namespaces during concurrent annotation access. LazyLocalNamespace.data copies only MappingProxyType inputs; other mappings retain their existing iteration behavior.",
+  "applies": "Class namespace iteration during concurrent schema generation, decorator discovery, and annotation resolution.",
+  "tags": [
+    "free-threading",
+    "annotations",
+    "namespaces"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_decorators.py",
+      "symbol": "_decorator_infos_for_class",
+      "hash": "sha256:e62bd05cae2d685d91a19eba",
+      "line": 528,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_namespace_utils.py",
+      "symbol": "LazyLocalNamespace.data",
+      "hash": "sha256:2039319cb509640ecf0dbf1b",
+      "line": 90,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:41:43.069Z",
+  "verified": "2026-10-07T00:41:43.069Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,100 @@
+{
+  "id": "lda-helpers-share-one-positional-class-encoding",
+  "title": "LDA helpers share one positional class encoding",
+  "kind": "rule",
+  "answers": [
+    "What targets do LDA class statistics helpers accept?",
+    "How do LDA means and covariances stay aligned with classes and priors?",
+    "How can LDA avoid repeatedly computing unique labels?"
+  ],
+  "body": "Invariant: Computational targets are integer codes indexing classes_; class means, covariance weights, and SVD groups must use that same positional mapping.\nMechanism: sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit encodes once; the solvers pass classes_.shape[0] as n_classes to _class_means and _class_cov.\nEnforcement: sklearn/discriminant_analysis.py:_class_means, sklearn/discriminant_analysis.py:_class_cov, and sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis._solve_svd group samples by integer positions.\nConstraints: Helper callers must supply encoded targets and the matching class count. Passing arbitrary raw labels breaks positional grouping; helpers should not recompute unique labels from the target.",
+  "applies": "Changes to LDA solver plumbing or shared class-statistics helpers in discriminant_analysis.py.",
+  "tags": [
+    "linear-discriminant-analysis",
+    "class-encoding",
+    "invariant",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis.fit",
+      "hash": "sha256:7e99491781076cb52c11e871",
+      "line": 651,
+      "missing": false
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_means",
+      "hash": "sha256:8c550af8088936df2fc13a58",
+      "line": 98,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_cov",
+      "hash": "sha256:58102af9641539ab4b519d60",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis._solve_lstsq",
+      "hash": "sha256:3fe1dfb30e8a3f33fa779d67",
+      "line": 439,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis._solve_eigen",
+      "hash": "sha256:fa462845fc243e6ce21a5e93",
+      "line": 499,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis._solve_svd",
+      "hash": "sha256:a50d7cf59d3adccaaa7a37a5",
+      "line": 569,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:34:57.662Z",
+  "verified": "2026-10-07T00:34:57.662Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalize-lda-targets-to-x-through-integer-encoding"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "id": "mcp-gateway-tool-discovery-after-connect-register-must-warn",
+  "title": "MCP gateway tool discovery after connect/register must warn on failure, with a fixed message",
+  "kind": "rule",
+  "answers": [
+    "MCP server says Connected but has no tools and no error",
+    "desktop add server shows Added but tool list is empty",
+    "where is the toast for failed MCP tool listing",
+    "should I show the upstream error in the MCP discovery toast"
+  ],
+  "body": "Symptom: in Desktop, a member connects or adds an MCP server, gets the \"Connected\"/\"Added\" message, and the server lists no tools. Nothing says why.\nRoot cause: both callers of discoverGatewayTools threw its outcome away. In useGatewayServers.ts:useGatewayServers the discover mutation had `onError: () => {}`, and in useRegisterGatewayServer.ts:useRegisterGatewayServer the call ended in `.catch(() => null)`. A `skipped: \"no-server\"` result (the registry row is gone) resolves successfully, so it never reached any error handler.\nFix pattern: show `toast.warning(DISCOVERY_FAILED)` on a rejected listing and also on `result.skipped === \"no-server\"`. Do not let it count as a failed connect: registration still returns `created` and `discoveredTools: false`. Leave `skipped === \"no-connection\"` silent, because the credential is mid-OAuth or needs reauth and the server tag already says \"Finishing setup\".\nConstraints: the toast is a fixed recovery string (DISCOVERY_FAILED, a separate constant in each hook: \"Connected, but…\" vs \"Added, but…\"). Never put Error.message or the refresh endpoint's `detail` in it, because that can carry a fragment of the upstream server's response body (CWE-209). Tests in useRegisterGatewayServer.test.tsx check the exact string through a mocked `toast.warning`.",
+  "applies": "Desktop MCP gateway hooks that call discoverGatewayTools (products/desktop/packages/ui/src/features/mcp-gateway/hooks)",
+  "tags": [
+    "mcp-gateway",
+    "desktop",
+    "toast",
+    "error-handling",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+      "symbol": "useGatewayServers",
+      "hash": "sha256:46a602e7d6b0a0a98fb0e5fe",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 7,
+        "refs": 17
+      }
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+      "symbol": "useRegisterGatewayServer",
+      "hash": "sha256:d33a48156ae60b92028ee25a",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.test.tsx",
+      "hash": "sha256:9c0d7dcca37c2f00c9813353",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#103110"
+  },
+  "created": "2026-10-07T00:18:40.213Z",
+  "verified": "2026-10-07T00:18:40.213Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

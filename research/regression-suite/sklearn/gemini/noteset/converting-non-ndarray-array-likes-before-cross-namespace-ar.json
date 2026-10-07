@@ -1,0 +1,44 @@
+{
+  "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+  "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+  "kind": "rule",
+  "answers": [
+    "Why do classification metrics fail when given pandas Series and array API predictions?",
+    "How to support pandas Series or list inputs when dispatching to array API devices in move_to?",
+    "TypeError or failure when using pandas labels with PyTorch or CuPy predictions under array_api_dispatch",
+    "How are non-ndarray array-like inputs transferred across namespaces in sklearn/utils/_array_api.py:move_to?"
+  ],
+  "body": "Symptom: Classification metrics fail when passed pandas Series labels alongside predictions from a different array API namespace or device with array API dispatch enabled.\nRoot cause: sklearn/utils/_array_api.py:move_to passed non-ndarray array-like containers directly to DLPack cross-namespace transfer without converting them to ndarrays first.\nFix pattern: Convert non-ndarray containers belonging to the NumPy namespace into numpy.ndarray using numpy.asarray before initiating DLPack transfer to another namespace.\nConstraints: Applies only when moving from the NumPy namespace (_is_numpy_namespace(xp_array)) to a non-NumPy namespace (not _is_numpy_namespace(xp)) when the object is not already an instance of numpy.ndarray.",
+  "applies": "Cross-namespace array API dispatch when mixing array-like containers (e.g. pandas Series) with non-NumPy array devices or namespaces.",
+  "tags": [
+    "array-api",
+    "metrics",
+    "pandas",
+    "dlpack"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/_array_api.py",
+      "symbol": "move_to",
+      "hash": "sha256:896ec9ad3f9301295c44793d",
+      "line": 523,
+      "missing": false,
+      "fanout": {
+        "files": 49,
+        "sites": 183,
+        "refs": 234
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34779"
+  },
+  "created": "2026-10-07T00:41:43.959Z",
+  "verified": "2026-10-07T00:41:43.959Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

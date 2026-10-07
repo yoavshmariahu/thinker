@@ -1,0 +1,46 @@
+{
+  "id": "fallback-to-serial-read-csv-on-bare-carriage-returns-before",
+  "title": "Fallback to serial read_csv on bare carriage returns before data start",
+  "kind": "rule",
+  "answers": [
+    "Why does parallel read_csv drop or corrupt the first row with bare carriage returns in the header?",
+    "Why does read_csv fall back from parallel to serial execution on CSV files with bare CR?",
+    "How does parallel read_csv validate line endings before chunking?"
+  ],
+  "body": "Symptom: parallel read_csv silently drops the first data row or adds an extra junk first row when headers contain bare carriage returns.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks counted lines using readline() expecting \\n, but the C tokenizer also ends lines on bare \\r, miscalculating data_start.\nFix pattern: Inspect pre-data bytes for bare \\r by stripping \\r\\n and checking for \\r, returning None to fall back to serial parsing.\nConstraints: Applies to preamble and first data line checks in parallel read_csv; files with standard \\r\\n (CRLF) or \\n (LF) remain on the parallel path.",
+  "applies": "Parallel CSV reading in pandas.read_csv",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "csv",
+    "tokenizer",
+    "carriage-return"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70403"
+  },
+  "created": "2026-10-07T00:39:40.489Z",
+  "verified": "2026-10-07T00:39:40.489Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-quoted-newline-chunk-error-fallback"
+  ]
+}

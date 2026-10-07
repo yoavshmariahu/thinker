@@ -1,0 +1,69 @@
+{
+  "id": "verify-annotation-tag-updates-against-the-join-table",
+  "title": "Verify annotation tag updates against the join table",
+  "kind": "rule",
+  "answers": [
+    "Annotation tags look correct but tag filtering shows removed tags",
+    "How do I test that replacing annotation tags removes old links?",
+    "Why can an annotation Tags assertion miss stale tag links?"
+  ],
+  "body": "Invariant: Annotation tag changes must keep annotation.tags and annotation_tag consistent; link maintenance lives in pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags.\nVisibility: Get builds ItemDTO.Tags from annotation.tags, while GetTags uses annotation_tag for filtering, so DTO assertions alone can pass with stale links.\nTest convention: pkg/services/annotations/annotationsimpl/xorm_store_test.go:TestIntegrationAnnotations queries annotation_tag joined to tag for the annotation ID and checks the exact tag set with ElementsMatch after replacing a tag.",
+  "applies": "Implementation and integration tests for replacing or removing annotation tags.",
+  "tags": [
+    "annotations",
+    "tags",
+    "integration-tests",
+    "consistency"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "ensureTags",
+      "hash": "sha256:72bb4b9142f3bc4223046c53",
+      "line": 230,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+      "symbol": "TestIntegrationAnnotations",
+      "hash": "sha256:99e419faa33c8690d9f4de24",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/state/historian/annotation.go",
+      "symbol": "tags",
+      "hash": "sha256:00716a03f5cc52b4169a6b89",
+      "line": 367,
+      "missing": false,
+      "fanout": {
+        "files": 232,
+        "sites": 24,
+        "refs": 1193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131464"
+  },
+  "created": "2026-10-07T00:05:25.015Z",
+  "verified": "2026-10-07T00:05:25.015Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-annotation-tag-deletes-scoped-without-forcing-a-zero-ta"
+  ]
+}

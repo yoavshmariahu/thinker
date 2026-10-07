@@ -1,0 +1,93 @@
+{
+  "id": "filter-stalled-schemas-in-sql-before-limiting-candidates",
+  "title": "Filter stalled schemas in SQL before limiting candidates",
+  "kind": "rule",
+  "answers": [
+    "Why does a limited stalled-sync sweep miss stopped schemas?",
+    "Where should the latest-run filter be applied?",
+    "How should malformed or timezone-free run stamps be handled?"
+  ],
+  "body": "Invariant: Compute and filter by the latest run stamp in SQL before applying the candidate limit; products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset annotates latest_run_at and uses it for stalled_after.\nOrdering: products/warehouse_sources/backend/stalled_schedules.py:find_stalled_schemas orders by latest_run_at before slicing and calculates stalled_for from the same annotation.\nFailure: Filtering quiet schemas in Python after LIMIT can let them consume every slot; filtering before LIMIT loads every quiet candidate on each sweep.\nCast guard: products/warehouse_sources/backend/stalled_schedules.py:_AWARE_ISO_TIMESTAMP gates the JSON timestamp cast to offset-bearing ISO strings; missing or nonmatching stamps become NULL, allowing PostgreSQL GREATEST to fall back to last_synced_at.\nPython counterpart: products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_full_run returns None for parsing failures or naive timestamps; products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py:_fast_return_eligible uses that property.\nConstraints: Preserve timezone rejection: an unguarded SQL cast can raise on an unparseable string, and PostgreSQL interprets a naive timestamp in the session timezone, inventing freshness.",
+  "applies": "Stalled-schema sweep and repair candidate queries, and readers parsing the JSON last_full_run_at stamp.",
+  "tags": [
+    "warehouse-sources",
+    "stalled-schedules",
+    "query-limits",
+    "timestamp-parsing"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "stalled_schema_queryset",
+      "hash": "sha256:8f4f05a5e49dc0f59109876f",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "find_stalled_schemas",
+      "hash": "sha256:dc4ff701ce54c519b946909c",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 23
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "_AWARE_ISO_TIMESTAMP",
+      "hash": "sha256:481e0ead69370fb8f42106ac",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_full_run",
+      "hash": "sha256:f38a5ecc269bef3b7ae2f362",
+      "line": 506,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py",
+      "symbol": "_fast_return_eligible",
+      "hash": "sha256:ed62f37a7e32181d88f231c7",
+      "line": 240,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 2,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:14:07.747Z",
+  "verified": "2026-10-07T00:14:07.747Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "measure-sync-activity-without-advancing-the-signals-watermar"
+  ]
+}

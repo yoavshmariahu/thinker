@@ -1,0 +1,46 @@
+{
+  "id": "newtonsolver-line-search-a-stalled-alpha-must-exit-early-and",
+  "title": "NewtonSolver line search: a stalled alpha must exit early, and success is tracked with an explicit ls_converged flag rather than for/else",
+  "kind": "rule",
+  "answers": [
+    "RuntimeWarning divide by zero in the newton-cholesky / newton-lsmr line search",
+    "LogisticRegression or PoissonRegressor with solver newton-cholesky warns 'divide by zero encountered'",
+    "how does the GLM Newton solver line search decide that it failed",
+    "adding a new break to the line search loop in _newton_solver.py"
+  ],
+  "body": "Symptom: fitting a GLM with a Newton solver (for example solver=\"newton-cholesky\") raises a numpy \"divide by zero\" RuntimeWarning along with the usual \"Line search of Newton solver ... did not converge\" warning.\nRoot cause: in sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver.line_search, alpha is clamped by `max(alpha_trial, min_step_reduction * alpha, min_step_length)`. Once alpha reaches min_step_length, alpha == alpha_old, so the next iteration's interpolation divides by a denominator of 0 (denom = 0). This bug came from #34157.\nFix pattern: break out of the loop as soon as `alpha == alpha_old` after the update. Because a `break` no longer means success, the `for ... else:` warning was replaced: a local `ls_converged = False` is set to True just before each success `break` (the Armijo check, the tiny gradient check and the machine-precision checks), and the code after the loop runs `if not ls_converged: warnings.warn(...)`.\nConstraints: any new exit from this loop must say whether it is a success (set ls_converged = True) or a failure (leave it False). Do not go back to for/else, which would treat the stall break as convergence. The early exit only removes the bad division. The line search still fails and warns in that case.",
+  "applies": "sklearn/linear_model/_glm/_newton_solver.py NewtonSolver line search loop (newton-cholesky and other NewtonSolver subclasses)",
+  "tags": [
+    "linear_model",
+    "glm",
+    "newton-solver",
+    "line-search",
+    "numerical-stability",
+    "warnings"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/_newton_solver.py",
+      "symbol": "NewtonSolver.line_search",
+      "hash": "sha256:3e62aa8d7a7a6750383346a1",
+      "line": 318,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35043"
+  },
+  "created": "2026-10-07T00:28:55.868Z",
+  "verified": "2026-10-07T00:28:55.868Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

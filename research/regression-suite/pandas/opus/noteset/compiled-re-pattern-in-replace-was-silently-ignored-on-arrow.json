@@ -1,0 +1,61 @@
+{
+  "id": "compiled-re-pattern-in-replace-was-silently-ignored-on-arrow",
+  "title": "Compiled re.Pattern in replace was silently ignored on ArrowDtype strings because the Block regex gate used a literal dtype allowlist",
+  "kind": "rule",
+  "answers": [
+    "Series.replace(re.compile(...)) does nothing on ArrowDtype string column",
+    "replace with compiled regex silently no-op on pyarrow string / large_string",
+    "why does regex replace work with a string pattern but not with re.compile",
+    "replace compiled regex on Categorical of arrow strings has no effect"
+  ],
+  "body": "Symptom: `ser.replace(re.compile(\"^a\"), \"z\")` returned the data unchanged on `pd.ArrowDtype(pa.string())` / `large_string` (and on a Categorical of them), while object, str, string[python] and string[pyarrow] substituted, and the plain-string spelling `\"^a\"` with regex=True worked.\nRoot cause: pandas/core/internals/blocks.py:Block._replace_regex short-circuited compiled patterns (`is_re(to_replace)`) unless `_regex_target_dtype(self.dtype)` was literally in `[object, \"string\"]`; ArrowDtype matched neither. String patterns skip that guard (`is_re(\"^a\")` is False), so only the compiled spelling was dropped.\nFix pattern: replace literal dtype allowlists with a predicate: `regex_can_match = is_string_dtype(target_dtype) and target_dtype.kind != \"S\"`, still applied to `_regex_target_dtype` (which resolves a Categorical to its categories' dtype, GH-68928).\nConstraints: keep the `kind != \"S\"` half. `is_string_dtype` counts numpy bytes, but a regex can never match them; without it a `|S2` Series upcasts to object on what is still a no-op. Non-string arrow columns (e.g. int64) must stay dtype-preserving no-ops. Still not handled: dictionary-encoded arrow strings (rejected by is_string_dtype) and `pa.string_view()` (silently discarded on the direct path; the `regex=` dict path raises NotImplementedError from ArrowDtype.type, so adding it to is_string_dtype alone won't fix it).",
+  "applies": "Series/DataFrame.replace with regex or compiled patterns, dtype gating in Block._replace_regex",
+  "tags": [
+    "replace",
+    "regex",
+    "arrowdtype",
+    "pyarrow",
+    "strings",
+    "categorical",
+    "bytes"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "Block._replace_regex",
+      "hash": "sha256:9ed600351b63040f2cf39aa1",
+      "line": 763,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "_regex_target_dtype",
+      "hash": "sha256:34e7bbd576693d22183534e4",
+      "line": 2428,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69026"
+  },
+  "created": "2026-10-07T00:24:34.933Z",
+  "verified": "2026-10-07T00:24:34.933Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "replace-compiled-and-string-regex-spellings-must-take-the-sa"
+  ]
+}

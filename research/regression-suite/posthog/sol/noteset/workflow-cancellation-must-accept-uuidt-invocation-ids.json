@@ -1,0 +1,44 @@
+{
+  "id": "workflow-cancellation-must-accept-uuidt-invocation-ids",
+  "title": "Workflow cancellation must accept UUIDT invocation IDs",
+  "kind": "rule",
+  "answers": [
+    "Why does the workflow run Cancel action fail with a validation error?",
+    "How should the cancellation API validate invocation_ids?",
+    "Can workflow cancellation accept UUIDTs as well as RFC UUIDs?"
+  ],
+  "body": "Symptom: Cancelling a running workflow from the runs list or by direct API call fails with a validation error, and the run keeps going.\nRoot cause: nodejs/src/cdp/cdp-api.ts:CdpApi used version-aware UUID validation for invocation_ids, rejecting the UUIDTs issued by the invocation store.\nFix pattern: Validate identifiers against the issuer's format; cancellation uses UUID.validateString(id, false) to accept the 8-4-4-4-12 shape without requiring RFC version or variant bits.\nConstraints: Applies to cancellation by invocation_ids. Keep malformed IDs rejected with 400 before calling cancelJobs, whose ::uuid[] bind would otherwise produce a database cast error surfaced as 500; this does not establish validation rules for unrelated UUID fields.",
+  "applies": "CDP workflow invocation cancellation using the invocation_ids selector.",
+  "tags": [
+    "workflows",
+    "cancellation",
+    "invocation_ids",
+    "uuidt",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/cdp/cdp-api.ts",
+      "symbol": "CdpApi",
+      "hash": "sha256:fe0e27f04f380d7f19512765",
+      "line": 131,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 8,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#96235"
+  },
+  "created": "2026-10-07T00:18:47.346Z",
+  "verified": "2026-10-07T00:18:47.346Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,114 @@
+{
+  "id": "avoid-double-wrapping-polymorphic-model-serializers",
+  "title": "Avoid double-wrapping polymorphic model serializers",
+  "kind": "rule",
+  "answers": [
+    "Why are polymorphic model serializers wrapped twice?",
+    "How should serializer construction return a resolved model serializer?",
+    "How do I avoid adding a second polymorphism trampoline?"
+  ],
+  "body": "Symptom: Polymorphic model serializers are wrapped twice.\nRoot cause: The CombinedSerializer construction path called pydantic-core/src/serializers/shared.rs:CombinedSerializer::maybe_wrap_in_polymorphism_trampoline again after CombinedSerializer::find_serializer returned.\nFix pattern: Return CombinedSerializer::find_serializer's result directly from the final construction path instead of adding another trampoline wrapper.\nConstraints: Applies to this final serializer-resolution path; the diff does not establish that trampoline wrapping should be removed from other paths.",
+  "applies": "Final serializer resolution in CombinedSerializer when constructing polymorphic model serializers.",
+  "tags": [
+    "serialization",
+    "polymorphism",
+    "model-serializers"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "maybe_wrap_in_polymorphism_trampoline",
+      "hash": "sha256:5d42684e7aced49d88dcb479",
+      "line": 241,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "find_serializer",
+      "hash": "sha256:f5129d1c80eb379f01e28a1d",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "maybe_wrap_in_polymorphism_trampoline",
+      "hash": "sha256:5d42684e7aced49d88dcb479",
+      "line": 241,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "find_serializer",
+      "hash": "sha256:f5129d1c80eb379f01e28a1d",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13552"
+  },
+  "created": "2026-10-07T00:43:18.103Z",
+  "verified": "2026-10-07T00:43:18.103Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

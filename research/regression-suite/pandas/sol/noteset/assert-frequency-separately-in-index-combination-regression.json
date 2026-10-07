@@ -1,0 +1,66 @@
+{
+  "id": "assert-frequency-separately-in-index-combination-regression",
+  "title": "Assert frequency separately in index-combination regression tests",
+  "kind": "rule",
+  "answers": [
+    "Does assert_index_equal verify the resulting index frequency?",
+    "How should I test concat retaining frequency when inputs are reordered?",
+    "How can a DataFrame constructor test catch lost holiday-aware frequency?"
+  ],
+  "body": "Assertion: Frequency-sensitive regression tests explicitly compare result.freq with expected.freq after tm.assert_index_equal, which does not check frequency; see pandas/tests/frame/test_constructors.py:TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq.\nFixture: Combine overlapping ranges in an order that creates an intermediate gap later filled by another input; a CustomBusinessDay with holidays exercises frequency metadata that values alone cannot recover.\nOrdering: Cover sort=True, sort=False, and omitted sort as in pandas/tests/reshape/concat/test_datetimes.py:TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent and TestDatetimeConcat.test_concat_timedeltaindex_freq_order_independent. Expected frequency depends on final ordering: nonmonotonic results retain freq=None.",
+  "applies": "Regression tests for frequency metadata in datetime-like index unions used by concat and DataFrame construction.",
+  "tags": [
+    "testing",
+    "frequency",
+    "index-combination"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/frame/test_constructors.py",
+      "symbol": "TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq",
+      "hash": "sha256:3ce26368a7bea29d011a78b7",
+      "line": 533,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/reshape/concat/test_datetimes.py",
+      "symbol": "TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent",
+      "hash": "sha256:d6567c6e72acadde9210bb88",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/reshape/concat/test_datetimes.py",
+      "symbol": "TestDatetimeConcat.test_concat_timedeltaindex_freq_order_independent",
+      "hash": "sha256:d0c7e547e50b540c7c2f9245",
+      "line": 157,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69445"
+  },
+  "created": "2026-10-07T00:26:35.585Z",
+  "verified": "2026-10-07T00:26:35.585Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

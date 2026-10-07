@@ -1,0 +1,55 @@
+{
+  "id": "auto-grid-row-height-sizing-for-auto-fit-panels-with-lower-m",
+  "title": "Auto-grid row height sizing for auto-fit panels with lower min height",
+  "kind": "rule",
+  "answers": [
+    "Why is there empty dead space below an auto-fit panel with a short min height?",
+    "How to prevent auto-grid rows from reserving extra height when panel minHeight is smaller than rowHeight?",
+    "How does AutoGridLayout calculate CSS grid autoRows when fitContent is enabled?"
+  ],
+  "body": "Symptom: Auto-fit panels with a minimum height smaller than the row height leave unexpected empty dead space below them.\nRoot cause: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate floored the CSS grid autoRows template at rowHeightPixels regardless of smaller minHeight settings.\nFix pattern: Floor the CSS grid autoRows track at Math.min(rowHeightPixels, getFitMinHeightInPixels(minHeight, rowHeight)) when fitContent is active, and set minHeight: rowHeightPx on non-fit item wrappers in public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx:AutoGridItemRenderer.\nConstraints: Applies when fitContent is enabled and fillScreen is disabled; does not affect layouts without auto-height panels or where fillScreen is active.",
+  "applies": "Grafana dashboard auto-grid layout row sizing and content fitting.",
+  "tags": [
+    "dashboards",
+    "auto-grid",
+    "layout",
+    "content-fit"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+      "symbol": "AutoGridItemRenderer",
+      "hash": "sha256:b090eb847acbb352f0557664",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:08:08.327Z",
+  "verified": "2026-10-07T00:08:08.327Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

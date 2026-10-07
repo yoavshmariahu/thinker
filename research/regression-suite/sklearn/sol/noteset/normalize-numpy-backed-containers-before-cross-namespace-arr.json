@@ -1,0 +1,43 @@
+{
+  "id": "normalize-numpy-backed-containers-before-cross-namespace-arr",
+  "title": "Normalize NumPy-backed containers before cross-namespace array transfer",
+  "kind": "rule",
+  "answers": [
+    "Why do classification metrics fail with pandas labels and array API predictions?",
+    "How should move_to handle pandas Series or Python lists?",
+    "Where should array-like inputs become NumPy arrays before DLPack transfer?"
+  ],
+  "body": "Symptom: Classification metrics reject pandas labels when array API dispatch is enabled and predictions use another namespace or device.\nRoot cause: sklearn/utils/_array_api.py:move_to passed NumPy-namespace containers into transfer logic without first converting them to NumPy ndarrays.\nFix pattern: Normalize these containers with numpy.asarray before cross-namespace transfer; preserve the subsequent NumPy-to-PyTorch negative-stride contiguity guard, which prevents a process abort during DLPack import.\nConstraints: Normalize only when the source namespace is NumPy, the destination namespace is non-NumPy, and the input is not already a numpy.ndarray. Preserve the existing same-namespace, same-device fast path.",
+  "applies": "Array-like inputs transferred through move_to from the NumPy namespace to another array API namespace, including pandas classification labels.",
+  "tags": [
+    "array-api",
+    "classification-metrics",
+    "pandas",
+    "dlpack"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/_array_api.py",
+      "symbol": "move_to",
+      "hash": "sha256:896ec9ad3f9301295c44793d",
+      "line": 523,
+      "missing": false,
+      "fanout": {
+        "files": 49,
+        "sites": 183,
+        "refs": 234
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34779"
+  },
+  "created": "2026-10-07T00:34:22.929Z",
+  "verified": "2026-10-07T00:34:22.929Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,103 @@
+{
+  "id": "count-ai-detector-unavailable-outcomes-on-the-retry-exhauste",
+  "title": "Count AI detector 'unavailable' outcomes on the retry-exhausted path, not in the retried activity",
+  "kind": "rule",
+  "answers": [
+    "why does the ai detector unavailable metric show several failures for one alert check",
+    "where is posthog_insight_alerts_ai_detector_checks_total incremented",
+    "retried check counted as both failure and success",
+    "how to count failed alert checks with Temporal retries"
+  ],
+  "body": "Symptom: `posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"}` grows several times per scheduled check, and a check that failed once then succeeded on retry shows up as both a failure and a success.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert called `record_ai_detector_check_outcome(\"unavailable\")` before re-raising `LLMDetectorUnavailableError`. Temporal retries that activity, so the counter went up once per attempt.\nFix pattern: evaluate_alert just re-raises. posthog/temporal/alerts/activities.py:record_failed_evaluation increments `unavailable` only after `_write_errored_alert_check` has actually written a check and `error.get(\"code\") == LLM_DETECTOR_UNAVAILABLE_ERROR_CODE`.\nConstraints: any per-check health metric for a Temporal activity with a retry policy belongs on the terminal path (retry-exhausted, or the final success), never on a failing attempt. Early returns in record_failed_evaluation (disabled alert, next_check_at already in the future, alert deleted) write no check, so they must not count either. Tests in posthog/temporal/tests/test_alerts_activities.py (TestRecordFailedEvaluation, TestEvaluateAlert) pin this behaviour.",
+  "applies": "Alert check metrics and outcome counters emitted from Temporal alert activities",
+  "tags": [
+    "alerts",
+    "temporal",
+    "metrics",
+    "ai-detector",
+    "retries"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "record_failed_evaluation",
+      "hash": "sha256:8aa482e903ec6c76c7ddc618",
+      "line": 569,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "symbol": "error",
+      "hash": "sha256:eb75da034e97e663667713c2",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "symbol": "next_check_at",
+      "hash": "sha256:edbaa78b5ada3fa2362213b0",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 67,
+        "sites": 0,
+        "refs": 538
+      }
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "symbol": "TestRecordFailedEvaluation",
+      "hash": "sha256:50f572e06c2a6a46883b4d3b",
+      "line": 821,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "symbol": "TestEvaluateAlert",
+      "hash": "sha256:124b605c322f9bed8edb146e",
+      "line": 470,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:16:47.937Z",
+  "verified": "2026-10-07T00:16:47.937Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "evaluate-alert-must-skip-when-the-reloaded-detector-type-no",
+    "llmdetectorunavailableerror-copy-must-name-the-outcome-not-a"
+  ]
+}

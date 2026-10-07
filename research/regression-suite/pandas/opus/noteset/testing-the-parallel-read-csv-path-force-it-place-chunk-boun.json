@@ -1,0 +1,70 @@
+{
+  "id": "testing-the-parallel-read-csv-path-force-it-place-chunk-boun",
+  "title": "Testing the parallel read_csv path: force it, place chunk boundaries, assert it was used",
+  "kind": "howto",
+  "answers": [
+    "how to test parallel read_csv on a small file",
+    "how to put a chunk boundary at a specific byte in a test",
+    "test passes but parallel path silently fell back to serial"
+  ],
+  "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- To force the parallel path, monkeypatch `pandas.io.parsers.readers._PARALLEL_READ_MIN_BYTES` to 1 and use `pd.option_context(\"mode.max_threads\", N)` with N>=2. Get the serial expectation with max_threads=1 (or engine=\"python\").\n- `_read_forced_parallel` / the TestReadCsvParallel helper now call `pytest.fail` (not skip) when the parallel read returns None. A silent fallback is a test failure.\n- `_track_parallel(monkeypatch)` records outcomes: \"used\", \"declined\" (fell back to serial) or \"raised\". Assert `outcomes == [\"used\"]` so that a parity test cannot pass just by falling back.\n- To place a boundary: `_find_data_start_offset(path, 0, 0)`, then `_find_chunk_byte_offsets(path, n_chunks, data_start, n_workers=...)` to get the offset and overwrite bytes there. `_spy_on_chunk_offsets` plus `_assert_chunk_starts_at` confirm where the split happened.\n- Mark tests that rely on spies or worker behaviour `@pytest.mark.skipif(WASM, ...)`, because WASM always reads serially.",
+  "applies": "Tests in pandas/tests/io/parser/test_parallel_read.py",
+  "tags": [
+    "testing",
+    "read_csv",
+    "parallel",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "_track_parallel",
+      "hash": "sha256:f85d82876a5161ed104ffa85",
+      "line": 1842,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 17,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "_read_forced_parallel",
+      "hash": "sha256:46f34868cf5d830bab3f10bd",
+      "line": 974,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 39,
+        "refs": 44
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_quoted_newline_at_chunk_boundary_converts_like_serial",
+      "hash": "sha256:f81aa6d7a479bd9482e9b0e7",
+      "line": 1704,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:23:09.473Z",
+  "verified": "2026-10-07T00:23:09.473Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l",
+    "testing-the-parallel-read-csv-path-force-parallel-and-compar"
+  ]
+}

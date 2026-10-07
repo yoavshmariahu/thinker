@@ -1,0 +1,2214 @@
+[
+  {
+    "id": "grafana-132418",
+    "pr": 132418,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5708,
+    "elapsedMs": 15146,
+    "proposed": [
+      {
+        "title": "applyFieldOverrides must not mutate input frames; nested FieldType.frame fields share config with the source query",
+        "kind": "rule",
+        "answers": [
+          "Panel using -- Dashboard -- datasource shows another panel's displayName/unit/thresholds on every series",
+          "Time series to table panel leaks its field config into raw query results",
+          "why does defaultsDeep in fieldOverrides mutate shared data",
+          "nested frame field config overwritten after applyFieldOverrides"
+        ],
+        "body": "Symptom: a panel reading another panel's results via the `-- Dashboard --` datasource (withTransforms: false) inherits the source table panel's displayName, unit, color, thresholds and custom.cellOptions (e.g. every series named after the table's sparkline column), when the source panel uses \"Time series to table\".\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides, for `FieldType.frame` fields, ran `defaultsDeep(valueField.config, config)` on each nested field. lodash `defaultsDeep` mutates its first argument, and the nested frames built by \"Time series to table\" reuse the source query's field objects/config, so the panel config was written into data the query runner and other panels still hold.\nFix pattern: never merge into input objects; build new field objects (`{...valueField, config: defaultsDeep(cloneDeep(valueField.config) || {}, config)}`) and a new frame (`{...nestedFrame, fields: newFields}`) before recursing.\nConstraints: a shallow copy of config is NOT enough — defaultsDeep recurses and would still mutate shared `custom`/`thresholds` objects; cloneDeep is required. It costs ~15% on large sparkline tables (5000 rows: 28.7→34.0 ms), which was accepted. Treat any data handed to applyFieldOverrides (and transformation outputs generally) as possibly shared with other consumers.\nTest: fieldOverrides.test.ts 'will not write the panel config onto the frames it was given' asserts the source frame's config stays `{}`.",
+        "applies": "packages/grafana-data field override application, especially nested frame (sparkline) fields and any in-place config merging",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+            "symbol": "applyFieldOverrides"
+          },
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.test.ts"
+          }
+        ],
+        "tags": [
+          "field-overrides",
+          "mutation",
+          "defaultsDeep",
+          "nested-frames",
+          "dashboard-datasource",
+          "time-series-to-table",
+          "sparkline"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+        "title": "applyFieldOverrides must not mutate input frames; nested FieldType.frame fields share config with the source query",
+        "kind": "rule",
+        "body": "Symptom: a panel reading another panel's results via the `-- Dashboard --` datasource (withTransforms: false) inherits the source table panel's displayName, unit, color, thresholds and custom.cellOptions (e.g. every series named after the table's sparkline column), when the source panel uses \"Time series to table\".\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides, for `FieldType.frame` fields, ran `defaultsDeep(valueField.config, config)` on each nested field. lodash `defaultsDeep` mutates its first argument, and the nested frames built by \"Time series to table\" reuse the source query's field objects/config, so the panel config was written into data the query runner and other panels still hold.\nFix pattern: never merge into input objects; build new field objects (`{...valueField, config: defaultsDeep(cloneDeep(valueField.config) || {}, config)}`) and a new frame (`{...nestedFrame, fields: newFields}`) before recursing.\nConstraints: a shallow copy of config is NOT enough — defaultsDeep recurses and would still mutate shared `custom`/`thresholds` objects; cloneDeep is required. It costs ~15% on large sparkline tables (5000 rows: 28.7→34.0 ms), which was accepted. Treat any data handed to applyFieldOverrides (and transformation outputs generally) as possibly shared with other consumers.\nTest: fieldOverrides.test.ts 'will not write the panel config onto the frames it was given' asserts the source frame's config stays `{}`.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+            "symbol": "applyFieldOverrides",
+            "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+            "line": 96,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 60,
+              "refs": 118
+            }
+          },
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+            "symbol": "displayName",
+            "hash": "sha256:af34ef46250d0a43d3ed4c1f",
+            "line": 603,
+            "missing": false,
+            "fanout": {
+              "files": 514,
+              "sites": 4,
+              "refs": 1327
+            }
+          },
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+            "symbol": "applyFieldOverrides",
+            "hash": "sha256:b64fdec57dfc99bda6693c14",
+            "line": 422,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 60,
+              "refs": 118
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133093",
+    "pr": 133093,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 8647,
+    "elapsedMs": 20937,
+    "proposed": [
+      {
+        "title": "v2 external export must keep the '-- Dashboard --' datasource reference untouched",
+        "kind": "rule",
+        "answers": [
+          "Why does a panel using the Dashboard datasource show Random Walk data after importing a shared v2 dashboard?",
+          "Share dashboard with another instance breaks panels that reuse another panel's query results",
+          "Which datasource references does makeExportableV2 skip when anonymizing?",
+          "exported v2 dashboard loses -- Dashboard -- datasource name"
+        ],
+        "body": "Symptom: A v2 dashboard is exported with \"Share dashboard with another instance\" and reimported. A panel that reuses another panel's results (the -- Dashboard -- datasource) then falls back to Grafana's built-in datasource and shows generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 handled `dataQueryKind.datasource.name === '-- Dashboard --'` like an instance-specific UID. It removed the name and attached datasource-remapping labels.\nFix pattern: In the per-query loop, return early when the name equals SHARED_DASHBOARD_QUERY (app/plugins/datasource/dashboard/constants). This check comes before the template-variable branch, label generation and UID removal, so the query keeps `datasource: { name: '-- Dashboard --' }` and gets no labels.\nConstraints: Only this exact reference is exempt, whether the query group is 'datasource' or 'dashboard'. Other built-ins are still anonymized: `grafana` gets an ExportLabel such as 'grafana-1', and Prometheus etc. get ExportLabel/ExportDatasourceName. Mixed panels keep the '-- Mixed --' panel datasource. Library panels inlined during external export go through the same path, so they must also keep the reference. If you add another datasource with a stable UID across installations, it needs a similar exemption.",
+        "applies": "Dashboard v2 export for external sharing (makeExportableV2 with isSharingExternally=true)",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+            "symbol": "makeExportableV2"
+          },
+          {
+            "path": "public/app/plugins/datasource/dashboard/constants.ts",
+            "symbol": "SHARED_DASHBOARD_QUERY"
+          }
+        ],
+        "tags": [
+          "dashboard-export",
+          "v2-schema",
+          "datasource-anonymization",
+          "dashboard-datasource",
+          "share-externally"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing v2 export round-trips: export, JSON reload, then resolve via layout serializer utils",
+        "kind": "howto",
+        "answers": [
+          "How do I test that a v2 dashboard export reimports correctly?",
+          "How to assert the datasource a panel resolves to after makeExportableV2",
+          "exporters.test.ts v2 round-trip pattern"
+        ],
+        "body": "Pattern used in public/app/features/dashboard-scene/scene/export/exporters.test.ts ('dashboard exporter v2'):\n1. Deep-copy the fixture with `JSON.parse(JSON.stringify(handyTestingSchema))` (from @grafana/schema/apis/dashboard.grafana.app/v2/examples), because makeExportableV2 mutates its input.\n2. Overwrite `elements['panel-1'].spec.data.spec.queries` with the PanelQuery/DataQuery kinds you need, then call `await makeExportableV2(schema, true)` (true = share externally).\n3. Reload with a JSON round-trip, then check what import would resolve. Use getPanelDataSource(panel) and panelQueryKindToSceneQuery(query), both from serialization/layoutSerializers/utils. Don't just check the raw spec.\n4. For library panels, use `jest.mocked(getLibraryPanel).mockResolvedValueOnce(...)` with an edited model. The exporter inlines it as a Panel that keeps the same id.",
+        "applies": "Unit tests for dashboard-scene v2 exporters",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/utils.ts",
+            "symbol": "getPanelDataSource"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/utils.ts",
+            "symbol": "panelQueryKindToSceneQuery"
+          }
+        ],
+        "tags": [
+          "testing",
+          "dashboard-export",
+          "v2-schema",
+          "jest"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "v2-external-export-must-keep-the-dashboard-datasource-refere",
+        "title": "v2 external export must keep the '-- Dashboard --' datasource reference untouched",
+        "kind": "rule",
+        "body": "Symptom: A v2 dashboard is exported with \"Share dashboard with another instance\" and reimported. A panel that reuses another panel's results (the -- Dashboard -- datasource) then falls back to Grafana's built-in datasource and shows generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 handled `dataQueryKind.datasource.name === '-- Dashboard --'` like an instance-specific UID. It removed the name and attached datasource-remapping labels.\nFix pattern: In the per-query loop, return early when the name equals SHARED_DASHBOARD_QUERY (app/plugins/datasource/dashboard/constants). This check comes before the template-variable branch, label generation and UID removal, so the query keeps `datasource: { name: '-- Dashboard --' }` and gets no labels.\nConstraints: Only this exact reference is exempt, whether the query group is 'datasource' or 'dashboard'. Other built-ins are still anonymized: `grafana` gets an ExportLabel such as 'grafana-1', and Prometheus etc. get ExportLabel/ExportDatasourceName. Mixed panels keep the '-- Mixed --' panel datasource. Library panels inlined during external export go through the same path, so they must also keep the reference. If you add another datasource with a stable UID across installations, it needs a similar exemption.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+            "symbol": "makeExportableV2",
+            "hash": "sha256:380f3045b677a3d81039df7c",
+            "line": 423,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 12,
+              "refs": 19
+            }
+          },
+          {
+            "path": "public/app/plugins/datasource/dashboard/constants.ts",
+            "symbol": "SHARED_DASHBOARD_QUERY",
+            "hash": "sha256:f774aab2db51ee0712fd0459",
+            "line": 1,
+            "missing": false,
+            "fanout": {
+              "files": 26,
+              "sites": 0,
+              "refs": 136
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-v2-export-round-trips-export-json-reload-then-resolv",
+        "title": "Testing v2 export round-trips: export, JSON reload, then resolve via layout serializer utils",
+        "kind": "howto",
+        "body": "Pattern used in public/app/features/dashboard-scene/scene/export/exporters.test.ts ('dashboard exporter v2'):\n1. Deep-copy the fixture with `JSON.parse(JSON.stringify(handyTestingSchema))` (from @grafana/schema/apis/dashboard.grafana.app/v2/examples), because makeExportableV2 mutates its input.\n2. Overwrite `elements['panel-1'].spec.data.spec.queries` with the PanelQuery/DataQuery kinds you need, then call `await makeExportableV2(schema, true)` (true = share externally).\n3. Reload with a JSON round-trip, then check what import would resolve. Use getPanelDataSource(panel) and panelQueryKindToSceneQuery(query), both from serialization/layoutSerializers/utils. Don't just check the raw spec.\n4. For library panels, use `jest.mocked(getLibraryPanel).mockResolvedValueOnce(...)` with an edited model. The exporter inlines it as a Panel that keeps the same id.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+            "hash": "sha256:edf03932fb135d0731160eb5",
+            "missing": false
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/utils.ts",
+            "symbol": "getPanelDataSource",
+            "hash": "sha256:ce15c80c551b94627211e571",
+            "line": 289,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 14,
+              "refs": 21
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/utils.ts",
+            "symbol": "panelQueryKindToSceneQuery",
+            "hash": "sha256:d5b7529134cf34473a84fee9",
+            "line": 468,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 2,
+              "refs": 6
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133023",
+    "pr": 133023,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6802,
+    "elapsedMs": 21515,
+    "proposed": [
+      {
+        "title": "Alert rule DB column types must match the int64 model fields, in both alert_rule and alert_rule_version",
+        "kind": "rule",
+        "answers": [
+          "saving alert rule with large missing series evaluations to resolve fails",
+          "missing_series_evals_to_resolve out of range smallint error on MySQL/Postgres",
+          "why does alert_rule_version need the same migration as alert_rule",
+          "how to widen an alert rule column type"
+        ],
+        "body": "Symptom: an alert rule with \"missing series evaluations to resolve\" set above 32,767 fails to save (out of range) on MySQL or PostgreSQL.\nRoot cause: the column was added as SMALLINT by pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:AddAlertRuleMissingSeriesEvalsToResolve, but the model field MissingSeriesEvalsToResolve is *int64.\nFix pattern: leave the original migration as is. Add a new migration (ExpandAlertRuleMissingSeriesEvalsToResolve) that widens the column to nullable BIGINT. Add a regression test in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules that stores a value above the limit and reads it back from both the rule (GetAlertRuleByUID) and the alertRuleVersion row.\nConstraints: every rule column exists in both alert_rule and alert_rule_version, so a type change needs one migration per table. Otherwise version history writes still overflow. Only MySQL and Postgres SQL was added. SQLite was not altered.",
+        "applies": "Schema changes to ngalert alert_rule / alert_rule_version columns",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve"
+          },
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "AddAlertRuleMissingSeriesEvalsToResolve"
+          },
+          {
+            "path": "pkg/services/ngalert/store/alert_rule_test.go",
+            "symbol": "TestIntegrationUpdateAlertRules"
+          }
+        ],
+        "tags": [
+          "ngalert",
+          "migrations",
+          "alert_rule",
+          "alert_rule_version",
+          "smallint",
+          "bigint"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Adding a SQL store migration: register at the end and append its ID to migration_ids.txt",
+        "kind": "howto",
+        "answers": [
+          "how do I add a new database migration in grafana",
+          "where to register a migration",
+          "migration_ids.txt test failing",
+          "how to alter a column type for mysql and postgres only"
+        ],
+        "body": "1. Write a function taking *migrator.Migrator in pkg/services/sqlstore/migrations/<area>/ (alerting migrations live in ualert/).\n2. Call it at the end of pkg/services/sqlstore/migrations/migrations.go:OSSMigrations.AddMigration. Order matters, so new migrations go last.\n3. Append each migration ID string, in quotes and in the same order, to pkg/services/sqlstore/migrations/testdata/migration_ids.txt.\n4. For per-dialect type changes, use migrator.NewRawSQLMigration(\"\").Mysql(...).Postgres(...). In MySQL, `MODIFY col TYPE NULL` redefines the whole column, so state nullability again. In Postgres, `ALTER COLUMN col TYPE ...` keeps it.\n5. Never edit a migration that has already shipped (its ID has been recorded). Add a new one instead.",
+        "applies": "Any new migration in pkg/services/sqlstore/migrations",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/migrations.go",
+            "symbol": "OSSMigrations.AddMigration"
+          },
+          {
+            "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt"
+          }
+        ],
+        "tags": [
+          "migrations",
+          "sqlstore",
+          "mysql",
+          "postgres",
+          "howto"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "alert-rule-db-column-types-must-match-the-int64-model-fields",
+        "title": "Alert rule DB column types must match the int64 model fields, in both alert_rule and alert_rule_version",
+        "kind": "rule",
+        "body": "Symptom: an alert rule with \"missing series evaluations to resolve\" set above 32,767 fails to save (out of range) on MySQL or PostgreSQL.\nRoot cause: the column was added as SMALLINT by pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:AddAlertRuleMissingSeriesEvalsToResolve, but the model field MissingSeriesEvalsToResolve is *int64.\nFix pattern: leave the original migration as is. Add a new migration (ExpandAlertRuleMissingSeriesEvalsToResolve) that widens the column to nullable BIGINT. Add a regression test in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules that stores a value above the limit and reads it back from both the rule (GetAlertRuleByUID) and the alertRuleVersion row.\nConstraints: every rule column exists in both alert_rule and alert_rule_version, so a type change needs one migration per table. Otherwise version history writes still overflow. Only MySQL and Postgres SQL was added. SQLite was not altered.",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+            "hash": "sha256:910108e1b78d35d4e240c381",
+            "line": 19,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "AddAlertRuleMissingSeriesEvalsToResolve",
+            "hash": "sha256:35c1d71f535a159aa82435e4",
+            "line": 5,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pkg/services/ngalert/store/alert_rule_test.go",
+            "symbol": "TestIntegrationUpdateAlertRules",
+            "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+            "line": 52,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "adding-a-sql-store-migration-register-at-the-end-and-append",
+        "title": "Adding a SQL store migration: register at the end and append its ID to migration_ids.txt",
+        "kind": "howto",
+        "body": "1. Write a function taking *migrator.Migrator in pkg/services/sqlstore/migrations/<area>/ (alerting migrations live in ualert/).\n2. Call it at the end of pkg/services/sqlstore/migrations/migrations.go:OSSMigrations.AddMigration. Order matters, so new migrations go last.\n3. Append each migration ID string, in quotes and in the same order, to pkg/services/sqlstore/migrations/testdata/migration_ids.txt.\n4. For per-dialect type changes, use migrator.NewRawSQLMigration(\"\").Mysql(...).Postgres(...). In MySQL, `MODIFY col TYPE NULL` redefines the whole column, so state nullability again. In Postgres, `ALTER COLUMN col TYPE ...` keeps it.\n5. Never edit a migration that has already shipped (its ID has been recorded). Add a new one instead.",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/migrations.go",
+            "symbol": "OSSMigrations",
+            "hash": "sha256:565725227f2f6891410fd77f",
+            "line": 28,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 0,
+              "refs": 17
+            }
+          },
+          {
+            "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+            "hash": "sha256:4b53fc6ce3b6938cea762e2f",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133033",
+    "pr": 133033,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5293,
+    "elapsedMs": 17112,
+    "proposed": [
+      {
+        "title": "OpenFeature eval context namespace must stay concrete: never '*' or empty from wildcard identities",
+        "kind": "rule",
+        "answers": [
+          "feature flag evaluation rejected with namespace mismatch for service token",
+          "wildcard namespace identity breaks OpenFeature flag evaluation",
+          "how is the OpenFeature evaluation context namespace / targeting key chosen per request",
+          "cluster-wide service token gets flags evaluated for '*'"
+        ],
+        "body": "Symptom: Requests made with a wildcard identity, such as a cluster-wide service token, had their feature flag evaluations rejected as a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext copied id.Namespace straight into the OpenFeature evaluation context (both the targeting key and the \"namespace\" attribute). When that value was \"*\", it no longer matched the caller's concrete auth namespace further down the request path.\nFix pattern: Use the identity namespace only when it is concrete (non-empty and not \"*\"). Otherwise fall back to \"stacks-\" + cfg.StackID, and use \"default\" when StackID is unset. A concrete identity namespace still wins over StackID.\nConstraints: Any code that builds an OpenFeature evaluation context, or another per-request scope, from an identity namespace must treat \"\" and \"*\" as \"no namespace\". If it doesn't, the scope widens to wildcard and downstream namespace checks fail. Keep the targeting key and the namespace attribute equal.",
+        "applies": "OpenFeature evaluation context setup in the request context handler, and any code that derives a namespace from authn identities",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ContextHandler.setRequestContext"
+          }
+        ],
+        "tags": [
+          "openfeature",
+          "feature-flags",
+          "namespace",
+          "authn",
+          "service-token",
+          "contexthandler"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing the per-request OpenFeature evaluation context in contexthandler",
+        "kind": "howto",
+        "answers": [
+          "how to test which namespace OpenFeature sees for a request",
+          "unit test the openfeature transaction context set by the context handler",
+          "fake an authn identity with a namespace in contexthandler tests"
+        ],
+        "body": "Pattern used in pkg/services/contexthandler/contexthandler_test.go:TestContextHandler:\n- Build the handler with contexthandler.ProvideService(cfg, &authntest.FakeService{ExpectedIdentity: &authn.Identity{ID, Type: claims.TypeUser, Namespace}}, featuremgmt.WithFeatures()). Set cfg.StackID on setting.NewCfg() to test the stack fallback.\n- Create webtest.NewServer(t, routing.NewRouteRegister()), call server.Mux.Use(handler.Middleware) and register a route with server.Mux.Get.\n- Inside the route, read openfeature.TransactionContext(c.Req.Context()) and assert on evalCtx.TargetingKey() and evalCtx.Attribute(\"namespace\").\n- Send the request with server.Send(server.NewGetRequest(path)) and close res.Body.",
+        "applies": "Unit tests for request-context and OpenFeature setup in pkg/services/contexthandler",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler_test.go",
+            "symbol": "TestContextHandler"
+          },
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ContextHandler.setRequestContext"
+          }
+        ],
+        "tags": [
+          "testing",
+          "openfeature",
+          "contexthandler",
+          "authntest",
+          "webtest"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "openfeature-eval-context-namespace-must-stay-concrete-never",
+        "title": "OpenFeature eval context namespace must stay concrete: never '*' or empty from wildcard identities",
+        "kind": "rule",
+        "body": "Symptom: Requests made with a wildcard identity, such as a cluster-wide service token, had their feature flag evaluations rejected as a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext copied id.Namespace straight into the OpenFeature evaluation context (both the targeting key and the \"namespace\" attribute). When that value was \"*\", it no longer matched the caller's concrete auth namespace further down the request path.\nFix pattern: Use the identity namespace only when it is concrete (non-empty and not \"*\"). Otherwise fall back to \"stacks-\" + cfg.StackID, and use \"default\" when StackID is unset. A concrete identity namespace still wins over StackID.\nConstraints: Any code that builds an OpenFeature evaluation context, or another per-request scope, from an identity namespace must treat \"\" and \"*\" as \"no namespace\". If it doesn't, the scope widens to wildcard and downstream namespace checks fail. Keep the targeting key and the namespace attribute equal.",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ContextHandler",
+            "hash": "sha256:7e2bafbef478109aa6de31ad",
+            "line": 41,
+            "missing": false,
+            "fanout": {
+              "files": 11,
+              "sites": 0,
+              "refs": 25
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-the-per-request-openfeature-evaluation-context-in-co",
+        "title": "Testing the per-request OpenFeature evaluation context in contexthandler",
+        "kind": "howto",
+        "body": "Pattern used in pkg/services/contexthandler/contexthandler_test.go:TestContextHandler:\n- Build the handler with contexthandler.ProvideService(cfg, &authntest.FakeService{ExpectedIdentity: &authn.Identity{ID, Type: claims.TypeUser, Namespace}}, featuremgmt.WithFeatures()). Set cfg.StackID on setting.NewCfg() to test the stack fallback.\n- Create webtest.NewServer(t, routing.NewRouteRegister()), call server.Mux.Use(handler.Middleware) and register a route with server.Mux.Get.\n- Inside the route, read openfeature.TransactionContext(c.Req.Context()) and assert on evalCtx.TargetingKey() and evalCtx.Attribute(\"namespace\").\n- Send the request with server.Send(server.NewGetRequest(path)) and close res.Body.",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler_test.go",
+            "symbol": "TestContextHandler",
+            "hash": "sha256:686759b39724caa91cdb1125",
+            "line": 27,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ProvideService",
+            "hash": "sha256:692c1b24cc26f6fc234c3ea6",
+            "line": 32,
+            "missing": false,
+            "fanout": {
+              "files": 172,
+              "sites": 799,
+              "refs": 1017
+            }
+          },
+          {
+            "path": "pkg/web/webtest/webtest.go",
+            "symbol": "NewServer",
+            "hash": "sha256:f7d91420518aa5a787d8936f",
+            "line": 31,
+            "missing": false,
+            "fanout": {
+              "files": 119,
+              "sites": 363,
+              "refs": 364
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132979",
+    "pr": 132979,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4319,
+    "elapsedMs": 11047,
+    "proposed": [
+      {
+        "title": "Modal footer buttons must use Modal.ButtonRow, not a custom div/Stack, or focus rings get clipped",
+        "kind": "rule",
+        "answers": [
+          "focus ring cut off on buttons in modal",
+          "ConfirmModal button outline clipped at bottom",
+          "how to lay out buttons in a grafana-ui Modal footer",
+          "Modal.ButtonRow vs Stack for modal actions"
+        ],
+        "body": "Symptom: when you tab to a button in a modal (e.g. ConfirmModal's Cancel/Delete), its keyboard focus ring is cut off at the edge.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent put its buttons in its own wrapper (a `buttonsContainer` div with paddingTop plus a `Stack`) instead of the modal's footer component.\nFix pattern: render action buttons as direct children of `Modal.ButtonRow` (imported from '../Modal/Modal'). Remove the custom spacing wrapper, because ButtonRow already handles footer spacing and layout.\nConstraints: use this for any modal-style content in grafana-ui and in app code. After this change the `justifyButtons` prop of ConfirmContent is no longer passed to the button row (the Stack that used it is gone). Check that before you rely on that prop for alignment.",
+        "applies": "Button footers in grafana-ui Modal/ConfirmModal and any custom modal content",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+            "symbol": "ConfirmContent"
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+            "symbol": "Modal"
+          }
+        ],
+        "tags": [
+          "grafana-ui",
+          "modal",
+          "focus-ring",
+          "accessibility",
+          "ConfirmModal",
+          "css"
+        ],
+        "confidence": 0.6
+      }
+    ],
+    "saved": [
+      {
+        "id": "modal-footer-buttons-must-use-modal-buttonrow-not-a-custom-d",
+        "title": "Modal footer buttons must use Modal.ButtonRow, not a custom div/Stack, or focus rings get clipped",
+        "kind": "rule",
+        "body": "Symptom: when you tab to a button in a modal (e.g. ConfirmModal's Cancel/Delete), its keyboard focus ring is cut off at the edge.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent put its buttons in its own wrapper (a `buttonsContainer` div with paddingTop plus a `Stack`) instead of the modal's footer component.\nFix pattern: render action buttons as direct children of `Modal.ButtonRow` (imported from '../Modal/Modal'). Remove the custom spacing wrapper, because ButtonRow already handles footer spacing and layout.\nConstraints: use this for any modal-style content in grafana-ui and in app code. After this change the `justifyButtons` prop of ConfirmContent is no longer passed to the button row (the Stack that used it is gone). Check that before you rely on that prop for alignment.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+            "symbol": "ConfirmContent",
+            "hash": "sha256:1b0f886b4db1e45987b16f83",
+            "line": 53,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 8
+            }
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+            "symbol": "Modal",
+            "hash": "sha256:7779e1d4696b38669ad4fdb5",
+            "line": 46,
+            "missing": false,
+            "fanout": {
+              "files": 131,
+              "sites": 0,
+              "refs": 552
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132877",
+    "pr": 132877,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 7745,
+    "elapsedMs": 19275,
+    "proposed": [
+      {
+        "title": "Combobox floating popover: only run autoUpdate while open, and dedupe size measurements via a ref",
+        "kind": "rule",
+        "answers": [
+          "Combobox in a collapsed details element keeps re-rendering",
+          "Feature Control UI input gets a DOM update on every frame",
+          "why does useComboboxFloat not pass whileElementsMounted: autoUpdate",
+          "setPopoverMaxSize called repeatedly with identical values"
+        ],
+        "body": "Symptom: A Combobox rendered inside a collapsed <details> (e.g. the Feature Control UI) re-renders over and over, and its <input> gets a DOM update every time even though nothing visible changes.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat passed `whileElementsMounted: autoUpdate` to useFloating. Floating UI's docs say this is only for UI that is conditionally rendered, not UI hidden with CSS. autoUpdate kept firing the `size` middleware `apply`, which called setPopoverMaxSize with a new object holding the same width/height, and every call caused a re-render. On each re-render React sets `element.name = \"\"` and calls removeAttribute('name') on the input.\nFix pattern: Remove whileElementsMounted. Run `autoUpdate(inputRef.current, floatingRef.current, update)` from a useEffect that returns early when `!isOpen` or when either ref is null, with deps [isOpen, update]. In `size.apply`, compare width/height with `popoverMaxSizeRef.current` and return early if they are unchanged. Use a ref because calling setState with an equal new object still re-renders.\nConstraints: Use this for any floating-ui popover whose floating element stays mounted and is hidden with CSS. Conditionally rendered popovers can still use whileElementsMounted. Any new state written from middleware callbacks needs the same equality guard.",
+        "applies": "grafana-ui Combobox/MultiCombobox floating menus, and other floating-ui usage where the floating element stays mounted",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat"
+          }
+        ],
+        "tags": [
+          "combobox",
+          "floating-ui",
+          "rerender",
+          "performance",
+          "autoUpdate"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing Combobox floating behaviour by partially mocking @floating-ui/react",
+        "kind": "howto",
+        "answers": [
+          "how to test that autoUpdate is not called in Combobox",
+          "how to simulate a floating-ui size measurement in jest",
+          "test that useComboboxFloat does not rerender"
+        ],
+        "body": "Combobox.test.tsx uses `jest.mock('@floating-ui/react', ...)` and spreads `jest.requireActual`. It wraps `autoUpdate` in `jest.fn` that calls through to the real function. It wraps `size`, saving `options.apply` into a module-level `mockSizeApply`, then returns `actual.size(options)`.\n- Get the typed mock with `jest.mocked(autoUpdate)` and call `mockReset()` on it in afterEach.\n- To fake a size measurement, call `mockSizeApply?.({ availableWidth, availableHeight })` inside `act()`.\n- To detect hidden DOM churn on the input, spy on `HTMLInputElement.prototype.removeAttribute` and assert it was not called with 'name'.\n- useComboboxFloat.test.ts fully stubs the module (useFloating returns `{ floatingStyles: {} }`) and counts renders inside `renderHook`.\nAlways `await user.click(...)`. MultiCombobox.test.tsx had a missing await, which this PR fixed.",
+        "applies": "Jest tests under packages/grafana-ui/src/components/Combobox",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx"
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts"
+          }
+        ],
+        "tags": [
+          "testing",
+          "jest",
+          "floating-ui",
+          "combobox"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "combobox-floating-popover-only-run-autoupdate-while-open-and",
+        "title": "Combobox floating popover: only run autoUpdate while open, and dedupe size measurements via a ref",
+        "kind": "rule",
+        "body": "Symptom: A Combobox rendered inside a collapsed <details> (e.g. the Feature Control UI) re-renders over and over, and its <input> gets a DOM update every time even though nothing visible changes.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat passed `whileElementsMounted: autoUpdate` to useFloating. Floating UI's docs say this is only for UI that is conditionally rendered, not UI hidden with CSS. autoUpdate kept firing the `size` middleware `apply`, which called setPopoverMaxSize with a new object holding the same width/height, and every call caused a re-render. On each re-render React sets `element.name = \"\"` and calls removeAttribute('name') on the input.\nFix pattern: Remove whileElementsMounted. Run `autoUpdate(inputRef.current, floatingRef.current, update)` from a useEffect that returns early when `!isOpen` or when either ref is null, with deps [isOpen, update]. In `size.apply`, compare width/height with `popoverMaxSizeRef.current` and return early if they are unchanged. Use a ref because calling setState with an equal new object still re-renders.\nConstraints: Use this for any floating-ui popover whose floating element stays mounted and is hidden with CSS. Conditionally rendered popovers can still use whileElementsMounted. Any new state written from middleware callbacks needs the same equality guard.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat",
+            "hash": "sha256:28df1c52551d1b3bfff3f362",
+            "line": 45,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 3,
+              "refs": 7
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-combobox-floating-behaviour-by-partially-mocking-flo",
+        "title": "Testing Combobox floating behaviour by partially mocking @floating-ui/react",
+        "kind": "howto",
+        "body": "Combobox.test.tsx uses `jest.mock('@floating-ui/react', ...)` and spreads `jest.requireActual`. It wraps `autoUpdate` in `jest.fn` that calls through to the real function. It wraps `size`, saving `options.apply` into a module-level `mockSizeApply`, then returns `actual.size(options)`.\n- Get the typed mock with `jest.mocked(autoUpdate)` and call `mockReset()` on it in afterEach.\n- To fake a size measurement, call `mockSizeApply?.({ availableWidth, availableHeight })` inside `act()`.\n- To detect hidden DOM churn on the input, spy on `HTMLInputElement.prototype.removeAttribute` and assert it was not called with 'name'.\n- useComboboxFloat.test.ts fully stubs the module (useFloating returns `{ floatingStyles: {} }`) and counts renders inside `renderHook`.\nAlways `await user.click(...)`. MultiCombobox.test.tsx had a missing await, which this PR fixed.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "symbol": "options",
+            "hash": "sha256:20641e9288e5ed29058d7a89",
+            "line": 32,
+            "missing": false
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "symbol": "mockSizeApply",
+            "hash": "sha256:0759508dad4669fc0acce763",
+            "line": 15,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 6
+            }
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "symbol": "actual",
+            "hash": "sha256:7ee92c5c2cdcf165c98a9105",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 178,
+              "sites": 0,
+              "refs": 316
+            }
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "symbol": "afterEach",
+            "hash": "sha256:128698f7c6c0d09551b5b8a1",
+            "line": 72,
+            "missing": false,
+            "fanout": {
+              "files": 611,
+              "sites": 800,
+              "refs": 826
+            }
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+            "symbol": "mockSizeApply",
+            "hash": "sha256:0759508dad4669fc0acce763",
+            "line": 5,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 6
+            }
+          },
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+            "symbol": "renderHook",
+            "hash": "sha256:0de64e76d882e70536e49ec6",
+            "line": 20,
+            "missing": false,
+            "fanout": {
+              "files": 207,
+              "sites": 1625,
+              "refs": 1831
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132966",
+    "pr": 132966,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 7593,
+    "elapsedMs": 20082,
+    "proposed": [
+      {
+        "title": "Router aggregate discovery must request aggregated discovery format, or CRD groups on apiextensions targets are never seen",
+        "kind": "rule",
+        "answers": [
+          "CRD groups served by baas_apiserver not showing up under router /apis",
+          "router aggregate target discovery misses apiextensions CRDs",
+          "why does discoverGroups only see apiextensions.k8s.io",
+          "how does the router decode aggregated discovery (apidiscovery.k8s.io/v2) responses"
+        ],
+        "body": "Symptom: when a standalone apiextensions-apiserver (baas_apiserver) is configured as an aggregate target of the router, none of its CRD-backed groups can be introspected or routed. Only apiextensions.k8s.io shows up.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups sent GET /apis with no Accept header. That server's plain /apis response comes from a static map that is filled once at startup, for apiextensions.k8s.io only. CRD groups are pushed only into the aggregated-discovery manager.\nFix pattern: set `Accept: aggregatedDiscoveryJSON + \", application/json\"`. Then decodeDiscoveryResponse picks the decoder from the response Content-Type, not from what was requested: if it contains \"apidiscovery.k8s.io\", it decodes apidiscoveryv2.APIGroupDiscoveryList; otherwise it decodes the classic metav1.APIGroupList. apiGroupDiscoveryListToGroups converts the aggregated list into []metav1.APIGroup, which is what matchesAnyPattern and newAggregateBackend consume.\nConstraints: keep the classic fallback, because older or non-k8s targets may ignore Accept. Versions keep the upstream priority order, and Versions[0] becomes PreferredVersion. Any new discovery format must also be converted into metav1.APIGroup, not passed downstream as-is. Regression test: aggregate_discovery_test.go:TestDiscoverGroups_AggregatedFormat.",
+        "applies": "pkg/router aggregate-target discovery (baas_apiserver, cloud_app_platform_apiserver)",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "decodeDiscoveryResponse"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "apiGroupDiscoveryListToGroups"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery_test.go",
+            "symbol": "TestDiscoverGroups_AggregatedFormat"
+          }
+        ],
+        "tags": [
+          "router",
+          "discovery",
+          "apiextensions",
+          "aggregation",
+          "k8s",
+          "crd"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "How the router learns which API groups each backend serves (aggregate vs forward)",
+        "kind": "map",
+        "answers": [
+          "where does the router discover groups for aggregate apiservers",
+          "difference between aggregateBackend and forwardBackend in pkg/router",
+          "how are aggregate backends built from /apis"
+        ],
+        "body": "Forward backends learn their group from their RouteBackend CR, so no active discovery call is needed.\nAggregate targets (baas_apiserver, cloud_app_platform_apiserver) have no CR. pkg/router/aggregate_discovery.go:discoverGroups actively polls <baseURL>/apis instead. It trims a trailing slash from the base URL so it never requests \"//apis\", and returns an error for non-200 responses.\nThe returned []metav1.APIGroup is filtered by matchesAnyPattern. newAggregateBackend then turns each group into an aggregateBackend, which proxies to the target's own host, in the same shape as forwardBackend.\nTests use an httptest server and live in pkg/router/aggregate_discovery_test.go (TestDiscoverGroups_*).",
+        "applies": "pkg/router backend/group discovery",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "aggregateBackend"
+          }
+        ],
+        "tags": [
+          "router",
+          "discovery",
+          "aggregation",
+          "backends"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "router-aggregate-discovery-must-request-aggregated-discovery",
+        "title": "Router aggregate discovery must request aggregated discovery format, or CRD groups on apiextensions targets are never seen",
+        "kind": "rule",
+        "body": "Symptom: when a standalone apiextensions-apiserver (baas_apiserver) is configured as an aggregate target of the router, none of its CRD-backed groups can be introspected or routed. Only apiextensions.k8s.io shows up.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups sent GET /apis with no Accept header. That server's plain /apis response comes from a static map that is filled once at startup, for apiextensions.k8s.io only. CRD groups are pushed only into the aggregated-discovery manager.\nFix pattern: set `Accept: aggregatedDiscoveryJSON + \", application/json\"`. Then decodeDiscoveryResponse picks the decoder from the response Content-Type, not from what was requested: if it contains \"apidiscovery.k8s.io\", it decodes apidiscoveryv2.APIGroupDiscoveryList; otherwise it decodes the classic metav1.APIGroupList. apiGroupDiscoveryListToGroups converts the aggregated list into []metav1.APIGroup, which is what matchesAnyPattern and newAggregateBackend consume.\nConstraints: keep the classic fallback, because older or non-k8s targets may ignore Accept. Versions keep the upstream priority order, and Versions[0] becomes PreferredVersion. Any new discovery format must also be converted into metav1.APIGroup, not passed downstream as-is. Regression test: aggregate_discovery_test.go:TestDiscoverGroups_AggregatedFormat.",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups",
+            "hash": "sha256:76d0e2520fc7ce49bba2e288",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 7,
+              "refs": 14
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "decodeDiscoveryResponse",
+            "hash": "sha256:541f271a0f43d870ea86a531",
+            "line": 54,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "apiGroupDiscoveryListToGroups",
+            "hash": "sha256:d381faa3e3dd42a191e4f431",
+            "line": 75,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery_test.go",
+            "symbol": "TestDiscoverGroups_AggregatedFormat",
+            "hash": "sha256:ce75bd7f3c034a4daa18b6a4",
+            "line": 51,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "how-the-router-learns-which-api-groups-each-backend-serves-a",
+        "title": "How the router learns which API groups each backend serves (aggregate vs forward)",
+        "kind": "map",
+        "body": "Forward backends learn their group from their RouteBackend CR, so no active discovery call is needed.\nAggregate targets (baas_apiserver, cloud_app_platform_apiserver) have no CR. pkg/router/aggregate_discovery.go:discoverGroups actively polls <baseURL>/apis instead. It trims a trailing slash from the base URL so it never requests \"//apis\", and returns an error for non-200 responses.\nThe returned []metav1.APIGroup is filtered by matchesAnyPattern. newAggregateBackend then turns each group into an aggregateBackend, which proxies to the target's own host, in the same shape as forwardBackend.\nTests use an httptest server and live in pkg/router/aggregate_discovery_test.go (TestDiscoverGroups_*).",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups",
+            "hash": "sha256:76d0e2520fc7ce49bba2e288",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 7,
+              "refs": 14
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "aggregateBackend",
+            "hash": "sha256:e475dbb6e4087be2114cb5c7",
+            "line": 98,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 7
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery_test.go",
+            "hash": "sha256:ff2795e57d5d823a19029106",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132940",
+    "pr": 132940,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 3982,
+    "elapsedMs": 11328,
+    "proposed": [
+      {
+        "title": "v2 dashboard save must strip metadata.resourceVersion on both create and update paths (keep in sync with v1)",
+        "kind": "rule",
+        "answers": [
+          "Saving a new v2 dashboard fails when k8s metadata has a resourceVersion",
+          "Why does importing or creating a dashboard with schema v2 fail on save?",
+          "Where is resourceVersion removed before dashboard save?",
+          "Does dashboard create POST send resourceVersion?"
+        ],
+        "body": "Symptom: Saving a new dashboard through the v2 (schema v2 / k8s) API fails when the incoming k8s metadata carries a resourceVersion (e.g. `k8s: { resourceVersion: '0' }` from an import or copied dashboard).\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard deleted `obj.metadata.resourceVersion` only inside the `if (obj.metadata.name)` update branch, so the create path (`client.create`, a POST) sent a resourceVersion, which a create request must not carry.\nFix pattern: Delete `obj.metadata.resourceVersion` unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> POST). This matches the logic already in public/app/features/dashboard/api/v1.ts. Removing the `DeprecatedInternalId` label still happens only on the update path.\nConstraints: Any change to save-path metadata handling in v1.ts or v2.ts should be mirrored in the other. Tests in public/app/features/dashboard/api/v2.test.ts check this with `mockPost.mock.calls[0][1].metadata` not having resourceVersion, and check that mockPut is not called.",
+        "applies": "Frontend dashboard save via K8sDashboardV2API (and v1 counterpart) in public/app/features/dashboard/api",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard/api/v2.ts",
+            "symbol": "K8sDashboardV2API"
+          },
+          {
+            "path": "public/app/features/dashboard/api/v1.ts"
+          },
+          {
+            "path": "public/app/features/dashboard/api/v2.test.ts"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "v2",
+          "k8s",
+          "resourceVersion",
+          "save",
+          "create"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+        "title": "v2 dashboard save must strip metadata.resourceVersion on both create and update paths (keep in sync with v1)",
+        "kind": "rule",
+        "body": "Symptom: Saving a new dashboard through the v2 (schema v2 / k8s) API fails when the incoming k8s metadata carries a resourceVersion (e.g. `k8s: { resourceVersion: '0' }` from an import or copied dashboard).\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard deleted `obj.metadata.resourceVersion` only inside the `if (obj.metadata.name)` update branch, so the create path (`client.create`, a POST) sent a resourceVersion, which a create request must not carry.\nFix pattern: Delete `obj.metadata.resourceVersion` unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> POST). This matches the logic already in public/app/features/dashboard/api/v1.ts. Removing the `DeprecatedInternalId` label still happens only on the update path.\nConstraints: Any change to save-path metadata handling in v1.ts or v2.ts should be mirrored in the other. Tests in public/app/features/dashboard/api/v2.test.ts check this with `mockPost.mock.calls[0][1].metadata` not having resourceVersion, and check that mockPut is not called.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard/api/v2.ts",
+            "symbol": "K8sDashboardV2API",
+            "hash": "sha256:6861cee6364bd84ecfc6b124",
+            "line": 49,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 25,
+              "refs": 35
+            }
+          },
+          {
+            "path": "public/app/features/dashboard/api/v1.ts",
+            "hash": "sha256:407d97fbfd52d87cb5dd0a61",
+            "missing": false
+          },
+          {
+            "path": "public/app/features/dashboard/api/v2.test.ts",
+            "symbol": "mockPost",
+            "hash": "sha256:686cf8c0ba5f2aa6c335b09a",
+            "line": 57,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 2,
+              "refs": 34
+            }
+          },
+          {
+            "path": "public/app/features/dashboard/api/v2.test.ts",
+            "symbol": "mockPut",
+            "hash": "sha256:b380e6b9dfa53034d02abb07",
+            "line": 41,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 17
+            }
+          },
+          {
+            "path": "public/app/features/dashboard/api/v2.ts",
+            "symbol": "K8sDashboardV2API.saveDashboard",
+            "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+            "line": 118,
+            "missing": false,
+            "fanout": {
+              "files": 30,
+              "sites": 108,
+              "refs": 144
+            }
+          },
+          {
+            "path": "devenv/docker/loadtest/modules/client.js",
+            "symbol": "create",
+            "hash": "sha256:80d304bea91b61c98980f21e",
+            "line": 32,
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132860",
+    "pr": 132860,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4164,
+    "elapsedMs": 9571,
+    "proposed": [
+      {
+        "title": "Logs panel highlight grammar regexes must not backtrack quadratically on long lines",
+        "kind": "rule",
+        "answers": [
+          "logs panel freezes or hangs when showing very long log lines",
+          "why is log syntax highlighting slow on large log lines",
+          "log-token-key regex catastrophic backtracking",
+          "safe way to change logsGrammar regex in grammar.ts"
+        ],
+        "body": "Symptom: the Logs panel freezes the browser main thread for hundreds of ms or seconds when it renders a long log line (e.g. ~16KB) with no `=` in it.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar `'log-token-key'` started with `(\\b|\\B)`. That matches at every position, so for each start offset in a long word the engine scanned `[\\w_]+` and then failed the `(?=\\s*=)` lookahead. That is quadratic work during Prism tokenization.\nFix pattern: anchor the key rule to `\\b` only (`/\\b[\\w_]+(?=\\s*=)/gi`). Keys like `foo=bar` and `key_1=\"v\"` begin at a word boundary anyway. In general, do not put an alternation that matches everywhere in front of a greedy run followed by a lookahead.\nConstraints: every logsGrammar rule runs over every displayed log line, including huge unstructured ones. When you add or edit a rule, benchmark it on a long string with no match (the PR saw ~820ms drop to ~0.16ms). Keep the `generateLogGrammar` key-value tests in grammar.test.ts passing; for example, `foo=bar` must still give a `log-token-key` token with content `foo`.",
+        "applies": "Regex token rules in the logs panel Prism grammar (public/app/features/logs/components/panel/grammar.ts)",
+        "deps": [
+          {
+            "path": "public/app/features/logs/components/panel/grammar.ts",
+            "symbol": "logsGrammar"
+          },
+          {
+            "path": "public/app/features/logs/components/panel/grammar.test.ts",
+            "symbol": "generateLogGrammar"
+          }
+        ],
+        "tags": [
+          "logs",
+          "prism",
+          "regex",
+          "performance",
+          "backtracking",
+          "syntax-highlighting"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad",
+        "title": "Logs panel highlight grammar regexes must not backtrack quadratically on long lines",
+        "kind": "rule",
+        "body": "Symptom: the Logs panel freezes the browser main thread for hundreds of ms or seconds when it renders a long log line (e.g. ~16KB) with no `=` in it.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar `'log-token-key'` started with `(\\b|\\B)`. That matches at every position, so for each start offset in a long word the engine scanned `[\\w_]+` and then failed the `(?=\\s*=)` lookahead. That is quadratic work during Prism tokenization.\nFix pattern: anchor the key rule to `\\b` only (`/\\b[\\w_]+(?=\\s*=)/gi`). Keys like `foo=bar` and `key_1=\"v\"` begin at a word boundary anyway. In general, do not put an alternation that matches everywhere in front of a greedy run followed by a lookahead.\nConstraints: every logsGrammar rule runs over every displayed log line, including huge unstructured ones. When you add or edit a rule, benchmark it on a long string with no match (the PR saw ~820ms drop to ~0.16ms). Keep the `generateLogGrammar` key-value tests in grammar.test.ts passing; for example, `foo=bar` must still give a `log-token-key` token with content `foo`.",
+        "deps": [
+          {
+            "path": "public/app/features/logs/components/panel/grammar.ts",
+            "symbol": "logsGrammar",
+            "hash": "sha256:60577e559afa47c5d9518eb0",
+            "line": 7,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          },
+          {
+            "path": "public/app/features/logs/components/panel/grammar.test.ts",
+            "hash": "sha256:802e5f0b850821b70da18b30",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-131837",
+    "pr": 131837,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6397,
+    "elapsedMs": 19884,
+    "proposed": [
+      {
+        "title": "v2 dashboard import: datasource remap of query variables must keep refresh (including 'never')",
+        "kind": "rule",
+        "answers": [
+          "Imported v2 dashboard variable no longer refreshes on time range change",
+          "query variable refresh reset to onDashboardLoad after import",
+          "Should I upgrade refresh 'never' when clearing variable options on import?",
+          "Export for sharing externally then import loses variable settings"
+        ],
+        "body": "Symptom: After a v2 dashboard is exported 'for sharing externally' and imported through the UI import dialog, query variables with refresh 'onTimeRangeChanged' (or 'never') come back as 'onDashboardLoad'. Variables then stop re-evaluating when the time range changes, and the data resolves against the default range with no error shown.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt each remapped QueryVariable spec with an explicit `refresh` override. First it was hardcoded, then 'never' was forced to 'onDashboardLoad'.\nFix pattern: when you rebuild a spec, spread the original `variable.spec` and override only the fields tied to the old datasource: `query.datasource`, `options: []` and `current`. Do not override author settings such as `refresh`. 'never' is safe even with cleared options, because transformSaveModelSchemaV2ToScene never seeds query variable options from the spec, and SceneVariableSet runs validateAndUpdate on activation without consulting refresh.\nConstraints: this applies only to the v2 path (applyV2Inputs → replaceDatasourcesInDashboard). Variables that keep a `$datasourceVar` reference keep their options and are not rebuilt. The v1 import path never touches refresh. The export side leaves refresh alone, so any import-side change to it is round-trip data loss.",
+        "applies": "V2 dashboard UI import: datasource remapping of QueryVariables in manage-dashboards/import/utils/inputs.ts",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceVariableDatasources"
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "applyV2Inputs"
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceDatasourcesInDashboard"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "import",
+          "schema-v2",
+          "variables",
+          "refresh",
+          "round-trip"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+        "kind": "howto",
+        "answers": [
+          "how to test v2 dashboard import datasource mapping",
+          "where are tests for applyV2Inputs",
+          "unit test for import form datasource selection v2"
+        ],
+        "body": "Tests for the v2 import transforms are in public/app/features/manage-dashboards/import/utils/inputs.test.ts, under `describe('applyV2Inputs')` and `describe('replaceDatasourcesInDashboard')`.\nEntry-point tests: build a minimal `DashboardV2Spec`, cast with `as unknown as DashboardV2Spec`. Give the variable's `query.labels` the keys `[ExportLabel]: '<input-name>'` and `[ExportDatasourceName]`. Then pass an `ImportFormDataV2` whose key `'datasource-<input-name>'` holds `{ uid, type, name }`.\nCheck the remap through `spec.query.datasource.name`, which holds the new uid. Also assert that author fields such as `refresh` survive and that `options` is reset to [].\nThe lower-level tests use the helpers `createQueryVariable(group, uid)` and `getQueryVariable(result)` together with `it.each` across field values.",
+        "applies": "Unit tests for dashboard import input/datasource mapping (v2 schema)",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts"
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "applyV2Inputs"
+          }
+        ],
+        "tags": [
+          "testing",
+          "dashboards",
+          "import",
+          "schema-v2"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+        "title": "v2 dashboard import: datasource remap of query variables must keep refresh (including 'never')",
+        "kind": "rule",
+        "body": "Symptom: After a v2 dashboard is exported 'for sharing externally' and imported through the UI import dialog, query variables with refresh 'onTimeRangeChanged' (or 'never') come back as 'onDashboardLoad'. Variables then stop re-evaluating when the time range changes, and the data resolves against the default range with no error shown.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt each remapped QueryVariable spec with an explicit `refresh` override. First it was hardcoded, then 'never' was forced to 'onDashboardLoad'.\nFix pattern: when you rebuild a spec, spread the original `variable.spec` and override only the fields tied to the old datasource: `query.datasource`, `options: []` and `current`. Do not override author settings such as `refresh`. 'never' is safe even with cleared options, because transformSaveModelSchemaV2ToScene never seeds query variable options from the spec, and SceneVariableSet runs validateAndUpdate on activation without consulting refresh.\nConstraints: this applies only to the v2 path (applyV2Inputs → replaceDatasourcesInDashboard). Variables that keep a `$datasourceVar` reference keep their options and are not rebuilt. The v1 import path never touches refresh. The export side leaves refresh alone, so any import-side change to it is round-trip data loss.",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceVariableDatasources",
+            "hash": "sha256:6a6208936d3a8ee52db20d5b",
+            "line": 738,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "applyV2Inputs",
+            "hash": "sha256:bc1995649daff102fcb4f407",
+            "line": 547,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 11,
+              "refs": 16
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceDatasourcesInDashboard",
+            "hash": "sha256:a22083fa90f0be15dfe68125",
+            "line": 676,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 18,
+              "refs": 21
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+        "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+        "kind": "howto",
+        "body": "Tests for the v2 import transforms are in public/app/features/manage-dashboards/import/utils/inputs.test.ts, under `describe('applyV2Inputs')` and `describe('replaceDatasourcesInDashboard')`.\nEntry-point tests: build a minimal `DashboardV2Spec`, cast with `as unknown as DashboardV2Spec`. Give the variable's `query.labels` the keys `[ExportLabel]: '<input-name>'` and `[ExportDatasourceName]`. Then pass an `ImportFormDataV2` whose key `'datasource-<input-name>'` holds `{ uid, type, name }`.\nCheck the remap through `spec.query.datasource.name`, which holds the new uid. Also assert that author fields such as `refresh` survive and that `options` is reset to [].\nThe lower-level tests use the helpers `createQueryVariable(group, uid)` and `getQueryVariable(result)` together with `it.each` across field values.",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "symbol": "describe",
+            "hash": "sha256:0e793364dc236e6de49eb225",
+            "line": 1320,
+            "missing": false,
+            "fanout": {
+              "files": 697,
+              "sites": 1974,
+              "refs": 2000
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "symbol": "ImportFormDataV2",
+            "hash": "sha256:3aea3062b7e56cb46c55ebe3",
+            "line": 21,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 23
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "symbol": "createQueryVariable",
+            "hash": "sha256:cd4cda587d8f610ef3dc1577",
+            "line": 2197,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 14,
+              "refs": 17
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "symbol": "getQueryVariable",
+            "hash": "sha256:111a6ca9b458b1fbf26e0876",
+            "line": 2118,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 4,
+              "refs": 4
+            }
+          },
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "applyV2Inputs",
+            "hash": "sha256:bc1995649daff102fcb4f407",
+            "line": 547,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 11,
+              "refs": 16
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132572",
+    "pr": 132572,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 8227,
+    "elapsedMs": 19086,
+    "proposed": [
+      {
+        "title": "Flamegraph tree transforms must carry valueRight (diff side) on every LevelItem they create",
+        "kind": "rule",
+        "answers": [
+          "diff flame graph tooltip shows NaN% or NaNundefined",
+          "sandwich view in diff flamegraph shows undefined baseline/comparison",
+          "why is valueRight undefined on merged nodes",
+          "adding a new tree transform to grafana-flamegraph"
+        ],
+        "body": "Symptom: In a Diff flame graph, switching to Sandwich view (Callers/Callees) and hovering a node shows `NaN%`, `NaNundefined` or `undefined` for Baseline/Comparison/Diff.\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and getParentSubtrees built new LevelItems recomputing only `.value`, so `valueRight` was undefined; FlameGraphTooltip.tsx:getDiffTooltipData used `item.valueRight!` in arithmetic and unit formatting.\nFix pattern: whenever a transform builds or rebases a LevelItem, handle `valueRight` alongside `value`: sum it when merging (only if some input has `valueRight !== undefined`, else leave undefined so non-diff profiles stay non-diff), copy it when rebasing a node onto its child's value. Consumers should default a missing `valueRight` to 0 (`item.valueRight ?? 0`) rather than non-null assert.\nConstraints: `valueRight` presence is how diff mode is detected per item, so don't set it to 0 for non-diff profiles. `getDiffTooltipData` still asserts `levels[0][0].valueRight!` for the root total; that relies on the root of diff data always having it.",
+        "applies": "packages/grafana-flamegraph tree transforms (sandwich/merge) and diff tooltip code",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeSubtrees"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "getParentSubtrees"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+            "symbol": "getDiffTooltipData"
+          }
+        ],
+        "tags": [
+          "flamegraph",
+          "diff-profile",
+          "sandwich-view",
+          "tooltip",
+          "NaN"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Unit-testing flamegraph tree transforms with diff (valueRight) data",
+        "kind": "howto",
+        "answers": [
+          "how to test mergeSubtrees with diff profiles",
+          "test treeTransforms valueRight",
+          "how to run grafana-flamegraph jest tests"
+        ],
+        "body": "textToDataContainer (testHelpers) builds trees from ASCII art but only covers `value`; for diff cases construct `LevelItem` objects (type from ./dataTransform) directly with `valueRight`, `itemIndexes`, `children`, `level`, and `parents` for parent-chain tests.\nmergeSubtrees / mergeParentSubtrees only need a data stub exposing `getLabel`: `const diffData = { getLabel: (i: number) => String(i) }`.\nResult is levels (`merged[level][index]`); assert with `toMatchObject({ value, valueRight })`, and assert `valueRight` is undefined for non-diff input.\nTooltip regression tests live in FlameGraphTooltip.test.tsx using `setupDiffData()` with getDiffTooltipData.\nRun: `yarn jest packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx`.\nManual repro: Explore → TestData → Flame Graph scenario → Diff profile → right-click node → Sandwich view → hover.",
+        "applies": "tests under packages/grafana-flamegraph/src/FlameGraph",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeParentSubtrees"
+          }
+        ],
+        "tags": [
+          "flamegraph",
+          "testing",
+          "jest",
+          "diff-profile"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "flamegraph-tree-transforms-must-carry-valueright-diff-side-o",
+        "title": "Flamegraph tree transforms must carry valueRight (diff side) on every LevelItem they create",
+        "kind": "rule",
+        "body": "Symptom: In a Diff flame graph, switching to Sandwich view (Callers/Callees) and hovering a node shows `NaN%`, `NaNundefined` or `undefined` for Baseline/Comparison/Diff.\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and getParentSubtrees built new LevelItems recomputing only `.value`, so `valueRight` was undefined; FlameGraphTooltip.tsx:getDiffTooltipData used `item.valueRight!` in arithmetic and unit formatting.\nFix pattern: whenever a transform builds or rebases a LevelItem, handle `valueRight` alongside `value`: sum it when merging (only if some input has `valueRight !== undefined`, else leave undefined so non-diff profiles stay non-diff), copy it when rebasing a node onto its child's value. Consumers should default a missing `valueRight` to 0 (`item.valueRight ?? 0`) rather than non-null assert.\nConstraints: `valueRight` presence is how diff mode is detected per item, so don't set it to 0 for non-diff profiles. `getDiffTooltipData` still asserts `levels[0][0].valueRight!` for the root total; that relies on the root of diff data always having it.",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeSubtrees",
+            "hash": "sha256:efdd86920cd35d6545517800",
+            "line": 66,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 11
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "getParentSubtrees",
+            "hash": "sha256:22720615ee8b45fe356070d7",
+            "line": 15,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+            "symbol": "getDiffTooltipData",
+            "hash": "sha256:9759bf64a11ff7b7d7391239",
+            "line": 130,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 4,
+              "refs": 6
+            }
+          }
+        ]
+      },
+      {
+        "id": "unit-testing-flamegraph-tree-transforms-with-diff-valueright",
+        "title": "Unit-testing flamegraph tree transforms with diff (valueRight) data",
+        "kind": "howto",
+        "body": "textToDataContainer (testHelpers) builds trees from ASCII art but only covers `value`; for diff cases construct `LevelItem` objects (type from ./dataTransform) directly with `valueRight`, `itemIndexes`, `children`, `level`, and `parents` for parent-chain tests.\nmergeSubtrees / mergeParentSubtrees only need a data stub exposing `getLabel`: `const diffData = { getLabel: (i: number) => String(i) }`.\nResult is levels (`merged[level][index]`); assert with `toMatchObject({ value, valueRight })`, and assert `valueRight` is undefined for non-diff input.\nTooltip regression tests live in FlameGraphTooltip.test.tsx using `setupDiffData()` with getDiffTooltipData.\nRun: `yarn jest packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx`.\nManual repro: Explore → TestData → Flame Graph scenario → Diff profile → right-click node → Sandwich view → hover.",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+            "symbol": "diffData",
+            "hash": "sha256:1edea900da60a2a95b51da4d",
+            "line": 5,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 1,
+              "refs": 17
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+            "symbol": "merged",
+            "hash": "sha256:02dbe6f0f28edfa13a1db345",
+            "line": 19,
+            "missing": false,
+            "fanout": {
+              "files": 105,
+              "sites": 1,
+              "refs": 248
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+            "symbol": "setupDiffData",
+            "hash": "sha256:45bc16aee5530f63903d31b4",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeParentSubtrees",
+            "hash": "sha256:d4e74d7ab0ce154d6bdd2177",
+            "line": 9,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 6,
+              "refs": 11
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+            "symbol": "setupDiffData",
+            "hash": "sha256:45bc16aee5530f63903d31b4",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132648",
+    "pr": 132648,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5487,
+    "elapsedMs": 17654,
+    "proposed": [
+      {
+        "title": "cloneDeep of a MutableDataFrame throws 'Cannot set property length ... which has only a getter' in Rspack/ESM builds",
+        "kind": "rule",
+        "answers": [
+          "TypeError: Cannot set property length of #<d> which has only a getter",
+          "Explore raw Prometheus list view crashes with two or more instant queries",
+          "cloneDeep on data frame fails in Rspack build",
+          "plugin cloneDeep(props.data) throws in strict mode"
+        ],
+        "body": "Symptom: In Rspack builds, Explore's raw Prometheus view crashed with `TypeError: Cannot set property length of #<d> which has only a getter`. You need two or more instant queries to trigger it, because the merge transformation then returns a MutableDataFrame.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame derives `length` from the first field and only had a getter. lodash `cloneDeep` builds the clone from the prototype and then assigns every own enumerable key, including `length`. Rspack outputs ES modules, which always run in strict mode, so the bundled lodash throws on that assignment. Before, the write failed silently.\nFix pattern: add a setter that does nothing (`set length(_value: number) {}`) next to the derived getter, so generic copiers can write back the value they just read. Also don't deep-clone frames you only read: public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer now uses `props.tableResult` directly.\nConstraints: this applies to any class with getter-only accessors that core or plugins might pass to cloneDeep or a similar copier. Grafana shares its lodash copy with plugins, so a plugin calling `cloneDeep(props.data)` hits the same fault. MutableDataFrame is deprecated, but it still comes out of transformations like merge.",
+        "applies": "Getter-only properties on data frame classes and any code that deep-clones panel/query data under Rspack/ESM builds",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame"
+          },
+          {
+            "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+            "symbol": "RawListContainer"
+          }
+        ],
+        "tags": [
+          "rspack",
+          "esm",
+          "strict-mode",
+          "lodash",
+          "cloneDeep",
+          "dataframe",
+          "explore",
+          "prometheus"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Jest cannot reproduce strict-mode lodash crashes; test the property assignment directly",
+        "kind": "howto",
+        "answers": [
+          "why does my jest test not reproduce the rspack cloneDeep error",
+          "how to test getter-only property failures in strict mode",
+          "test MutableDataFrame clone"
+        ],
+        "body": "Jest transforms lodash to CommonJS, which is not strict, so `cloneDeep` silently ignores writes to getter-only properties in tests. The production Rspack/ESM build throws on the same writes.\nTo cover a fix like this, reproduce what lodash does directly. Create `Object.create(Klass.prototype)`, assign the property (for example `clone.length = 3`), and assert it does not throw. Test files are ES modules transpiled with class semantics, so the assignment throws there when no setter exists.\nExample: the 'Cloning DataFrame' describe block in packages/grafana-data/src/dataframe/MutableDataFrame.test.ts.",
+        "applies": "Writing Jest tests for bugs that only show up in strict-mode/ESM (Rspack) bundles",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.test.ts"
+          },
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame"
+          }
+        ],
+        "tags": [
+          "jest",
+          "testing",
+          "rspack",
+          "strict-mode",
+          "lodash"
+        ],
+        "confidence": 0.6
+      }
+    ],
+    "saved": [
+      {
+        "id": "clonedeep-of-a-mutabledataframe-throws-cannot-set-property-l",
+        "title": "cloneDeep of a MutableDataFrame throws 'Cannot set property length ... which has only a getter' in Rspack/ESM builds",
+        "kind": "rule",
+        "body": "Symptom: In Rspack builds, Explore's raw Prometheus view crashed with `TypeError: Cannot set property length of #<d> which has only a getter`. You need two or more instant queries to trigger it, because the merge transformation then returns a MutableDataFrame.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame derives `length` from the first field and only had a getter. lodash `cloneDeep` builds the clone from the prototype and then assigns every own enumerable key, including `length`. Rspack outputs ES modules, which always run in strict mode, so the bundled lodash throws on that assignment. Before, the write failed silently.\nFix pattern: add a setter that does nothing (`set length(_value: number) {}`) next to the derived getter, so generic copiers can write back the value they just read. Also don't deep-clone frames you only read: public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer now uses `props.tableResult` directly.\nConstraints: this applies to any class with getter-only accessors that core or plugins might pass to cloneDeep or a similar copier. Grafana shares its lodash copy with plugins, so a plugin calling `cloneDeep(props.data)` hits the same fault. MutableDataFrame is deprecated, but it still comes out of transformations like merge.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame",
+            "hash": "sha256:19519b57c185c00e5c8c9cec",
+            "line": 21,
+            "missing": false,
+            "fanout": {
+              "files": 40,
+              "sites": 94,
+              "refs": 142
+            }
+          },
+          {
+            "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+            "symbol": "RawListContainer",
+            "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+            "line": 61,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 8
+            }
+          }
+        ]
+      },
+      {
+        "id": "jest-cannot-reproduce-strict-mode-lodash-crashes-test-the-pr",
+        "title": "Jest cannot reproduce strict-mode lodash crashes; test the property assignment directly",
+        "kind": "howto",
+        "body": "Jest transforms lodash to CommonJS, which is not strict, so `cloneDeep` silently ignores writes to getter-only properties in tests. The production Rspack/ESM build throws on the same writes.\nTo cover a fix like this, reproduce what lodash does directly. Create `Object.create(Klass.prototype)`, assign the property (for example `clone.length = 3`), and assert it does not throw. Test files are ES modules transpiled with class semantics, so the assignment throws there when no setter exists.\nExample: the 'Cloning DataFrame' describe block in packages/grafana-data/src/dataframe/MutableDataFrame.test.ts.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.test.ts",
+            "symbol": "clone",
+            "hash": "sha256:417b33937e96fa34329b3ae7",
+            "line": 71,
+            "missing": false,
+            "fanout": {
+              "files": 163,
+              "sites": 183,
+              "refs": 508
+            }
+          },
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame",
+            "hash": "sha256:19519b57c185c00e5c8c9cec",
+            "line": 21,
+            "missing": false,
+            "fanout": {
+              "files": 40,
+              "sites": 94,
+              "refs": 142
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-131464",
+    "pr": 131464,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6077,
+    "elapsedMs": 20447,
+    "proposed": [
+      {
+        "title": "xorm MustCols on a Delete/Find bean adds every listed column to WHERE, even zero values",
+        "kind": "rule",
+        "answers": [
+          "removed annotation tags still show up in tag filter",
+          "why does my xorm delete match zero rows",
+          "annotation_tag stale rows not deleted",
+          "MustCols tag_id = 0 in WHERE clause"
+        ],
+        "body": "Symptom: tags removed from an annotation stay linked. Annotation tag filtering (GetTags) still returns them, and stale annotation_tag rows build up for every annotation whose tags ever changed (Add, update and AddMany all hit this).\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:xormRepositoryImpl.ensureTags called sess.MustCols(\"annotation_id\",\"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: id}). MustCols forces zero-valued bean fields into the generated condition, so the WHERE got `tag_id IN (...) AND tag_id = 0`. That can never be true, so the delete matched nothing.\nFix pattern: in MustCols, list only the bean fields that should become equality conditions. Leave out any column already filtered by In()/Where() and left zero on the bean.\nConstraints: keep `annotation_id` in MustCols on purpose. Without it, a zero annotationID would be dropped from the condition, and the delete would widen to every row matching `tag_id IN (...)`. Rows that are already stale are not repaired. CleanOrphanedAnnotationTags only removes rows whose annotation is gone.",
+        "applies": "Any xorm sess.MustCols(...).Delete/Find/Update call with a struct bean, especially annotationsimpl ensureTags",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags"
+          }
+        ],
+        "tags": [
+          "xorm",
+          "annotations",
+          "tags",
+          "sql",
+          "delete"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Annotation tags live in two places: the annotation.tags column and the annotation_tag join table, so tests must check both",
+        "kind": "rule",
+        "answers": [
+          "annotation tags test passes but tag filtering is wrong",
+          "where are annotation tags stored",
+          "how to verify annotation_tag join table in tests"
+        ],
+        "body": "Get builds ItemDTO.Tags from the denormalized `annotation.tags` column. GetTags, which powers annotation tag filtering, joins the `annotation_tag` table instead. The two must stay in sync. xormRepositoryImpl.ensureTags in pkg/services/annotations/annotationsimpl/xorm_store.go maintains the join table on Add, update and AddMany.\nIf the join table drifts, assertions on items[0].Tags still pass because they read only the column. That is how the ensureTags delete bug stayed hidden.\nTo test tag changes, query the join table directly, as `Can update annotation with additional tags` in TestIntegrationAnnotations (xorm_store_test.go) does: sql.WithDbSession(...) with `SELECT tag.key FROM annotation_tag JOIN tag ON tag.id = annotation_tag.tag_id WHERE annotation_tag.annotation_id = ?`, then assert.ElementsMatch.\nRun the tests with: go test ./pkg/services/annotations/... -count=1",
+        "applies": "Changes to annotation tag write paths or annotation tag tests in pkg/services/annotations/annotationsimpl",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags"
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "symbol": "TestIntegrationAnnotations"
+          }
+        ],
+        "tags": [
+          "annotations",
+          "tags",
+          "testing",
+          "denormalization"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column",
+        "title": "xorm MustCols on a Delete/Find bean adds every listed column to WHERE, even zero values",
+        "kind": "rule",
+        "body": "Symptom: tags removed from an annotation stay linked. Annotation tag filtering (GetTags) still returns them, and stale annotation_tag rows build up for every annotation whose tags ever changed (Add, update and AddMany all hit this).\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:xormRepositoryImpl.ensureTags called sess.MustCols(\"annotation_id\",\"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: id}). MustCols forces zero-valued bean fields into the generated condition, so the WHERE got `tag_id IN (...) AND tag_id = 0`. That can never be true, so the delete matched nothing.\nFix pattern: in MustCols, list only the bean fields that should become equality conditions. Leave out any column already filtered by In()/Where() and left zero on the bean.\nConstraints: keep `annotation_id` in MustCols on purpose. Without it, a zero annotationID would be dropped from the condition, and the delete would widen to every row matching `tag_id IN (...)`. Rows that are already stale are not repaired. CleanOrphanedAnnotationTags only removes rows whose annotation is gone.",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags",
+            "hash": "sha256:72bb4b9142f3bc4223046c53",
+            "line": 230,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "GetTags",
+            "hash": "sha256:8a6cc41da193f8422c0ae7dd",
+            "line": 579,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 12,
+              "refs": 15
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "AddMany",
+            "hash": "sha256:93accb129df297992551ff88",
+            "line": 117,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 4,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "xormRepositoryImpl",
+            "hash": "sha256:b0e32b22ab300b8d9faac7b1",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 21
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "tagsDelete",
+            "hash": "sha256:7cba9ede6358d35d89b062ee",
+            "line": 261,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 4
+            }
+          }
+        ]
+      },
+      {
+        "id": "annotation-tags-live-in-two-places-the-annotation-tags-colum",
+        "title": "Annotation tags live in two places: the annotation.tags column and the annotation_tag join table, so tests must check both",
+        "kind": "rule",
+        "body": "Get builds ItemDTO.Tags from the denormalized `annotation.tags` column. GetTags, which powers annotation tag filtering, joins the `annotation_tag` table instead. The two must stay in sync. xormRepositoryImpl.ensureTags in pkg/services/annotations/annotationsimpl/xorm_store.go maintains the join table on Add, update and AddMany.\nIf the join table drifts, assertions on items[0].Tags still pass because they read only the column. That is how the ensureTags delete bug stayed hidden.\nTo test tag changes, query the join table directly, as `Can update annotation with additional tags` in TestIntegrationAnnotations (xorm_store_test.go) does: sql.WithDbSession(...) with `SELECT tag.key FROM annotation_tag JOIN tag ON tag.id = annotation_tag.tag_id WHERE annotation_tag.annotation_id = ?`, then assert.ElementsMatch.\nRun the tests with: go test ./pkg/services/annotations/... -count=1",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags",
+            "hash": "sha256:72bb4b9142f3bc4223046c53",
+            "line": 230,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "symbol": "TestIntegrationAnnotations",
+            "hash": "sha256:99e419faa33c8690d9f4de24",
+            "line": 34,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pkg/services/ngalert/state/historian/annotation.go",
+            "symbol": "tags",
+            "hash": "sha256:00716a03f5cc52b4169a6b89",
+            "line": 367,
+            "missing": false,
+            "fanout": {
+              "files": 232,
+              "sites": 24,
+              "refs": 1193
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132082",
+    "pr": 132082,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 12231,
+    "elapsedMs": 28780,
+    "proposed": [
+      {
+        "title": "Auto-grid fit-content row track floor must follow the fit min height, not the row height",
+        "kind": "rule",
+        "answers": [
+          "auto grid panel has empty space / bottom padding below it when content fit is on",
+          "fit content panel shrinks but row still reserves 320px",
+          "why is there dead space between a short panel and the next row in auto grid layout",
+          "how is autoRows computed for AutoGridLayout with min height"
+        ],
+        "body": "Symptom: In an auto-grid dashboard with fit-content and a min height below the row height (e.g. custom 100px or 'short'), a short panel shrinks but the next row starts ~row-height below it, leaving dead space.\nRoot cause: AutoGridLayoutManager.tsx:getAutoRowsTemplate always used the row height as the CSS grid track floor (`minmax(rowHeightPx, max-content)`), so the shared grid row reserved the full row height even when the panel was shorter.\nFix pattern: When fit content is present and fill screen is off, floor the track at `Math.min(rowHeightPx, getFitMinHeightInPixels(minHeight, rowHeight))` ('none' -> 0px, 'tall' clamped to row height). Without fit content the template is unchanged (`minmax(320px, 320px)` / `minmax(320px, auto)` for fill screen).\nConstraints: Every caller must pass minHeight: AutoGridLayoutManager constructor, AutoGridLayoutManager.updateAutoRows (now also called from onMinHeightChanged), and AutoGridLayoutSerializer.ts:deserializeAutoGridLayout (minHeightCombined). Missing one makes the floor stale after load or after editing min height. Only applies when the GrafanaDashboardsAutoHeightPanels flag is on.",
+        "applies": "Dashboard scene auto-grid layout row sizing (autoRows) with content-fit / auto-height panels",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "updateAutoRows"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "onMinHeightChanged"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+            "symbol": "deserializeAutoGridLayout"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "auto-grid",
+          "content-fit",
+          "css-grid",
+          "min-height",
+          "layout"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Lowering the auto-grid track floor requires non-fit items to set their own min-height",
+        "kind": "rule",
+        "answers": [
+          "non-fit panel shrinks below row height in auto grid",
+          "timeseries panel too short next to content fit panel",
+          "AutoGridItemRenderer height vs minHeight for match row heights"
+        ],
+        "body": "The grid track floor (autoRows) and the per-item style in AutoGridItemRenderer.tsx:AutoGridItemRenderer have to agree. Since the track floor can now drop below the row height for fit-content layouts, non-fit items no longer get the row height from the track alone.\nInvariant: for non-fit items with matchRowHeights on and auto-height panels enabled, the cell style is `{ minHeight: rowHeightPx }` so they keep the configured row height as a floor (and can still stretch to a taller matched row). With matchRowHeights off they pin `{ height: rowHeightPx }` so a tall fit sibling doesn't stretch them. Fit items get no cell min-height (the floor is applied to the panel chrome via the fit context).\nIf you change the track floor logic in getAutoRowsTemplate, check this branch too, or non-fit panels shrink to the fit min height (e.g. 100px instead of 320px).",
+        "applies": "AutoGridItemRenderer cell sizing for non-fit panels when GrafanaDashboardsAutoHeightPanels is enabled",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+            "symbol": "AutoGridItemRenderer"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "auto-grid",
+          "content-fit",
+          "row-height",
+          "renderer"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing auto-grid content-fit scenarios via the devenv dashboard tabs and Playwright",
+        "kind": "howto",
+        "answers": [
+          "how to add an e2e test for auto grid content fit",
+          "where are the auto grid content fit test dashboards",
+          "playwright test for panel height in auto grid"
+        ],
+        "body": "Content-fit behaviors are covered by one devenv dashboard, devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json, which has one TabsLayoutTab per scenario (e.g. '8. Row packs to short panel'). Panels are defined in `elements` (panel-N) and referenced from the tab's AutoGridLayout items.\nTo add a scenario: add the panels and a new tab with the layout settings (fitContent, minHeightMode/minHeight, matchRowHeights, rowHeightMode). Then add a test in e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts that does `tabs.select(<tab title>)` and looks panels up by title with `panels.getPanel`.\nAssert heights with the spec's expectHeightAt/expectHeightGrewBeyond helpers and HEIGHT_TOLERANCE, since rendered heights can be a border or rounding pixel off. The row gap between grid rows is GRID_ROW_GAP = 8 (theme.spacing(1) in AutoGridLayoutRenderer). Poll boundingBox values with expect.poll.\nFor the unit side, getAutoRowsTemplate is pure and is tested directly in AutoGridLayoutManager.test.ts. Enable the flag with setTestFlags({ [FlagKeys.GrafanaDashboardsAutoHeightPanels]: true }).",
+        "applies": "Writing tests for dashboard auto-grid content-fit / min-max height behavior",
+        "deps": [
+          {
+            "path": "devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json"
+          },
+          {
+            "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate"
+          }
+        ],
+        "tags": [
+          "e2e",
+          "playwright",
+          "devenv",
+          "auto-grid",
+          "testing"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "auto-grid-fit-content-row-track-floor-must-follow-the-fit-mi",
+        "title": "Auto-grid fit-content row track floor must follow the fit min height, not the row height",
+        "kind": "rule",
+        "body": "Symptom: In an auto-grid dashboard with fit-content and a min height below the row height (e.g. custom 100px or 'short'), a short panel shrinks but the next row starts ~row-height below it, leaving dead space.\nRoot cause: AutoGridLayoutManager.tsx:getAutoRowsTemplate always used the row height as the CSS grid track floor (`minmax(rowHeightPx, max-content)`), so the shared grid row reserved the full row height even when the panel was shorter.\nFix pattern: When fit content is present and fill screen is off, floor the track at `Math.min(rowHeightPx, getFitMinHeightInPixels(minHeight, rowHeight))` ('none' -> 0px, 'tall' clamped to row height). Without fit content the template is unchanged (`minmax(320px, 320px)` / `minmax(320px, auto)` for fill screen).\nConstraints: Every caller must pass minHeight: AutoGridLayoutManager constructor, AutoGridLayoutManager.updateAutoRows (now also called from onMinHeightChanged), and AutoGridLayoutSerializer.ts:deserializeAutoGridLayout (minHeightCombined). Missing one makes the floor stale after load or after editing min height. Only applies when the GrafanaDashboardsAutoHeightPanels flag is on.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate",
+            "hash": "sha256:05ff2d7b650b4737c660aa59",
+            "line": 637,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 15,
+              "refs": 19
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "updateAutoRows",
+            "hash": "sha256:856fa72c5c6af8af94a54b36",
+            "line": 438,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 8,
+              "refs": 8
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "onMinHeightChanged",
+            "hash": "sha256:90a4c45bdbff925ef3aa56f8",
+            "line": 382,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 11,
+              "refs": 15
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+            "symbol": "deserializeAutoGridLayout",
+            "hash": "sha256:2721917c150dbbd6d50392b3",
+            "line": 132,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 10,
+              "refs": 13
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager.updateAutoRows",
+            "hash": "sha256:856fa72c5c6af8af94a54b36",
+            "line": 438,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 8,
+              "refs": 8
+            }
+          }
+        ]
+      },
+      {
+        "id": "lowering-the-auto-grid-track-floor-requires-non-fit-items-to",
+        "title": "Lowering the auto-grid track floor requires non-fit items to set their own min-height",
+        "kind": "rule",
+        "body": "The grid track floor (autoRows) and the per-item style in AutoGridItemRenderer.tsx:AutoGridItemRenderer have to agree. Since the track floor can now drop below the row height for fit-content layouts, non-fit items no longer get the row height from the track alone.\nInvariant: for non-fit items with matchRowHeights on and auto-height panels enabled, the cell style is `{ minHeight: rowHeightPx }` so they keep the configured row height as a floor (and can still stretch to a taller matched row). With matchRowHeights off they pin `{ height: rowHeightPx }` so a tall fit sibling doesn't stretch them. Fit items get no cell min-height (the floor is applied to the panel chrome via the fit context).\nIf you change the track floor logic in getAutoRowsTemplate, check this branch too, or non-fit panels shrink to the fit min height (e.g. 100px instead of 320px).",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+            "symbol": "AutoGridItemRenderer",
+            "hash": "sha256:b090eb847acbb352f0557664",
+            "line": 29,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 2
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate",
+            "hash": "sha256:05ff2d7b650b4737c660aa59",
+            "line": 637,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 15,
+              "refs": 19
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-auto-grid-content-fit-scenarios-via-the-devenv-dashb",
+        "title": "Testing auto-grid content-fit scenarios via the devenv dashboard tabs and Playwright",
+        "kind": "howto",
+        "body": "Content-fit behaviors are covered by one devenv dashboard, devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json, which has one TabsLayoutTab per scenario (e.g. '8. Row packs to short panel'). Panels are defined in `elements` (panel-N) and referenced from the tab's AutoGridLayout items.\nTo add a scenario: add the panels and a new tab with the layout settings (fitContent, minHeightMode/minHeight, matchRowHeights, rowHeightMode). Then add a test in e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts that does `tabs.select(<tab title>)` and looks panels up by title with `panels.getPanel`.\nAssert heights with the spec's expectHeightAt/expectHeightGrewBeyond helpers and HEIGHT_TOLERANCE, since rendered heights can be a border or rounding pixel off. The row gap between grid rows is GRID_ROW_GAP = 8 (theme.spacing(1) in AutoGridLayoutRenderer). Poll boundingBox values with expect.poll.\nFor the unit side, getAutoRowsTemplate is pure and is tested directly in AutoGridLayoutManager.test.ts. Enable the flag with setTestFlags({ [FlagKeys.GrafanaDashboardsAutoHeightPanels]: true }).",
+        "deps": [
+          {
+            "path": "devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json",
+            "hash": "sha256:6035882f3a0ba48cc2568f5a",
+            "missing": false
+          },
+          {
+            "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+            "symbol": "expectHeightAt",
+            "hash": "sha256:cece9a17a9a14850f1249c86",
+            "line": 35,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 10,
+              "refs": 10
+            }
+          },
+          {
+            "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+            "symbol": "expectHeightGrewBeyond",
+            "hash": "sha256:0e1980fa939a25cf6aff3e4a",
+            "line": 43,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 7,
+              "refs": 7
+            }
+          },
+          {
+            "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+            "symbol": "HEIGHT_TOLERANCE",
+            "hash": "sha256:b31329129184c439ea2ad6c0",
+            "line": 17,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 5
+            }
+          },
+          {
+            "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+            "symbol": "GRID_ROW_GAP",
+            "hash": "sha256:fb2695d225f695d135306a02",
+            "line": 14,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 2
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate",
+            "hash": "sha256:05ff2d7b650b4737c660aa59",
+            "line": 637,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 15,
+              "refs": 19
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.test.ts",
+            "symbol": "setTestFlags",
+            "hash": "sha256:1aa2a7745b4254fc22a14b6e",
+            "line": 206,
+            "missing": false,
+            "fanout": {
+              "files": 136,
+              "sites": 548,
+              "refs": 721
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-130358",
+    "pr": 130358,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 16768,
+    "elapsedMs": 15061,
+    "proposed": [
+      {
+        "title": "Trace-to-logs/metrics link queries must carry the full datasource ref ({type, uid}), not just uid",
+        "kind": "rule",
+        "answers": [
+          "Show context on logs opened from a trace says 'No more logs available'",
+          "log context UI not mounting after clicking Logs for this span",
+          "trace to metrics link query missing datasource type",
+          "why does the explore query from a span link only have datasource uid"
+        ],
+        "body": "Symptom: In Explore, after clicking \"Logs for this span\" on a trace, \"Show context\" on a log row shows the generic \"No more logs available\" state. The surrounding log lines and the datasource-specific controls never appear. Trace-to-metrics links produce the same incomplete query.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory built the inner Explore queries with `datasource: { uid }` only, or with no datasource at all for metrics. Explore can still run a query that has only a uid, but datasource-specific features such as the log context UI can't reliably tell which plugin it belongs to without `type`.\nFix pattern: Any query you put into a span link (the main `query`, every `alternativeQueries` entry, and the metrics `{expr, refId}` query) gets `datasource: { type: <settings>.type, uid: <settings>.uid }` from logsDataSourceSettings or metricsDataSourceSettings. Spread the original query first, then override `datasource`.\nConstraints: This applies to every logs backend (Loki, Splunk, Elasticsearch, Google Cloud Logging, Falcon LogScale, VictoriaLogs) and to Prometheus metrics. It also applies with the GrafanaDynamicTraceToLogs flag both on and off. The tests in createSpanLink.test.ts compare full encoded hrefs, so the key order `{\"type\":...,\"uid\":...}` must match exactly. If you add a new link type, a new datasource, or a new query field, update the expected hrefs too.",
+        "applies": "Span-link generation for trace-to-logs and trace-to-metrics in Explore TraceView",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+            "symbol": "legacyCreateSpanLinkFactory"
+          },
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+            "symbol": "createSpanLinkFactory"
+          }
+        ],
+        "tags": [
+          "explore",
+          "traceview",
+          "trace-to-logs",
+          "trace-to-metrics",
+          "datasource-ref",
+          "log-context"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing span links under the dynamic trace-to-logs feature flag",
+        "kind": "howto",
+        "answers": [
+          "how to test createSpanLink with GrafanaDynamicTraceToLogs on and off",
+          "run createSpanLink tests",
+          "parse the Explore pane from a span link href in tests"
+        ],
+        "body": "Run with `yarn jest --no-watch public/app/features/explore/TraceView/createSpanLink.test.ts`.\nTo cover both code paths, use `it.each([false, true])` with `setTestFlags({ [FlagKeys.GrafanaDynamicTraceToLogs]: flag })`, then call `setupSpanLinkFactory()`. Reset the flags afterwards with `setTestFlags({})`, as the existing afterEach does.\nTo check fields without comparing the whole href string, parse the pane: `JSON.parse(new URL(link.href, 'http://localhost').searchParams.get('left')!)`, then assert on `pane.queries[0].datasource`.\nWhen the dynamic path is on, `linkModel.interpolatedParams.alternativeQueries` holds the extra queries. Assert on them with `expect.objectContaining`.",
+        "applies": "Unit tests for public/app/features/explore/TraceView/createSpanLink",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+            "symbol": "setupSpanLinkFactory"
+          }
+        ],
+        "tags": [
+          "testing",
+          "jest",
+          "feature-flags",
+          "traceview"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "trace-to-logs-metrics-link-queries-must-carry-the-full-datas",
+        "title": "Trace-to-logs/metrics link queries must carry the full datasource ref ({type, uid}), not just uid",
+        "kind": "rule",
+        "body": "Symptom: In Explore, after clicking \"Logs for this span\" on a trace, \"Show context\" on a log row shows the generic \"No more logs available\" state. The surrounding log lines and the datasource-specific controls never appear. Trace-to-metrics links produce the same incomplete query.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory built the inner Explore queries with `datasource: { uid }` only, or with no datasource at all for metrics. Explore can still run a query that has only a uid, but datasource-specific features such as the log context UI can't reliably tell which plugin it belongs to without `type`.\nFix pattern: Any query you put into a span link (the main `query`, every `alternativeQueries` entry, and the metrics `{expr, refId}` query) gets `datasource: { type: <settings>.type, uid: <settings>.uid }` from logsDataSourceSettings or metricsDataSourceSettings. Spread the original query first, then override `datasource`.\nConstraints: This applies to every logs backend (Loki, Splunk, Elasticsearch, Google Cloud Logging, Falcon LogScale, VictoriaLogs) and to Prometheus metrics. It also applies with the GrafanaDynamicTraceToLogs flag both on and off. The tests in createSpanLink.test.ts compare full encoded hrefs, so the key order `{\"type\":...,\"uid\":...}` must match exactly. If you add a new link type, a new datasource, or a new query field, update the expected hrefs too.",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+            "symbol": "legacyCreateSpanLinkFactory",
+            "hash": "sha256:9d9b347650c49e0e7564738a",
+            "line": 149,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+            "symbol": "alternativeQueries",
+            "hash": "sha256:b93253aeabbc650fee848a02",
+            "line": 104,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 21
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-span-links-under-the-dynamic-trace-to-logs-feature-f",
+        "title": "Testing span links under the dynamic trace-to-logs feature flag",
+        "kind": "howto",
+        "body": "Run with `yarn jest --no-watch public/app/features/explore/TraceView/createSpanLink.test.ts`.\nTo cover both code paths, use `it.each([false, true])` with `setTestFlags({ [FlagKeys.GrafanaDynamicTraceToLogs]: flag })`, then call `setupSpanLinkFactory()`. Reset the flags afterwards with `setTestFlags({})`, as the existing afterEach does.\nTo check fields without comparing the whole href string, parse the pane: `JSON.parse(new URL(link.href, 'http://localhost').searchParams.get('left')!)`, then assert on `pane.queries[0].datasource`.\nWhen the dynamic path is on, `linkModel.interpolatedParams.alternativeQueries` holds the extra queries. Assert on them with `expect.objectContaining`.",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+            "symbol": "setupSpanLinkFactory",
+            "hash": "sha256:f2dffd4986ff2ac351f1ca4d",
+            "line": 1718,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 51,
+              "refs": 51
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

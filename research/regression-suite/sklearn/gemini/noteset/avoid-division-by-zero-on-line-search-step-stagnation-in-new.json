@@ -1,0 +1,43 @@
+{
+  "id": "avoid-division-by-zero-on-line-search-step-stagnation-in-new",
+  "title": "Avoid division by zero on line search step stagnation in Newton solver",
+  "kind": "rule",
+  "answers": [
+    "Why does Newton solver raise a divide by zero warning during line search?",
+    "RuntimeWarning: divide by zero encountered in line search of Newton solver",
+    "How to avoid division by zero when line search step size reaches min_step_length in NewtonSolver?"
+  ],
+  "body": "Symptom: RuntimeWarning divide by zero in Newton solver line search during GLM fitting.\nRoot cause: In sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver, when step size alpha hits min_step_length and stagnates (alpha == alpha_old), subsequent trial step calculations divide by denom = 0.\nFix pattern: Break early when alpha == alpha_old and track convergence with an explicit boolean flag so that non-convergent early termination still triggers the solver's failure warning.\nConstraints: Applies to iterative step-size backtracking bounded by a minimum step length; does not apply if step updates cannot stagnate at equal successive values.",
+  "applies": "Line search step reduction in sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver.",
+  "tags": [
+    "glm",
+    "newton-solver",
+    "line-search",
+    "numerical-stability"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/_newton_solver.py",
+      "symbol": "NewtonSolver",
+      "hash": "sha256:6809613e1766eaaba506f86a",
+      "line": 109,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35043"
+  },
+  "created": "2026-10-07T00:40:43.913Z",
+  "verified": "2026-10-07T00:40:43.913Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

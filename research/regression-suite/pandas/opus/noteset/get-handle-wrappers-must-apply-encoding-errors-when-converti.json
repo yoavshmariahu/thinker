@@ -1,0 +1,79 @@
+{
+  "id": "get-handle-wrappers-must-apply-encoding-errors-when-converti",
+  "title": "get_handle wrappers must apply encoding_errors when converting text buffers to bytes",
+  "kind": "rule",
+  "answers": [
+    "read_csv encoding_errors='replace' ignored for StringIO",
+    "UnicodeEncodeError from read_csv on a StringIO with surrogate characters",
+    "why does pyarrow/C engine raise UnicodeEncodeError on text buffer",
+    "_BytesIOWrapper errors parameter"
+  ],
+  "body": "Symptom: `pd.read_csv(StringIO(\"a\\nx\\udcef\\n\"), encoding_errors=\"replace\")` raised UnicodeEncodeError on the C and pyarrow engines instead of returning 'x?' (or 'x' with 'ignore').\nRoot cause: pandas/io/common.py:_BytesIOWrapper.read called `str.encode(self.encoding)` with no errors handler, and get_handle built the wrapper without passing its `errors` argument. Since the C engine opens UTF-8 input in binary mode (GH-64766), every text buffer passed to it goes through this wrapper. The pyarrow engine already did.\nFix pattern: pass get_handle's `errors` into `_BytesIOWrapper(handle, encoding=..., errors=errors)` and use `encode(self.encoding, self.errors)`. The default stays 'strict'.\nConstraints: any new text<->bytes wrapper or re-encoding step in get_handle must receive and apply `errors`, or users silently lose encoding_errors. The python engine reads text buffers directly without encoding, so it is not affected.",
+  "applies": "pandas/io/common.py get_handle and its buffer wrappers used by read_csv engines",
+  "tags": [
+    "read_csv",
+    "encoding_errors",
+    "io",
+    "pyarrow",
+    "c-engine",
+    "unicode"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "_BytesIOWrapper",
+      "hash": "sha256:58b62dc96cc11b38edccbc93",
+      "line": 1177,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "get_handle",
+      "hash": "sha256:e6360a8f1a2a2743ac674b9a",
+      "line": 706,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 41,
+        "refs": 80
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_encoding.py",
+      "symbol": "test_text_buffer_encoding_errors",
+      "hash": "sha256:898fb0916395b5657a4c15b9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "_BytesIOWrapper.read",
+      "hash": "sha256:dff0cc5740f0e444f17efbea",
+      "line": 1198,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70405"
+  },
+  "created": "2026-10-07T00:25:06.383Z",
+  "verified": "2026-10-07T00:25:06.383Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "whatsnew-policy-no-entry-for-regressions-that-never-shipped"
+  ]
+}

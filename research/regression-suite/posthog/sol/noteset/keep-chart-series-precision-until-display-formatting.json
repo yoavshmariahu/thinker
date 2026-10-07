@@ -1,0 +1,70 @@
+{
+  "id": "keep-chart-series-precision-until-display-formatting",
+  "title": "Keep chart series precision until display formatting",
+  "kind": "rule",
+  "answers": [
+    "Why do metric card totals change when I change Decimal places?",
+    "Why are pie totals or breakdown bucket sums wrong?",
+    "Where should SQL chart values be rounded?"
+  ],
+  "body": "Invariant: Configured decimal places must not round numeric series before aggregation; preserve parsed precision, including percent scaling.\nEnforcement: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic (yData selector) and frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts:parseBreakdownSeriesValue parse values without decimal-place rounding.\nDisplay boundary: frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts:formatSqlSeriesValue applies display formatting; unstyled values use explicit decimal places or a default cap of 3.\nFailure if skipped: Metric totals, averages and change badges, pie totals, and breakdown bucket sums operate on rounded inputs; two 0.49 rows must still aggregate to 0.98 with zero decimal places configured.\nConstraints: This applies to numeric chart series and their aggregates; table cell display rounding remains separate.",
+  "applies": "SQL chart series parsing, breakdown aggregation, and chart display formatting.",
+  "tags": [
+    "sql-insights",
+    "chart-series",
+    "aggregation",
+    "precision"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+      "symbol": "parseBreakdownSeriesValue",
+      "hash": "sha256:abd161cca27e8442ccdf6dca",
+      "line": 78,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "symbol": "formatSqlSeriesValue",
+      "hash": "sha256:0a05e3abdf21780416131363",
+      "line": 242,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 14,
+        "refs": 24
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:18:26.931Z",
+  "verified": "2026-10-07T00:18:26.931Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "treat-zero-decimal-places-as-an-explicit-formatting-setting",
+    "apply-show-nulls-as-zero-after-numeric-parsing-fails"
+  ]
+}

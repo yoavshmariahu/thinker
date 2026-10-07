@@ -1,0 +1,44 @@
+{
+  "id": "preserve-datasource-type-and-uid-in-trace-correlation-querie",
+  "title": "Preserve datasource type and UID in trace correlation queries",
+  "kind": "rule",
+  "answers": [
+    "Show context says No more logs available after clicking Logs for this span",
+    "Datasource-specific log context controls are missing after navigating from a trace",
+    "What datasource reference must trace-to-logs and trace-to-metrics queries carry?"
+  ],
+  "body": "Symptom: After clicking Logs for this span, Show context displays “No more logs available” instead of surrounding logs and datasource-specific controls.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory generated inner queries without datasource.type; a UID alone allowed execution but did not reliably identify the plugin.\nFix pattern: Attach datasource: { type, uid } from the target datasource settings to generated logs and metrics queries, including interpolated alternative log queries.\nConstraints: Preserve the complete reference with dynamic trace-to-logs queries both enabled and disabled. The Explore pane's datasource UID does not replace the reference required on each inner query.",
+  "applies": "Explore trace-to-logs and trace-to-metrics link generation, including alternative log queries.",
+  "tags": [
+    "explore",
+    "trace-to-logs",
+    "trace-to-metrics",
+    "datasource",
+    "log-context"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+      "symbol": "legacyCreateSpanLinkFactory",
+      "hash": "sha256:9d9b347650c49e0e7564738a",
+      "line": 149,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#130358"
+  },
+  "created": "2026-10-07T00:06:08.236Z",
+  "verified": "2026-10-07T00:06:08.236Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

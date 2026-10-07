@@ -1,0 +1,57 @@
+{
+  "id": "report-discovery-failures-separately-from-mcp-connection-suc",
+  "title": "Report discovery failures separately from MCP connection success",
+  "kind": "rule",
+  "answers": [
+    "Why does an MCP server say Connected but show no tools?",
+    "How should Desktop handle failed tool discovery after adding a server?",
+    "Should no-server and no-connection discovery results show warnings?"
+  ],
+  "body": "Symptom: An added or connected MCP server shows no tools and gives no explanation when tool listing fails.\nRoot cause: products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts:useGatewayServers and products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts:useRegisterGatewayServer previously discarded discovery rejections and successful results skipped as no-server.\nFix pattern: Handle both rejected discovery and skipped === \"no-server\" with a recovery warning, while preserving the successful connection or registration outcome.\nConstraints: Applies to discovery after connecting or registering. Keep \"no-connection\" quiet because the server's status tag already explains pending OAuth or reauthentication; a successful listing with zero tools is not itself one of these failure conditions.",
+  "applies": "Desktop MCP gateway tool discovery after connection or custom-server registration.",
+  "tags": [
+    "mcp-gateway",
+    "desktop",
+    "tool-discovery",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+      "symbol": "useGatewayServers",
+      "hash": "sha256:46a602e7d6b0a0a98fb0e5fe",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 7,
+        "refs": 17
+      }
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+      "symbol": "useRegisterGatewayServer",
+      "hash": "sha256:d33a48156ae60b92028ee25a",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#103110"
+  },
+  "created": "2026-10-07T00:19:58.477Z",
+  "verified": "2026-10-07T00:19:58.477Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-mcp-discovery-warnings-independent-of-upstream-error-te"
+  ]
+}

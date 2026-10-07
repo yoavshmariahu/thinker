@@ -1,0 +1,69 @@
+{
+  "id": "negotiate-aggregated-discovery-to-find-crd-backed-groups",
+  "title": "Negotiate aggregated discovery to find CRD-backed groups",
+  "kind": "rule",
+  "answers": [
+    "Why are CRD-backed resources missing from router discovery?",
+    "Why does introspection fail for an aggregated apiextensions-apiserver?",
+    "How should the router negotiate and decode /apis responses?"
+  ],
+  "body": "Symptom: CRD-backed resource groups are missing when an apiextensions-apiserver is configured as a router aggregate target.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups queried /apis without requesting aggregated discovery; the standalone apiextensions server's classic response contains a static group map that does not track CRDs.\nFix pattern: Request aggregatedDiscoveryJSON before application/json; pkg/router/aggregate_discovery.go:decodeDiscoveryResponse selects aggregated decoding when the response Content-Type contains apidiscovery.k8s.io and converts it to []metav1.APIGroup.\nConstraints: Applies to active /apis discovery of aggregate targets. Preserve classic APIGroupList decoding for targets that negotiate down or ignore Accept; choose the decoder from the actual response Content-Type.",
+  "applies": "Router active discovery of API groups on aggregate apiserver targets.",
+  "tags": [
+    "router",
+    "api-discovery",
+    "apiextensions",
+    "content-negotiation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "discoverGroups",
+      "hash": "sha256:76d0e2520fc7ce49bba2e288",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "decodeDiscoveryResponse",
+      "hash": "sha256:541f271a0f43d870ea86a531",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery_test.go",
+      "symbol": "TestDiscoverGroups_AggregatedFormat",
+      "hash": "sha256:ce75bd7f3c034a4daa18b6a4",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-07T00:03:34.788Z",
+  "verified": "2026-10-07T00:03:34.788Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "preserve-upstream-version-priority-when-normalizing-discover"
+  ]
+}

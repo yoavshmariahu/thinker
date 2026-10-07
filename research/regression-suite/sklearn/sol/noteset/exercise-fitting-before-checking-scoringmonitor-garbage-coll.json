@@ -1,0 +1,42 @@
+{
+  "id": "exercise-fitting-before-checking-scoringmonitor-garbage-coll",
+  "title": "Exercise fitting before checking ScoringMonitor garbage collection",
+  "kind": "rule",
+  "answers": [
+    "How do I test that a scoring monitor releases its listener?",
+    "Why can a callback cleanup test miss a signature-cache leak?",
+    "How do I reproduce scoring monitor resources surviving callback deletion?"
+  ],
+  "body": "ScoringMonitor cleanup tests must exercise fitting before checking collection, because fitting triggers callback signature caching.\nIn sklearn/callback/tests/test_scoring_monitor.py:test_scoring_monitor_listener_closed_on_gc, fit a temporary estimator with the callback, delete the callback, and call gc.collect().\nVerify that the listener address disappears from both _listeners and _message_consumers; checking only construction and deletion misses retention introduced during fitting.",
+  "applies": "Regression tests for ScoringMonitor listener cleanup after callback use.",
+  "tags": [
+    "callbacks",
+    "garbage-collection",
+    "regression-tests"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/tests/test_scoring_monitor.py",
+      "symbol": "test_scoring_monitor_listener_closed_on_gc",
+      "hash": "sha256:dee5ef7b0d6a297bfecb961a",
+      "line": 412,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34837"
+  },
+  "created": "2026-10-07T00:34:04.992Z",
+  "verified": "2026-10-07T00:34:04.992Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

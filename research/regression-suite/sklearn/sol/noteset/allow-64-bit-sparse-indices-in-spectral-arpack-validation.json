@@ -1,0 +1,56 @@
+{
+  "id": "allow-64-bit-sparse-indices-in-spectral-arpack-validation",
+  "title": "Allow 64-bit sparse indices in spectral ARPACK validation",
+  "kind": "rule",
+  "answers": [
+    "Why does SpectralEmbedding fail with a 64-bit sparse indices ValueError under sparray?",
+    "SpectralClustering fails when sparse_interface=\"sparray\" is enabled.",
+    "How should the spectral ARPACK path validate sparse Laplacians?"
+  ],
+  "body": "Symptom: SpectralEmbedding and SpectralClustering raise a ValueError about 64-bit sparse indices under config_context(sparse_interface=\"sparray\") with eigen_solver=\"arpack\".\nRoot cause: sklearn/manifold/_spectral_embedding.py:_spectral_embedding rejected large sparse indices during Laplacian validation, although eigsh supports them; sparse arrays do not downcast indices based on content.\nFix pattern: Keep CSR validation without accept_large_sparse=False for this eigsh path. Verify backend equivalence up to eigenvector sign, as in sklearn/manifold/tests/test_spectral_embedding.py:test_spectral_embedding_sparse_interface_sparray.\nConstraints: Applies to the shared spectral ARPACK path, including its shift-invert eigsh call; do not generalize removal of index-width restrictions to consumers that require 32-bit index buffers.",
+  "applies": "Spectral embedding and clustering using the shared ARPACK solver path with sparse Laplacians.",
+  "tags": [
+    "spectral-embedding",
+    "spectral-clustering",
+    "sparse-arrays",
+    "arpack",
+    "index-dtype"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/manifold/_spectral_embedding.py",
+      "symbol": "_spectral_embedding",
+      "hash": "sha256:f922633f9c12853bdf78bd9d",
+      "line": 287,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 8
+      }
+    },
+    {
+      "path": "sklearn/manifold/tests/test_spectral_embedding.py",
+      "symbol": "test_spectral_embedding_sparse_interface_sparray",
+      "hash": "sha256:7d3b34c4a434c7224b8f5f08",
+      "line": 551,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34965"
+  },
+  "created": "2026-10-07T00:33:01.186Z",
+  "verified": "2026-10-07T00:33:01.186Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,43 @@
+{
+  "id": "use-the-shared-modal-action-row-to-avoid-clipped-button-focu",
+  "title": "Use the shared modal action row to avoid clipped button focus rings",
+  "kind": "rule",
+  "answers": [
+    "The focus ring is cut off around confirmation modal buttons.",
+    "How should confirmation modal action buttons be laid out?",
+    "Fix clipped keyboard focus outlines in modal footers."
+  ],
+  "body": "Symptom: Buttons in confirmation modals show cut-off focus rings.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent used a bespoke buttonsContainer and Stack for its action buttons.\nFix pattern: Render modal actions inside Modal.ButtonRow instead of the custom action-row wrapper.\nConstraints: Applies to confirmation modal action layout; preserve button handlers, submit type, disabled state, ref, and test selector when replacing the wrapper. This does not establish a general defect in Stack.",
+  "applies": "Confirmation modal action buttons rendered by ConfirmContent.",
+  "tags": [
+    "modals",
+    "focus",
+    "accessibility",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-10-07T00:02:55.281Z",
+  "verified": "2026-10-07T00:02:55.281Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

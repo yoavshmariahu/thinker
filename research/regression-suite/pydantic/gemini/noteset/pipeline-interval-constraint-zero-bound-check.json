@@ -1,0 +1,44 @@
+{
+  "id": "pipeline-interval-constraint-zero-bound-check",
+  "title": "Pipeline Interval constraint zero bound check",
+  "kind": "rule",
+  "answers": [
+    "Why does Interval(ge=0) or Interval(gt=0) allow negative numbers in experimental pipeline validation?",
+    "Why are zero bounds ignored or dropped when using Interval in validate_as pipeline?",
+    "How to properly constrain pipeline schemas with Interval bounds equal to 0?"
+  ],
+  "body": "Symptom: Interval constraints with a bound of zero (such as ge=0, gt=0, le=0, or lt=0) in pipeline validation silently accept out-of-bounds values like negative numbers.\nRoot cause: pydantic/experimental/pipeline.py:_apply_constraint evaluated Interval bound values for truthiness rather than checking 'is not None', causing bounds of zero (0, 0.0) to be skipped.\nFix pattern: Explicitly check bound presence using 'is not None' when delegating composite constraints to individual bound constraints.\nConstraints: Applies to any numeric constraint where zero is a valid boundary value; does not apply to boolean flags or optional collections where falsiness indicates absence.",
+  "applies": "Handling annotated_types.Interval bound constraints in pydantic/experimental/pipeline.py",
+  "tags": [
+    "pipeline",
+    "constraints",
+    "interval",
+    "annotated-types",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/experimental/pipeline.py",
+      "symbol": "_apply_constraint",
+      "hash": "sha256:9e80009032750d090d1b5a5a",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13452"
+  },
+  "created": "2026-10-07T00:54:36.754Z",
+  "verified": "2026-10-07T00:54:36.754Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

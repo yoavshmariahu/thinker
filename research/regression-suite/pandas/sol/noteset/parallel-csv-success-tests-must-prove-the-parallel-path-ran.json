@@ -1,0 +1,82 @@
+{
+  "id": "parallel-csv-success-tests-must-prove-the-parallel-path-ran",
+  "title": "Parallel CSV success tests must prove the parallel path ran",
+  "kind": "rule",
+  "answers": [
+    "How do I test that read_csv actually uses parallel parsing?",
+    "Why can parallel-versus-serial equality miss a regression?",
+    "How should tests force parallel CSV reading on a single-CPU allocation?"
+  ],
+  "body": "Convention: Tests intended to exercise successful parallel parsing must reject silent serial fallback; pandas/tests/io/parser/test_parallel_read.py:TestReadCsvParallel._read_parallel fails when the internal helper returns None.\nPublic-path check: pandas/tests/io/parser/test_parallel_read.py:test_read_csv_parallel_vs_serial_large_file lowers _PARALLEL_READ_MIN_BYTES to 1, sets mode.max_threads to 4, and uses _track_parallel to assert outcomes == [\"used\"] alongside frame equality.\nPlatform constraint: That public-path test skips WASM because WASM stays serial and the spy sees no parallel call.\nConsequence: Frame equality alone can pass after the implementation falls back to serial, leaving the intended parallel behavior untested.",
+  "applies": "Tests whose purpose requires successful parallel read_csv execution rather than fallback correctness.",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "testing",
+    "path-coverage"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "TestReadCsvParallel",
+      "hash": "sha256:cd1e61bd4d2c28de9ad4e08c",
+      "line": 441,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_read_csv_parallel_vs_serial_large_file",
+      "hash": "sha256:583debf93152e151097af5a2",
+      "line": 814,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "_track_parallel",
+      "hash": "sha256:f85d82876a5161ed104ffa85",
+      "line": 1842,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 17,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_read_csv_parallel_vs_serial_large_file",
+      "hash": "sha256:583debf93152e151097af5a2",
+      "line": 814,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:25:37.481Z",
+  "verified": "2026-10-07T00:25:37.481Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "csv-warnings-must-survive-failures-without-duplication",
+    "reject-bare-cr-near-the-parallel-csv-data-boundary"
+  ]
+}

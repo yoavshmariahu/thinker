@@ -1,0 +1,45 @@
+{
+  "id": "nan-multiindex-column-labels-wrap-around-to-last-level-in-to",
+  "title": "NaN MultiIndex column labels wrap around to last level in to_excel",
+  "kind": "rule",
+  "answers": [
+    "Why does DataFrame.to_excel write NaN MultiIndex column labels as the last value of that level?",
+    "How to prevent NaN column labels in MultiIndex from writing incorrect values in to_excel?",
+    "Why does Index.take wrap around negative -1 codes when formatting MultiIndex levels in Excel?",
+    "How are missing or NaN MultiIndex header values handled in ExcelFormatter?"
+  ],
+  "body": "Symptom: Exporting a DataFrame with MultiIndex columns containing NaN labels via `to_excel` writes the NaN label as the last value of that level instead of an empty cell.\nRoot cause: `pandas/io/formats/excel.py:ExcelFormatter._format_header_mi` calls `levels.take(level_codes)` without `allow_fill=True`, causing the `-1` code for NaN to wrap around to the last element.\nFix pattern: Pass `allow_fill=True` to `levels.take(level_codes, allow_fill=True)` so that `-1` sentinel codes are filled with NaN instead of wrapping around.\nConstraints: Applies when taking MultiIndex level values using `codes` that may contain `-1` for missing/NaN values; not required if codes are guaranteed non-negative.",
+  "applies": "Formatting MultiIndex column headers with NaN or missing labels in DataFrame.to_excel",
+  "tags": [
+    "pandas",
+    "excel",
+    "to_excel",
+    "multiindex",
+    "nan"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/excel.py",
+      "symbol": "ExcelFormatter._format_header_mi",
+      "hash": "sha256:6e1b1fc89743277243a66814",
+      "line": 614,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69446"
+  },
+  "created": "2026-10-07T00:36:55.169Z",
+  "verified": "2026-10-07T00:36:55.169Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

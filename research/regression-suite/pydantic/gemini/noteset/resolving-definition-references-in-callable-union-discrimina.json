@@ -1,0 +1,56 @@
+{
+  "id": "resolving-definition-references-in-callable-union-discrimina",
+  "title": "Resolving definition references in callable union discriminators",
+  "kind": "rule",
+  "answers": [
+    "Why does Field(discriminator=...) fail on a PEP 695 TypeAliasType union?",
+    "How to resolve definition-ref schemas in Discriminator._convert_schema when handler is None?",
+    "Fixing MissingDefinitionForUnionRef with callable discriminators and type aliases"
+  ],
+  "body": "Symptom: Callable discriminator on a Field fails to resolve union variants when applied to a PEP 695 type alias (TypeAliasType) or definition-ref schema.\nRoot cause: pydantic/types.py:Discriminator._convert_schema only resolved definition-ref schemas using handler.resolve_ref_schema, but pydantic/_internal/_discriminated_union.py:apply_discriminator calls _convert_schema without a handler and omitted definitions.\nFix pattern: Pass definitions to _convert_schema from apply_discriminator and resolve definition-ref schemas via handler.resolve_ref_schema when handler is present, or definitions.get(schema_ref) when definitions is present.\nConstraints: Applies to definition-ref resolution in discriminated union conversion; raises MissingDefinitionForUnionRef if the definition reference cannot be resolved.",
+  "applies": "Discriminated union conversion for callable discriminators and definition-ref schemas in Pydantic models.",
+  "tags": [
+    "discriminated-unions",
+    "discriminator",
+    "pep-695",
+    "type-alias",
+    "schema-generation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "Discriminator._convert_schema",
+      "hash": "sha256:89d72ddd7545a596f06a4e4d",
+      "line": 3117,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_discriminated_union.py",
+      "symbol": "apply_discriminator",
+      "hash": "sha256:071097aa6bf88655a5db3955",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13604"
+  },
+  "created": "2026-10-07T00:52:25.663Z",
+  "verified": "2026-10-07T00:52:25.663Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

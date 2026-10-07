@@ -1,0 +1,48 @@
+{
+  "id": "changing-insight-list-query-ordering-requires-updating-the-t",
+  "title": "Changing insight list query ordering requires updating the test_insight.ambr query snapshot",
+  "kind": "rule",
+  "answers": [
+    "Snapshot test failing after changing insight queryset order",
+    "Where are the insight list SQL snapshots stored?",
+    "How do I check which ORDER BY the insight list endpoint emits?"
+  ],
+  "body": "The insight API tests use QueryMatchingTest. The SQL of the list endpoint, including its exact `ORDER BY` and `LIMIT 100`, is captured in products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr.\nAny change to InsightViewSet.order_queryset (or to the annotations and joins on the list queryset) changes that SQL, so the .ambr snapshot must be regenerated in the same change. The current default renders as `ORDER BY \"posthog_dashboarditem\".\"last_modified_at\" DESC, \"posthog_dashboarditem\".\"id\" DESC`.\nThe snapshot does not check ordering behaviour. Also add an API-level test in products/product_analytics/backend/tests/api/test_insight.py that asserts the result id order. The existing default-order test sets the vestigial `order` field against the timestamp ordering so that it fails under the old behaviour.",
+  "applies": "Tests for products/product_analytics insight API querysets",
+  "tags": [
+    "insights",
+    "testing",
+    "snapshots",
+    "query-matching"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr",
+      "hash": "sha256:ab68f3c3351787db2fedffbe",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/backend/tests/api/test_insight.py",
+      "symbol": "TestInsight",
+      "hash": "sha256:aca09f3e168e0319db1c7a00",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105670"
+  },
+  "created": "2026-10-07T00:16:02.923Z",
+  "verified": "2026-10-07T00:16:02.923Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

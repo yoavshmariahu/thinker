@@ -1,0 +1,69 @@
+{
+  "id": "annotation-tags-live-in-two-places-the-annotation-tags-colum",
+  "title": "Annotation tags live in two places: the annotation.tags column and the annotation_tag join table, so tests must check both",
+  "kind": "rule",
+  "answers": [
+    "annotation tags test passes but tag filtering is wrong",
+    "where are annotation tags stored",
+    "how to verify annotation_tag join table in tests"
+  ],
+  "body": "Get builds ItemDTO.Tags from the denormalized `annotation.tags` column. GetTags, which powers annotation tag filtering, joins the `annotation_tag` table instead. The two must stay in sync. xormRepositoryImpl.ensureTags in pkg/services/annotations/annotationsimpl/xorm_store.go maintains the join table on Add, update and AddMany.\nIf the join table drifts, assertions on items[0].Tags still pass because they read only the column. That is how the ensureTags delete bug stayed hidden.\nTo test tag changes, query the join table directly, as `Can update annotation with additional tags` in TestIntegrationAnnotations (xorm_store_test.go) does: sql.WithDbSession(...) with `SELECT tag.key FROM annotation_tag JOIN tag ON tag.id = annotation_tag.tag_id WHERE annotation_tag.annotation_id = ?`, then assert.ElementsMatch.\nRun the tests with: go test ./pkg/services/annotations/... -count=1",
+  "applies": "Changes to annotation tag write paths or annotation tag tests in pkg/services/annotations/annotationsimpl",
+  "tags": [
+    "annotations",
+    "tags",
+    "testing",
+    "denormalization"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "ensureTags",
+      "hash": "sha256:72bb4b9142f3bc4223046c53",
+      "line": 230,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+      "symbol": "TestIntegrationAnnotations",
+      "hash": "sha256:99e419faa33c8690d9f4de24",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/state/historian/annotation.go",
+      "symbol": "tags",
+      "hash": "sha256:00716a03f5cc52b4169a6b89",
+      "line": 367,
+      "missing": false,
+      "fanout": {
+        "files": 232,
+        "sites": 24,
+        "refs": 1193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131464"
+  },
+  "created": "2026-10-07T00:05:14.405Z",
+  "verified": "2026-10-07T00:05:14.405Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column"
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "id": "lda-internal-helpers-take-pre-encoded-y-encoded-plus-n-class",
+  "title": "LDA internal helpers take pre-encoded y_encoded plus n_classes and must not recompute uniques",
+  "kind": "rule",
+  "answers": [
+    "what does _class_means expect for y",
+    "LDA solver signature y_encoded n_classes",
+    "why does _class_cov take n_classes",
+    "LDA means_/priors_ order mismatch with classes_"
+  ],
+  "body": "Invariant: in sklearn/discriminant_analysis.py, `_class_means(X, y_encoded, *, n_classes)` and `_class_cov(X, y_encoded, priors, ..., *, n_classes)` take integer codes that index `self.classes_`. The same goes for `LinearDiscriminantAnalysis._solve_lstsq`, `_solve_eigen` and `_solve_svd`. Row `i` of `means_` and `priors_[i]` belong to code `i`.\nThe helpers loop over `range(n_classes)` with `y_encoded == idx`. The numpy path uses `np.bincount(y_encoded, minlength=n_classes)` and `np.add.at`. They must not call `unique`/`unique_inverse` on y again. That extra pass was the redundant work this change removed, and raw labels can be strings or live on another device.\nn_classes comes from `self.classes_.shape[0]`. `fit` sets `classes_` and computes priors via `xp.unique_counts(y_encoded)` before it dispatches to a solver, so any new solver or helper must keep that order and pass `y_encoded`, never the raw `y`.",
+  "applies": "sklearn/discriminant_analysis.py LDA fit/solver code",
+  "tags": [
+    "discriminant_analysis",
+    "lda",
+    "encoding",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_means",
+      "hash": "sha256:8c550af8088936df2fc13a58",
+      "line": 98,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_cov",
+      "hash": "sha256:58102af9641539ab4b519d60",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis._solve_svd",
+      "hash": "sha256:a50d7cf59d3adccaaa7a37a5",
+      "line": 569,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis.fit",
+      "hash": "sha256:7e99491781076cb52c11e871",
+      "line": 651,
+      "missing": false
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis._solve_lstsq",
+      "hash": "sha256:3fe1dfb30e8a3f33fa779d67",
+      "line": 439,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:30:07.322Z",
+  "verified": "2026-10-07T00:30:07.322Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "array-api-mixed-inputs-encode-y-to-integer-codes-then-move-i"
+  ]
+}

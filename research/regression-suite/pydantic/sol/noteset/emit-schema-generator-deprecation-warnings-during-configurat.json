@@ -1,0 +1,105 @@
+{
+  "id": "emit-schema-generator-deprecation-warnings-during-configurat",
+  "title": "Emit schema_generator deprecation warnings during configuration preparation",
+  "kind": "rule",
+  "answers": [
+    "Where should the schema_generator deprecation warning be emitted?",
+    "Why are schema_generator warnings repeated during schema construction?",
+    "Does the schema_generator configuration setting still affect validation?"
+  ],
+  "body": "pydantic/_internal/_config.py:check_deprecated warns when schema_generator is non-None; prepare_config invokes this check during configuration preparation.\nKeep this warning out of ConfigWrapper.core_config: the notice belongs to configuration preparation, rather than each core configuration build, which can repeat it.\npydantic/config.py:ConfigDict documents that schema_generator no longer has any effect; pydantic/_internal/_config.py:check_deprecated must retain the PydanticDeprecatedSince210 notice.\npydantic/deprecated/decorator.py:ValidatedFunction.create_model prepares configuration first and then constructs ConfigWrapper with check=False, avoiding a second preparation pass.",
+  "applies": "schema_generator deprecation handling and callers that prepare configuration before constructing ConfigWrapper.",
+  "tags": [
+    "configuration",
+    "deprecation",
+    "warnings"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "check_deprecated",
+      "hash": "sha256:6aab75cffe29336758f7548f",
+      "line": 389,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "prepare_config",
+      "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+      "line": 335,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    },
+    {
+      "path": "pydantic/config.py",
+      "symbol": "ConfigDict",
+      "hash": "sha256:809ca1164e245b6434395824",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 73,
+        "sites": 571,
+        "refs": 750
+      }
+    },
+    {
+      "path": "pydantic/deprecated/decorator.py",
+      "symbol": "ValidatedFunction.create_model",
+      "hash": "sha256:d0405e3c3f1b4a48ff1273d0",
+      "line": 229,
+      "missing": false,
+      "fanout": {
+        "files": 42,
+        "sites": 103,
+        "refs": 154
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "symbol": "test_generate_schema_deprecation_warning",
+      "hash": "sha256:543f9780d298de8b477b4c50",
+      "line": 974,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:40:58.880Z",
+  "verified": "2026-10-07T00:40:58.880Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-declared-configuration-separate-from-derived-settings",
+    "normalize-alias-validation-eagerly-and-use-it-for-signatures"
+  ]
+}

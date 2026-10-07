@@ -1,0 +1,81 @@
+{
+  "id": "fallback-to-blocked-draft-when-support-reply-draft-activity",
+  "title": "Fallback to blocked draft when support reply draft activity fails",
+  "kind": "rule",
+  "answers": [
+    "Why are support tickets stuck on Processing when the AI draft agent fails?",
+    "How does the support reply draft activity handle empty turns or agent crashes?",
+    "What prevents support tickets from staying in_progress after draft generation errors?"
+  ],
+  "body": "Symptom: Support tickets stay stuck on \"Processing\" and never leave in_progress when the draft agent fails or ends without valid JSON.\nRoot cause: products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async raised an uncaught exception on all attempts, failing the Temporal workflow before a result was recorded.\nFix pattern: Raise DraftNotProducedError while llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS to trigger Temporal retry, but on the final attempt return a fallback SupportReplyDraft with verdict=\"blocked_on_knowledge\" and confidence=0.0.\nConstraints: Applies to support draft activities where terminal failure leaves tickets in_progress; must match RetryPolicy(maximum_attempts=DRAFT_ACTIVITY_MAX_ATTEMPTS) in products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow.",
+  "applies": "Support reply draft generation activity in Temporal conversations pipeline.",
+  "tags": [
+    "conversations",
+    "temporal",
+    "ai-reply",
+    "support-tickets"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_give_up",
+      "hash": "sha256:5388549d8664286bf2331279",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 25
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/pipeline.py",
+      "symbol": "SupportReplyWorkflow",
+      "hash": "sha256:037234a7bf27b8099f55c5e4",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 1,
+        "refs": 47
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+      "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS",
+      "hash": "sha256:10f54ff9fa5690967ecbfc31",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:25:53.733Z",
+  "verified": "2026-10-07T00:25:53.733Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "support-reply-multiturnsession-must-omit-output-schema-and-p"
+  ]
+}

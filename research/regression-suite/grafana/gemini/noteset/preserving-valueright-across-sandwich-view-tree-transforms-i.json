@@ -1,0 +1,68 @@
+{
+  "id": "preserving-valueright-across-sandwich-view-tree-transforms-i",
+  "title": "Preserving valueRight across sandwich view tree transforms in diff flame graphs",
+  "kind": "rule",
+  "answers": [
+    "Why does the diff flame graph tooltip show NaN% or undefined in sandwich view?",
+    "Why are baseline, comparison, or diff sample values NaN in Callers and Callees view?",
+    "How should valueRight be propagated when merging or rebasing flame graph subtrees?"
+  ],
+  "body": "Symptom: Diff flame graph tooltips show NaN%, NaNundefined, or bare undefined for baseline, comparison, or diff values in sandwich view (Callers/Callees).\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:getParentSubtrees rebuild LevelItem nodes for sandwich views without recomputing or propagating valueRight, which packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx:getDiffTooltipData dereferences with a non-null assertion.\nFix pattern: When aggregating or rebasing tree nodes for transformed views, sum or propagate valueRight alongside value if input items contain diff metrics, and default missing valueRight to 0 in tooltip calculations.\nConstraints: valueRight should remain undefined for non-diff profiles (only set when at least one input node has valueRight !== undefined); applies whenever LevelItem nodes are rebuilt from existing trees.",
+  "applies": "Flamegraph sandwich view and diff profile tooltip rendering in packages/grafana-flamegraph",
+  "tags": [
+    "flamegraph",
+    "diff-view",
+    "sandwich-view",
+    "tree-transforms",
+    "tooltips"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "mergeSubtrees",
+      "hash": "sha256:efdd86920cd35d6545517800",
+      "line": 66,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "getParentSubtrees",
+      "hash": "sha256:22720615ee8b45fe356070d7",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+      "symbol": "getDiffTooltipData",
+      "hash": "sha256:9759bf64a11ff7b7d7391239",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132572"
+  },
+  "created": "2026-10-07T00:06:28.345Z",
+  "verified": "2026-10-07T00:06:28.345Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

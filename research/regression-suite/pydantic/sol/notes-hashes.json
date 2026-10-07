@@ -1,0 +1,22 @@
+{
+  "avoid-double-wrapping-polymorphic-model-serializers.json": "a16f8ec47873ca140f2a21b071a8db29be55518e3c67c74037448d438734cea0",
+  "compare-secretstr-values-as-bytes-to-support-all-strings.json": "61b5d3bc3f23da93e740720480c4525b5244b71ec949a0b803eceb92025314d9",
+  "defer-mypy-subclass-processing-until-tagged-model-bases-are.json": "6d64b169b178e02adcab945c5bfa677894c457863d3d299ea50c02672e1f5f21",
+  "emit-schema-generator-deprecation-warnings-during-configurat.json": "2ec37626e70caac54506172a90bfd692f3a28f03a5c4f0fa488b775ecd8b089a",
+  "exercise-races-with-fresh-shared-state-and-synchronized-work.json": "050440c5dc864eae15cd54618428f65e765c71161d63bd7ad4441712fcf573dd",
+  "gate-temporal-serialization-formats-on-json-schema-mode.json": "1828a0b9eb23b1a30d98df4fd5584eeafd0767455895e44655a1aa97f94b41a7",
+  "generalfieldsserializer-gc-traversal-must-include-the-extra.json": "a5883c766b8bdc88275d2e8e08e15c4eb3f504bdfa12f4b6a422af8d2d6d1cb0",
+  "invalidate-complete-models-with-mocks-during-rebuilding.json": "094fcae02ab1444b2e7ca69031edd8f0aff660d300287b9323a3ff0112162f57",
+  "keep-declared-configuration-separate-from-derived-settings.json": "5cfd038a6011281a9c13c6b2d76ca8b88311a9947c531f6c2721879d8306c625",
+  "keep-legacy-timedelta-settings-isolated-during-inferred-seri.json": "1ee77e7753be5cc807c8ace86e3be2f8ce16b99c1bc99d40ded7c9ea7f595829",
+  "normalize-alias-validation-eagerly-and-use-it-for-signatures.json": "c186ede8f52da5d8c509d98be6cc0c5c4101923e6963f25fe707fcd7ca7a5718",
+  "normalize-os-errors-during-zoneinfo-validation.json": "1168e98a5025caecb0b5fe6630846414f829bdff1298defa56e166060ee0d1b3",
+  "numeric-datetime-serialization-must-honor-timezone-offsets-a.json": "32049012e82832555eec14302449ea91e7e28b6c06a622403609c8d110403ec2",
+  "preserve-include-exclude-when-a-custom-serializer-is-skipped.json": "23a5dad288a96b90c82b5b04a81ceacc5e139aa5408bb240256d95a5bdf417fc",
+  "preserve-the-two-timedelta-precedence-rules.json": "9a0cae41c658b4b4b1099253a6df50c39c68bdc0c1aa3d05df538e66d05f1c09",
+  "preserve-zero-valued-interval-bounds-in-pipeline-validation.json": "089aca4c6bf448a40ba24cf8b9c6334bc1c6525750ccd998112053c4377040e6",
+  "report-overflowing-bytesize-strings-as-validation-errors.json": "57bba1d9c9ddc472e70c40f836a9609c4ca459b870f39c14a193ff2ec333d4a9",
+  "resolve-type-alias-references-for-callable-discriminators-in.json": "3f99889270fbefc67772fa17bc0efb7ede483b12de4ff1fddfa50d284ae71b5f",
+  "snapshot-class-namespaces-before-concurrent-iteration.json": "a2d0e6b1f4ec81c78c2b445cc137fc05a6999674607e62f6c08144adc83040ae",
+  "unhashable-generic-arguments-must-bypass-caching-without-bre.json": "22f88bce1819e06f5ad98d8ce79650cf68a4e6181685b1edb5a80203c14ca8a9"
+}

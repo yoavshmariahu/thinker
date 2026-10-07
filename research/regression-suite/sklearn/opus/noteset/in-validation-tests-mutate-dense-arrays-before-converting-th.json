@@ -1,0 +1,43 @@
+{
+  "id": "in-validation-tests-mutate-dense-arrays-before-converting-th",
+  "title": "In validation tests, mutate dense arrays before converting them to scipy sparse",
+  "kind": "rule",
+  "answers": [
+    "SparseEfficiencyWarning in test_validation",
+    "setting element of csr_matrix in test raises warning",
+    "how to inject nan/inf into sparse test input"
+  ],
+  "body": "Convention seen in sklearn/utils/tests/test_validation.py (test_check_array_ensure_all_finite_valid / _invalid, test_check_array_links_to_imputer_doc_only_for_X): build the dense array, set elements such as `X[0, 0] = np.nan`, and only then apply `retype` (sp.csr_array / sp.csr_matrix).\nDoing it in the other order assigns into a CSR structure, which emits scipy.sparse.SparseEfficiencyWarning.\nIf a test has to mutate a sparse matrix in place anyway, mark it with `@pytest.mark.filterwarnings(\"ignore::scipy.sparse.SparseEfficiencyWarning\")`, as the PR does for the parametrized test that comes before test_ordering.",
+  "applies": "tests in sklearn/utils/tests/test_validation.py (and similar tests that parametrize over dense/sparse containers)",
+  "tags": [
+    "tests",
+    "scipy.sparse",
+    "warnings",
+    "sparseefficiencywarning"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/tests/test_validation.py",
+      "symbol": "test_check_array_ensure_all_finite_invalid",
+      "hash": "sha256:abfcb0c8ab12d42937be3fa6",
+      "line": 245,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34051"
+  },
+  "created": "2026-10-07T00:31:06.005Z",
+  "verified": "2026-10-07T00:31:06.005Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

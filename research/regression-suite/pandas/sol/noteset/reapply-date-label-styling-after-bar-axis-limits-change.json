@@ -1,0 +1,58 @@
+{
+  "id": "reapply-date-label-styling-after-bar-axis-limits-change",
+  "title": "Reapply date-label styling after bar axis limits change",
+  "kind": "rule",
+  "answers": [
+    "Why do some bar-chart date labels ignore rotation or font size?",
+    "Can a narrow xlim leave minor date ticks without styling?",
+    "Why does BarPlot apply axis properties again after set_xlim?"
+  ],
+  "body": "Invariant: Dynamic bar date axes must reapply rot and fontsize after set_xlim in pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic.\nMechanism: Changing limits can create minor ticks that _post_plot_logic_common never saw, including when a narrow user xlim initially left the view without them.\nConsequence: Removing the later _apply_axis_properties call can leave newly created minor date labels without the requested rotation or font size, even when locators were installed earlier.\nVerification: pandas/tests/plotting/test_datetimelike.py:TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks draws the canvas and checks visible, nonempty major and minor labels with both default and narrow limits.",
+  "applies": "Rotation and font-size handling for dynamic date axes in Matplotlib bar plots when axis limits can create additional ticks.",
+  "tags": [
+    "plotting",
+    "bar",
+    "date-axis",
+    "minor-ticks",
+    "label-styling"
+  ],
+  "deps": [
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._post_plot_logic",
+      "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+      "line": 2237,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/plotting/test_datetimelike.py",
+      "symbol": "TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks",
+      "hash": "sha256:e36fae555ff5d5b65d624a8d",
+      "line": 2081,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70228"
+  },
+  "created": "2026-10-07T00:27:11.713Z",
+  "verified": "2026-10-07T00:27:11.713Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "install-bar-date-locators-before-shared-subplot-label-hiding"
+  ]
+}

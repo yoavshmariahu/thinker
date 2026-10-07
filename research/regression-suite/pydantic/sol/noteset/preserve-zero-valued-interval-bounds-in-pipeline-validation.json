@@ -1,0 +1,55 @@
+{
+  "id": "preserve-zero-valued-interval-bounds-in-pipeline-validation",
+  "title": "Preserve zero-valued Interval bounds in pipeline validation",
+  "kind": "rule",
+  "answers": [
+    "Why does a pipeline Interval accept negative values despite ge=0?",
+    "Why does Interval(gt=0) allow zero?",
+    "How should pipeline validation handle zero bounds for ge, gt, le and lt?"
+  ],
+  "body": "Symptom: Pipeline Interval validation silently accepts values outside a range when a bound is zero, including zero itself for an exclusive bound.\nRoot cause: pydantic/experimental/pipeline.py:_apply_constraint checked Interval bounds for truthiness, treating zero as absent.\nFix pattern: Check each bound with `is not None` before delegating to its Ge, Gt, Le or Lt constraint; cover zero bounds and boundary acceptance in tests/test_pipeline.py:test_interval_constraints.\nConstraints: Applies to all four optional Interval bounds (ge, gt, le, lt); None means absent, while zero must retain the corresponding inclusive or exclusive comparison semantics.",
+  "applies": "Interval bound decomposition in the experimental pipeline API and its regression tests.",
+  "tags": [
+    "pipeline",
+    "interval",
+    "validation",
+    "zero-bounds"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/experimental/pipeline.py",
+      "symbol": "_apply_constraint",
+      "hash": "sha256:9e80009032750d090d1b5a5a",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/test_pipeline.py",
+      "symbol": "test_interval_constraints",
+      "hash": "sha256:498d683d635fa20909854566",
+      "line": 163,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13452"
+  },
+  "created": "2026-10-07T00:43:56.051Z",
+  "verified": "2026-10-07T00:43:56.051Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,45 @@
+{
+  "id": "unwrap-narwhals-dataframes-to-native-pandas-before-checking",
+  "title": "Unwrap Narwhals DataFrames to native pandas before checking sparse attributes in check_array",
+  "kind": "rule",
+  "answers": [
+    "Why does check_array crash on narwhals.DataFrame input?",
+    "How to inspect pandas sparse attributes on a Narwhals DataFrame in validation?",
+    "check_array fails with AttributeError on narwhals DataFrame"
+  ],
+  "body": "Symptom: check_array raises an error when passed a narwhals.DataFrame input backed by pandas.\nRoot cause: sklearn/utils/validation.py:check_array checked sparse attributes directly on array instead of unwrapping the Narwhals wrapper.\nFix pattern: Convert the Narwhals DataFrame to its native representation using .to_native() before checking pandas-specific attributes like .sparse or .dtypes.\nConstraints: Applies when check_array receives or wraps data in Narwhals DataFrames; does not apply to NumPy ndarrays or SciPy sparse arrays.",
+  "applies": "DataFrame input validation in sklearn.utils.validation",
+  "tags": [
+    "validation",
+    "narwhals",
+    "pandas",
+    "sparse"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "check_array",
+      "hash": "sha256:9b92cbc7de2044077b0d59db",
+      "line": 729,
+      "missing": false,
+      "fanout": {
+        "files": 98,
+        "sites": 341,
+        "refs": 484
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34051"
+  },
+  "created": "2026-10-07T00:44:31.118Z",
+  "verified": "2026-10-07T00:44:31.118Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "preserve-native-dataframe-and-series-container-types-in-inde"
+  ]
+}

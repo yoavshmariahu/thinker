@@ -1,0 +1,42 @@
+{
+  "id": "generalfieldsserializer-gc-traversal-must-include-the-extra",
+  "title": "GeneralFieldsSerializer GC traversal must include the extra serializer",
+  "kind": "rule",
+  "answers": [
+    "Which GeneralFieldsSerializer members must participate in GC traversal?",
+    "How does Python garbage collection reach the extra-field serializer?",
+    "Where should missing serializer GC traversal be fixed?"
+  ],
+  "body": "Invariant: GeneralFieldsSerializer GC traversal must include fields, computed_fields, and extra_serializer.\nEnforcement: pydantic-core/src/serializers/fields.rs:GeneralFieldsSerializer declares these members through impl_py_gc_traverse!.\nConsequence: Omitting extra_serializer leaves the extra-field serializer outside this traversal.\nConstraints: This rule covers GeneralFieldsSerializer; other serializer types require their own traversal definitions to be checked.",
+  "applies": "Changes to GeneralFieldsSerializer members or its Python GC traversal implementation.",
+  "tags": [
+    "serialization",
+    "garbage-collection",
+    "pydantic-core"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/fields.rs",
+      "symbol": "GeneralFieldsSerializer",
+      "hash": "sha256:20be22439dbf97c4389c1d96",
+      "line": 126,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13629"
+  },
+  "created": "2026-10-07T00:42:46.827Z",
+  "verified": "2026-10-07T00:42:46.827Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

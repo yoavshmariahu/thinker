@@ -1,0 +1,1216 @@
+{
+  "repo": "scikit-learn/scikit-learn",
+  "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "scikit-learn-35042",
+      "pr": 35042,
+      "sha": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+      "parent": "9ac73fe26b92e21aca14a9551e683bf23fc7c49e",
+      "subject": "FIX Fix `from sklearn.model_selection import *` (#35042)",
+      "codeLines": 4,
+      "totalLines": 40,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.model_selection/35042.fix.rst",
+        "sklearn/model_selection/__init__.py",
+        "sklearn/tests/test_common.py"
+      ],
+      "production": [
+        "sklearn/model_selection/__init__.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-35044",
+      "pr": 35044,
+      "sha": "a442e4bb39551feb7b0af4c00075e2cb91cf9b77",
+      "parent": "d34d55c3deb48136ea380a06c6c5cf054ae97e69",
+      "subject": "PERF: Speed up BaggingClassifier{Regressor,Classifier} (#35044)",
+      "codeLines": 24,
+      "totalLines": 30,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.ensemble/35044.efficiency.rst",
+        "sklearn/ensemble/_bagging.py",
+        "sklearn/ensemble/tests/test_bagging.py"
+      ],
+      "production": [
+        "sklearn/ensemble/_bagging.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34965",
+      "pr": 34965,
+      "sha": "a97ae018a23ca4389356358142da40e5f2f83f2e",
+      "parent": "9bbd3371ddb5094cbfe435d0e71d7b213ac0ce42",
+      "subject": "FIX SpectralEmbedding to work with sparse array backend with large indices  (#34965)",
+      "codeLines": 7,
+      "totalLines": 34,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.manifold/34965.fix.rst",
+        "sklearn/manifold/_spectral_embedding.py",
+        "sklearn/manifold/tests/test_spectral_embedding.py"
+      ],
+      "production": [
+        "sklearn/manifold/_spectral_embedding.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-35043",
+      "pr": 35043,
+      "sha": "5a9cf4c0f0bb23215007a71ecc8c2501e463cd65",
+      "parent": "c4c4f8ce77f2aa842102cae6b76d63c564a79902",
+      "subject": "FIX divide by zero in linesearch of newton solver (#35043)",
+      "codeLines": 11,
+      "totalLines": 11,
+      "files": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-35021",
+      "pr": 35021,
+      "sha": "4c0c55701eded1f9e4fbbc51ec90a543288610b2",
+      "parent": "935c7e23ea7f701d7534bbd40e79fbd2b3f3841a",
+      "subject": "DOC fix bad ogp_site_url on the website (#35021)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "doc/conf.py"
+      ],
+      "production": [
+        "doc/conf.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34513",
+      "pr": 34513,
+      "sha": "5f2263132d0cef0bf8ea147162c9326c1470eec1",
+      "parent": "ff9a412cc29c4df25470d51b01a23cb1684693b1",
+      "subject": "Fix Pandas output path fails to reject infinite values during transform   (#34513)",
+      "codeLines": 6,
+      "totalLines": 44,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.feature_selection/34513.fix.rst",
+        "sklearn/feature_selection/_base.py",
+        "sklearn/feature_selection/tests/test_base.py",
+        "sklearn/feature_selection/tests/test_variance_threshold.py"
+      ],
+      "production": [
+        "sklearn/feature_selection/_base.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34959",
+      "pr": 34959,
+      "sha": "0f1488a12daacc54893bcb43d1fc2738ca0ad222",
+      "parent": "7ed8c95c0ed0475ca7df95989e00f4f4467146d0",
+      "subject": "MNT Fix _weighted_percentile with nans and average=True (#34959)",
+      "codeLines": 2,
+      "totalLines": 14,
+      "files": [
+        "sklearn/utils/stats.py",
+        "sklearn/utils/tests/test_stats.py"
+      ],
+      "production": [
+        "sklearn/utils/stats.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34922",
+      "pr": 34922,
+      "sha": "aa15a64112faad4c776f64d3fefaae5c2e3a19e9",
+      "parent": "7f286008a98a7ae103ad61cc360187d20ea60d02",
+      "subject": "DOC fix MaxAbsScaler fit parameter descriptions (#34922)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/preprocessing/_data.py"
+      ],
+      "production": [
+        "sklearn/preprocessing/_data.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34915",
+      "pr": 34915,
+      "sha": "017c5be89e7209c981cbaa7d2d6b9c39916cc4cb",
+      "parent": "2cc7893a2097be891426ca6a4d9ea2e14cf82b9c",
+      "subject": "DOC Fix wikipedia principal eigenvector example references (#34915)",
+      "codeLines": 5,
+      "totalLines": 7,
+      "files": [
+        "doc/conf.py",
+        "doc/whats_new/older_versions.rst",
+        "sklearn/utils/extmath.py"
+      ],
+      "production": [
+        "doc/conf.py",
+        "sklearn/utils/extmath.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34861",
+      "pr": 34861,
+      "sha": "2cc7893a2097be891426ca6a4d9ea2e14cf82b9c",
+      "parent": "6a018e935f51338da76dc8f59728196f5ee80656",
+      "subject": "FIX OneHotEncoder warning for columns without infrequent categories (#34861)",
+      "codeLines": 43,
+      "totalLines": 157,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.preprocessing/34861.fix.rst",
+        "sklearn/preprocessing/_encoders.py",
+        "sklearn/preprocessing/tests/test_encoders.py"
+      ],
+      "production": [
+        "sklearn/preprocessing/_encoders.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34837",
+      "pr": 34837,
+      "sha": "88552088fad33d6ec70e1aaf633389d08fffb970",
+      "parent": "f2e0b2330932e0c08d2d0de66b5427e3e0f7167c",
+      "subject": "MNT Don't cache the signature of the bound callback hook (#34837)",
+      "codeLines": 10,
+      "totalLines": 19,
+      "files": [
+        "sklearn/callback/_callback_context.py",
+        "sklearn/callback/tests/test_scoring_monitor.py"
+      ],
+      "production": [
+        "sklearn/callback/_callback_context.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34779",
+      "pr": 34779,
+      "sha": "d3ad3637748e8b593a5b8bec68054aa99728037b",
+      "parent": "a456b324bc68cf86ef4394f36debe83d829fb124",
+      "subject": "FIX array API classification metrics with pandas  labels (#34779)",
+      "codeLines": 27,
+      "totalLines": 75,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34779.fix.rst",
+        "sklearn/metrics/tests/test_common.py",
+        "sklearn/utils/_array_api.py"
+      ],
+      "production": [
+        "sklearn/utils/_array_api.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34746",
+      "pr": 34746,
+      "sha": "53302ff996818d108851e31d38a421425026bba5",
+      "parent": "b589cc5ca4084b6a46725e8368d97c2b342f67f8",
+      "subject": "FIX Have progressbar timers stop when task is finished in meta-estimators. (#34746)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/callback/_progressbar.py"
+      ],
+      "production": [
+        "sklearn/callback/_progressbar.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34787",
+      "pr": 34787,
+      "sha": "1115c882169867e06d0436673da8d0ae7b738094",
+      "parent": "16a5003839a41716dd6c112c251615fa4ef78afd",
+      "subject": "CI Use Auth.Token to avoid PyGithub DeprecationWarning (#34787)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "maint_tools/update_tracking_issue.py"
+      ],
+      "production": [
+        "maint_tools/update_tracking_issue.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34772",
+      "pr": 34772,
+      "sha": "53153785b58d5228b383185bee0c5e30805cfb07",
+      "parent": "3341d327425798a6c2286225b492b83c82367c25",
+      "subject": "DOC Fix docstring defaults that do not match the signature (#34772)",
+      "codeLines": 21,
+      "totalLines": 21,
+      "files": [
+        "sklearn/cluster/_spectral.py",
+        "sklearn/datasets/_lfw.py",
+        "sklearn/decomposition/_nmf.py",
+        "sklearn/feature_selection/_sequential.py",
+        "sklearn/model_selection/_search_successive_halving.py",
+        "sklearn/preprocessing/_target_encoder.py",
+        "sklearn/utils/extmath.py"
+      ],
+      "production": [
+        "sklearn/cluster/_spectral.py",
+        "sklearn/datasets/_lfw.py",
+        "sklearn/decomposition/_nmf.py",
+        "sklearn/feature_selection/_sequential.py",
+        "sklearn/model_selection/_search_successive_halving.py",
+        "sklearn/preprocessing/_target_encoder.py",
+        "sklearn/utils/extmath.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34767",
+      "pr": 34767,
+      "sha": "312e728b1f3610ed5c9879dab9053e24a66a5b20",
+      "parent": "b8d30c10f6f32ba82c993c4405d4c76c99e46a1d",
+      "subject": "CI Fix argument in `get_comment.py` on failed linting (#34767)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "build_tools/get_comment.py"
+      ],
+      "production": [
+        "build_tools/get_comment.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34475",
+      "pr": 34475,
+      "sha": "07d7c6f519c92433e9cb1a35fb3d29f254df4620",
+      "parent": "845eaf3b5d4ee56d45c83f652cb3af14a7f836e1",
+      "subject": "FIX LinearDiscriminantAnalysis support for mixed namespace/device array API inputs (#34475)",
+      "codeLines": 106,
+      "totalLines": 122,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34475.fix.rst",
+        "doc/whats_new/upcoming_changes/sklearn.discriminant_analysis/34475.efficiency.rst",
+        "sklearn/discriminant_analysis.py",
+        "sklearn/utils/_test_common/instance_generator.py"
+      ],
+      "production": [
+        "sklearn/discriminant_analysis.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34741",
+      "pr": 34741,
+      "sha": "99552816e3b224f4dc84301b45e409b911337f22",
+      "parent": "e4ae38e04f3595eab6d8f8be4aa5692ddeddc85d",
+      "subject": "DOC Fix parameter names in private function docstrings (#34741)",
+      "codeLines": 27,
+      "totalLines": 27,
+      "files": [
+        "sklearn/cluster/_kmeans.py",
+        "sklearn/datasets/_arff_parser.py",
+        "sklearn/mixture/_bayesian_mixture.py",
+        "sklearn/mixture/_gaussian_mixture.py",
+        "sklearn/utils/_set_output.py"
+      ],
+      "production": [
+        "sklearn/cluster/_kmeans.py",
+        "sklearn/datasets/_arff_parser.py",
+        "sklearn/mixture/_bayesian_mixture.py",
+        "sklearn/mixture/_gaussian_mixture.py",
+        "sklearn/utils/_set_output.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34740",
+      "pr": 34740,
+      "sha": "e4ae38e04f3595eab6d8f8be4aa5692ddeddc85d",
+      "parent": "eb804e1dee2a07768ddd08d1bce897c3d7070aa3",
+      "subject": "MNT Avoid numpy array shape DeprecationWarnings in datasets (#34740)",
+      "codeLines": 5,
+      "totalLines": 5,
+      "files": [
+        "sklearn/datasets/_base.py",
+        "sklearn/datasets/_lfw.py"
+      ],
+      "production": [
+        "sklearn/datasets/_base.py",
+        "sklearn/datasets/_lfw.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34605",
+      "pr": 34605,
+      "sha": "4347a16712cb2bfe51c376ff60ad9c033a689abf",
+      "parent": "63f2abff4003210103a0569664982ce384487dfa",
+      "subject": "FIX indexable with dataframes (#34605)",
+      "codeLines": 2,
+      "totalLines": 35,
+      "files": [
+        "sklearn/model_selection/tests/test_validation.py",
+        "sklearn/utils/tests/test_validation.py",
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34480",
+      "pr": 34480,
+      "sha": "372c786e346dc40bee7aea553ec1e30a8076ecb9",
+      "parent": "371195050ca4242f653e91d12991e6a2ba1a4e56",
+      "subject": "FIX PoissonRegressor mixed namespace/device array API inputs (#34480)",
+      "codeLines": 11,
+      "totalLines": 15,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+        "sklearn/linear_model/_glm/glm.py",
+        "sklearn/utils/_test_common/instance_generator.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_glm/glm.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34524",
+      "pr": 34524,
+      "sha": "ba726c5a88b7d1f6d812424248e21286eddec044",
+      "parent": "0ea563fdac25d3adcb063e4ca29aef90b67a7d1c",
+      "subject": "DOC Fix seaborn warning (#34524)",
+      "codeLines": 9,
+      "totalLines": 9,
+      "files": [
+        "sklearn/utils/_testing.py"
+      ],
+      "production": [
+        "sklearn/utils/_testing.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34448",
+      "pr": 34448,
+      "sha": "d840c0549f2144025b58faab993fb3b4dad0297c",
+      "parent": "54915bb33c48dead6e0989352927012d748cdbfd",
+      "subject": "TST Don't parameterize tests using non-Collection iterables (#34448)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/utils/estimator_checks.py"
+      ],
+      "production": [
+        "sklearn/utils/estimator_checks.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34390",
+      "pr": 34390,
+      "sha": "54915bb33c48dead6e0989352927012d748cdbfd",
+      "parent": "f801a5e60f935e868b613ad58dfadb1325d32540",
+      "subject": "DOC Fix det_curve docstring (#34390)",
+      "codeLines": 4,
+      "totalLines": 7,
+      "files": [
+        "sklearn/metrics/_ranking.py",
+        "sklearn/metrics/tests/test_ranking.py"
+      ],
+      "production": [
+        "sklearn/metrics/_ranking.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34438",
+      "pr": 34438,
+      "sha": "e59dde795c7c3dfb865943970ee0b5d81877b17d",
+      "parent": "b264d706f22537742ce271c73a8aa17be6119167",
+      "subject": "DOC fix incorrect default for n_iter_max in cluster.discretize (#34438)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/cluster/_spectral.py"
+      ],
+      "production": [
+        "sklearn/cluster/_spectral.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34444",
+      "pr": 34444,
+      "sha": "b264d706f22537742ce271c73a8aa17be6119167",
+      "parent": "f86e502e6de8c6ee387727553316c7ccb69d17d4",
+      "subject": "DOC fix typos in scoring parameter description (#34444)",
+      "codeLines": 8,
+      "totalLines": 8,
+      "files": [
+        "sklearn/inspection/_permutation_importance.py",
+        "sklearn/metrics/_scorer.py",
+        "sklearn/model_selection/_validation.py"
+      ],
+      "production": [
+        "sklearn/inspection/_permutation_importance.py",
+        "sklearn/metrics/_scorer.py",
+        "sklearn/model_selection/_validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34446",
+      "pr": 34446,
+      "sha": "f86e502e6de8c6ee387727553316c7ccb69d17d4",
+      "parent": "d11d69498dd4ac25cb3c64d9167d5cb088ae60b1",
+      "subject": "MNT Fix bump-dependencies-versions.py to avoid scrapping HTML (#34446)",
+      "codeLines": 16,
+      "totalLines": 16,
+      "files": [
+        "maint_tools/bump-dependencies-versions.py"
+      ],
+      "production": [
+        "maint_tools/bump-dependencies-versions.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34428",
+      "pr": 34428,
+      "sha": "1de456055490bfdd87eedfc35148285578eb7214",
+      "parent": "dfe68afba23a9bbd654da69ec1074d090dba25a0",
+      "subject": "DOC fix parameter name typos in docstrings (5 locations) (#34428)",
+      "codeLines": 10,
+      "totalLines": 10,
+      "files": [
+        "sklearn/cluster/_hdbscan/hdbscan.py",
+        "sklearn/mixture/_bayesian_mixture.py",
+        "sklearn/utils/_testing.py",
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/cluster/_hdbscan/hdbscan.py",
+        "sklearn/mixture/_bayesian_mixture.py",
+        "sklearn/utils/_testing.py",
+        "sklearn/utils/validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34402",
+      "pr": 34402,
+      "sha": "9dc4f7bdd233c9677b0977bb745cdd1e19f9c878",
+      "parent": "d1f1734eca972396774aff4be157bfbcac971236",
+      "subject": "DOC fix typo and inconsistencies in RidgeClassifier docstrings (#34402)",
+      "codeLines": 10,
+      "totalLines": 10,
+      "files": [
+        "sklearn/linear_model/_ridge.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_ridge.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34277",
+      "pr": 34277,
+      "sha": "2ead92d34fcb858e39610a81bcab1832cd1c0c1a",
+      "parent": "71616deb84940832c2d79a88ce0af5122a894ba4",
+      "subject": "ENH perf: numeric optimisation in  nan_euclidean_distances, GaussianMixture and  KNeighborsRegressor.predict (#34277)",
+      "codeLines": 36,
+      "totalLines": 46,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.metrics/1140.efficiency.rst",
+        "doc/whats_new/upcoming_changes/sklearn.mixture/1140.efficiency.rst",
+        "doc/whats_new/upcoming_changes/sklearn.neighbors/1140.efficiency.rst",
+        "sklearn/metrics/pairwise.py",
+        "sklearn/mixture/_gaussian_mixture.py",
+        "sklearn/neighbors/_regression.py"
+      ],
+      "production": [
+        "sklearn/metrics/pairwise.py",
+        "sklearn/mixture/_gaussian_mixture.py",
+        "sklearn/neighbors/_regression.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34355",
+      "pr": 34355,
+      "sha": "6c381f02211368addecca848be9f253e244d422c",
+      "parent": "e504dc6c78585dbf655b4f1dc945691b5cefad68",
+      "subject": "DOC fix grammatical errors in AdaBoost docstrings (#34355)",
+      "codeLines": 21,
+      "totalLines": 21,
+      "files": [
+        "sklearn/ensemble/_weight_boosting.py"
+      ],
+      "production": [
+        "sklearn/ensemble/_weight_boosting.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34291",
+      "pr": 34291,
+      "sha": "e504dc6c78585dbf655b4f1dc945691b5cefad68",
+      "parent": "bf2dfd4f4d1949cf78405af7891ec9b340b83d15",
+      "subject": "DOC fix incorrect default for random_state in estimate_bandwidth docstring (#34291)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/cluster/_mean_shift.py"
+      ],
+      "production": [
+        "sklearn/cluster/_mean_shift.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34263",
+      "pr": 34263,
+      "sha": "70241a5094dfe97ce1d373604b5f57cf704373d9",
+      "parent": "7ba6d383dc4d2bc9f9c613c0a48ff821405b79ba",
+      "subject": "FIX Set default transform_input of Pipeline to [\"X_val\"] (#34263)",
+      "codeLines": 34,
+      "totalLines": 53,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.pipeline/34263.fix.rst",
+        "sklearn/pipeline.py",
+        "sklearn/tests/test_pipeline.py",
+        "sklearn/utils/tests/test_pprint.py"
+      ],
+      "production": [
+        "sklearn/pipeline.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34223",
+      "pr": 34223,
+      "sha": "9888db252fbc4c526d9ba9632caacf958ba4753c",
+      "parent": "59335ca6734e2c43fa157e3c22c99a7adb50be61",
+      "subject": "DOC fix monotonic_cst docstring inconsistencies in forest estimators (#34223)",
+      "codeLines": 12,
+      "totalLines": 12,
+      "files": [
+        "sklearn/ensemble/_forest.py"
+      ],
+      "production": [
+        "sklearn/ensemble/_forest.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34213",
+      "pr": 34213,
+      "sha": "e39ac6d8c7c315cdbaccfe0c947fb296f5afae81",
+      "parent": "dc5420037ec2f814c67a57223fc0fa61223d4e5a",
+      "subject": "DOC FIX coef0 type in PolynomialCountSketch class docstring (#34213)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/kernel_approximation.py"
+      ],
+      "production": [
+        "sklearn/kernel_approximation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34216",
+      "pr": 34216,
+      "sha": "dc5420037ec2f814c67a57223fc0fa61223d4e5a",
+      "parent": "eed42c9f59ac50c713c8bd4116767a6b0c0a1106",
+      "subject": "DOC: Fix brackets in the RANSACRegressor.score docstring in the file (#34216)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/linear_model/_ransac.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_ransac.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34188",
+      "pr": 34188,
+      "sha": "802d917e802929dd62b9678b20e9bf021f6b1a99",
+      "parent": "a845acd351bf07d316a812152c2c0b55e35913ba",
+      "subject": "Fix metadata routed to correct consumer in `BaggingClassifier.predict_proba` (#34188)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "sklearn/ensemble/_bagging.py"
+      ],
+      "production": [
+        "sklearn/ensemble/_bagging.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34055",
+      "pr": 34055,
+      "sha": "a207887411e49aea65f1ef62d2ab7ab23abcf1e2",
+      "parent": "87518b3e84db77d48813ec097169c5adaaed1474",
+      "subject": "MNT Avoid repeating the no callback support warning (#34055)",
+      "codeLines": 16,
+      "totalLines": 42,
+      "files": [
+        "sklearn/callback/_callback_context.py",
+        "sklearn/callback/tests/test_callback_context.py"
+      ],
+      "production": [
+        "sklearn/callback/_callback_context.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34051",
+      "pr": 34051,
+      "sha": "01dddb912c30e136464bb0d07718e51fc1b20fb0",
+      "parent": "39d0ad03934e24196899c01c8c5ac465cf15401a",
+      "subject": "FIX check_array with narwhals.DataFrame input (#34051)",
+      "codeLines": 15,
+      "totalLines": 31,
+      "files": [
+        "sklearn/utils/tests/test_validation.py",
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34131",
+      "pr": 34131,
+      "sha": "39d0ad03934e24196899c01c8c5ac465cf15401a",
+      "parent": "3604450435824f0d25becfec9f22e029bfe0fc00",
+      "subject": "TST Don't share regression data across tests and test runs (#34131)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/utils/estimator_checks.py"
+      ],
+      "production": [
+        "sklearn/utils/estimator_checks.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34129",
+      "pr": 34129,
+      "sha": "3604450435824f0d25becfec9f22e029bfe0fc00",
+      "parent": "3080179d980c3c6a4e96d25e6aaba8523e3c3add",
+      "subject": "DOC document Array API limitation for LogisticRegression.sparsify (#34129)",
+      "codeLines": 7,
+      "totalLines": 7,
+      "files": [
+        "sklearn/linear_model/_base.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_base.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34130",
+      "pr": 34130,
+      "sha": "f3fac8b8366c3bc305714225b55baecdd185ac02",
+      "parent": "ba70de6ecbbf74c4633f55da9abeea7e9863463a",
+      "subject": "DOC fix the docstring of load_descr (#34130)",
+      "codeLines": 10,
+      "totalLines": 10,
+      "files": [
+        "sklearn/datasets/_base.py"
+      ],
+      "production": [
+        "sklearn/datasets/_base.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34093",
+      "pr": 34093,
+      "sha": "4fa8cb52c7c75ead2ff7fcf655dbb6db155196a2",
+      "parent": "7d5295209e17f2a964f653f93db8a90e7c255482",
+      "subject": "DOC Clarify that coefficients in LogisticRegression can be sparse (#34093)",
+      "codeLines": 9,
+      "totalLines": 9,
+      "files": [
+        "sklearn/linear_model/_logistic.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_logistic.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-34107",
+      "pr": 34107,
+      "sha": "7d5295209e17f2a964f653f93db8a90e7c255482",
+      "parent": "b993527e332c32666774c47a58212362698d367a",
+      "subject": "DOC Clarify penalty deprecation docs for LogisticRegression and LogisticRegressionCV (#34107)",
+      "codeLines": 25,
+      "totalLines": 25,
+      "files": [
+        "sklearn/linear_model/_logistic.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_logistic.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33260",
+      "pr": 33260,
+      "sha": "a75111fe68986aa9f7a5f552f8b7bf7e411ac170",
+      "parent": "b42224511662fbbf40227afaeba0a64a19bcc531",
+      "subject": "MNT Fix NMF error with SciPy dev after SVD output memory layout change (#33260)",
+      "codeLines": 8,
+      "totalLines": 23,
+      "files": [
+        "sklearn/decomposition/_nmf.py",
+        "sklearn/decomposition/tests/test_nmf.py"
+      ],
+      "production": [
+        "sklearn/decomposition/_nmf.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33831",
+      "pr": 33831,
+      "sha": "edab2dbf15d4206f8b3238ec153963bd94068601",
+      "parent": "6add33ef52e59aa154a008ee9d646260c3a3c0cc",
+      "subject": "DOC FIX link in HTML displays for parameters that include backtics (#33831)",
+      "codeLines": 2,
+      "totalLines": 24,
+      "files": [
+        "sklearn/utils/_repr_html/common.py",
+        "sklearn/utils/_repr_html/tests/test_params.py"
+      ],
+      "production": [
+        "sklearn/utils/_repr_html/common.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33749",
+      "pr": 33749,
+      "sha": "c1e7857fd3717a5531124d845719afe561c01f19",
+      "parent": "54a64238550fc44f36f0566be7eeb379796e8968",
+      "subject": "Fix allow_nan_estimators directive to check all constructed instances (#33749)",
+      "codeLines": 16,
+      "totalLines": 20,
+      "files": [
+        "doc/sphinxext/allow_nan_estimators.py",
+        "sklearn/utils/_test_common/instance_generator.py"
+      ],
+      "production": [
+        "doc/sphinxext/allow_nan_estimators.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33037",
+      "pr": 33037,
+      "sha": "01901eb0b56b4386b5678c8b7d3ebfa15f4ddb63",
+      "parent": "d43c433e52ec78dbe5ce1f61077d92c8b0e3dac0",
+      "subject": "DOC Clarify that group-based splitters do not perform class-label stratification (#33037)",
+      "codeLines": 12,
+      "totalLines": 12,
+      "files": [
+        "sklearn/model_selection/_split.py"
+      ],
+      "production": [
+        "sklearn/model_selection/_split.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33563",
+      "pr": 33563,
+      "sha": "5a10bb798914191f7d22ffa4e5ed85c28ce4e137",
+      "parent": "d93d84c22653ea3430fc8bb4b942f37a773581e0",
+      "subject": "DOC Fix misleading parameter docs for `n_clusters` in Spectral Clustering (#33563)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/cluster/_spectral.py"
+      ],
+      "production": [
+        "sklearn/cluster/_spectral.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33657",
+      "pr": 33657,
+      "sha": "6c3ec75200d795d4069ab66ebda56d444e79c9a7",
+      "parent": "bbde180eb1cd90b042a8546f5c7bcac917e6eddf",
+      "subject": "DOC: Correct a few typos in scikit-learn documentation (#33657)",
+      "codeLines": 2,
+      "totalLines": 20,
+      "files": [
+        "doc/developers/minimal_reproducer.rst",
+        "examples/applications/plot_out_of_core_classification.py",
+        "examples/cluster/plot_face_compress.py",
+        "examples/covariance/plot_mahalanobis_distances.py",
+        "sklearn/datasets/_base.py",
+        "sklearn/ensemble/tests/test_gradient_boosting.py",
+        "sklearn/linear_model/tests/test_sgd.py"
+      ],
+      "production": [
+        "sklearn/datasets/_base.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33531",
+      "pr": 33531,
+      "sha": "cb4ce6d5257378052fbe664b710084b2bb39fd56",
+      "parent": "6073302234448436344310b0ce564bcd088f173b",
+      "subject": "FIX ColumnTransformer HTML display incorrect when all columns are transformed  (#33531)",
+      "codeLines": 17,
+      "totalLines": 43,
+      "files": [
+        "sklearn/compose/_column_transformer.py",
+        "sklearn/compose/tests/test_column_transformer.py"
+      ],
+      "production": [
+        "sklearn/compose/_column_transformer.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33615",
+      "pr": 33615,
+      "sha": "78b2428198d0078d587e84ef89e7c273eff091cb",
+      "parent": "9371975cb9b787b01401ba7ec27911777b57e5ce",
+      "subject": "FIX rounding float numbers in fitted attributes HTML display  (#33615)",
+      "codeLines": 2,
+      "totalLines": 20,
+      "files": [
+        "sklearn/utils/_repr_html/fitted_attributes.py",
+        "sklearn/utils/_repr_html/tests/test_attributes.py"
+      ],
+      "production": [
+        "sklearn/utils/_repr_html/fitted_attributes.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33517",
+      "pr": 33517,
+      "sha": "cbeeaeb399dc0b72d9b2f793204ed7ff39b80c70",
+      "parent": "40eb9ba71417243429fef1fb45032aa9a061e26b",
+      "subject": "FIX revert pyplot import changes to prevent import issues (#33517)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "sklearn/inspection/_plot/decision_boundary.py"
+      ],
+      "production": [
+        "sklearn/inspection/_plot/decision_boundary.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33530",
+      "pr": 33530,
+      "sha": "4fdd24594e67ad2e4600e25bfd24b5d86cdb4007",
+      "parent": "c451b03bf1f295fba46f300921746ce01d925f86",
+      "subject": "FIX example with OneHotEncoder involving int32 index arrays for sparse arrrays (#33530)",
+      "codeLines": 2,
+      "totalLines": 12,
+      "files": [
+        "sklearn/preprocessing/_encoders.py",
+        "sklearn/preprocessing/tests/test_encoders.py"
+      ],
+      "production": [
+        "sklearn/preprocessing/_encoders.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33516",
+      "pr": 33516,
+      "sha": "e3930505a79d6c1e59f2d77712fac5f7bd05b713",
+      "parent": "08f9b20d69a787a5a1e06e0ba6dd8693aeb5d223",
+      "subject": "MNT Return sparray from older fixes of sparse eye, diags, random (#33516)",
+      "codeLines": 12,
+      "totalLines": 12,
+      "files": [
+        "sklearn/utils/fixes.py"
+      ],
+      "production": [
+        "sklearn/utils/fixes.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33280",
+      "pr": 33280,
+      "sha": "e8b86c20a0d8405aaf32844e684d1ac1348e5f26",
+      "parent": "febdaad3c6f963c419a0a49e9d492f19d23af997",
+      "subject": "DOC: Fix some typos in Lasso (#33280)",
+      "codeLines": 12,
+      "totalLines": 12,
+      "files": [
+        "sklearn/linear_model/_coordinate_descent.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_coordinate_descent.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33267",
+      "pr": 33267,
+      "sha": "ce6a5738feaeefb70423e08a73b9c57e54ccb7f5",
+      "parent": "9ca766bafa756ad714d14a98f270cd3723e6dc22",
+      "subject": "DOC Fix wrong designation (#33267)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/multioutput.py"
+      ],
+      "production": [
+        "sklearn/multioutput.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33197",
+      "pr": 33197,
+      "sha": "95f13b05c73466a322e3d2119f146f5e77a8ee3c",
+      "parent": "27a3b6d64a379ff8fe2164fde5ad8ef194b9e3c6",
+      "subject": "FIX Remove redundant yield of check_class_weight_balanced_linear_classifier (#33197)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "sklearn/utils/estimator_checks.py"
+      ],
+      "production": [
+        "sklearn/utils/estimator_checks.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33204",
+      "pr": 33204,
+      "sha": "0da13ec15b37e60db9935a23e4f3b48526cb5c5b",
+      "parent": "951e8dd1e1c6e8091298a1a66ccba02714ec0c94",
+      "subject": "DOC: Fix typo in API reference description (#33204)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "doc/api_reference.py"
+      ],
+      "production": [
+        "doc/api_reference.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33179",
+      "pr": 33179,
+      "sha": "951e8dd1e1c6e8091298a1a66ccba02714ec0c94",
+      "parent": "cedf994f1e0c113bb5f905fb39cb56df9d86f3b8",
+      "subject": "FIX Fix pip-tools error in automatic main lock-file update (#33179)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "build_tools/update_environments_and_lock_files.py"
+      ],
+      "production": [
+        "build_tools/update_environments_and_lock_files.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33164",
+      "pr": 33164,
+      "sha": "cb7e82dd443aa1eb24bb70a3188b067536320a40",
+      "parent": "351280bd1d79dc5de598776e8bb2da98c1f74b98",
+      "subject": "MNT Fix small typo in convergence warning for NewtonSolver (#33164)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33121",
+      "pr": 33121,
+      "sha": "e154bfc206df908bae5cf3c115a7f8edcaaa53af",
+      "parent": "492ad117b774fc01c08c831e61743a7d95e0215e",
+      "subject": "Fix inconsistent string formatting in validation.py (#33121)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33104",
+      "pr": 33104,
+      "sha": "830d84190cefbd9dd2a108786616d008dae3b910",
+      "parent": "ce1b377f3bb2580e7cc1e35ba7eed2131e3b8e8e",
+      "subject": "Fix inconsistent string formatting in check_is_fitted function (#33104)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-33054",
+      "pr": 33054,
+      "sha": "bb4b88c090b76678f6670feaa90f13d2b536acc0",
+      "parent": "17e8c90bbdcbbc5ae07f8e7f4eb924c20e455048",
+      "subject": "DOC Fix and amend `hinge_loss` docstring (#33054)",
+      "codeLines": 20,
+      "totalLines": 20,
+      "files": [
+        "sklearn/metrics/_classification.py"
+      ],
+      "production": [
+        "sklearn/metrics/_classification.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32819",
+      "pr": 32819,
+      "sha": "5fe81eceb35ebd3afb9cd0f3ebbb6c20020baa7d",
+      "parent": "c411d42ad9587a972d13a4958d05b0e54cdceda9",
+      "subject": "DOC Fix indentation in _logistic.py docstrings (#32819)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "sklearn/linear_model/_logistic.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_logistic.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32745",
+      "pr": 32745,
+      "sha": "cd3a2f6d8879809e460d2a4c494f2d7b33c81e6d",
+      "parent": "a34fe7dec5a7411baa60a1668e7f92b634d11411",
+      "subject": "CI Tweak autoclose script to add more debug info (#32745)",
+      "codeLines": 39,
+      "totalLines": 39,
+      "files": [
+        "build_tools/github/autoclose_prs.py"
+      ],
+      "production": [
+        "build_tools/github/autoclose_prs.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32740",
+      "pr": 32740,
+      "sha": "15abfd22cbb4c917c4700f90596cb60b82839c4b",
+      "parent": "5c247b003304572b063cb6b17fe489150b7133b3",
+      "subject": "DOC Fix typo in docstring of `_classification.py` functions (#32740)",
+      "codeLines": 10,
+      "totalLines": 10,
+      "files": [
+        "sklearn/metrics/_classification.py"
+      ],
+      "production": [
+        "sklearn/metrics/_classification.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32727",
+      "pr": 32727,
+      "sha": "e31bdb3478f5af94f5b6064cc53961767469a836",
+      "parent": "71e3b9b4969e018b6f08008f209791105dff8782",
+      "subject": "MNT add missing docstring of `xp` in `_fit_classifier_calibrator_pair` and `_fit_calibrator` (#32727)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "sklearn/calibration.py"
+      ],
+      "production": [
+        "sklearn/calibration.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32690",
+      "pr": 32690,
+      "sha": "4e4acc5c0c2ef88fe67c2b8f1f8c4464e34f0271",
+      "parent": "a444d5c5f92b4da10c1a993b97d44b382afce721",
+      "subject": "DOC: Fix rendering typo in docstring for roc_curve (#32690)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/metrics/_ranking.py"
+      ],
+      "production": [
+        "sklearn/metrics/_ranking.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32616",
+      "pr": 32616,
+      "sha": "664ec17228e8edd8682b9307d81ca707c697bdff",
+      "parent": "b4b62d20ae495e614d1e50f2b616c04aadc09c2e",
+      "subject": "DOC Fix comment in `_median` (#32616)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/utils/_array_api.py"
+      ],
+      "production": [
+        "sklearn/utils/_array_api.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32607",
+      "pr": 32607,
+      "sha": "886829ae577ba7a47307e9cfbe6bcc6118296830",
+      "parent": "e4a764121c9e26aa116649ab6ecc9b1c14b02d7c",
+      "subject": "FIX remove useless method overrides to fix docstrings (#32607)",
+      "codeLines": 62,
+      "totalLines": 62,
+      "files": [
+        "sklearn/discriminant_analysis.py"
+      ],
+      "production": [
+        "sklearn/discriminant_analysis.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32564",
+      "pr": 32564,
+      "sha": "6fedf3469f45ff9f24c714c8d6b150b72a523511",
+      "parent": "f0cce3ad8eb6a293c579fe4a95aedbb60b1780b5",
+      "subject": "DOC: Fix duplicate words in documentation (#32564)",
+      "codeLines": 2,
+      "totalLines": 4,
+      "files": [
+        "build_tools/check-meson-openmp-dependencies.py",
+        "sklearn/tests/test_base.py"
+      ],
+      "production": [
+        "build_tools/check-meson-openmp-dependencies.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32523",
+      "pr": 32523,
+      "sha": "56c74de012ab2c464824938b455e370fd58a34ed",
+      "parent": "a9b3898e56c9e97b63d4699160b1de440e3f2947",
+      "subject": "Fix pandas warning for pandas 3.0 (#32523)",
+      "codeLines": 5,
+      "totalLines": 5,
+      "files": [
+        "sklearn/utils/fixes.py"
+      ],
+      "production": [
+        "sklearn/utils/fixes.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32456",
+      "pr": 32456,
+      "sha": "dd30610def362bb5763264ab591856213aacea02",
+      "parent": "f63ec5414571268e0bb2613376f35d37591721b2",
+      "subject": "MNT Clean-up deprecations for 1.8: Deprecation of copy_X in TheilSenRegressor (#32456)",
+      "codeLines": 20,
+      "totalLines": 28,
+      "files": [
+        "sklearn/linear_model/_theil_sen.py",
+        "sklearn/linear_model/tests/test_theil_sen.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_theil_sen.py"
+      ]
+    },
+    {
+      "id": "scikit-learn-32314",
+      "pr": 32314,
+      "sha": "5befb8d0bb08db1d30efb920d8966eb1010b2760",
+      "parent": "fe1ff2f2f32c173a5db6167104945fe421230832",
+      "subject": "DOC Fix broken link to Kernel PCA paper (#32314)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/decomposition/_kernel_pca.py"
+      ],
+      "production": [
+        "sklearn/decomposition/_kernel_pca.py"
+      ]
+    }
+  ]
+}

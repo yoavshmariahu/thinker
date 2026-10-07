@@ -1,0 +1,56 @@
+{
+  "id": "keep-constructor-normalization-out-of-the-shared-interval-co",
+  "title": "Keep constructor normalization out of the shared interval conversion helper",
+  "kind": "rule",
+  "answers": [
+    "Where should non-interval extension arrays be converted to numpy arrays?",
+    "Why must from_breaks preserve extension-array breaks?",
+    "Can _maybe_convert_platform_interval normalize all extension arrays?"
+  ],
+  "body": "Constructor-specific ndarray normalization belongs in pandas/core/arrays/interval.py:IntervalArray.__new__.\nThe shared pandas/core/arrays/interval.py:_maybe_convert_platform_interval also serves from_breaks, which must keep extension-array breaks intact.\nMoving this normalization into the shared helper would violate that preservation requirement; retain the constructor boundary when fixing interval-input parsing.",
+  "applies": "Changes to interval input normalization that could affect both direct construction and from_breaks.",
+  "tags": [
+    "interval",
+    "extension-array",
+    "layering"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "IntervalArray.__new__",
+      "hash": "sha256:3562f9ab2ec92b922a82420e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 32,
+        "refs": 62
+      }
+    },
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "_maybe_convert_platform_interval",
+      "hash": "sha256:6a237cb1fed760827bd6d452",
+      "line": 1928,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:24:25.175Z",
+  "verified": "2026-10-07T00:24:25.175Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalize-non-interval-inputs-before-cython-interval-parsing"
+  ]
+}

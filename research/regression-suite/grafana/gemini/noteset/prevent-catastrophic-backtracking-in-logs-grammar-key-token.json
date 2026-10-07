@@ -1,0 +1,43 @@
+{
+  "id": "prevent-catastrophic-backtracking-in-logs-grammar-key-token",
+  "title": "Prevent catastrophic backtracking in logs grammar key token regex",
+  "kind": "rule",
+  "answers": [
+    "Why does the logs panel freeze on long unformatted log lines?",
+    "How to fix catastrophic backtracking in log token syntax highlighting?",
+    "How should log-token-key regex be defined in logsGrammar?"
+  ],
+  "body": "Symptom: Logs panel UI freezes or lags significantly when rendering log lines without key-value pairs during Prism syntax highlighting.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar used (\\b|\\B) in 'log-token-key', which matches at every character position and triggers quadratic backtracking with (?=\\s*=) on long tokens lacking an equals sign.\nFix pattern: Remove (\\b|\\B) alternation and anchor key token regexes strictly to word boundaries (\\b).\nConstraints: Applies to log token key regexes where keys begin at word boundaries (e.g., key=val); does not apply if valid keys can start with non-word boundary characters.",
+  "applies": "Prism grammar token definitions for log highlighting in the logs panel.",
+  "tags": [
+    "logs",
+    "regex",
+    "performance",
+    "syntax-highlighting"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/logs/components/panel/grammar.ts",
+      "symbol": "logsGrammar",
+      "hash": "sha256:60577e559afa47c5d9518eb0",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132860"
+  },
+  "created": "2026-10-07T00:05:40.525Z",
+  "verified": "2026-10-07T00:05:40.525Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

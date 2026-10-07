@@ -1,0 +1,75 @@
+{
+  "id": "preserve-encoding-errors-when-adapting-csv-text-buffers-to-b",
+  "title": "Preserve encoding_errors when adapting CSV text buffers to bytes",
+  "kind": "rule",
+  "answers": [
+    "Why does read_csv raise UnicodeEncodeError on StringIO despite encoding_errors=\"replace\"?",
+    "Why is encoding_errors=\"ignore\" ignored for a CSV text buffer?",
+    "How should C and pyarrow CSV engines handle encoding errors when converting text to bytes?"
+  ],
+  "body": "Symptom: read_csv on a text buffer containing an unencodable character raises UnicodeEncodeError despite encoding_errors=\"replace\" or \"ignore\" with the C or pyarrow engine.\nRoot cause: pandas/io/common.py:_BytesIOWrapper.read encoded text without forwarding the configured error handler, implicitly using strict handling.\nFix pattern: Forward errors from pandas/io/common.py:get_handle into pandas/io/common.py:_BytesIOWrapper.__init__, store it, and apply it in _BytesIOWrapper.read when encoding text to bytes.\nConstraints: This applies to text buffers adapted to bytes for the C and pyarrow engines; the Python engine reads text buffers without encoding them. Preserve the wrapper's default errors=\"strict\". pandas/tests/io/parser/test_encoding.py:test_text_buffer_encoding_errors verifies replacement and omission of a lone surrogate as \"x?\" and \"x\".",
+  "applies": "CSV text-buffer handling through _BytesIOWrapper for the C and pyarrow engines.",
+  "tags": [
+    "read_csv",
+    "encoding_errors",
+    "text-buffers",
+    "c-engine",
+    "pyarrow"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "get_handle",
+      "hash": "sha256:e6360a8f1a2a2743ac674b9a",
+      "line": 706,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 41,
+        "refs": 80
+      }
+    },
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "_BytesIOWrapper.__init__",
+      "hash": "sha256:33f5aa37859718eb030b09a8",
+      "line": 1180,
+      "missing": false,
+      "fanout": {
+        "files": 106,
+        "sites": 132,
+        "refs": 197
+      }
+    },
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "_BytesIOWrapper.read",
+      "hash": "sha256:dff0cc5740f0e444f17efbea",
+      "line": 1198,
+      "missing": false
+    },
+    {
+      "path": "pandas/tests/io/parser/test_encoding.py",
+      "symbol": "test_text_buffer_encoding_errors",
+      "hash": "sha256:898fb0916395b5657a4c15b9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70405"
+  },
+  "created": "2026-10-07T00:28:13.664Z",
+  "verified": "2026-10-07T00:28:13.664Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

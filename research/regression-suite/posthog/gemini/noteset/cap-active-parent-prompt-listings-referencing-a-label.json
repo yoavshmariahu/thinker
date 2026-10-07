@@ -1,0 +1,55 @@
+{
+  "id": "cap-active-parent-prompt-listings-referencing-a-label",
+  "title": "Cap active parent prompt listings referencing a label",
+  "kind": "rule",
+  "answers": [
+    "Why does deleting or moving a prompt label return an enormous error body?",
+    "How are parent prompt reference listings capped for label move and delete errors?",
+    "Why is get_active_parents_referencing_label capped with MAX_ACTIVE_REFERENCE_RESULTS?"
+  ],
+  "body": "Symptom: Moving or deleting a prompt label produces an enormous error response body when referenced by many prompts.\nRoot cause: products/ai_observability/backend/prompt_references.py:get_active_parents_referencing_label listed all referencing parent prompts without a query limit.\nFix pattern: Order parent names in SQL and slice the queryset by products/ai_observability/backend/prompt_references.py:MAX_ACTIVE_REFERENCE_RESULTS so error bodies stay bounded while existence guards remain valid.\nConstraints: Applies to reference listings formatted into error messages or dialogs; do not apply when an exact count or complete parent enumeration is required.",
+  "applies": "Prompt reference listings and dependency validation in products/ai_observability",
+  "tags": [
+    "ai-observability",
+    "prompts",
+    "prompt-references",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "get_active_parents_referencing_label",
+      "hash": "sha256:ab09a02c9197c91d36c61ec4",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "MAX_ACTIVE_REFERENCE_RESULTS",
+      "hash": "sha256:73d4eed130b477f7bc358a6a",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105660"
+  },
+  "created": "2026-10-07T00:20:00.666Z",
+  "verified": "2026-10-07T00:20:00.666Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

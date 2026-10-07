@@ -1,0 +1,55 @@
+{
+  "id": "gate-temporal-serialization-formats-on-json-schema-mode",
+  "title": "Gate temporal serialization formats on JSON schema mode",
+  "kind": "rule",
+  "answers": [
+    "Why does my validation schema say datetime is a number when ISO strings are accepted?",
+    "Should ser_json_temporal change the validation JSON schema?",
+    "Why does ser_json_timedelta='float' produce a numeric validation schema?"
+  ],
+  "body": "Symptom: A temporal field's validation JSON schema declares a number even though the model accepts ISO 8601 strings.\nRoot cause: pydantic/json_schema.py:GenerateJsonSchema._common_temporal_schema consulted the serialization format without checking the schema mode.\nFix pattern: Require self.mode == 'serialization' before emitting a numeric schema for a non-ISO temporal serialization format.\nConstraints: Applies to date, time, datetime and timedelta; validation schemas retain string types with their temporal formats. Serialization schemas still use numbers for seconds or milliseconds. val_temporal_unit controls numeric input interpretation and does not disable ISO string input.",
+  "applies": "Temporal JSON schema generation under ser_json_temporal or ser_json_timedelta settings.",
+  "tags": [
+    "json-schema",
+    "temporal",
+    "validation",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/json_schema.py",
+      "symbol": "GenerateJsonSchema._common_temporal_schema",
+      "hash": "sha256:6c570f7788363b35b47d8523",
+      "line": 906,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/test_json_schema.py",
+      "symbol": "test_date_types_ser_json_temporal",
+      "hash": "sha256:9a4e7c97d75b50ec987d4fd6",
+      "line": 875,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13711"
+  },
+  "created": "2026-10-07T00:42:20.172Z",
+  "verified": "2026-10-07T00:42:20.172Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

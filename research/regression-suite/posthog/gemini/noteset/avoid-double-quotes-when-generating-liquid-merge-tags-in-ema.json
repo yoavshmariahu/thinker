@@ -1,0 +1,56 @@
+{
+  "id": "avoid-double-quotes-when-generating-liquid-merge-tags-in-ema",
+  "title": "Avoid double quotes when generating Liquid merge tags in email templates",
+  "kind": "rule",
+  "answers": [
+    "Why does a person property merge tag break email links with a Liquid parse error?",
+    "Why does an email merge tag render as a blank value in workflow emails?",
+    "How to format person property merge tags for Liquid templates in workflow emails?"
+  ],
+  "body": "Symptom: Picking a person property merge tag in a workflow email breaks HTML link href attributes with a Liquid parse error (\"expected '|' before filter\") or renders an empty string.\nRoot cause: frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:emailTemplaterLogic used double quotes in merge tags ({{person.properties[\"name\"]}}), terminating double-quoted HTML attributes or failing entity decoding.\nFix pattern: In frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:buildPersonPropertyMergeValue, emit dot notation for bare identifiers and escaped single quotes within brackets for all other property names.\nConstraints: Applies to Liquid merge tag generation for email templates; does not fix unhandled HTML entity decoding in backend Liquid renderers.",
+  "applies": "Workflow email templater merge tags in frontend hog functions",
+  "tags": [
+    "messaging",
+    "hog-functions",
+    "email-templater",
+    "merge-tags",
+    "liquid"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+      "symbol": "buildPersonPropertyMergeValue",
+      "hash": "sha256:f1286badff44d1b55ee077a9",
+      "line": 174,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+      "symbol": "emailTemplaterLogic",
+      "hash": "sha256:719140ab26c34e94282c850d",
+      "line": 394,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 54
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#91352"
+  },
+  "created": "2026-10-07T00:19:29.824Z",
+  "verified": "2026-10-07T00:19:29.824Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

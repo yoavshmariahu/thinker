@@ -1,0 +1,44 @@
+{
+  "id": "check-sorted-weights-instead-of-original-sample-weights-duri",
+  "title": "Check sorted weights instead of original sample weights during percentile averaging",
+  "kind": "rule",
+  "answers": [
+    "Why does _weighted_percentile return NaN at percentile rank 100 when average=True?",
+    "How should zero-weight neighbors be detected in _weighted_percentile with NaNs?",
+    "Fix _weighted_percentile returning NaN on inputs with missing values and average=True"
+  ],
+  "body": "Symptom: Calling _weighted_percentile on arrays containing NaNs with average=True produces NaN at percentile_rank=100 instead of ignoring NaNs.\nRoot cause: sklearn/utils/stats.py:_weighted_percentile indexed into the original sample_weight instead of sorted_weights when checking if the next rank had zero weight, bypassing zeroed-out NaN weights.\nFix pattern: Check zero-weight adjacent positions against sorted_weights using sorted indices (percentile_plus_one_indices) rather than indexing original sample_weight.\nConstraints: Applies when weights are reordered or modified (such as zeroing weights for NaNs) prior to computing CDF lookahead; does not apply when weights remain unsorted or unmodified.",
+  "applies": "sklearn/utils/stats.py:_weighted_percentile when computing weighted percentiles with average=True on data with NaNs",
+  "tags": [
+    "stats",
+    "_weighted_percentile",
+    "percentiles",
+    "nan-handling",
+    "weights"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/stats.py",
+      "symbol": "_weighted_percentile",
+      "hash": "sha256:9fe14945e412bec99fec41aa",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 46,
+        "refs": 68
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34959"
+  },
+  "created": "2026-10-07T00:41:15.216Z",
+  "verified": "2026-10-07T00:41:15.216Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

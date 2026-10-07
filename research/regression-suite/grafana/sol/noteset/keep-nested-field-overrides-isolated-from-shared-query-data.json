@@ -1,0 +1,44 @@
+{
+  "id": "keep-nested-field-overrides-isolated-from-shared-query-data",
+  "title": "Keep nested field overrides isolated from shared query data",
+  "kind": "rule",
+  "answers": [
+    "Why do all series in a Dashboard datasource panel inherit the table column's display name?",
+    "How can Time series to table leak units, colors or thresholds into another panel?",
+    "How should applyFieldOverrides merge config into nested frames without mutating source data?"
+  ],
+  "body": "Symptom: A panel using the -- Dashboard -- datasource with withTransforms: false inherits a source table's column display name and styling after Time series to table.\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides merges parent config with defaultsDeep, which mutates its first argument; nested fields can share config objects with source query fields.\nFix pattern: Copy each nested frame and its fields, deep-clone each field's config before merging parent defaults, and apply recursive overrides to the copied frames. Returned nested fields must still receive the parent config.\nConstraints: This pattern applies to config merging for FieldType.frame values that may share source data. Shallow config copies are insufficient because defaultsDeep can mutate shared custom or thresholds objects; the required isolation concerns config, not a deep copy of all frame data.",
+  "applies": "Changes to nested-frame config propagation in applyFieldOverrides, including frames produced by Time series to table.",
+  "tags": [
+    "field-overrides",
+    "nested-frames",
+    "shared-data",
+    "time-series-to-table",
+    "dashboard-datasource"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+      "symbol": "applyFieldOverrides",
+      "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+      "line": 96,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 60,
+        "refs": 118
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132418"
+  },
+  "created": "2026-10-07T00:01:45.552Z",
+  "verified": "2026-10-07T00:01:45.552Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

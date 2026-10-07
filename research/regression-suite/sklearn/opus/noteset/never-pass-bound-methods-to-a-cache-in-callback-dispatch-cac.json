@@ -1,0 +1,57 @@
+{
+  "id": "never-pass-bound-methods-to-a-cache-in-callback-dispatch-cac",
+  "title": "Never pass bound methods to a cache in callback dispatch; cache by the underlying function",
+  "kind": "rule",
+  "answers": [
+    "callback objects are never garbage collected after fit",
+    "ScoringMonitor listener / threads stay alive after the callback is deleted",
+    "memory leak in sklearn callbacks signature cache",
+    "why does _cached_signature use __func__"
+  ],
+  "body": "Symptom: callbacks such as ScoringMonitor, and the listeners, message consumers and threads they own, stay alive after the user drops them, but only once an estimator has called fit with them.\nRoot cause: sklearn/callback/_callback_context.py:CallbackContext called _cached_signature(getattr(callback, hook_name)). A bound method holds a strong reference to its instance, so the cache kept every callback instance alive and grew by one entry per instance, not per class.\nFix pattern: unwrap before caching with `_cached_signature(getattr(hook, \"__func__\", hook))`. That gives one entry per class and no instance reference. Keep calling the bound `hook(estimator, self, **args)` for the real call.\nConstraints: this applies to any memoization (functools cache/lru_cache, dicts) keyed on objects derived from callback instances. Plain functions without __func__ fall back to the hook itself. Releasing callback resources on GC (e.g. sklearn/callback/_transport listeners) depends on there being no hidden strong references.",
+  "applies": "sklearn/callback hook dispatch and any caching keyed on callback instances or their bound methods",
+  "tags": [
+    "callbacks",
+    "memory-leak",
+    "caching",
+    "weakref",
+    "gc"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_callback_context.py",
+      "symbol": "CallbackContext",
+      "hash": "sha256:2f1ebde4457d1e590fe44998",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 1,
+        "refs": 26
+      }
+    },
+    {
+      "path": "sklearn/callback/_callback_context.py",
+      "symbol": "_cached_signature",
+      "hash": "sha256:14b2292457356a28c2677068",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34837"
+  },
+  "created": "2026-10-07T00:29:25.344Z",
+  "verified": "2026-10-07T00:29:25.344Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

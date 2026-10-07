@@ -1,0 +1,43 @@
+{
+  "id": "arrow-isin-fallback-preserves-numeric-types-and-null-matchin",
+  "title": "Arrow isin fallback preserves numeric types and null matching",
+  "kind": "rule",
+  "answers": [
+    "Why does Series.isin raise on mixed values with PyArrow-backed dtypes?",
+    "How should ArrowExtensionArray.isin handle values PyArrow cannot box or cast?",
+    "Should NaN in isin values match an Arrow null or a non-null NaN?"
+  ],
+  "body": "Symptom: Series.isin, DataFrame.isin, or Index.isin on PyArrow-backed dtypes raises for mixed-type candidates or oversized integers.\nRoot cause: pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin can fail during candidate boxing or pc.is_in casting with ArrowInvalid, ArrowTypeError, or OverflowError.\nFix pattern: Keep the Arrow fast path; catch these failures and compare non-null entries through algos.isin. Convert candidates to an object array, but retain the comparison array's native NumPy dtype for numeric types.\nConstraints: In pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin, the fallback applies to these boxing/casting failures. Separate missing candidates before comparison: missing values, including NaN, match only Arrow nulls, never non-null NaN. Skipping this separation changes Arrow membership semantics.",
+  "applies": "Membership checks implemented by ArrowExtensionArray.isin, including callers through Series, DataFrame, and Index.",
+  "tags": [
+    "pyarrow",
+    "isin",
+    "null-semantics",
+    "numeric-dtypes"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/arrow/array.py",
+      "symbol": "ArrowExtensionArray.isin",
+      "hash": "sha256:adce499d277b46378e6f092f",
+      "line": 1969,
+      "missing": false,
+      "fanout": {
+        "files": 57,
+        "sites": 344,
+        "refs": 414
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70300"
+  },
+  "created": "2026-10-07T00:28:49.209Z",
+  "verified": "2026-10-07T00:28:49.209Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

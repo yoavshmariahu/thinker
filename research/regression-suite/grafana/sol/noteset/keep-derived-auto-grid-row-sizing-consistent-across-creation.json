@@ -1,0 +1,93 @@
+{
+  "id": "keep-derived-auto-grid-row-sizing-consistent-across-creation",
+  "title": "Keep derived auto-grid row sizing consistent across creation, edits and loading",
+  "kind": "rule",
+  "answers": [
+    "Why does minimum panel height behave differently after loading a dashboard?",
+    "Where must auto-grid row sizing be updated when minimum height changes?",
+    "How does a single panel opting into fit content affect grid rows?"
+  ],
+  "body": "Mechanism: Grid autoRows is derived from row height, fill-screen mode, fit-content presence and minimum height through public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate.\nCreation and edits: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:AutoGridLayoutManager passes the initial minimum; updateAutoRows passes the current minimum, and onMinHeightChanged invokes updateAutoRows after updating state.\nLoading: public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts:deserializeAutoGridLayout passes the resolved minimum and enables fit row growth only when auto-height panels are enabled and either the layout default or any child explicitly opts into fit content.\nInvariant: Keep these inputs and recomputation paths in sync. Omitting the minimum during creation or loading restores the row-height floor; skipping recomputation after an edit leaves stale row sizing.",
+  "applies": "Changes to auto-grid minimum-height settings, derived row templates or layout deserialization.",
+  "tags": [
+    "dashboards",
+    "auto-grid",
+    "serialization",
+    "derived-state"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "AutoGridLayoutManager",
+      "hash": "sha256:78ee88694ee659cfbdd47980",
+      "line": 82,
+      "missing": false,
+      "fanout": {
+        "files": 80,
+        "sites": 48,
+        "refs": 354
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "AutoGridLayoutManager.updateAutoRows",
+      "hash": "sha256:856fa72c5c6af8af94a54b36",
+      "line": 438,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 8,
+        "refs": 8
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "AutoGridLayoutManager.onMinHeightChanged",
+      "hash": "sha256:90a4c45bdbff925ef3aa56f8",
+      "line": 382,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 15
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+      "symbol": "deserializeAutoGridLayout",
+      "hash": "sha256:2721917c150dbbd6d50392b3",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:05:54.359Z",
+  "verified": "2026-10-07T00:05:54.359Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "auto-fit-row-tracks-must-shrink-with-panels-while-preserving"
+  ]
+}

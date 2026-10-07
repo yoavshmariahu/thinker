@@ -1,0 +1,44 @@
+{
+  "id": "insight-editor-scene-instance-check-using-synchronous-reduce",
+  "title": "Insight editor scene instance check using synchronous reducers instead of insightLogicRef",
+  "kind": "rule",
+  "answers": [
+    "Why does selecting a chart type in the insight editor trigger an unwanted auto-save?",
+    "Why does the insight editor exit edit mode with 'Insight updated' when changing chart types?",
+    "How to prevent race conditions when checking scene ownership in isInsightSceneInstance?"
+  ],
+  "body": "Symptom: Selecting a new chart type in the insight editor auto-saves the insight and exits edit mode with an \"Insight updated\" message without clicking Save.\nRoot cause: frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance checked insightLogicRef, which is mounted asynchronously by a listener and lags behind synchronous URL matching reducers.\nFix pattern: Check synchronously updated reducers (insightId and dashboardId) instead of asynchronously mounted logic references (insightLogicRef) to verify scene instance identity.\nConstraints: Applies when validating scene membership during or immediately after scene mount; does not apply when interaction with the mounted logic instance itself is required.",
+  "applies": "frontend/src/scenes/insights/",
+  "tags": [
+    "insights",
+    "posthog",
+    "kea",
+    "chart-type",
+    "autosave"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+      "symbol": "isInsightSceneInstance",
+      "hash": "sha256:ec87ebf6698de5e490f8791d",
+      "line": 104,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105737"
+  },
+  "created": "2026-10-07T00:23:12.056Z",
+  "verified": "2026-10-07T00:23:12.056Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

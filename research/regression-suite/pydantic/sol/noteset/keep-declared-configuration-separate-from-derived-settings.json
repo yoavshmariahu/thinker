@@ -1,0 +1,105 @@
+{
+  "id": "keep-declared-configuration-separate-from-derived-settings",
+  "title": "Keep declared configuration separate from derived settings",
+  "kind": "rule",
+  "answers": [
+    "Why does a child model still accept field names after disabling populate_by_name?",
+    "Why did Pydantic add validation settings to my model_config?",
+    "How should internal configuration defaults be applied without changing user configuration?"
+  ],
+  "body": "Symptom: A child model accepts field names despite populate_by_name=False, or model_config exposes validation settings the user never declared.\nRoot cause: pydantic/_internal/_config.py:ConfigWrapper.core_config formerly inserted derived settings into the declared mapping, allowing parent-derived settings to override a child's declaration.\nFix pattern: pydantic/_internal/_config.py:prepare_config copies supplied dictionaries; ConfigWrapper keeps declarations in config_dict and derives effective_config through _build_effective_config. Configuration consumers use wrapper attributes or core_config().\nConstraints: config_dict is exposed as model_config or __pydantic_config__ and supplies inheritance merges, so internal normalization must never mutate it. This does not require effective_config to be a separate copy when no derived settings are needed.",
+  "applies": "Configuration ownership, normalization, inheritance, and consumers of ConfigWrapper.",
+  "tags": [
+    "configuration",
+    "inheritance",
+    "ownership"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper",
+      "hash": "sha256:261e55a6ac2fc90e1b06ad73",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 18,
+        "refs": 56
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "prepare_config",
+      "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+      "line": 335,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "_build_effective_config",
+      "hash": "sha256:f65e03c4519e724974fe4eed",
+      "line": 314,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "symbol": "test_derived_alias_config_not_inherited",
+      "hash": "sha256:e6fd243f01c0ebb083d6c92d",
+      "line": 1041,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:40:58.756Z",
+  "verified": "2026-10-07T00:40:58.756Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalize-alias-validation-eagerly-and-use-it-for-signatures",
+    "emit-schema-generator-deprecation-warnings-during-configurat"
+  ]
+}

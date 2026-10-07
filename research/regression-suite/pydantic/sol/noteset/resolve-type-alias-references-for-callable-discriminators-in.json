@@ -1,0 +1,54 @@
+{
+  "id": "resolve-type-alias-references-for-callable-discriminators-in",
+  "title": "Resolve type-alias references for callable discriminators in both schema-generation paths",
+  "kind": "rule",
+  "answers": [
+    "Why does Field(discriminator=...) fail with a PEP 695 type alias?",
+    "How do callable discriminators find tags behind type-alias references?",
+    "Why does a callable discriminator work in Annotated but fail when supplied through Field?"
+  ],
+  "body": "Symptom: Callable discriminators fail for tagged unions declared through PEP 695 type aliases when supplied via Field(discriminator=...).\nRoot cause: pydantic/_internal/_discriminated_union.py:apply_discriminator did not forward definitions, while pydantic/types.py:Discriminator._convert_schema resolved references only through a schema-generation handler.\nFix pattern: Pass the definitions registry into callable-discriminator conversion and share reference resolution between the root union and choices whose tag metadata is missing.\nConstraints: In pydantic/types.py:Discriminator._convert_schema, use handler resolution when a handler is present, otherwise use the supplied definitions registry; an unresolved root reference must raise MissingDefinitionForUnionRef. Resolve a choice reference for tag lookup only when its tag is missing. This pattern concerns callable discriminators; string discriminators use the inferred-discriminator path.",
+  "applies": "Callable discriminator schema conversion for unions or tagged choices represented by definition references, including PEP 695 type aliases used through Field.",
+  "tags": [
+    "callable-discriminators",
+    "type-aliases",
+    "schema-references"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_discriminated_union.py",
+      "symbol": "apply_discriminator",
+      "hash": "sha256:071097aa6bf88655a5db3955",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pydantic/types.py",
+      "symbol": "Discriminator._convert_schema",
+      "hash": "sha256:89d72ddd7545a596f06a4e4d",
+      "line": 3117,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13604"
+  },
+  "created": "2026-10-07T00:43:02.805Z",
+  "verified": "2026-10-07T00:43:02.805Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

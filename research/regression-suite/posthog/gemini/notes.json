@@ -1,0 +1,1601 @@
+[
+  {
+    "id": "posthog-105736",
+    "pr": 105736,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 23105,
+    "elapsedMs": 40710,
+    "proposed": [
+      {
+        "title": "Suppress unselected credential errors in BigQuery source setup",
+        "kind": "rule",
+        "answers": [
+          "Why is BigQuery source setup failing with missing required key file field errors?",
+          "How to fix BigQuery new-source wizard rejecting Google Cloud service account credentials?",
+          "Why does unselected key_file block BigQuery data source creation?"
+        ],
+        "body": "Symptom: Connecting BigQuery through a Google Cloud service account is blocked at the end of the new-source wizard by validation errors listing missing JSON key file fields.\nRoot cause: products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config inherits required-field validation errors from super().validate_config for the unselected key_file option sent by the form wizard.\nFix pattern: Filter out errors matching products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py:missing_field_error for unselected options, then validate selected credentials explicitly with user-facing messages.\nConstraints: Applies when multi-auth source wizards submit empty fields for unpicked options; does not apply to single-auth sources and must not omit completeness checks on the selected credential.",
+        "applies": "BigQuery source configuration validation when multiple authentication options are present",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+            "symbol": "BigQuerySource.validate_config"
+          },
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+            "symbol": "missing_field_error"
+          }
+        ],
+        "tags": [
+          "bigquery",
+          "data-warehouse",
+          "sources",
+          "validation",
+          "credentials"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Validate flat and nested auth_type payloads in BigQuerySource",
+        "kind": "rule",
+        "answers": [
+          "Why does BigQuerySource.validate_config check if auth_type is a string or a dict?",
+          "How does BigQuery source credential validation handle flat vs nested payload shapes?",
+          "What happens if BigQuery source validation ignores bare string auth_type inputs?"
+        ],
+        "body": "BigQuery source credentials can arrive either nested under an auth_type dictionary or flattened at the top level of job_inputs with auth_type as a bare string.\nEnforced in products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config by checking isinstance(auth_type, str) and extracting credentials from job_inputs.\nSkipping the bare string check allows sources submitted with top-level credentials to bypass credential validation entirely and save with invalid or missing credentials.",
+        "applies": "Payload credential validation in BigQuerySource.validate_config",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+            "symbol": "BigQuerySource.validate_config"
+          }
+        ],
+        "tags": [
+          "bigquery",
+          "data-warehouse",
+          "sources",
+          "validation",
+          "payload-shape"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "suppress-unselected-credential-errors-in-bigquery-source-set",
+        "title": "Suppress unselected credential errors in BigQuery source setup",
+        "kind": "rule",
+        "body": "Symptom: Connecting BigQuery through a Google Cloud service account is blocked at the end of the new-source wizard by validation errors listing missing JSON key file fields.\nRoot cause: products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config inherits required-field validation errors from super().validate_config for the unselected key_file option sent by the form wizard.\nFix pattern: Filter out errors matching products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py:missing_field_error for unselected options, then validate selected credentials explicitly with user-facing messages.\nConstraints: Applies when multi-auth source wizards submit empty fields for unpicked options; does not apply to single-auth sources and must not omit completeness checks on the selected credential.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+            "symbol": "BigQuerySource.validate_config",
+            "hash": "sha256:1cfd7e7633d1da5064fa0b32",
+            "line": 405,
+            "missing": false,
+            "fanout": {
+              "files": 18,
+              "sites": 28,
+              "refs": 57
+            }
+          },
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+            "symbol": "missing_field_error",
+            "hash": "sha256:1b0145a2f111158a684d8baa",
+            "line": 186,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "validate-flat-and-nested-auth-type-payloads-in-bigquerysourc",
+        "title": "Validate flat and nested auth_type payloads in BigQuerySource",
+        "kind": "rule",
+        "body": "BigQuery source credentials can arrive either nested under an auth_type dictionary or flattened at the top level of job_inputs with auth_type as a bare string.\nEnforced in products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config by checking isinstance(auth_type, str) and extracting credentials from job_inputs.\nSkipping the bare string check allows sources submitted with top-level credentials to bypass credential validation entirely and save with invalid or missing credentials.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+            "symbol": "BigQuerySource.validate_config",
+            "hash": "sha256:1cfd7e7633d1da5064fa0b32",
+            "line": 405,
+            "missing": false,
+            "fanout": {
+              "files": 18,
+              "sites": 28,
+              "refs": 57
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105852",
+    "pr": 105852,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 34916,
+    "elapsedMs": 59449,
+    "proposed": [
+      {
+        "title": "Codex run trace ID propagation for AI observability and Slack ratings",
+        "kind": "rule",
+        "answers": [
+          "Why does a rating on a Codex Slack response point to an empty trace?",
+          "Why do Codex generations appear as single-request traces in AI observability?",
+          "How are trace IDs passed to the AI gateway for Codex vs Claude runs?",
+          "Why is X-PostHog-Trace-Id set only for Codex and not Claude?"
+        ],
+        "body": "Symptom: Rating a PostHog Slack answer on a Codex run points to an empty trace, and generations appear as isolated single-request traces in AI observability.\nRoot cause: products/desktop/packages/agent/src/server/agent-server.ts:AgentServer.configureEnvironment does not set X-PostHog-Trace-Id for Codex, so the gateway mints a fresh ID per request while the Codex adapter reports no trace ID.\nFix pattern: Stamp X-PostHog-Trace-Id with taskRunId on openaiCustomHeaders at process spawn, and inject it into turn-complete notifications via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId.\nConstraints: Only set X-PostHog-Trace-Id for Codex; Claude CLI mints per-turn traceparent headers, and X-PostHog-Trace-Id outranks traceparent at the gateway, which would collapse Claude's per-turn traces into one run-level trace.",
+        "applies": "PostHog desktop agent server gateway configuration and trace ID assignment for Codex and Claude runs.",
+        "deps": [
+          {
+            "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+            "symbol": "AgentServer.configureEnvironment"
+          },
+          {
+            "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+            "symbol": "AgentServer.turnTraceId"
+          },
+          {
+            "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+            "symbol": "withTurnTraceId"
+          }
+        ],
+        "tags": [
+          "codex",
+          "claude",
+          "tracing",
+          "ai-observability",
+          "agent-server"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Enriching ACP wire notifications before session log persistence",
+        "kind": "rule",
+        "answers": [
+          "Why must ACP wire notifications be enriched before calling logWriter.appendNotification?",
+          "Why does reloading a thread lose the trace ID on agent turns?",
+          "Where are ACP wire messages stamped with run trace IDs?"
+        ],
+        "body": "ACP wire notifications must be enriched with turn metadata (such as stamping traceId via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId) before being written to logWriter.appendNotification.\nEnforced in: products/desktop/packages/agent/src/adapters/acp-connection.ts:installWireTaps\nWhat breaks if skipped: Thread reloading reads stored events from the session log rather than the broadcast stream; persisting unstamped wire events causes reloaded threads to lose the turn trace ID.",
+        "applies": "PostHog desktop ACP connection wiretap handling and session log writing.",
+        "deps": [
+          {
+            "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+            "symbol": "installWireTaps"
+          },
+          {
+            "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+            "symbol": "withTurnTraceId"
+          }
+        ],
+        "tags": [
+          "acp",
+          "wire-tap",
+          "session-log",
+          "turn-complete",
+          "trace-id"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "codex-run-trace-id-propagation-for-ai-observability-and-slac",
+        "title": "Codex run trace ID propagation for AI observability and Slack ratings",
+        "kind": "rule",
+        "body": "Symptom: Rating a PostHog Slack answer on a Codex run points to an empty trace, and generations appear as isolated single-request traces in AI observability.\nRoot cause: products/desktop/packages/agent/src/server/agent-server.ts:AgentServer.configureEnvironment does not set X-PostHog-Trace-Id for Codex, so the gateway mints a fresh ID per request while the Codex adapter reports no trace ID.\nFix pattern: Stamp X-PostHog-Trace-Id with taskRunId on openaiCustomHeaders at process spawn, and inject it into turn-complete notifications via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId.\nConstraints: Only set X-PostHog-Trace-Id for Codex; Claude CLI mints per-turn traceparent headers, and X-PostHog-Trace-Id outranks traceparent at the gateway, which would collapse Claude's per-turn traces into one run-level trace.",
+        "deps": [
+          {
+            "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+            "symbol": "AgentServer.configureEnvironment",
+            "hash": "sha256:e90e841c4ed221d8a372716f",
+            "line": 4675,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 46,
+              "refs": 50
+            }
+          },
+          {
+            "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+            "symbol": "AgentServer.turnTraceId",
+            "hash": "sha256:c06c7476a4328f6677e69c62",
+            "line": 1573,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 1,
+              "refs": 12
+            }
+          },
+          {
+            "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+            "symbol": "withTurnTraceId",
+            "hash": "sha256:9e241da9ce47d4de1de99a74",
+            "line": 194,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 6
+            }
+          }
+        ]
+      },
+      {
+        "id": "enriching-acp-wire-notifications-before-session-log-persiste",
+        "title": "Enriching ACP wire notifications before session log persistence",
+        "kind": "rule",
+        "body": "ACP wire notifications must be enriched with turn metadata (such as stamping traceId via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId) before being written to logWriter.appendNotification.\nEnforced in: products/desktop/packages/agent/src/adapters/acp-connection.ts:installWireTaps\nWhat breaks if skipped: Thread reloading reads stored events from the session log rather than the broadcast stream; persisting unstamped wire events causes reloaded threads to lose the turn trace ID.",
+        "deps": [
+          {
+            "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+            "symbol": "installWireTaps",
+            "hash": "sha256:8a11f7d669709986e34f0e5f",
+            "line": 85,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+            "symbol": "withTurnTraceId",
+            "hash": "sha256:9e241da9ce47d4de1de99a74",
+            "line": 194,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 6
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-104706",
+    "pr": 104706,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 31588,
+    "elapsedMs": 42477,
+    "proposed": [
+      {
+        "title": "Quiet warehouse schema falsely reported as stalled schedule",
+        "kind": "rule",
+        "answers": [
+          "Why is a quiet warehouse schema marked as stalled with REPAIRED_SCHEMA_ERROR?",
+          "How does stalled_schema_queryset check sync activity without failing on zero-batch runs?",
+          "Why was an external data schema schedule repaired if syncs never stopped running?"
+        ],
+        "body": "Symptom: A quiet data warehouse schema is reported as stalled with REPAIRED_SCHEMA_ERROR despite scheduled syncs completing successfully.\nRoot cause: `products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset` evaluated staleness against `last_synced_at`, which zero-batch runs intentionally do not update.\nFix pattern: Determine last execution time in SQL using `Greatest(last_synced_at, last_full_run)` to distinguish inactive sources from stopped schedules.\nConstraints: When casting JSON timestamp fields in Postgres, filter with an offset-aware ISO regex (`_AWARE_ISO_TIMESTAMP`) before casting to prevent parse errors and session timezone drift.",
+        "applies": "Detecting stalled schedules or querying last run times for external data schemas in warehouse sources.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/stalled_schedules.py",
+            "symbol": "stalled_schema_queryset"
+          }
+        ],
+        "tags": [
+          "warehouse-sources",
+          "data-warehouse",
+          "stalled-schedules",
+          "sync-status"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Preserve signals watermark by separating sync and full-run timestamps",
+        "kind": "rule",
+        "answers": [
+          "Why is last_synced_at not updated when a warehouse sync extracts zero rows?",
+          "How to check when an ExternalDataSchema last ran regardless of imported row count?",
+          "Why does the v3 pipeline only update last_full_run_at on quiet syncs?"
+        ],
+        "body": "Zero-batch extraction runs in pipeline v3 must only stamp `last_full_run_at` and leave `last_synced_at` untouched.\nEnforced at: `products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py:PipelineV3._stamp_full_run`.\nWhat breaks if skipped: `last_synced_at` serves as the signals watermark (`partition_field > last_synced_at`); advancing it on empty runs skips late-arriving data in future syncs.\nTo inspect sync freshness or liveness, read `products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_run_at`, which takes the maximum of both stamps.",
+        "applies": "Updating sync timestamps or reading execution freshness on ExternalDataSchema.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+            "symbol": "PipelineV3._stamp_full_run"
+          },
+          {
+            "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+            "symbol": "ExternalDataSchema.last_run_at"
+          }
+        ],
+        "tags": [
+          "warehouse-sources",
+          "pipeline-v3",
+          "signals",
+          "external-data-schema"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "quiet-warehouse-schema-falsely-reported-as-stalled-schedule",
+        "title": "Quiet warehouse schema falsely reported as stalled schedule",
+        "kind": "rule",
+        "body": "Symptom: A quiet data warehouse schema is reported as stalled with REPAIRED_SCHEMA_ERROR despite scheduled syncs completing successfully.\nRoot cause: `products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset` evaluated staleness against `last_synced_at`, which zero-batch runs intentionally do not update.\nFix pattern: Determine last execution time in SQL using `Greatest(last_synced_at, last_full_run)` to distinguish inactive sources from stopped schedules.\nConstraints: When casting JSON timestamp fields in Postgres, filter with an offset-aware ISO regex (`_AWARE_ISO_TIMESTAMP`) before casting to prevent parse errors and session timezone drift.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/stalled_schedules.py",
+            "symbol": "stalled_schema_queryset",
+            "hash": "sha256:8f4f05a5e49dc0f59109876f",
+            "line": 137,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "preserve-signals-watermark-by-separating-sync-and-full-run-t",
+        "title": "Preserve signals watermark by separating sync and full-run timestamps",
+        "kind": "rule",
+        "body": "Zero-batch extraction runs in pipeline v3 must only stamp `last_full_run_at` and leave `last_synced_at` untouched.\nEnforced at: `products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py:PipelineV3._stamp_full_run`.\nWhat breaks if skipped: `last_synced_at` serves as the signals watermark (`partition_field > last_synced_at`); advancing it on empty runs skips late-arriving data in future syncs.\nTo inspect sync freshness or liveness, read `products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_run_at`, which takes the maximum of both stamps.",
+        "deps": [
+          {
+            "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+            "symbol": "PipelineV3._stamp_full_run",
+            "hash": "sha256:5a315cb50e8df9019aa5ffb9",
+            "line": 603,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+            "symbol": "ExternalDataSchema.last_run_at",
+            "hash": "sha256:4c79452c1287ee30fbecabfb",
+            "line": 521,
+            "missing": false,
+            "fanout": {
+              "files": 135,
+              "sites": 0,
+              "refs": 431
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-91352",
+    "pr": 91352,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 24406,
+    "elapsedMs": 25822,
+    "proposed": [
+      {
+        "title": "Avoid double quotes when generating Liquid merge tags in email templates",
+        "kind": "rule",
+        "answers": [
+          "Why does a person property merge tag break email links with a Liquid parse error?",
+          "Why does an email merge tag render as a blank value in workflow emails?",
+          "How to format person property merge tags for Liquid templates in workflow emails?"
+        ],
+        "body": "Symptom: Picking a person property merge tag in a workflow email breaks HTML link href attributes with a Liquid parse error (\"expected '|' before filter\") or renders an empty string.\nRoot cause: frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:emailTemplaterLogic used double quotes in merge tags ({{person.properties[\"name\"]}}), terminating double-quoted HTML attributes or failing entity decoding.\nFix pattern: In frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:buildPersonPropertyMergeValue, emit dot notation for bare identifiers and escaped single quotes within brackets for all other property names.\nConstraints: Applies to Liquid merge tag generation for email templates; does not fix unhandled HTML entity decoding in backend Liquid renderers.",
+        "applies": "Workflow email templater merge tags in frontend hog functions",
+        "deps": [
+          {
+            "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+            "symbol": "buildPersonPropertyMergeValue"
+          },
+          {
+            "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+            "symbol": "emailTemplaterLogic"
+          }
+        ],
+        "tags": [
+          "messaging",
+          "hog-functions",
+          "email-templater",
+          "merge-tags",
+          "liquid"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "avoid-double-quotes-when-generating-liquid-merge-tags-in-ema",
+        "title": "Avoid double quotes when generating Liquid merge tags in email templates",
+        "kind": "rule",
+        "body": "Symptom: Picking a person property merge tag in a workflow email breaks HTML link href attributes with a Liquid parse error (\"expected '|' before filter\") or renders an empty string.\nRoot cause: frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:emailTemplaterLogic used double quotes in merge tags ({{person.properties[\"name\"]}}), terminating double-quoted HTML attributes or failing entity decoding.\nFix pattern: In frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx:buildPersonPropertyMergeValue, emit dot notation for bare identifiers and escaped single quotes within brackets for all other property names.\nConstraints: Applies to Liquid merge tag generation for email templates; does not fix unhandled HTML entity decoding in backend Liquid renderers.",
+        "deps": [
+          {
+            "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+            "symbol": "buildPersonPropertyMergeValue",
+            "hash": "sha256:f1286badff44d1b55ee077a9",
+            "line": 174,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 4
+            }
+          },
+          {
+            "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+            "symbol": "emailTemplaterLogic",
+            "hash": "sha256:719140ab26c34e94282c850d",
+            "line": 394,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 19,
+              "refs": 54
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105660",
+    "pr": 105660,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 24387,
+    "elapsedMs": 30834,
+    "proposed": [
+      {
+        "title": "Cap active parent prompt listings referencing a label",
+        "kind": "rule",
+        "answers": [
+          "Why does deleting or moving a prompt label return an enormous error body?",
+          "How are parent prompt reference listings capped for label move and delete errors?",
+          "Why is get_active_parents_referencing_label capped with MAX_ACTIVE_REFERENCE_RESULTS?"
+        ],
+        "body": "Symptom: Moving or deleting a prompt label produces an enormous error response body when referenced by many prompts.\nRoot cause: products/ai_observability/backend/prompt_references.py:get_active_parents_referencing_label listed all referencing parent prompts without a query limit.\nFix pattern: Order parent names in SQL and slice the queryset by products/ai_observability/backend/prompt_references.py:MAX_ACTIVE_REFERENCE_RESULTS so error bodies stay bounded while existence guards remain valid.\nConstraints: Applies to reference listings formatted into error messages or dialogs; do not apply when an exact count or complete parent enumeration is required.",
+        "applies": "Prompt reference listings and dependency validation in products/ai_observability",
+        "deps": [
+          {
+            "path": "products/ai_observability/backend/prompt_references.py",
+            "symbol": "get_active_parents_referencing_label"
+          },
+          {
+            "path": "products/ai_observability/backend/prompt_references.py",
+            "symbol": "MAX_ACTIVE_REFERENCE_RESULTS"
+          }
+        ],
+        "tags": [
+          "ai-observability",
+          "prompts",
+          "prompt-references",
+          "error-handling"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "cap-active-parent-prompt-listings-referencing-a-label",
+        "title": "Cap active parent prompt listings referencing a label",
+        "kind": "rule",
+        "body": "Symptom: Moving or deleting a prompt label produces an enormous error response body when referenced by many prompts.\nRoot cause: products/ai_observability/backend/prompt_references.py:get_active_parents_referencing_label listed all referencing parent prompts without a query limit.\nFix pattern: Order parent names in SQL and slice the queryset by products/ai_observability/backend/prompt_references.py:MAX_ACTIVE_REFERENCE_RESULTS so error bodies stay bounded while existence guards remain valid.\nConstraints: Applies to reference listings formatted into error messages or dialogs; do not apply when an exact count or complete parent enumeration is required.",
+        "deps": [
+          {
+            "path": "products/ai_observability/backend/prompt_references.py",
+            "symbol": "get_active_parents_referencing_label",
+            "hash": "sha256:ab09a02c9197c91d36c61ec4",
+            "line": 103,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 5
+            }
+          },
+          {
+            "path": "products/ai_observability/backend/prompt_references.py",
+            "symbol": "MAX_ACTIVE_REFERENCE_RESULTS",
+            "hash": "sha256:73d4eed130b477f7bc358a6a",
+            "line": 37,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 6
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105551",
+    "pr": 105551,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 33217,
+    "elapsedMs": 42608,
+    "proposed": [
+      {
+        "title": "Evict stale DB connections before async Replay Vision activities",
+        "kind": "rule",
+        "answers": [
+          "Why are Replay Vision observations missing thumbnails after a database connection drop?",
+          "How does track_activity handle stale database connections in async Temporal activities?",
+          "Why do async Replay Vision activities fail on dead Django DB connections?"
+        ],
+        "body": "Symptom: Replay Vision observations permanently fail or miss thumbnails after a dropped database connection.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity only closed stale connections before sync activities, leaving dead connections on the worker thread during async ORM calls.\nFix pattern: Run await sync_to_async(close_stale_db_connections)() before async activity execution when not settings.TEST.\nConstraints: Applies to async Temporal activities in Replay Vision; skipped in tests (settings.TEST) where touching connections fails without DB access.",
+        "applies": "Async Temporal activities using Django ORM in products/replay_vision",
+        "deps": [
+          {
+            "path": "products/replay_vision/backend/temporal/decorators.py",
+            "symbol": "track_activity"
+          }
+        ],
+        "tags": [
+          "replay-vision",
+          "temporal",
+          "django",
+          "database",
+          "connections"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Replay Vision state write activities must use shared retry and timeout constants",
+        "kind": "rule",
+        "answers": [
+          "What retry policy should Replay Vision Postgres state-write activities use?",
+          "How to configure retry and timeout policies for observation media workflow activities?",
+          "Where are state activity retry policies defined in Replay Vision Temporal workflows?"
+        ],
+        "body": "Postgres state-transition activities across Replay Vision workflows must use centralized retry and timeout constants.\nWhere enforced: products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_RETRY and products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_SCHEDULE_TO_CLOSE.\nShort state writes (such as observation status updates and thumbnail preparation/finalization) must use STATE_ACTIVITY_RETRY (5 attempts with exponential backoff) and STATE_ACTIVITY_SCHEDULE_TO_CLOSE (3-minute ceiling).\nWhat breaks if skipped: Shorter ad-hoc retry policies (e.g. 3 attempts in ~3s) permanently drop operations during transient DB connection resets, while unconstrained retry chains can exceed workflow execution timeouts.",
+        "applies": "Postgres state-write activities in Replay Vision Temporal workflows",
+        "deps": [
+          {
+            "path": "products/replay_vision/backend/temporal/constants.py",
+            "symbol": "STATE_ACTIVITY_RETRY"
+          },
+          {
+            "path": "products/replay_vision/backend/temporal/constants.py",
+            "symbol": "STATE_ACTIVITY_SCHEDULE_TO_CLOSE"
+          }
+        ],
+        "tags": [
+          "replay-vision",
+          "temporal",
+          "retry-policy",
+          "workflows"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "evict-stale-db-connections-before-async-replay-vision-activi",
+        "title": "Evict stale DB connections before async Replay Vision activities",
+        "kind": "rule",
+        "body": "Symptom: Replay Vision observations permanently fail or miss thumbnails after a dropped database connection.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity only closed stale connections before sync activities, leaving dead connections on the worker thread during async ORM calls.\nFix pattern: Run await sync_to_async(close_stale_db_connections)() before async activity execution when not settings.TEST.\nConstraints: Applies to async Temporal activities in Replay Vision; skipped in tests (settings.TEST) where touching connections fails without DB access.",
+        "deps": [
+          {
+            "path": "products/replay_vision/backend/temporal/decorators.py",
+            "symbol": "track_activity",
+            "hash": "sha256:0bfcea6ffcd49e778bd938ac",
+            "line": 20,
+            "missing": false,
+            "fanout": {
+              "files": 29,
+              "sites": 50,
+              "refs": 80
+            }
+          }
+        ]
+      },
+      {
+        "id": "replay-vision-state-write-activities-must-use-shared-retry-a",
+        "title": "Replay Vision state write activities must use shared retry and timeout constants",
+        "kind": "rule",
+        "body": "Postgres state-transition activities across Replay Vision workflows must use centralized retry and timeout constants.\nWhere enforced: products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_RETRY and products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_SCHEDULE_TO_CLOSE.\nShort state writes (such as observation status updates and thumbnail preparation/finalization) must use STATE_ACTIVITY_RETRY (5 attempts with exponential backoff) and STATE_ACTIVITY_SCHEDULE_TO_CLOSE (3-minute ceiling).\nWhat breaks if skipped: Shorter ad-hoc retry policies (e.g. 3 attempts in ~3s) permanently drop operations during transient DB connection resets, while unconstrained retry chains can exceed workflow execution timeouts.",
+        "deps": [
+          {
+            "path": "products/replay_vision/backend/temporal/constants.py",
+            "symbol": "STATE_ACTIVITY_RETRY",
+            "hash": "sha256:3ce24d24e502eaa232f558e6",
+            "line": 23,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 10
+            }
+          },
+          {
+            "path": "products/replay_vision/backend/temporal/constants.py",
+            "symbol": "STATE_ACTIVITY_SCHEDULE_TO_CLOSE",
+            "hash": "sha256:12e576072f73358e589cdf36",
+            "line": 31,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 12
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105799",
+    "pr": 105799,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 29447,
+    "elapsedMs": 38071,
+    "proposed": [
+      {
+        "title": "Allowlisting read-only POST endpoints for impersonation sessions",
+        "kind": "rule",
+        "answers": [
+          "Why does workflow audience count fail to load during read-only impersonation?",
+          "How to allow read-only POST endpoints during impersonation sessions?",
+          "Workflow audience size returns 403 impersonation_read_only",
+          "Why is POST user_blast_radius blocked for impersonated users?"
+        ],
+        "body": "Symptom: In workflow builder during read-only impersonation, audience size count fails to load with 403 impersonation_read_only.\nRoot cause: posthog/middleware.py:ImpersonationReadOnlyMiddleware blocks all non-idempotent HTTP methods before reaching viewsets, even for read-only actions that require POST for large payloads.\nFix pattern: Add an exact action path regex matching ^/api/(environments|projects)/([0-9]+|@current)/<prefix>/<action>/?$ to posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS.\nConstraints: Applies only to read-only POST endpoints that perform no state mutations; never allowlist an entire prefix because mutating sibling actions share the prefix.",
+        "applies": "Read-only POST endpoints blocked during impersonation in PostHog API",
+        "deps": [
+          {
+            "path": "posthog/middleware.py",
+            "symbol": "ImpersonationReadOnlyMiddleware"
+          },
+          {
+            "path": "posthog/middleware.py",
+            "symbol": "READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS"
+          }
+        ],
+        "tags": [
+          "workflows",
+          "impersonation",
+          "middleware",
+          "permissions"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Testing read-only impersonation allowlist entries against mutating siblings",
+        "kind": "rule",
+        "answers": [
+          "How to test additions to READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS?",
+          "Prevent read-only impersonation allowlist from permitting mutating sibling actions",
+          "Why does TestImpersonationReadOnlyMiddleware require mutating sibling tests?"
+        ],
+        "body": "When allowlisting a POST endpoint in posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS, the regex must specify the exact action rather than a broad resource prefix.\nEnforced in posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware by pairing allowlist cases in test_read_only_impersonation_allows_allowlisted_post with mutating sibling checks in test_read_only_impersonation_blocks_mutating_siblings.\nIf mutating sibling test cases are omitted, accidental widening of the allowlist regex will silently expose write endpoints to read-only impersonation sessions.",
+        "applies": "Adding and testing endpoints in READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS",
+        "deps": [
+          {
+            "path": "posthog/middleware.py",
+            "symbol": "READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS"
+          },
+          {
+            "path": "posthog/test/test_middleware.py",
+            "symbol": "TestImpersonationReadOnlyMiddleware"
+          }
+        ],
+        "tags": [
+          "impersonation",
+          "middleware",
+          "testing",
+          "security"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "allowlisting-read-only-post-endpoints-for-impersonation-sess",
+        "title": "Allowlisting read-only POST endpoints for impersonation sessions",
+        "kind": "rule",
+        "body": "Symptom: In workflow builder during read-only impersonation, audience size count fails to load with 403 impersonation_read_only.\nRoot cause: posthog/middleware.py:ImpersonationReadOnlyMiddleware blocks all non-idempotent HTTP methods before reaching viewsets, even for read-only actions that require POST for large payloads.\nFix pattern: Add an exact action path regex matching ^/api/(environments|projects)/([0-9]+|@current)/<prefix>/<action>/?$ to posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS.\nConstraints: Applies only to read-only POST endpoints that perform no state mutations; never allowlist an entire prefix because mutating sibling actions share the prefix.",
+        "deps": [
+          {
+            "path": "posthog/middleware.py",
+            "symbol": "ImpersonationReadOnlyMiddleware",
+            "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+            "line": 1975,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          },
+          {
+            "path": "posthog/middleware.py",
+            "symbol": "ImpersonationReadOnlyMiddleware",
+            "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+            "line": 1975,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-read-only-impersonation-allowlist-entries-against-mu",
+        "title": "Testing read-only impersonation allowlist entries against mutating siblings",
+        "kind": "rule",
+        "body": "When allowlisting a POST endpoint in posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS, the regex must specify the exact action rather than a broad resource prefix.\nEnforced in posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware by pairing allowlist cases in test_read_only_impersonation_allows_allowlisted_post with mutating sibling checks in test_read_only_impersonation_blocks_mutating_siblings.\nIf mutating sibling test cases are omitted, accidental widening of the allowlist regex will silently expose write endpoints to read-only impersonation sessions.",
+        "deps": [
+          {
+            "path": "posthog/middleware.py",
+            "hash": "sha256:c1bc5f886dae93d4a664d9ce",
+            "missing": false
+          },
+          {
+            "path": "posthog/test/test_middleware.py",
+            "symbol": "TestImpersonationReadOnlyMiddleware",
+            "hash": "sha256:3e78e978ed926757b4c1fe86",
+            "line": 974,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105133",
+    "pr": 105133,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 23095,
+    "elapsedMs": 61369,
+    "proposed": [
+      {
+        "title": "Drop partition-level gauge series on Kafka partition revoke",
+        "kind": "rule",
+        "answers": [
+          "Why is IngestionAnalyticsSinglePartitionDelayed alerting for a partition that is not behind?",
+          "Why does latest_processed_timestamp_ms report stale metrics after a Kafka consumer rebalance?",
+          "How to remove partition gauge series when Kafka partitions are revoked?",
+          "Why does a reassigned Kafka partition keep emitting old processed timestamps from previous pods?"
+        ],
+        "body": "Symptom: The on-call rotation receives a false IngestionAnalyticsSinglePartitionDelayed alert for a partition that is not behind.\nRoot cause: nodejs/src/ingestion/ingestion-consumer.ts:latestOffsetTimestampGauge keeps exporting timestamps for partitions revoked in a rebalance, winning max by (groupId, topic, partition) queries over new owners without series.\nFix pattern: Use the onPartitionsRevoked hook in nodejs/src/common/kafka/consumer/index.ts:KafkaConsumerInterface.connect to call latestOffsetTimestampGauge.remove({ topic, partition, groupId }) in nodejs/src/ingestion/ingestion-consumer.ts:IngestionConsumer.onPartitionsRevoked.\nConstraints: Applies to partition-keyed gauge metrics aggregated across consumers; partitions whose new owner stalls before processing any messages will export no series until the first message.",
+        "applies": "Kafka consumers exporting per-partition Prometheus gauge metrics across consumer rebalances.",
+        "deps": [
+          {
+            "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+            "symbol": "latestOffsetTimestampGauge"
+          },
+          {
+            "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+            "symbol": "IngestionConsumer"
+          },
+          {
+            "path": "nodejs/src/common/kafka/consumer/index.ts",
+            "symbol": "KafkaConsumerInterface"
+          }
+        ],
+        "tags": [
+          "kafka",
+          "metrics",
+          "prometheus",
+          "ingestion",
+          "rebalance"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "drop-partition-level-gauge-series-on-kafka-partition-revoke",
+        "title": "Drop partition-level gauge series on Kafka partition revoke",
+        "kind": "rule",
+        "body": "Symptom: The on-call rotation receives a false IngestionAnalyticsSinglePartitionDelayed alert for a partition that is not behind.\nRoot cause: nodejs/src/ingestion/ingestion-consumer.ts:latestOffsetTimestampGauge keeps exporting timestamps for partitions revoked in a rebalance, winning max by (groupId, topic, partition) queries over new owners without series.\nFix pattern: Use the onPartitionsRevoked hook in nodejs/src/common/kafka/consumer/index.ts:KafkaConsumerInterface.connect to call latestOffsetTimestampGauge.remove({ topic, partition, groupId }) in nodejs/src/ingestion/ingestion-consumer.ts:IngestionConsumer.onPartitionsRevoked.\nConstraints: Applies to partition-keyed gauge metrics aggregated across consumers; partitions whose new owner stalls before processing any messages will export no series until the first message.",
+        "deps": [
+          {
+            "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+            "symbol": "latestOffsetTimestampGauge",
+            "hash": "sha256:e700a654886808abf4be83c4",
+            "line": 111,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 6
+            }
+          },
+          {
+            "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+            "symbol": "IngestionConsumer",
+            "hash": "sha256:29959869dadbd05a68bf2ae9",
+            "line": 125,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 7,
+              "refs": 18
+            }
+          },
+          {
+            "path": "nodejs/src/common/kafka/consumer/index.ts",
+            "symbol": "KafkaConsumerInterface",
+            "hash": "sha256:e4bd321bb11a3106c49d767e",
+            "line": 23,
+            "missing": false,
+            "fanout": {
+              "files": 15,
+              "sites": 0,
+              "refs": 36
+            }
+          },
+          {
+            "path": "nodejs/src/common/kafka/consumer/index.ts",
+            "symbol": "KafkaConsumerInterface.connect",
+            "hash": "sha256:90c6a6dd1f9c0f6883486adc",
+            "line": 29,
+            "missing": false,
+            "fanout": {
+              "files": 931,
+              "sites": 821,
+              "refs": 1979
+            }
+          },
+          {
+            "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+            "symbol": "IngestionConsumer.onPartitionsRevoked",
+            "hash": "sha256:3afbcb0228cc859807bd3043",
+            "line": 469,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 6,
+              "refs": 25
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105670",
+    "pr": 105670,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 21486,
+    "elapsedMs": 27292,
+    "proposed": [
+      {
+        "title": "Default insight list ordering must use indexed columns with tiebreakers",
+        "kind": "rule",
+        "answers": [
+          "Why does listing insights without an order parameter time out or run slowly?",
+          "How to order insight list querysets when no order param is provided?",
+          "Why does InsightViewSet default order to -last_modified_at and -pk?",
+          "What index covers default ordering for the insights list endpoint?"
+        ],
+        "body": "Symptom: API requests listing insights without an `order` parameter wait tens of seconds per page or time out, pinning web workers.\nRoot cause: products/product_analytics/backend/presentation/insight.py:InsightViewSet defaulted unordered listings to `order_by(\"order\")`, an unindexed nullable column causing full project table scans and sorts on Postgres.\nFix pattern: Default unordered list queries to sort by an indexed column with a deterministic tiebreaker (`order_by(\"-last_modified_at\", \"-pk\")`) supported by partial index `dashboarditem_team_lmod_idx`.\nConstraints: Applies to insight list requests where `order` and `search` query parameters are not provided; explicit order parameters and search queries follow their own ordering.",
+        "applies": "Default queryset ordering and pagination in products/product_analytics/backend/presentation/insight.py:InsightViewSet",
+        "deps": [
+          {
+            "path": "products/product_analytics/backend/presentation/insight.py",
+            "symbol": "InsightViewSet"
+          }
+        ],
+        "tags": [
+          "insights",
+          "performance",
+          "django-orm",
+          "postgres",
+          "pagination"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "default-insight-list-ordering-must-use-indexed-columns-with",
+        "title": "Default insight list ordering must use indexed columns with tiebreakers",
+        "kind": "rule",
+        "body": "Symptom: API requests listing insights without an `order` parameter wait tens of seconds per page or time out, pinning web workers.\nRoot cause: products/product_analytics/backend/presentation/insight.py:InsightViewSet defaulted unordered listings to `order_by(\"order\")`, an unindexed nullable column causing full project table scans and sorts on Postgres.\nFix pattern: Default unordered list queries to sort by an indexed column with a deterministic tiebreaker (`order_by(\"-last_modified_at\", \"-pk\")`) supported by partial index `dashboarditem_team_lmod_idx`.\nConstraints: Applies to insight list requests where `order` and `search` query parameters are not provided; explicit order parameters and search queries follow their own ordering.",
+        "deps": [
+          {
+            "path": "products/product_analytics/backend/presentation/insight.py",
+            "symbol": "InsightViewSet",
+            "hash": "sha256:7b1b8c942618a99546c7ad16",
+            "line": 1742,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 12
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105737",
+    "pr": 105737,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 22962,
+    "elapsedMs": 22043,
+    "proposed": [
+      {
+        "title": "Insight editor scene instance check using synchronous reducers instead of insightLogicRef",
+        "kind": "rule",
+        "answers": [
+          "Why does selecting a chart type in the insight editor trigger an unwanted auto-save?",
+          "Why does the insight editor exit edit mode with 'Insight updated' when changing chart types?",
+          "How to prevent race conditions when checking scene ownership in isInsightSceneInstance?"
+        ],
+        "body": "Symptom: Selecting a new chart type in the insight editor auto-saves the insight and exits edit mode with an \"Insight updated\" message without clicking Save.\nRoot cause: frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance checked insightLogicRef, which is mounted asynchronously by a listener and lags behind synchronous URL matching reducers.\nFix pattern: Check synchronously updated reducers (insightId and dashboardId) instead of asynchronously mounted logic references (insightLogicRef) to verify scene instance identity.\nConstraints: Applies when validating scene membership during or immediately after scene mount; does not apply when interaction with the mounted logic instance itself is required.",
+        "applies": "frontend/src/scenes/insights/",
+        "deps": [
+          {
+            "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+            "symbol": "isInsightSceneInstance"
+          }
+        ],
+        "tags": [
+          "insights",
+          "posthog",
+          "kea",
+          "chart-type",
+          "autosave"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "insight-editor-scene-instance-check-using-synchronous-reduce",
+        "title": "Insight editor scene instance check using synchronous reducers instead of insightLogicRef",
+        "kind": "rule",
+        "body": "Symptom: Selecting a new chart type in the insight editor auto-saves the insight and exits edit mode with an \"Insight updated\" message without clicking Save.\nRoot cause: frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance checked insightLogicRef, which is mounted asynchronously by a listener and lags behind synchronous URL matching reducers.\nFix pattern: Check synchronously updated reducers (insightId and dashboardId) instead of asynchronously mounted logic references (insightLogicRef) to verify scene instance identity.\nConstraints: Applies when validating scene membership during or immediately after scene mount; does not apply when interaction with the mounted logic instance itself is required.",
+        "deps": [
+          {
+            "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+            "symbol": "isInsightSceneInstance",
+            "hash": "sha256:ec87ebf6698de5e490f8791d",
+            "line": 104,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 7,
+              "refs": 8
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105409",
+    "pr": 105409,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 34013,
+    "elapsedMs": 41964,
+    "proposed": [
+      {
+        "title": "Queue routing mismatch guard in alert evaluation activity",
+        "kind": "rule",
+        "answers": [
+          "Why did alert evaluation skip without recording an errored check when detector config changed?",
+          "How does evaluate_alert prevent AI detector checks from running on standard workers without credentials?",
+          "What happens if an alert detector type is modified between workflow prepare and evaluate activities?"
+        ],
+        "body": "Symptom: Alert check evaluation fails with worker credential errors or crashes if an alert's detector configuration is changed right before evaluation.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert reloaded the alert configuration from the database without confirming it matched inputs.uses_llm_detector chosen during workflow prepare.\nFix pattern: Compare the reloaded detector type against the routed input type; if mismatched, return early with alert_check_id=None and preserve next_check_at so the next scheduler tick can re-route.\nConstraints: Applies to Temporal workflow activities where queue routing is decided in an earlier step based on mutable database state.",
+        "applies": "Temporal alert workflow activities routing between AI and standard worker queues",
+        "deps": [
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "evaluate_alert"
+          }
+        ],
+        "tags": [
+          "alerts",
+          "temporal",
+          "ai-detector",
+          "task-routing"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "AI detector outcome metrics recording on retry exhaustion",
+        "kind": "rule",
+        "answers": [
+          "Why does posthog_insight_alerts_ai_detector_checks_total report more unavailable failures than scheduled checks?",
+          "Where should outcome metrics be recorded in retried Temporal alert activities?",
+          "Why does an AI detector alert check show both failure and success metric counts?"
+        ],
+        "body": "Symptom: The AI detector unavailable metric (posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"}) overcounts failures by incrementing on every retry attempt rather than once per scheduled check.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert called record_ai_detector_check_outcome(\"unavailable\") directly within the retryable activity attempt.\nFix pattern: Move outcome metric recording to the terminal failure activity (record_failed_evaluation), incrementing only when an errored check is recorded after retries are exhausted.\nConstraints: Applies to terminal check outcome metrics in Temporal activities configured with retry policies; does not apply to per-attempt execution or latency metrics.",
+        "applies": "Temporal alert evaluation activities and outcome metric tracking",
+        "deps": [
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "record_failed_evaluation"
+          },
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "evaluate_alert"
+          }
+        ],
+        "tags": [
+          "alerts",
+          "temporal",
+          "metrics",
+          "ai-detector"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "queue-routing-mismatch-guard-in-alert-evaluation-activity",
+        "title": "Queue routing mismatch guard in alert evaluation activity",
+        "kind": "rule",
+        "body": "Symptom: Alert check evaluation fails with worker credential errors or crashes if an alert's detector configuration is changed right before evaluation.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert reloaded the alert configuration from the database without confirming it matched inputs.uses_llm_detector chosen during workflow prepare.\nFix pattern: Compare the reloaded detector type against the routed input type; if mismatched, return early with alert_check_id=None and preserve next_check_at so the next scheduler tick can re-route.\nConstraints: Applies to Temporal workflow activities where queue routing is decided in an earlier step based on mutable database state.",
+        "deps": [
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "evaluate_alert",
+            "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+            "line": 340,
+            "missing": false,
+            "fanout": {
+              "files": 8,
+              "sites": 0,
+              "refs": 34
+            }
+          }
+        ]
+      },
+      {
+        "id": "ai-detector-outcome-metrics-recording-on-retry-exhaustion",
+        "title": "AI detector outcome metrics recording on retry exhaustion",
+        "kind": "rule",
+        "body": "Symptom: The AI detector unavailable metric (posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"}) overcounts failures by incrementing on every retry attempt rather than once per scheduled check.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert called record_ai_detector_check_outcome(\"unavailable\") directly within the retryable activity attempt.\nFix pattern: Move outcome metric recording to the terminal failure activity (record_failed_evaluation), incrementing only when an errored check is recorded after retries are exhausted.\nConstraints: Applies to terminal check outcome metrics in Temporal activities configured with retry policies; does not apply to per-attempt execution or latency metrics.",
+        "deps": [
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "record_failed_evaluation",
+            "hash": "sha256:8aa482e903ec6c76c7ddc618",
+            "line": 569,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 13
+            }
+          },
+          {
+            "path": "posthog/temporal/alerts/activities.py",
+            "symbol": "evaluate_alert",
+            "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+            "line": 340,
+            "missing": false,
+            "fanout": {
+              "files": 8,
+              "sites": 0,
+              "refs": 34
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105690",
+    "pr": 105690,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 28830,
+    "elapsedMs": 35476,
+    "proposed": [
+      {
+        "title": "Zero decimal places formatting in data visualization",
+        "kind": "rule",
+        "answers": [
+          "Why does setting decimal places to 0 not round numbers in SQL insights or tables?",
+          "How are 0 decimal places formatted under style None in data visualization?",
+          "Why do Big numbers or table cells still show fractions after setting decimal places to 0?"
+        ],
+        "body": "Symptom: Setting Decimal places to 0 on a SQL insight has no effect under style None, displaying raw float values like 42.195 instead of 42.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and table cell formatting in frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic checked decimalPlaces for truthiness, treating 0 as falsy.\nFix pattern: Compare decimalPlaces != null rather than checking truthiness so explicit 0 values are preserved.\nConstraints: Applies when formatting numbers under styles like None or custom precision; does not apply under short style, where table cells ignore decimalPlaces.",
+        "applies": "Number formatting with style None or explicit decimal places in data visualization.",
+        "deps": [
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "formatDataWithSettings"
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "dataVisualizationLogic"
+          }
+        ],
+        "tags": [
+          "data-visualization",
+          "formatting",
+          "insights",
+          "sql"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Raw series values preservation for data visualization aggregations",
+        "kind": "rule",
+        "answers": [
+          "Where should rounding be applied to chart series values in data visualization?",
+          "Why are metric card or pie chart totals inaccurate when decimal places are configured?",
+          "Should y-axis or breakdown series selectors round data values?"
+        ],
+        "body": "Invariant: Series extraction and breakdown selectors must keep raw numeric values and never round to configured decimal places.\nWhere enforced: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic in the yData selector and frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts:parseBreakdownSeriesValue.\nWhere display formatting lives: frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts:formatSqlSeriesValue formats values for tooltips, ticks, and labels.\nWhat breaks if skipped: Rounding in series selectors causes metric card totals, averages, change badges, pie totals, and breakdown buckets to sum pre-rounded numbers, creating cumulative rounding errors.",
+        "applies": "Series data extraction and breakdown aggregation in DataVisualization.",
+        "deps": [
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "dataVisualizationLogic"
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+            "symbol": "parseBreakdownSeriesValue"
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+            "symbol": "formatSqlSeriesValue"
+          }
+        ],
+        "tags": [
+          "data-visualization",
+          "charts",
+          "aggregations",
+          "series"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "zero-decimal-places-formatting-in-data-visualization",
+        "title": "Zero decimal places formatting in data visualization",
+        "kind": "rule",
+        "body": "Symptom: Setting Decimal places to 0 on a SQL insight has no effect under style None, displaying raw float values like 42.195 instead of 42.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and table cell formatting in frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic checked decimalPlaces for truthiness, treating 0 as falsy.\nFix pattern: Compare decimalPlaces != null rather than checking truthiness so explicit 0 values are preserved.\nConstraints: Applies when formatting numbers under styles like None or custom precision; does not apply under short style, where table cells ignore decimalPlaces.",
+        "deps": [
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "formatDataWithSettings",
+            "hash": "sha256:1efd38510b23c9a71150e490",
+            "line": 156,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 6,
+              "refs": 9
+            }
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "dataVisualizationLogic",
+            "hash": "sha256:d4066f544739abc929f55c4a",
+            "line": 982,
+            "missing": false,
+            "fanout": {
+              "files": 69,
+              "sites": 26,
+              "refs": 193
+            }
+          }
+        ]
+      },
+      {
+        "id": "raw-series-values-preservation-for-data-visualization-aggreg",
+        "title": "Raw series values preservation for data visualization aggregations",
+        "kind": "rule",
+        "body": "Invariant: Series extraction and breakdown selectors must keep raw numeric values and never round to configured decimal places.\nWhere enforced: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic in the yData selector and frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts:parseBreakdownSeriesValue.\nWhere display formatting lives: frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts:formatSqlSeriesValue formats values for tooltips, ticks, and labels.\nWhat breaks if skipped: Rounding in series selectors causes metric card totals, averages, change badges, pie totals, and breakdown buckets to sum pre-rounded numbers, creating cumulative rounding errors.",
+        "deps": [
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+            "symbol": "dataVisualizationLogic",
+            "hash": "sha256:d4066f544739abc929f55c4a",
+            "line": 982,
+            "missing": false,
+            "fanout": {
+              "files": 69,
+              "sites": 26,
+              "refs": 193
+            }
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+            "symbol": "parseBreakdownSeriesValue",
+            "hash": "sha256:abd161cca27e8442ccdf6dca",
+            "line": 78,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+            "symbol": "formatSqlSeriesValue",
+            "hash": "sha256:0a05e3abdf21780416131363",
+            "line": 242,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 14,
+              "refs": 24
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-96235",
+    "pr": 96235,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 29223,
+    "elapsedMs": 38258,
+    "proposed": [
+      {
+        "title": "Validate PostHog UUIDT invocation IDs by shape rather than RFC UUID version",
+        "kind": "rule",
+        "answers": [
+          "Why does cancelling a workflow run fail with a validation error?",
+          "How to validate PostHog invocation IDs or UUIDTs in Zod schemas?",
+          "Workflow row Cancel action fails with validation error and run keeps going",
+          "Why does z.string().uuid() reject PostHog invocation_ids?"
+        ],
+        "body": "Symptom: Cancelling a running workflow via the row Cancel action or direct API call fails with a validation error, and the run keeps going.\nRoot cause: nodejs/src/cdp/cdp-api.ts:CdpApi used version-aware z.string().uuid() on invocation_ids, which rejects PostHog UUIDTs because their version nibbles do not conform to RFC UUID versions.\nFix pattern: Validate UUID string shape (8-4-4-4-12) using UUID.validateString(id, false) via z.string().refine() to accept UUIDTs while rejecting malformed inputs before Postgres ::uuid[] binds.\nConstraints: Applies to route validation for PostHog UUIDT identifiers destined for Postgres UUID columns; does not apply when external contracts strictly require RFC-versioned UUIDs.",
+        "applies": "PostHog CDP API route schema validation for workflow invocation IDs and UUIDTs.",
+        "deps": [
+          {
+            "path": "nodejs/src/cdp/cdp-api.ts",
+            "symbol": "CdpApi"
+          }
+        ],
+        "tags": [
+          "workflows",
+          "cdp",
+          "validation",
+          "uuidt",
+          "hog-flows"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "validate-posthog-uuidt-invocation-ids-by-shape-rather-than-r",
+        "title": "Validate PostHog UUIDT invocation IDs by shape rather than RFC UUID version",
+        "kind": "rule",
+        "body": "Symptom: Cancelling a running workflow via the row Cancel action or direct API call fails with a validation error, and the run keeps going.\nRoot cause: nodejs/src/cdp/cdp-api.ts:CdpApi used version-aware z.string().uuid() on invocation_ids, which rejects PostHog UUIDTs because their version nibbles do not conform to RFC UUID versions.\nFix pattern: Validate UUID string shape (8-4-4-4-12) using UUID.validateString(id, false) via z.string().refine() to accept UUIDTs while rejecting malformed inputs before Postgres ::uuid[] binds.\nConstraints: Applies to route validation for PostHog UUIDT identifiers destined for Postgres UUID columns; does not apply when external contracts strictly require RFC-versioned UUIDs.",
+        "deps": [
+          {
+            "path": "nodejs/src/cdp/cdp-api.ts",
+            "symbol": "CdpApi",
+            "hash": "sha256:fe0e27f04f380d7f19512765",
+            "line": 131,
+            "missing": false,
+            "fanout": {
+              "files": 10,
+              "sites": 8,
+              "refs": 32
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-105707",
+    "pr": 105707,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 33288,
+    "elapsedMs": 47975,
+    "proposed": [
+      {
+        "title": "Fallback to blocked draft when support reply draft activity fails",
+        "kind": "rule",
+        "answers": [
+          "Why are support tickets stuck on Processing when the AI draft agent fails?",
+          "How does the support reply draft activity handle empty turns or agent crashes?",
+          "What prevents support tickets from staying in_progress after draft generation errors?"
+        ],
+        "body": "Symptom: Support tickets stay stuck on \"Processing\" and never leave in_progress when the draft agent fails or ends without valid JSON.\nRoot cause: products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async raised an uncaught exception on all attempts, failing the Temporal workflow before a result was recorded.\nFix pattern: Raise DraftNotProducedError while llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS to trigger Temporal retry, but on the final attempt return a fallback SupportReplyDraft with verdict=\"blocked_on_knowledge\" and confidence=0.0.\nConstraints: Applies to support draft activities where terminal failure leaves tickets in_progress; must match RetryPolicy(maximum_attempts=DRAFT_ACTIVITY_MAX_ATTEMPTS) in products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow.",
+        "applies": "Support reply draft generation activity in Temporal conversations pipeline.",
+        "deps": [
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_give_up"
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_draft_async"
+          },
+          {
+            "path": "products/conversations/backend/temporal/pipeline.py",
+            "symbol": "SupportReplyWorkflow"
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+            "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS"
+          }
+        ],
+        "tags": [
+          "conversations",
+          "temporal",
+          "ai-reply",
+          "support-tickets"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Support reply MultiTurnSession must omit output_schema and parse raw text",
+        "kind": "rule",
+        "answers": [
+          "Why does support draft generation use MultiTurnSession.start_raw instead of start with output_schema?",
+          "Why does draft task polling fail with 'no agent message' when output_schema is set?",
+          "How should structured draft JSON be extracted from MultiTurnSession support agent responses?"
+        ],
+        "body": "MultiTurnSession for support draft generation must use start_raw without setting output_schema.\nEnforced in products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async.\nIf output_schema is set, storing task output completes the task run before the agent message reaches the log, causing session polling to fail with \"no agent message\".\nDraft responses must be parsed from raw turn text via products/conversations/backend/temporal/ai_reply/activities/draft.py:_parse_draft, which selects the last valid JSON object to avoid capturing example or ticket JSON.",
+        "applies": "MultiTurnSession draft agent calls in products/conversations.",
+        "deps": [
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_draft_async"
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_parse_draft"
+          }
+        ],
+        "tags": [
+          "conversations",
+          "tasks",
+          "ai-reply",
+          "multi-turn-session"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "fallback-to-blocked-draft-when-support-reply-draft-activity",
+        "title": "Fallback to blocked draft when support reply draft activity fails",
+        "kind": "rule",
+        "body": "Symptom: Support tickets stay stuck on \"Processing\" and never leave in_progress when the draft agent fails or ends without valid JSON.\nRoot cause: products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async raised an uncaught exception on all attempts, failing the Temporal workflow before a result was recorded.\nFix pattern: Raise DraftNotProducedError while llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS to trigger Temporal retry, but on the final attempt return a fallback SupportReplyDraft with verdict=\"blocked_on_knowledge\" and confidence=0.0.\nConstraints: Applies to support draft activities where terminal failure leaves tickets in_progress; must match RetryPolicy(maximum_attempts=DRAFT_ACTIVITY_MAX_ATTEMPTS) in products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow.",
+        "deps": [
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_give_up",
+            "hash": "sha256:5388549d8664286bf2331279",
+            "line": 92,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 5,
+              "refs": 9
+            }
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_draft_async",
+            "hash": "sha256:96e60292141549af38fc6664",
+            "line": 235,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 25
+            }
+          },
+          {
+            "path": "products/conversations/backend/temporal/pipeline.py",
+            "symbol": "SupportReplyWorkflow",
+            "hash": "sha256:037234a7bf27b8099f55c5e4",
+            "line": 89,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 1,
+              "refs": 47
+            }
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+            "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS",
+            "hash": "sha256:10f54ff9fa5690967ecbfc31",
+            "line": 44,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 5
+            }
+          }
+        ]
+      },
+      {
+        "id": "support-reply-multiturnsession-must-omit-output-schema-and-p",
+        "title": "Support reply MultiTurnSession must omit output_schema and parse raw text",
+        "kind": "rule",
+        "body": "MultiTurnSession for support draft generation must use start_raw without setting output_schema.\nEnforced in products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async.\nIf output_schema is set, storing task output completes the task run before the agent message reaches the log, causing session polling to fail with \"no agent message\".\nDraft responses must be parsed from raw turn text via products/conversations/backend/temporal/ai_reply/activities/draft.py:_parse_draft, which selects the last valid JSON object to avoid capturing example or ticket JSON.",
+        "deps": [
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_draft_async",
+            "hash": "sha256:96e60292141549af38fc6664",
+            "line": 235,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 25
+            }
+          },
+          {
+            "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+            "symbol": "_parse_draft",
+            "hash": "sha256:78a03c99859f120b00671770",
+            "line": 65,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "posthog-103110",
+    "pr": 103110,
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "tokens": 25505,
+    "elapsedMs": 26940,
+    "proposed": [
+      {
+        "title": "Surface MCP gateway tool listing failures during server connect or registration",
+        "kind": "rule",
+        "answers": [
+          "Why does a connected MCP server show no tools without any error?",
+          "How should tool discovery errors be handled when connecting or registering an MCP server on Desktop?",
+          "Why is an MCP server stuck at Connected with an empty tool list?"
+        ],
+        "body": "Symptom: Connecting or adding an MCP server shows \"Connected\" or \"Added\" but displays an empty tool list with no explanation.\nRoot cause: products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts:useGatewayServers and products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts:useRegisterGatewayServer silently caught discoverGatewayTools rejections and ignored skipped: \"no-server\".\nFix pattern: Catch discovery failures and check for skipped === \"no-server\" to display a warning toast with static recovery guidance, without failing the underlying server connection or registration.\nConstraints: Do not toast when skipped === \"no-connection\" because the server tag already shows pending OAuth setup. Never interpolate upstream error details into the toast to avoid leaking response fragments (CWE-209).",
+        "applies": "Desktop MCP gateway server connection and registration hooks in products/desktop/packages/ui/src/features/mcp-gateway/hooks/",
+        "deps": [
+          {
+            "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+            "symbol": "useGatewayServers"
+          },
+          {
+            "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+            "symbol": "useRegisterGatewayServer"
+          }
+        ],
+        "tags": [
+          "mcp",
+          "desktop",
+          "mcp-gateway",
+          "toast",
+          "error-handling"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "surface-mcp-gateway-tool-listing-failures-during-server-conn",
+        "title": "Surface MCP gateway tool listing failures during server connect or registration",
+        "kind": "rule",
+        "body": "Symptom: Connecting or adding an MCP server shows \"Connected\" or \"Added\" but displays an empty tool list with no explanation.\nRoot cause: products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts:useGatewayServers and products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts:useRegisterGatewayServer silently caught discoverGatewayTools rejections and ignored skipped: \"no-server\".\nFix pattern: Catch discovery failures and check for skipped === \"no-server\" to display a warning toast with static recovery guidance, without failing the underlying server connection or registration.\nConstraints: Do not toast when skipped === \"no-connection\" because the server tag already shows pending OAuth setup. Never interpolate upstream error details into the toast to avoid leaking response fragments (CWE-209).",
+        "deps": [
+          {
+            "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+            "symbol": "useGatewayServers",
+            "hash": "sha256:46a602e7d6b0a0a98fb0e5fe",
+            "line": 32,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 7,
+              "refs": 17
+            }
+          },
+          {
+            "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+            "symbol": "useRegisterGatewayServer",
+            "hash": "sha256:d33a48156ae60b92028ee25a",
+            "line": 31,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 2,
+              "refs": 6
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

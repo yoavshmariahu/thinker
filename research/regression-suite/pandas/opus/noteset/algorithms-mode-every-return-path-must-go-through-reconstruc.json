@@ -1,0 +1,69 @@
+{
+  "id": "algorithms-mode-every-return-path-must-go-through-reconstruc",
+  "title": "algorithms.mode: every return path must go through _reconstruct_data (masked/dropna=False path included)",
+  "kind": "rule",
+  "answers": [
+    "Series.mode(dropna=False) raises TypeError on boolean dtype",
+    "mode with NA on nullable boolean Series fails",
+    "why does DataFrame.mode(dropna=False) break for 'boolean' columns",
+    "mode returns wrong dtype for masked arrays"
+  ],
+  "body": "Symptom: `Series.mode(dropna=False)` / `DataFrame.mode(dropna=False)` on a nullable \"boolean\" Series raises TypeError instead of returning the modes (including NA).\nRoot cause: pandas/core/algorithms.py:mode returned early on the masked branch (`res_mask` not None) with the raw numeric counting result `npresult`. It skipped the `_reconstruct_data` step that the normal path uses, so the BooleanArray was then built from non-bool values.\nFix pattern: on every early return in `mode`, convert the values back with `_reconstruct_data(npresult, original.dtype, original)` before returning, as the non-masked path already does.\nConstraints: this applies to any new branch or early return added to `algorithms.mode` (or similar hashtable-backed algorithms) that hands values to an ExtensionArray constructor. Values from the hashtable are in the computation dtype, not the original one. Tests for this live in pandas/tests/series/test_reductions.py next to `test_mode_nullable_dtype_edge_case`. Cover ties, a single winner, NA as the most frequent value, and all-NA input.",
+  "applies": "pandas/core/algorithms.py mode() and masked/nullable-dtype mode reductions",
+  "tags": [
+    "mode",
+    "masked-arrays",
+    "boolean-dtype",
+    "dropna",
+    "dtype-reconstruction"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/algorithms.py",
+      "symbol": "mode",
+      "hash": "sha256:376ec0787f5a8f545ba49783",
+      "line": 1183,
+      "missing": false,
+      "fanout": {
+        "files": 129,
+        "sites": 116,
+        "refs": 816
+      }
+    },
+    {
+      "path": "pandas/core/algorithms.py",
+      "symbol": "_reconstruct_data",
+      "hash": "sha256:d15c947446eb930769f9f301",
+      "line": 193,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pandas/tests/series/test_reductions.py",
+      "symbol": "test_mode_boolean_dropna_false",
+      "hash": "sha256:8f9bb57fda94a0351a17e2f4",
+      "line": 87,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70515"
+  },
+  "created": "2026-10-07T00:23:17.462Z",
+  "verified": "2026-10-07T00:23:17.462Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

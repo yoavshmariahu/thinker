@@ -1,0 +1,59 @@
+{
+  "id": "lowering-the-auto-grid-track-floor-requires-non-fit-items-to",
+  "title": "Lowering the auto-grid track floor requires non-fit items to set their own min-height",
+  "kind": "rule",
+  "answers": [
+    "non-fit panel shrinks below row height in auto grid",
+    "timeseries panel too short next to content fit panel",
+    "AutoGridItemRenderer height vs minHeight for match row heights"
+  ],
+  "body": "The grid track floor (autoRows) and the per-item style in AutoGridItemRenderer.tsx:AutoGridItemRenderer have to agree. Since the track floor can now drop below the row height for fit-content layouts, non-fit items no longer get the row height from the track alone.\nInvariant: for non-fit items with matchRowHeights on and auto-height panels enabled, the cell style is `{ minHeight: rowHeightPx }` so they keep the configured row height as a floor (and can still stretch to a taller matched row). With matchRowHeights off they pin `{ height: rowHeightPx }` so a tall fit sibling doesn't stretch them. Fit items get no cell min-height (the floor is applied to the panel chrome via the fit context).\nIf you change the track floor logic in getAutoRowsTemplate, check this branch too, or non-fit panels shrink to the fit min height (e.g. 100px instead of 320px).",
+  "applies": "AutoGridItemRenderer cell sizing for non-fit panels when GrafanaDashboardsAutoHeightPanels is enabled",
+  "tags": [
+    "dashboards",
+    "auto-grid",
+    "content-fit",
+    "row-height",
+    "renderer"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+      "symbol": "AutoGridItemRenderer",
+      "hash": "sha256:b090eb847acbb352f0557664",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:05:40.681Z",
+  "verified": "2026-10-07T00:05:40.681Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "auto-grid-fit-content-row-track-floor-must-follow-the-fit-mi",
+    "testing-auto-grid-content-fit-scenarios-via-the-devenv-dashb"
+  ]
+}

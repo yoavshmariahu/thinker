@@ -1,0 +1,67 @@
+{
+  "id": "preserved-pandas-input-needs-explicit-finite-value-validatio",
+  "title": "Preserved pandas input needs explicit finite-value validation in selectors",
+  "kind": "rule",
+  "answers": [
+    "Why does SelectKBest accept infinity with pandas output?",
+    "How should feature selectors validate DataFrames with set_output(transform=\"pandas\")?",
+    "Does VarianceThreshold allow infinity as well as NaN during transform?"
+  ],
+  "body": "Symptom: Feature selectors accept infinity or NaN during transform with pandas output even when the selector disallows NaN.\nRoot cause: sklearn/feature_selection/_base.py:SelectorMixin.transform uses skip_check_array=preserve_X, bypassing the array-level finite-value check when preserving the DataFrame.\nFix pattern: When preserving input bypasses array validation, explicitly call assert_all_finite(X, input_name=\"X\") before _transform for selectors whose input_tags.allow_nan is false.\nConstraints: The guard rejects both infinity and NaN only when allow_nan is false. When true, both pass through, matching the NumPy path; sklearn/feature_selection/tests/test_variance_threshold.py:test_transform_dataframe_allow_nan explicitly tests this exception.",
+  "applies": "Feature selectors using SelectorMixin.transform with preserved pandas input and pandas output.",
+  "tags": [
+    "feature-selection",
+    "pandas-output",
+    "input-validation",
+    "allow_nan"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/feature_selection/_base.py",
+      "symbol": "SelectorMixin.transform",
+      "hash": "sha256:e9df1007b37e30f0b1ba9227",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 217,
+        "sites": 1010,
+        "refs": 1875
+      }
+    },
+    {
+      "path": "sklearn/feature_selection/tests/test_base.py",
+      "symbol": "test_transform_dataframe_non_finite",
+      "hash": "sha256:6fd2a5b72be9f1cdf32bb6be",
+      "line": 157,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/feature_selection/tests/test_variance_threshold.py",
+      "symbol": "test_transform_dataframe_allow_nan",
+      "hash": "sha256:5c6819c3135cc3efdbe4fd84",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34513"
+  },
+  "created": "2026-10-07T00:33:26.545Z",
+  "verified": "2026-10-07T00:33:26.545Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

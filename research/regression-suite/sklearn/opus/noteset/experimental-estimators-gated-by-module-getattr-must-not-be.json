@@ -1,0 +1,58 @@
+{
+  "id": "experimental-estimators-gated-by-module-getattr-must-not-be",
+  "title": "Experimental estimators gated by module __getattr__ must not be listed in __all__",
+  "kind": "rule",
+  "answers": [
+    "from sklearn.model_selection import * raises ImportError",
+    "star import of model_selection fails mentioning enable_halving_search_cv",
+    "should HalvingGridSearchCV be in __all__?",
+    "how to expose experimental estimator to type checkers without breaking import *"
+  ],
+  "body": "Symptom: `from sklearn.model_selection import *` raises ImportError asking to import `sklearn.experimental.enable_halving_search_cv`.\nRoot cause: sklearn/model_selection/__init__.py listed HalvingGridSearchCV/HalvingRandomSearchCV in `__all__`, but the module `__getattr__` raises ImportError for them until the experimental enabler is imported; `import *` resolves every name in `__all__`.\nFix pattern: keep experimental (enabler-gated) names OUT of `__all__`; for type checkers, import them only under `if typing.TYPE_CHECKING:` with `# noqa: F401` (the noqa is needed because the name is no longer referenced by `__all__`).\nConstraints: applies to any subpackage whose `__getattr__` guards experimental names (e.g. halving search, and similarly gated estimators); explicit access must still raise the guidance error, and the name must work after the `sklearn.experimental.enable_*` import. Remove the TYPE_CHECKING block only once the estimator leaves experimental.",
+  "applies": "sklearn public subpackage __init__.py files that expose experimental estimators via __getattr__",
+  "tags": [
+    "experimental",
+    "__all__",
+    "star-import",
+    "model_selection",
+    "halving",
+    "type-checking"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/model_selection/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:c0a08e9337f20cbb33aa4816",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 130,
+        "sites": 0,
+        "refs": 182
+      }
+    },
+    {
+      "path": "sklearn/model_selection/__init__.py",
+      "symbol": "__getattr__",
+      "hash": "sha256:62cf16366742639f1663a774",
+      "line": 96,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35042"
+  },
+  "created": "2026-10-07T00:28:31.021Z",
+  "verified": "2026-10-07T00:28:31.021Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

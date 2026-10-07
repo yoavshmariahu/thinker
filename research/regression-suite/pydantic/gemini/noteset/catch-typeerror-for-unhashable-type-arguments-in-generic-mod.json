@@ -1,0 +1,79 @@
+{
+  "id": "catch-typeerror-for-unhashable-type-arguments-in-generic-mod",
+  "title": "Catch TypeError for unhashable type arguments in generic model cache",
+  "kind": "rule",
+  "answers": [
+    "Why does parameterizing a generic BaseModel with unhashable metadata fail with TypeError?",
+    "How does Pydantic handle caching of generic models with unhashable type arguments?",
+    "Fix TypeError unhashable type when subscripting generic BaseModel with Annotated"
+  ],
+  "body": "Symptom: TypeError: unhashable type when parameterizing a generic BaseModel with unhashable type arguments, such as Annotated containing an unhashable object.\nRoot cause: pydantic/_internal/_generics.py:get_cached_generic_type_early and pydantic/_internal/_generics.py:set_cached_generic_type accessed _GENERIC_TYPES_CACHE directly using keys containing unhashable type arguments.\nFix pattern: Wrap cache lookups and mutations in pydantic/_internal/_generics.py:_generic_cache_get and pydantic/_internal/_generics.py:_generic_cache_set to catch TypeError, returning None on lookup and skipping cache writes.\nConstraints: Applies to internal generic type caching; hashable arguments remain cached normally while unhashable arguments safely bypass the cache without preventing model construction.",
+  "applies": "Generic BaseModel type caching when parameterized with arbitrary or unhashable type arguments",
+  "tags": [
+    "generics",
+    "caching",
+    "types",
+    "annotated"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_generics.py",
+      "symbol": "_generic_cache_get",
+      "hash": "sha256:00cb390ccb9ad4f28bdc39d0",
+      "line": 450,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_generics.py",
+      "symbol": "_generic_cache_set",
+      "hash": "sha256:62ae4f48312386502bce789a",
+      "line": 457,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pydantic/_internal/_generics.py",
+      "symbol": "get_cached_generic_type_early",
+      "hash": "sha256:1fc584a8ed39a7e799019a6e",
+      "line": 464,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pydantic/_internal/_generics.py",
+      "symbol": "set_cached_generic_type",
+      "hash": "sha256:b10009f9e92f386bd469e0b6",
+      "line": 494,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13515"
+  },
+  "created": "2026-10-07T00:54:19.998Z",
+  "verified": "2026-10-07T00:54:19.998Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,44 @@
+{
+  "id": "preserve-upstream-version-priority-when-normalizing-discover",
+  "title": "Preserve upstream version priority when normalizing discovery",
+  "kind": "rule",
+  "answers": [
+    "How does the router choose a discovered group's preferred API version?",
+    "Why must aggregated discovery versions retain their order?",
+    "How should APIGroupDiscoveryList be converted for router discovery?"
+  ],
+  "body": "pkg/router/aggregate_discovery.go:apiGroupDiscoveryListToGroups normalizes aggregated discovery into the classic metav1.APIGroup shape expected by the router.\nPreserve each group's upstream version order and construct GroupVersion as group name + \"/\" + version.\nSet PreferredVersion to the first converted version only when versions are present; changing the order changes the preferred version advertised by the router.",
+  "applies": "Conversion of aggregated APIGroupDiscoveryList responses into classic router discovery groups.",
+  "tags": [
+    "router",
+    "api-discovery",
+    "version-priority"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "apiGroupDiscoveryListToGroups",
+      "hash": "sha256:d381faa3e3dd42a191e4f431",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-07T00:03:35.204Z",
+  "verified": "2026-10-07T00:03:35.204Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "negotiate-aggregated-discovery-to-find-crd-backed-groups"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "progressbar-time-column-use-rich-task-finished-time-not-task",
+  "title": "ProgressBar time column: use rich task.finished_time, not task.elapsed, for finished tasks",
+  "kind": "rule",
+  "answers": [
+    "progress bar timer keeps running after bar is full",
+    "finished sub-estimator bar elapsed time keeps increasing in meta-estimator",
+    "ProgressBar max_propagation_depth timers wrong for completed tasks",
+    "which rich Task attribute gives frozen elapsed time"
+  ],
+  "body": "Symptom: when you use the ProgressBar callback with max_propagation_depth > 0 on a meta-estimator, bars that are already full keep counting up their elapsed time while later sibling bars fill.\nRoot cause: sklearn/callback/_progressbar.py:render (the custom rich time column with `elapsed_when_finished`) read `task.elapsed`. A rich Task counts as `finished` once completed reaches total, but `elapsed` keeps measuring against the current clock until the task is explicitly stopped.\nFix pattern: for finished tasks, display `task.finished_time`. Rich freezes this value when the task completes. Unfinished tasks still show `task.time_remaining`.\nConstraints: this applies to any rich column or rendering code in the callback module that shows a duration for a completed task. Don't depend on `task.elapsed` being frozen unless the code calls `stop_task` explicitly.",
+  "applies": "sklearn/callback/_progressbar.py rich-based progress rendering",
+  "tags": [
+    "callback",
+    "progressbar",
+    "rich",
+    "meta-estimator",
+    "timer"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_progressbar.py",
+      "symbol": "render",
+      "hash": "sha256:ca341a0079b1a5779996ecc5",
+      "line": 125,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34746"
+  },
+  "created": "2026-10-07T00:29:47.384Z",
+  "verified": "2026-10-07T00:29:47.384Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

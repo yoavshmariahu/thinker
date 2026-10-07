@@ -1,0 +1,95 @@
+{
+  "id": "support-draft-activity-must-return-a-blocked-draft-on-its-la",
+  "title": "Support draft activity must return a blocked draft on its last attempt, never raise",
+  "kind": "rule",
+  "answers": [
+    "support ticket stuck on Processing forever",
+    "ticket stays in_progress after AI draft fails",
+    "what happens when the draft agent returns no JSON",
+    "how many retries does the support draft activity get"
+  ],
+  "body": "Symptom: a support ticket stays on \"Processing\" (status in_progress) forever when the AI draft agent ends with no message, a prose status sentence instead of JSON, or the agent server crashes.\nRoot cause: products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async raised on every attempt; after the last retry the SupportReplyWorkflow failed before it recorded a result, so the ticket never left in_progress.\nFix pattern: route every failure through draft.py:_give_up. While llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS it raises DraftNotProducedError so Temporal retries. On the last attempt it returns SupportReplyDraft(reply=\"\", confidence=0.0, verdict=\"blocked_on_knowledge\"). That draft never auto-sends, so a person picks the ticket up. task_run_id is \"\" when no session was started.\nConstraints: products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow must use RetryPolicy(maximum_attempts=DRAFT_ACTIVITY_MAX_ATTEMPTS) from constants.py, so the activity and the policy agree on which attempt is last. The value stays 2 because changing it affects workflow replay. Any new failure path in the draft activity should call _give_up instead of raising.",
+  "applies": "products/conversations AI reply draft activity and its Temporal retry policy",
+  "tags": [
+    "conversations",
+    "temporal",
+    "retry",
+    "support-reply",
+    "ai-draft"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_give_up",
+      "hash": "sha256:5388549d8664286bf2331279",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "DraftNotProducedError",
+      "hash": "sha256:8630737b65df5597f2ec2210",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+      "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS",
+      "hash": "sha256:10f54ff9fa5690967ecbfc31",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/pipeline.py",
+      "symbol": "SupportReplyWorkflow",
+      "hash": "sha256:037234a7bf27b8099f55c5e4",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 1,
+        "refs": 47
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:18:16.240Z",
+  "verified": "2026-10-07T00:18:16.240Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "support-draft-uses-start-raw-without-output-schema-and-parse"
+  ]
+}

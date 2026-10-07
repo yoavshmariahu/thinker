@@ -1,0 +1,46 @@
+{
+  "id": "openfeature-eval-context-namespace-must-stay-concrete-never",
+  "title": "OpenFeature eval context namespace must stay concrete: never '*' or empty from wildcard identities",
+  "kind": "rule",
+  "answers": [
+    "feature flag evaluation rejected with namespace mismatch for service token",
+    "wildcard namespace identity breaks OpenFeature flag evaluation",
+    "how is the OpenFeature evaluation context namespace / targeting key chosen per request",
+    "cluster-wide service token gets flags evaluated for '*'"
+  ],
+  "body": "Symptom: Requests made with a wildcard identity, such as a cluster-wide service token, had their feature flag evaluations rejected as a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext copied id.Namespace straight into the OpenFeature evaluation context (both the targeting key and the \"namespace\" attribute). When that value was \"*\", it no longer matched the caller's concrete auth namespace further down the request path.\nFix pattern: Use the identity namespace only when it is concrete (non-empty and not \"*\"). Otherwise fall back to \"stacks-\" + cfg.StackID, and use \"default\" when StackID is unset. A concrete identity namespace still wins over StackID.\nConstraints: Any code that builds an OpenFeature evaluation context, or another per-request scope, from an identity namespace must treat \"\" and \"*\" as \"no namespace\". If it doesn't, the scope widens to wildcard and downstream namespace checks fail. Keep the targeting key and the namespace attribute equal.",
+  "applies": "OpenFeature evaluation context setup in the request context handler, and any code that derives a namespace from authn identities",
+  "tags": [
+    "openfeature",
+    "feature-flags",
+    "namespace",
+    "authn",
+    "service-token",
+    "contexthandler"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "ContextHandler",
+      "hash": "sha256:7e2bafbef478109aa6de31ad",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-10-07T00:02:43.615Z",
+  "verified": "2026-10-07T00:02:43.615Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

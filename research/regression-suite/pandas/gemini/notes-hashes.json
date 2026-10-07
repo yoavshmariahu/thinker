@@ -1,0 +1,17 @@
+{
+  "bar-subplots-draw-date-labels-on-inner-shared-x-axes.json": "0ba759376b0ed3e065af2c7bb3dabbf0a45fe921e264a77ffeec753eae8ee03e",
+  "check-hashability-before-len-in-categorical-comparison-opera.json": "1241b969447a85896a48302533c3d0ee15beed5eb04573f49c85169e24690fe7",
+  "compiled-regex-replace-on-arrowdtype-string-and-categorical.json": "14b6fb43ffd06de76e12978e60d3b53c344753e8f763ce547980dc5683c98ffd",
+  "cython-typeerror-in-intervalarray-from-rangeindex-or-non-int.json": "1bc3537339c563acf7daf6c5ccf64094f5468287cf4e6c3e27902940caca9dc6",
+  "fallback-to-numpy-comparison-in-arrowextensionarray-isin-for.json": "11adb5f0e18229871b355f93c0033f526aa50225963b47a10ae9b95f013a358c",
+  "fallback-to-serial-read-csv-on-bare-carriage-returns-before.json": "c08ab9a38b729bcb2cf7e48c806785705725f48214545569c5d7dd5c0632b1db",
+  "forward-date-and-datetime-formats-in-openpyxlwriter-construc.json": "36a3cfea27fe8740b2d1153191661553afc3d3240a33ad9d6da059c0d40aa291",
+  "nan-multiindex-column-labels-wrap-around-to-last-level-in-to.json": "e3a5aa3ffd166db0cd7c12c505f1aa2b4bb95127b6f3290e24f3382088df2240",
+  "parallel-read-csv-quoted-newline-chunk-error-fallback.json": "eea776dae312692cc646e36a5952516088391ffbaa82b26b0d33c563f4380c59",
+  "preserve-1d-series-for-extension-dtype-bounds-in-dataframe-c.json": "f46ae5f5131eb757cb3cc0a94f2f9445dc4f210ede663102ef92b4fced2a2e94",
+  "preserve-bytes-elements-when-coercing-mixed-type-arrays-for.json": "852975897912763db238f3f9dc11d47ad1868b00c431aba5ecf76d7d559fd266",
+  "preserve-nan-values-when-normalizing-in-styler-gradients-wit.json": "8fe7c50650c18b7c71b66c5390d43b42a6ca34c5d78e26b1775beb1640781c98",
+  "preserving-datetimeindex-and-timedeltaindex-frequency-across.json": "52091c688248ec82b32bf5dad509dcee8222da1381c9a619dba7d80fa3be7940",
+  "propagate-encoding-errors-to-bytesiowrapper-for-text-buffers.json": "884bb94251c70818070e6246dd7346e734b011b7500745e4fdba132918289c29",
+  "reconstruct-data-dtype-on-masked-return-path-in-algorithms-m.json": "2c8b238d5b950ad750917b62fc5787c088d6c224ed96570c9205ecaed398f549"
+}

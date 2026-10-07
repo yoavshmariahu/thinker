@@ -1,0 +1,43 @@
+{
+  "id": "inspect-raw-excel-header-cells-when-testing-missing-labels",
+  "title": "Inspect raw Excel header cells when testing missing labels",
+  "kind": "rule",
+  "answers": [
+    "How do I test that to_excel writes an empty MultiIndex header cell?",
+    "Why can an Excel round-trip test hide a missing column-label bug?",
+    "How should Excel header regression tests read missing labels?"
+  ],
+  "body": "Read exported header rows with pd.read_excel(..., header=None, nrows=2) when checking missing labels in a two-level column header.\nUsing header=[0, 1] forward-fills empty header cells and can conceal incorrect serialized labels.\npandas/tests/io/excel/test_writers.py:TestExcelWriter.test_to_excel_multiindex_nan_column_label demonstrates asserting the raw header rows and accepting merge_cells as a test parameter.",
+  "applies": "Regression tests verifying actual Excel header cells for missing MultiIndex column labels.",
+  "tags": [
+    "excel",
+    "testing",
+    "multiindex",
+    "header-forward-fill"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/excel/test_writers.py",
+      "symbol": "TestExcelWriter.test_to_excel_multiindex_nan_column_label",
+      "hash": "sha256:83fccc0a0b0e36a282ff2932",
+      "line": 906,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69446"
+  },
+  "created": "2026-10-07T00:24:48.089Z",
+  "verified": "2026-10-07T00:24:48.089Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

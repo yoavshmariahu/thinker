@@ -1,0 +1,185 @@
+{
+  "id": "preserve-the-two-timedelta-precedence-rules",
+  "title": "Preserve the two timedelta precedence rules",
+  "kind": "rule",
+  "answers": [
+    "Which setting wins when ser_json_temporal and ser_json_timedelta are both supplied?",
+    "Does explicitly configuring ISO temporal output override float durations?",
+    "How do temporal_mode and timedelta_mode interact in to_jsonable_python?"
+  ],
+  "body": "Invariant: Dictionary configuration gives ser_json_temporal precedence whenever the key is present, including an explicit iso8601 value; otherwise timedeltas use ser_json_timedelta.\nEnforcement: pydantic-core/src/serializers/config.rs:TemporalMode::timedelta_from_config centralizes this presence check and is used by SerializationConfig::from_config and pydantic-core/src/serializers/type_serializers/timedelta.rs:TimeDeltaSerializer::build, keeping inferred and typed timedelta serialization aligned.\nArgument exception: pydantic-core/src/serializers/config.rs:SerializationConfig::from_args instead uses timedelta_mode when temporal_mode equals iso8601; any other temporal_mode takes precedence for timedeltas.\nConsequence: Replacing the configuration presence check with a value comparison changes explicit ISO overrides; applying the presence-based rule to argument resolution removes its default-mode fallback.",
+  "applies": "Changes to timedelta mode resolution across dictionary configuration, serializer construction and direct serialization arguments.",
+  "tags": [
+    "serialization",
+    "configuration",
+    "precedence",
+    "timedelta"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "TemporalMode",
+      "hash": "sha256:4623a6bad4f56ffb09911823",
+      "line": 157,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "timedelta_from_config",
+      "hash": "sha256:87c815644f46fd4cda9b6ee7",
+      "line": 158,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "from_config",
+      "hash": "sha256:be1f18ed380cf423b4744d1d",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "TemporalMode",
+      "hash": "sha256:4623a6bad4f56ffb09911823",
+      "line": 157,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "timedelta_from_config",
+      "hash": "sha256:87c815644f46fd4cda9b6ee7",
+      "line": 158,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "from_config",
+      "hash": "sha256:be1f18ed380cf423b4744d1d",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "TemporalMode",
+      "hash": "sha256:4623a6bad4f56ffb09911823",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "timedelta_from_config",
+      "hash": "sha256:87c815644f46fd4cda9b6ee7",
+      "line": 158,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "from_config",
+      "hash": "sha256:be1f18ed380cf423b4744d1d",
+      "line": 43,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+      "symbol": "temporal_mode",
+      "hash": "sha256:63e8f04675345dbb52373909",
+      "line": 28,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "TemporalMode",
+      "hash": "sha256:4623a6bad4f56ffb09911823",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+      "symbol": "temporal_mode",
+      "hash": "sha256:63e8f04675345dbb52373909",
+      "line": 28,
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13892"
+  },
+  "created": "2026-10-07T00:40:27.751Z",
+  "verified": "2026-10-07T00:40:27.751Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-legacy-timedelta-settings-isolated-during-inferred-seri"
+  ]
+}

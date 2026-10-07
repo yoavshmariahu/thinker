@@ -1,0 +1,94 @@
+{
+  "id": "bigquery-key-file-completeness-requires-nonempty-values-and",
+  "title": "BigQuery key-file completeness requires nonempty values and upload guidance",
+  "kind": "rule",
+  "answers": [
+    "Why does uploading a JSON file fail BigQuery setup?",
+    "How should an incomplete service account key be reported?",
+    "Does a present but empty private_key pass validation?"
+  ],
+  "body": "Symptom: Uploading JSON that is not a complete Google Cloud service account key produces internal field names, or an empty private_key passes validation.\nRoot cause: products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py:validate_config checks field presence; uploaded key fields are not individually editable in the source form.\nFix pattern: In products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config, require truthy values for every field named by _KEY_FILE_FIELD_NAMES, which derives from the key-file config dataclass. Report missing uploads through _MISSING_KEY_FILE_ERROR and partial files through _INCOMPLETE_KEY_FILE_ERROR.\nConstraints: Apply these checks when key_file is selected. A non-dictionary or dictionary with no truthy values receives upload guidance; a dictionary with some values but any missing or empty expected field receives complete-key guidance. This is a completeness check, not proof that credentials authenticate successfully.",
+  "applies": "Validation and user-facing errors for the selected BigQuery service account JSON key-file option.",
+  "tags": [
+    "bigquery",
+    "key-file",
+    "validation",
+    "error-messages"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+      "symbol": "validate_config",
+      "hash": "sha256:5ba5ab62cc9552c03ea74786",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 28,
+        "refs": 57
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "BigQuerySource.validate_config",
+      "hash": "sha256:1cfd7e7633d1da5064fa0b32",
+      "line": 405,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 28,
+        "refs": 57
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "_KEY_FILE_FIELD_NAMES",
+      "hash": "sha256:25f6c1ceb92d961c5e9f65d0",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "_MISSING_KEY_FILE_ERROR",
+      "hash": "sha256:f802fcdcdd7a35d8b7a68ae3",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "_INCOMPLETE_KEY_FILE_ERROR",
+      "hash": "sha256:3afed29d3d035168f82adb93",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105736"
+  },
+  "created": "2026-10-07T00:12:48.036Z",
+  "verified": "2026-10-07T00:12:48.036Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unused-bigquery-key-file-credentials-must-not-block-source-s",
+    "validate-the-selected-bigquery-credential-in-nested-and-flat"
+  ]
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "grafana",
+    "cohort": "opus",
+    "code": 0,
+    "resumedComplete": true
+  },
+  {
+    "name": "grafana",
+    "cohort": "sol",
+    "code": 0,
+    "resumedComplete": true
+  },
+  {
+    "name": "grafana",
+    "cohort": "gemini",
+    "code": 0,
+    "resumedComplete": true
+  },
+  {
+    "name": "posthog",
+    "cohort": "opus",
+    "code": 0,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:22:00.256Z"
+  },
+  {
+    "name": "posthog",
+    "cohort": "sol",
+    "code": 0,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:23:32.899Z"
+  },
+  {
+    "name": "pandas",
+    "cohort": "opus",
+    "code": 0,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:28:16.780Z"
+  },
+  {
+    "name": "posthog",
+    "cohort": "gemini",
+    "code": 1,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:32:07.023Z"
+  },
+  {
+    "name": "pandas",
+    "cohort": "sol",
+    "code": 0,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:32:29.071Z"
+  },
+  {
+    "name": "sklearn",
+    "cohort": "opus",
+    "code": 0,
+    "signal": null,
+    "finishedAt": "2026-10-07T00:34:26.976Z"
+  }
+]

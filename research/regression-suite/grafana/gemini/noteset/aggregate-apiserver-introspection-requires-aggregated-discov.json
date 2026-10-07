@@ -1,0 +1,68 @@
+{
+  "id": "aggregate-apiserver-introspection-requires-aggregated-discov",
+  "title": "Aggregate apiserver introspection requires aggregated discovery format for CRD groups",
+  "kind": "rule",
+  "answers": [
+    "Why are CRD resources from an aggregate apiextensions apiserver missing during router introspection under /apis?",
+    "How does the router discover API groups from an aggregate apiserver supporting aggregated discovery?",
+    "Why does router aggregate discovery fail to see CRDs on baas_apiserver?"
+  ],
+  "body": "Symptom: Resources and CRD groups served by an aggregate apiextensions apiserver fail to introspect and do not appear under /apis.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups sent discovery requests without an aggregated discovery Accept header, causing targets like baas_apiserver to return only static startup groups and omit dynamic CRDs.\nFix pattern: Request aggregated discovery (apidiscovery.k8s.io) ahead of application/json, check the Content-Type in pkg/router/aggregate_discovery.go:decodeDiscoveryResponse, and decode APIGroupDiscoveryList into classic metav1.APIGroup structures via pkg/router/aggregate_discovery.go:apiGroupDiscoveryListToGroups with fallback to metav1.APIGroupList.\nConstraints: Applies when discovering resources from aggregate apiserver targets that manage dynamic CRDs; does not apply to forward backends which read groups from RouteBackend CRs.",
+  "applies": "pkg/router active discovery of API groups from aggregate apiserver targets",
+  "tags": [
+    "router",
+    "discovery",
+    "apiextensions",
+    "crd",
+    "apidiscovery"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "discoverGroups",
+      "hash": "sha256:76d0e2520fc7ce49bba2e288",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "decodeDiscoveryResponse",
+      "hash": "sha256:541f271a0f43d870ea86a531",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "apiGroupDiscoveryListToGroups",
+      "hash": "sha256:d381faa3e3dd42a191e4f431",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-07T00:04:53.310Z",
+  "verified": "2026-10-07T00:04:53.310Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

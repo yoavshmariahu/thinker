@@ -1,0 +1,43 @@
+{
+  "id": "evict-stale-database-connections-before-async-replay-vision",
+  "title": "Evict stale database connections before async Replay Vision activities",
+  "kind": "rule",
+  "answers": [
+    "Why do observations permanently miss thumbnails after a database connection drops?",
+    "Where should async Replay Vision activities clean up stale Django connections?",
+    "Why does increasing activity retries fail to recover a dead connection?"
+  ],
+  "body": "Symptom: An observation can permanently lack a thumbnail after a database connection drops.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity previously evicted stale connections only before synchronous activities; async ORM work reused a long-lived thread with dead connections.\nFix pattern: In the shared async activity wrapper, await sync_to_async(close_stale_db_connections)() before invoking the activity, so cleanup covers every decorated async activity.\nConstraints: Skip eviction under settings.TEST because it touches Django connections in tests without database access. This addresses stale connections; increasing retries alone does not resolve them, and this is not a strategy for multi-minute database outages.",
+  "applies": "Async Replay Vision activities wrapped by track_activity, especially activities using Django ORM calls.",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "django",
+    "database-connections"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/decorators.py",
+      "symbol": "track_activity",
+      "hash": "sha256:0bfcea6ffcd49e778bd938ac",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 29,
+        "sites": 50,
+        "refs": 80
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:15:19.814Z",
+  "verified": "2026-10-07T00:15:19.814Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

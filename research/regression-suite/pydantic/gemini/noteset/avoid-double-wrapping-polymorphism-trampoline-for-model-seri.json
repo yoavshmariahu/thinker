@@ -1,0 +1,42 @@
+{
+  "id": "avoid-double-wrapping-polymorphism-trampoline-for-model-seri",
+  "title": "Avoid double-wrapping polymorphism trampoline for model serializers",
+  "kind": "rule",
+  "answers": [
+    "Why are model serializers double-wrapped with polymorphism trampoline?",
+    "How to avoid double-wrapping polymorphism trampoline for model serializers?",
+    "Where is maybe_wrap_in_polymorphism_trampoline called in CombinedSerializer?"
+  ],
+  "body": "Symptom: Double-wrapping of the polymorphism trampoline for model serializers.\nRoot cause: pydantic-core/src/serializers/shared.rs:CombinedSerializer wrapped the result of find_serializer in maybe_wrap_in_polymorphism_trampoline.\nFix pattern: Return find_serializer directly without wrapping in maybe_wrap_in_polymorphism_trampoline.\nConstraints: Applies to CombinedSerializer resolution where underlying serializers already manage their own polymorphism trampoline wrapping.",
+  "applies": "CombinedSerializer serializer resolution in pydantic-core",
+  "tags": [
+    "serializers",
+    "polymorphism",
+    "pydantic-core"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13552"
+  },
+  "created": "2026-10-07T00:53:45.611Z",
+  "verified": "2026-10-07T00:53:45.611Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

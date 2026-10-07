@@ -1,0 +1,4025 @@
+[
+  {
+    "id": "posthog-105799",
+    "pr": 105799,
+    "source": "https://github.com/PostHog/posthog/pull/105799",
+    "sha": "4a4c1c500f50ab0c94d5525ddad1660d3f9934b4",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "cohort": "sol",
+    "expect": {
+      "posthog/middleware.py": [
+        1931
+      ],
+      "posthog/test/test_middleware.py": [
+        1094,
+        1127
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "posthog/middleware.py",
+          "status": "M",
+          "added": 0,
+          "removed": 3
+        },
+        {
+          "path": "posthog/test/test_middleware.py",
+          "status": "M",
+          "added": 0,
+          "removed": 3
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 0,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "posthog/middleware.py",
+          "posthog/test/test_middleware.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No supported bug findings. The change removes the workflow endpoint’s allowlist entry and related test cases; the shown code does not establish that this policy change violates an intended contract."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 16909,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "posthog/test/test_middleware.py",
+          "changed": [
+            "TestImpersonationReadOnlyMiddleware"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "1a992411-67fc-4aa1-bed0-0cdaedf20f52",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "5da3aede-aad4-4266-b959-ecacd577ea85",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "1a992411-67fc-4aa1-bed0-0cdaedf20f52",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 16763,
+                "cached_input_tokens": 14336,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 146,
+                "reasoning_output_tokens": 97
+              }
+            ],
+            "tokens": {
+              "inputTokens": 16763,
+              "outputTokens": 146,
+              "cacheReadTokens": 14336,
+              "cacheWriteTokens": null,
+              "totalTokens": 16909
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:20:09.843Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "1a992411-67fc-4aa1-bed0-0cdaedf20f52",
+            "startedAt": "2026-10-07T00:20:01.130Z",
+            "completedAt": "2026-10-07T00:20:09.844Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 16909,
+            "findings": [],
+            "notes": {
+              "consulted": 0,
+              "direct": 0,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "posthog/middleware.py",
+                "posthog/test/test_middleware.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "4c73d798-9f17-40c1-9e31-516a766a3dfc",
+            "t": "2026-10-07T00:20:09.844Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 8718,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "posthog/middleware.py",
+          "status": "M",
+          "added": 0,
+          "removed": 3
+        },
+        {
+          "path": "posthog/test/test_middleware.py",
+          "status": "M",
+          "added": 0,
+          "removed": 3
+        }
+      ],
+      "notes": {
+        "consulted": 2,
+        "direct": 0,
+        "related": 2,
+        "assessed": 2,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "posthog/middleware.py",
+          "posthog/test/test_middleware.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Both notes have verdict violation: the change removes the documented read-only audience exception and its paired workflow regression coverage. Neither note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "posthog/middleware.py",
+          "line": 1932,
+          "message": "Removing the exact audience-sizing POST exception blocks workflow audience counts during read-only impersonation. The deleted comment identifies this action as read-only, supporting the cached rule.",
+          "evidence": "-    # POST but read-only: counts the persons a workflow audience matches. The action is named\n-    # exactly, because the same `hog_flows/` prefix hosts the writing actions (publish, run).\n-    (\"POST\", re.compile(r\"^/api/(environments|projects)/([0-9]+|@current)/hog_flows/user_blast_radius/?$\")),",
+          "confidence": 0.98,
+          "note": "allow-read-only-workflow-audience-posts-by-exact-action",
+          "inChange": false,
+          "notes": [
+            "allow-read-only-workflow-audience-posts-by-exact-action"
+          ],
+          "id": "f-8e64cd6880e144be84a538eb"
+        },
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "posthog/test/test_middleware.py",
+          "line": 1128,
+          "message": "Removing the audience allowlist case and both workflow writing cases eliminates the paired regression coverage required by the note.",
+          "evidence": "-            (\"hog_flows_user_blast_radius\", \"hog_flows/user_blast_radius/\", {}),\n-            (\"hog_flow_publish\", \"hog_flows/00000000-0000-0000-0000-000000000000/publish/\"),\n-            (\"hog_flow_bulk_delete\", \"hog_flows/bulk_delete/\"),",
+          "confidence": 0.99,
+          "note": "test-allowlist-exceptions-alongside-blocked-writing-siblings",
+          "inChange": false,
+          "notes": [
+            "test-allowlist-exceptions-alongside-blocked-writing-siblings"
+          ],
+          "id": "f-9140da4a612c0659c1a53be7"
+        }
+      ],
+      "cost": 0,
+      "tokens": 17488,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "posthog/test/test_middleware.py",
+          "changed": [
+            "TestImpersonationReadOnlyMiddleware"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "test-allowlist-exceptions-alongside-blocked-writing-siblings",
+          "title": "Test allowlist exceptions alongside blocked writing siblings",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105799"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "allow-read-only-workflow-audience-posts-by-exact-action",
+          "title": "Allow read-only workflow audience POSTs by exact action",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105799"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "660dd275-1d62-4165-bb8b-007c2ef446fc",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "18e96fd9-813f-4feb-a70a-32fb88c247bc",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "660dd275-1d62-4165-bb8b-007c2ef446fc",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 16715,
+                "cached_input_tokens": 12288,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 773,
+                "reasoning_output_tokens": 355
+              }
+            ],
+            "tokens": {
+              "inputTokens": 16715,
+              "outputTokens": 773,
+              "cacheReadTokens": 12288,
+              "cacheWriteTokens": null,
+              "totalTokens": 17488
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:20:29.338Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "660dd275-1d62-4165-bb8b-007c2ef446fc",
+            "startedAt": "2026-10-07T00:20:09.860Z",
+            "completedAt": "2026-10-07T00:20:29.352Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 17488,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "posthog/middleware.py",
+                "line": 1932,
+                "message": "Removing the exact audience-sizing POST exception blocks workflow audience counts during read-only impersonation. The deleted comment identifies this action as read-only, supporting the cached rule.",
+                "evidence": "-    # POST but read-only: counts the persons a workflow audience matches. The action is named\n-    # exactly, because the same `hog_flows/` prefix hosts the writing actions (publish, run).\n-    (\"POST\", re.compile(r\"^/api/(environments|projects)/([0-9]+|@current)/hog_flows/user_blast_radius/?$\")),",
+                "confidence": 0.98,
+                "note": "allow-read-only-workflow-audience-posts-by-exact-action",
+                "inChange": false,
+                "notes": [
+                  "allow-read-only-workflow-audience-posts-by-exact-action"
+                ],
+                "id": "f-8e64cd6880e144be84a538eb"
+              },
+              {
+                "severity": "warning",
+                "category": "violation",
+                "file": "posthog/test/test_middleware.py",
+                "line": 1128,
+                "message": "Removing the audience allowlist case and both workflow writing cases eliminates the paired regression coverage required by the note.",
+                "evidence": "-            (\"hog_flows_user_blast_radius\", \"hog_flows/user_blast_radius/\", {}),\n-            (\"hog_flow_publish\", \"hog_flows/00000000-0000-0000-0000-000000000000/publish/\"),\n-            (\"hog_flow_bulk_delete\", \"hog_flows/bulk_delete/\"),",
+                "confidence": 0.99,
+                "note": "test-allowlist-exceptions-alongside-blocked-writing-siblings",
+                "inChange": false,
+                "notes": [
+                  "test-allowlist-exceptions-alongside-blocked-writing-siblings"
+                ],
+                "id": "f-9140da4a612c0659c1a53be7"
+              }
+            ],
+            "notes": {
+              "consulted": 2,
+              "direct": 0,
+              "related": 2,
+              "assessed": 2,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "posthog/middleware.py",
+                "posthog/test/test_middleware.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "2d910e0b-616c-450a-9c0d-15d1f1b7127c",
+            "t": "2026-10-07T00:20:29.352Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 19507,
+      "validModel": true
+    }
+  },
+  {
+    "id": "posthog-105670",
+    "pr": 105670,
+    "source": "https://github.com/PostHog/posthog/pull/105670",
+    "sha": "bfa602e8af3503ec72675782516ffaadae22ccee",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "cohort": "sol",
+    "expect": {
+      "products/product_analytics/backend/presentation/insight.py": [
+        1906
+      ],
+      "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr": [
+        1198,
+        1199
+      ],
+      "products/product_analytics/backend/tests/api/test_insight.py": [
+        1012
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "products/product_analytics/backend/presentation/insight.py",
+          "status": "M",
+          "added": 1,
+          "removed": 4
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr",
+          "status": "M",
+          "added": 2,
+          "removed": 2
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/test_insight.py",
+          "status": "M",
+          "added": 0,
+          "removed": 25
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "One performance regression is supported by the diff's explicit index information."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "products/product_analytics/backend/presentation/insight.py",
+          "line": 1906,
+          "message": "Default insight listing now sorts on an unindexed column, restoring a project-wide scan and sort even for the first page. This regresses the indexed default query and makes listing increasingly expensive as projects grow.",
+          "evidence": "The replacement is `return queryset.order_by(\"order\")`. The removed comment states: '`order` is a vestigial nullable column with no index, so sorting on it forces a full scan and sort of the project. `-last_modified_at` is covered by dashboarditem_team_lmod_idx.' The updated snapshot confirms `ORDER BY \"posthog_dashboarditem\".\"order\" ASC` with `LIMIT 100`.",
+          "confidence": 0.94,
+          "inChange": true,
+          "notes": [],
+          "id": "f-dffb3af0d446420581d61d01"
+        }
+      ],
+      "cost": 0,
+      "tokens": 17590,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "products/product_analytics/backend/presentation/insight.py",
+          "changed": [
+            "InsightViewSet.order_queryset"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/test_insight.py",
+          "changed": [
+            "TestInsight"
+          ],
+          "removed": [
+            "TestInsight.test_list_without_order_sorts_by_last_modified_at_descending"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "61e02abe-dfac-48a7-a35f-fa99a8121d70",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ddbb5b9d-1380-484c-bb01-7b1378440246",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "61e02abe-dfac-48a7-a35f-fa99a8121d70",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 17094,
+                "cached_input_tokens": 12288,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 496,
+                "reasoning_output_tokens": 304
+              }
+            ],
+            "tokens": {
+              "inputTokens": 17094,
+              "outputTokens": 496,
+              "cacheReadTokens": 12288,
+              "cacheWriteTokens": null,
+              "totalTokens": 17590
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:20:48.884Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "61e02abe-dfac-48a7-a35f-fa99a8121d70",
+            "startedAt": "2026-10-07T00:20:29.849Z",
+            "completedAt": "2026-10-07T00:20:48.886Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 17590,
+            "findings": [
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "products/product_analytics/backend/presentation/insight.py",
+                "line": 1906,
+                "message": "Default insight listing now sorts on an unindexed column, restoring a project-wide scan and sort even for the first page. This regresses the indexed default query and makes listing increasingly expensive as projects grow.",
+                "evidence": "The replacement is `return queryset.order_by(\"order\")`. The removed comment states: '`order` is a vestigial nullable column with no index, so sorting on it forces a full scan and sort of the project. `-last_modified_at` is covered by dashboarditem_team_lmod_idx.' The updated snapshot confirms `ORDER BY \"posthog_dashboarditem\".\"order\" ASC` with `LIMIT 100`.",
+                "confidence": 0.94,
+                "inChange": true,
+                "notes": [],
+                "id": "f-dffb3af0d446420581d61d01"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "9b8ce5ef-146c-427f-9afb-be1ee73903ea",
+            "t": "2026-10-07T00:20:48.886Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 19040,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "products/product_analytics/backend/presentation/insight.py",
+          "status": "M",
+          "added": 1,
+          "removed": 4
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr",
+          "status": "M",
+          "added": 2,
+          "removed": 2
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/test_insight.py",
+          "status": "M",
+          "added": 0,
+          "removed": 25
+        }
+      ],
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The insight-ordering note is violated; its search and explicit-order constraints remain respected. The decimal-formatting and stalled-schema notes are unrelated. No note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "products/product_analytics/backend/presentation/insight.py",
+          "line": 1906,
+          "message": "Default insight lists now follow legacy order values instead of descending modification time. This contradicts the supported ordering rule and restores sorting on the column the removed comment identifies as unindexed. Restore order_by(\"-last_modified_at\", \"-pk\").",
+          "evidence": "Changed default: return queryset.order_by(\"order\"). Removed implementation: return queryset.order_by(\"-last_modified_at\", \"-pk\"). Removed comment: \"`order` is a vestigial nullable column with no index, so sorting on it forces a full scan and sort of the project.\" Removed regression assertion: \"the default list order must be newest-modified first, not the vestigial `order` column\".",
+          "confidence": 0.99,
+          "note": "use-indexed-stable-ordering-for-insight-lists-without-an-exp",
+          "inChange": true,
+          "notes": [
+            "use-indexed-stable-ordering-for-insight-lists-without-an-exp"
+          ],
+          "id": "f-3fe65fb8311ceab1ab454c24"
+        }
+      ],
+      "cost": 0,
+      "tokens": 18227,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "products/product_analytics/backend/presentation/insight.py",
+          "changed": [
+            "InsightViewSet.order_queryset"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/product_analytics/backend/tests/api/test_insight.py",
+          "changed": [
+            "TestInsight"
+          ],
+          "removed": [
+            "TestInsight.test_list_without_order_sorts_by_last_modified_at_descending"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "use-indexed-stable-ordering-for-insight-lists-without-an-exp",
+          "title": "Use indexed, stable ordering for insight lists without an explicit order",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105670"
+          },
+          "why": "rests on products/product_analytics/backend/presentation/insight.py:InsightViewSet.order_queryset, products/product_analytics/backend/tests/api/test_insight.py:TestInsight.test_list_without_order_sorts_by_last_modified_at_descending; 29 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "treat-zero-decimal-places-as-an-explicit-formatting-setting",
+          "title": "Treat zero decimal places as an explicit formatting setting",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105690"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "filter-stalled-schemas-in-sql-before-limiting-candidates",
+          "title": "Filter stalled schemas in SQL before limiting candidates",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#104706"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "e58303ad-ca3a-49cf-8529-95bb4e9dc346",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "1beeede2-fd6e-4c96-b621-6d80c13cad69",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "e58303ad-ca3a-49cf-8529-95bb4e9dc346",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 17664,
+                "cached_input_tokens": 12288,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 563,
+                "reasoning_output_tokens": 284
+              }
+            ],
+            "tokens": {
+              "inputTokens": 17664,
+              "outputTokens": 563,
+              "cacheReadTokens": 12288,
+              "cacheWriteTokens": null,
+              "totalTokens": 18227
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:21:06.697Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "e58303ad-ca3a-49cf-8529-95bb4e9dc346",
+            "startedAt": "2026-10-07T00:20:48.900Z",
+            "completedAt": "2026-10-07T00:21:06.699Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 18227,
+            "findings": [
+              {
+                "severity": "warning",
+                "category": "violation",
+                "file": "products/product_analytics/backend/presentation/insight.py",
+                "line": 1906,
+                "message": "Default insight lists now follow legacy order values instead of descending modification time. This contradicts the supported ordering rule and restores sorting on the column the removed comment identifies as unindexed. Restore order_by(\"-last_modified_at\", \"-pk\").",
+                "evidence": "Changed default: return queryset.order_by(\"order\"). Removed implementation: return queryset.order_by(\"-last_modified_at\", \"-pk\"). Removed comment: \"`order` is a vestigial nullable column with no index, so sorting on it forces a full scan and sort of the project.\" Removed regression assertion: \"the default list order must be newest-modified first, not the vestigial `order` column\".",
+                "confidence": 0.99,
+                "note": "use-indexed-stable-ordering-for-insight-lists-without-an-exp",
+                "inChange": true,
+                "notes": [
+                  "use-indexed-stable-ordering-for-insight-lists-without-an-exp"
+                ],
+                "id": "f-3fe65fb8311ceab1ab454c24"
+              }
+            ],
+            "notes": {
+              "consulted": 3,
+              "direct": 1,
+              "related": 2,
+              "assessed": 3,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "139e024a-9dbf-4d4d-a8cf-b46c2864ae2b",
+            "t": "2026-10-07T00:21:06.699Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 17811,
+      "validModel": true
+    }
+  },
+  {
+    "id": "posthog-105737",
+    "pr": 105737,
+    "source": "https://github.com/PostHog/posthog/pull/105737",
+    "sha": "5158cf75d458ffd6d2bcf68b923ddf13ff3b2e4a",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "cohort": "sol",
+    "expect": {
+      "frontend/src/scenes/insights/insightDataLogic.test.ts": [
+        681
+      ],
+      "frontend/src/scenes/insights/insightDataLogic.tsx": [
+        104,
+        105,
+        106
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "frontend/src/scenes/insights/insightDataLogic.test.ts",
+          "status": "M",
+          "added": 1,
+          "removed": 23
+        },
+        {
+          "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+          "status": "M",
+          "added": 3,
+          "removed": 15
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "frontend/src/scenes/insights/insightDataLogic.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The synchronous scene identity note is violated. The BigQuery, chart precision, null parsing, decimal formatting, email merge-tag, and Codex trace-ID notes are unrelated. No note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "frontend/src/scenes/insights/insightDataLogic.tsx",
+          "line": 106,
+          "message": "The editor-instance guard again relies on insightLogicRef, which can lag the synchronous scene identity. When the editor has selected this insight but the ref is absent or stale, the guard returns false and permits display-option autosaves. Preserve the insightId and dashboardId comparison.",
+          "evidence": "Added: insightSceneLogic.findMounted()?.values.insightLogicRef?.logic.key === keyForInsightLogicProps('new')(props). The removed comment states that the ref's rebuilding side effect 'can still be running right after the scene mounts.' The removed regression test used values: { insightId: Insight42, dashboardId: null, insightLogicRef: null } and asserted expect(patchSpy).not.toHaveBeenCalled().",
+          "confidence": 0.98,
+          "note": "use-synchronous-scene-identity-to-prevent-insight-editor-aut",
+          "inChange": true,
+          "notes": [
+            "use-synchronous-scene-identity-to-prevent-insight-editor-aut"
+          ],
+          "id": "f-d46dd961f26fca1a7c098ba9"
+        }
+      ],
+      "cost": 0,
+      "tokens": 18657,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "use-synchronous-scene-identity-to-prevent-insight-editor-aut",
+          "title": "Use synchronous scene identity to prevent insight editor autosaves",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105737"
+          },
+          "why": "rests on frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance; 16 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "bigquery-key-file-completeness-requires-nonempty-values-and",
+          "title": "BigQuery key-file completeness requires nonempty values and upload guidance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105736"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "keep-chart-series-precision-until-display-formatting",
+          "title": "Keep chart series precision until display formatting",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105690"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "apply-show-nulls-as-zero-after-numeric-parsing-fails",
+          "title": "Apply Show nulls as zero after numeric parsing fails",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105690"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "treat-zero-decimal-places-as-an-explicit-formatting-setting",
+          "title": "Treat zero decimal places as an explicit formatting setting",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105690"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-attribute-safe-syntax-for-person-property-email-merge-ta",
+          "title": "Use attribute-safe syntax for person-property email merge tags",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#91352"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "codex-ratings-must-use-the-trace-id-actually-stamped-on-gate",
+          "title": "Codex ratings must use the trace ID actually stamped on gateway requests",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105852"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "3fa2b76c-a879-4969-beca-1e7be61abbf1",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "5e79f82b-71a9-4afb-8862-0a8e3d5cf61c",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "3fa2b76c-a879-4969-beca-1e7be61abbf1",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 18169,
+                "cached_input_tokens": 14336,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 488,
+                "reasoning_output_tokens": 199
+              }
+            ],
+            "tokens": {
+              "inputTokens": 18169,
+              "outputTokens": 488,
+              "cacheReadTokens": 14336,
+              "cacheWriteTokens": null,
+              "totalTokens": 18657
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:21:22.610Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "3fa2b76c-a879-4969-beca-1e7be61abbf1",
+            "startedAt": "2026-10-07T00:21:07.623Z",
+            "completedAt": "2026-10-07T00:21:22.611Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 18657,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "frontend/src/scenes/insights/insightDataLogic.tsx",
+                "line": 106,
+                "message": "The editor-instance guard again relies on insightLogicRef, which can lag the synchronous scene identity. When the editor has selected this insight but the ref is absent or stale, the guard returns false and permits display-option autosaves. Preserve the insightId and dashboardId comparison.",
+                "evidence": "Added: insightSceneLogic.findMounted()?.values.insightLogicRef?.logic.key === keyForInsightLogicProps('new')(props). The removed comment states that the ref's rebuilding side effect 'can still be running right after the scene mounts.' The removed regression test used values: { insightId: Insight42, dashboardId: null, insightLogicRef: null } and asserted expect(patchSpy).not.toHaveBeenCalled().",
+                "confidence": 0.98,
+                "note": "use-synchronous-scene-identity-to-prevent-insight-editor-aut",
+                "inChange": true,
+                "notes": [
+                  "use-synchronous-scene-identity-to-prevent-insight-editor-aut"
+                ],
+                "id": "f-d46dd961f26fca1a7c098ba9"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "frontend/src/scenes/insights/insightDataLogic.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "be85cc8e-4b27-4bd5-8708-aaaf5281363f",
+            "t": "2026-10-07T00:21:22.611Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 14993,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "frontend/src/scenes/insights/insightDataLogic.test.ts",
+          "status": "M",
+          "added": 1,
+          "removed": 23
+        },
+        {
+          "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+          "status": "M",
+          "added": 3,
+          "removed": 15
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "frontend/src/scenes/insights/insightDataLogic.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "One regression: the scene guard now depends on an asynchronously rebuilt reference."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "frontend/src/scenes/insights/insightDataLogic.tsx",
+          "line": 107,
+          "message": "The guard now returns false while insightLogicRef is null or stale during the asynchronous scene rebuild, even when the scene already identifies this insight. This allows persistDisplayOptions to PATCH during the transition that the previous guard and removed test explicitly protected.",
+          "evidence": "The new guard compares `insightSceneLogic.findMounted()?.values.insightLogicRef?.logic.key`. The removed comment states that this ref is rebuilt asynchronously and can be stale while `insightId/dashboardId` are already correct. The removed test mocks `{ insightId: Insight42, dashboardId: null, insightLogicRef: null }` and asserts `expect(patchSpy).not.toHaveBeenCalled()`.",
+          "confidence": 0.97,
+          "inChange": false,
+          "notes": [],
+          "id": "f-7fbbf6eb8b86ea4904ff558c"
+        }
+      ],
+      "cost": 0,
+      "tokens": 16559,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "7d99354e-f130-465f-a3ef-3fbfbd362335",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "9fa90045-5df0-44ed-8a66-3aedbc26db9f",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "7d99354e-f130-465f-a3ef-3fbfbd362335",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 16185,
+                "cached_input_tokens": 12288,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 374,
+                "reasoning_output_tokens": 171
+              }
+            ],
+            "tokens": {
+              "inputTokens": 16185,
+              "outputTokens": 374,
+              "cacheReadTokens": 12288,
+              "cacheWriteTokens": null,
+              "totalTokens": 16559
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:21:35.509Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "7d99354e-f130-465f-a3ef-3fbfbd362335",
+            "startedAt": "2026-10-07T00:21:22.623Z",
+            "completedAt": "2026-10-07T00:21:35.510Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 16559,
+            "findings": [
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "frontend/src/scenes/insights/insightDataLogic.tsx",
+                "line": 107,
+                "message": "The guard now returns false while insightLogicRef is null or stale during the asynchronous scene rebuild, even when the scene already identifies this insight. This allows persistDisplayOptions to PATCH during the transition that the previous guard and removed test explicitly protected.",
+                "evidence": "The new guard compares `insightSceneLogic.findMounted()?.values.insightLogicRef?.logic.key`. The removed comment states that this ref is rebuilt asynchronously and can be stale while `insightId/dashboardId` are already correct. The removed test mocks `{ insightId: Insight42, dashboardId: null, insightLogicRef: null }` and asserts `expect(patchSpy).not.toHaveBeenCalled()`.",
+                "confidence": 0.97,
+                "inChange": false,
+                "notes": [],
+                "id": "f-7fbbf6eb8b86ea4904ff558c"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "frontend/src/scenes/insights/insightDataLogic.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "39ff8360-514a-4e6a-96f9-72daac3135c2",
+            "t": "2026-10-07T00:21:35.510Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 12896,
+      "validModel": true
+    }
+  },
+  {
+    "id": "posthog-96235",
+    "pr": 96235,
+    "source": "https://github.com/PostHog/posthog/pull/96235",
+    "sha": "f18e93bf43e07e0625ce6e6520531aa3ee30621d",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "cohort": "sol",
+    "expect": {
+      "nodejs/src/cdp/cdp-api.serial.test.ts": [
+        2085
+      ],
+      "nodejs/src/cdp/cdp-api.ts": [
+        1266,
+        1275
+      ],
+      "products/workflows/backend/api/test/test_hog_flow_cancel.py": [
+        35,
+        36,
+        8
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "nodejs/src/cdp/cdp-api.serial.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 20
+        },
+        {
+          "path": "nodejs/src/cdp/cdp-api.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 4
+        },
+        {
+          "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+          "status": "M",
+          "added": 2,
+          "removed": 11
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "nodejs/src/cdp/cdp-api.serial.test.ts",
+          "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "Cancellation validation no longer accepts the UUIDT IDs issued by the invocation store, and the tests covering that contract were removed."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "nodejs/src/cdp/cdp-api.ts",
+          "line": 1275,
+          "message": "The UUID validator rejects invocation IDs issued as UUIDTs, causing cancellation by those IDs to return 400 before reaching cancelJobs. Preserve the shape-only validation required by the invocation ID contract.",
+          "evidence": "Changed `.array(z.string().refine((id) => UUID.validateString(id, false), idsMessage))` to `.array(z.string().uuid(idsMessage))`. The removed comment states that invocation IDs are UUIDTs whose version and variant nibbles carry counters and random bytes, so version-aware validation rejects real IDs. The removed test expected 200 for `[new UUIDT().toString(), new UUIDT().toString()]` and asserted those IDs reached `mockCancelJobs`.",
+          "confidence": 0.96,
+          "inChange": true,
+          "notes": [],
+          "id": "f-e3a72a97f7800671ee6661ec"
+        }
+      ],
+      "cost": 0,
+      "tokens": 18129,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-4519ce9782efd3205da2",
+            "file": "nodejs/src/cdp/cdp-api.serial.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "            expect(res.status).toEqual(expectedStatus)\n                expect(mockCancelJobs).toHaveBeenCalledWith(expect.objectContaining({ jobIds: invocationIds }))",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "nodejs/src/cdp/cdp-api.ts",
+          "changed": [
+            "CdpApi"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+          "changed": [
+            "TestHogFlowCancelInvocations.test_cancel_by_ids_proxies_with_team_and_flow_pinned"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "1157fd70-72aa-4ba8-95e6-8ff6ebe487ee",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "825a25b2-f63a-434b-89f2-397f6e21ee2b",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "1157fd70-72aa-4ba8-95e6-8ff6ebe487ee",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 17434,
+                "cached_input_tokens": 12288,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 695,
+                "reasoning_output_tokens": 484
+              }
+            ],
+            "tokens": {
+              "inputTokens": 17434,
+              "outputTokens": 695,
+              "cacheReadTokens": 12288,
+              "cacheWriteTokens": null,
+              "totalTokens": 18129
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:21:55.810Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "1157fd70-72aa-4ba8-95e6-8ff6ebe487ee",
+            "startedAt": "2026-10-07T00:21:36.564Z",
+            "completedAt": "2026-10-07T00:21:55.811Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 18129,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "nodejs/src/cdp/cdp-api.ts",
+                "line": 1275,
+                "message": "The UUID validator rejects invocation IDs issued as UUIDTs, causing cancellation by those IDs to return 400 before reaching cancelJobs. Preserve the shape-only validation required by the invocation ID contract.",
+                "evidence": "Changed `.array(z.string().refine((id) => UUID.validateString(id, false), idsMessage))` to `.array(z.string().uuid(idsMessage))`. The removed comment states that invocation IDs are UUIDTs whose version and variant nibbles carry counters and random bytes, so version-aware validation rejects real IDs. The removed test expected 200 for `[new UUIDT().toString(), new UUIDT().toString()]` and asserted those IDs reached `mockCancelJobs`.",
+                "confidence": 0.96,
+                "inChange": true,
+                "notes": [],
+                "id": "f-e3a72a97f7800671ee6661ec"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "nodejs/src/cdp/cdp-api.serial.test.ts",
+                "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "57cdd7fd-46db-4c08-bb51-c079c667b33d",
+            "t": "2026-10-07T00:21:55.811Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 19250,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "nodejs/src/cdp/cdp-api.serial.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 20
+        },
+        {
+          "path": "nodejs/src/cdp/cdp-api.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 4
+        },
+        {
+          "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+          "status": "M",
+          "added": 2,
+          "removed": 11
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "nodejs/src/cdp/cdp-api.serial.test.ts",
+          "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "workflow-cancellation-must-accept-uuidt-invocation-ids: violation. The other six notes are unrelated to this change. No note is shown to be outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "nodejs/src/cdp/cdp-api.ts",
+          "line": 1275,
+          "message": "Replacing shape-only validation with RFC UUID validation rejects invocation-store UUIDTs, so cancellation by invocation_ids returns 400 and leaves the workflow running. Preserve UUID.validateString(id, false).",
+          "evidence": "The validation changes from `.array(z.string().refine((id) => UUID.validateString(id, false), idsMessage))` to `.array(z.string().uuid(idsMessage))`. The removed test explicitly expected `['ids the invocation store issues', [new UUIDT().toString(), new UUIDT().toString()], 200]`; the removed comment explains that UUIDT version and variant nibbles contain a series counter and random bytes.",
+          "confidence": 0.98,
+          "note": "workflow-cancellation-must-accept-uuidt-invocation-ids",
+          "inChange": true,
+          "notes": [
+            "workflow-cancellation-must-accept-uuidt-invocation-ids"
+          ],
+          "id": "f-4e28842630fa6368c336bffe"
+        }
+      ],
+      "cost": 0,
+      "tokens": 19776,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-4519ce9782efd3205da2",
+            "file": "nodejs/src/cdp/cdp-api.serial.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "            expect(res.status).toEqual(expectedStatus)\n                expect(mockCancelJobs).toHaveBeenCalledWith(expect.objectContaining({ jobIds: invocationIds }))",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "nodejs/src/cdp/cdp-api.ts",
+          "changed": [
+            "CdpApi"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+          "changed": [
+            "TestHogFlowCancelInvocations.test_cancel_by_ids_proxies_with_team_and_flow_pinned"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "workflow-cancellation-must-accept-uuidt-invocation-ids",
+          "title": "Workflow cancellation must accept UUIDT invocation IDs",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#96235"
+          },
+          "why": "rests on nodejs/src/cdp/cdp-api.ts:CdpApi; 6 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "test-allowlist-exceptions-alongside-blocked-writing-siblings",
+          "title": "Test allowlist exceptions alongside blocked writing siblings",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105799"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "enrich-acp-turn-complete-events-before-persistence-and-broad",
+          "title": "Enrich ACP turn-complete events before persistence and broadcast",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105852"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "codex-ratings-must-use-the-trace-id-actually-stamped-on-gate",
+          "title": "Codex ratings must use the trace ID actually stamped on gateway requests",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105852"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-indexed-stable-ordering-for-insight-lists-without-an-exp",
+          "title": "Use indexed, stable ordering for insight lists without an explicit order",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105670"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "allow-read-only-workflow-audience-posts-by-exact-action",
+          "title": "Allow read-only workflow audience POSTs by exact action",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105799"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "use-attribute-safe-syntax-for-person-property-email-merge-ta",
+          "title": "Use attribute-safe syntax for person-property email merge tags",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#91352"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "46195a29-fdbb-4857-87a7-dc4d31519e33",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "d2845185-3307-42c2-9bb9-cefa363dde7d",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "46195a29-fdbb-4857-87a7-dc4d31519e33",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 19159,
+                "cached_input_tokens": 14336,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 617,
+                "reasoning_output_tokens": 385
+              }
+            ],
+            "tokens": {
+              "inputTokens": 19159,
+              "outputTokens": 617,
+              "cacheReadTokens": 14336,
+              "cacheWriteTokens": null,
+              "totalTokens": 19776
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:22:14.378Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "46195a29-fdbb-4857-87a7-dc4d31519e33",
+            "startedAt": "2026-10-07T00:21:55.817Z",
+            "completedAt": "2026-10-07T00:22:14.379Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 19776,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "nodejs/src/cdp/cdp-api.ts",
+                "line": 1275,
+                "message": "Replacing shape-only validation with RFC UUID validation rejects invocation-store UUIDTs, so cancellation by invocation_ids returns 400 and leaves the workflow running. Preserve UUID.validateString(id, false).",
+                "evidence": "The validation changes from `.array(z.string().refine((id) => UUID.validateString(id, false), idsMessage))` to `.array(z.string().uuid(idsMessage))`. The removed test explicitly expected `['ids the invocation store issues', [new UUIDT().toString(), new UUIDT().toString()], 200]`; the removed comment explains that UUIDT version and variant nibbles contain a series counter and random bytes.",
+                "confidence": 0.98,
+                "note": "workflow-cancellation-must-accept-uuidt-invocation-ids",
+                "inChange": true,
+                "notes": [
+                  "workflow-cancellation-must-accept-uuidt-invocation-ids"
+                ],
+                "id": "f-4e28842630fa6368c336bffe"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "nodejs/src/cdp/cdp-api.serial.test.ts",
+                "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "7b0016a7-5f80-45ac-aebc-1e998020a7c7",
+            "t": "2026-10-07T00:22:14.379Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 18567,
+      "validModel": true
+    }
+  },
+  {
+    "id": "posthog-105707",
+    "pr": 105707,
+    "source": "https://github.com/PostHog/posthog/pull/105707",
+    "sha": "4e3c6fae08ebff8160997c936ea11f35588317e4",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "cohort": "sol",
+    "expect": {
+      "products/conversations/backend/temporal/ai_reply/activities/draft.py": [
+        38,
+        45,
+        321,
+        322,
+        323,
+        324,
+        325,
+        326,
+        327,
+        328,
+        329,
+        330,
+        331,
+        337,
+        2,
+        7,
+        20,
+        48,
+        314
+      ],
+      "products/conversations/backend/temporal/ai_reply/constants.py": [
+        42
+      ],
+      "products/conversations/backend/temporal/pipeline.py": [
+        386,
+        36
+      ],
+      "products/conversations/backend/temporal/tests/test_pipeline.py": [
+        20,
+        63,
+        2051,
+        2052,
+        2058,
+        2076,
+        2077,
+        2078,
+        2084,
+        2088,
+        2089,
+        2090,
+        2106,
+        2107,
+        2113,
+        2150,
+        2151,
+        2157,
+        2325,
+        2326,
+        2332,
+        82,
+        1985,
+        2091,
+        2128
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "status": "M",
+          "added": 14,
+          "removed": 101
+        },
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "products/conversations/backend/temporal/pipeline.py",
+          "status": "M",
+          "added": 1,
+          "removed": 2
+        },
+        {
+          "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+          "status": "M",
+          "added": 21,
+          "removed": 93
+        }
+      ],
+      "notes": {
+        "consulted": 9,
+        "direct": 3,
+        "related": 6,
+        "assessed": 9,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "products/conversations/backend/temporal/tests/test_pipeline.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change violates the three support-draft recovery notes. The other six notes are unrelated. No independent evidence establishes an outdated note."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "line": 321,
+          "message": "The change deletes the final-attempt blocked-result fallback and the handlers that invoke it, while retaining two activity attempts. Draft-production failures therefore lose the shown recovery path that lets the workflow record a terminal result; the workflow explicitly documents that unexpected crashes leave triage unfinished.",
+          "evidence": "Deleted `_give_up`: `if llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS: raise DraftNotProducedError(reason)`, followed by `SupportReplyDraft(reply=\"\", citations=[], confidence=0.0, verdict=\"blocked_on_knowledge\", investigation_summary=reason)`. Deleted handlers caught `EmptyAgentTurnError` and `Exception` and invoked `_give_up`. Replacement directly awaits `MultiTurnSession.start(...)`; pipeline retains `RetryPolicy(maximum_attempts=2)`. Workflow documentation: `An empty outcome (unexpected crash) is never marked done.`",
+          "confidence": 0.97,
+          "note": "exhausted-support-draft-retries-must-return-a-blocked-result",
+          "inChange": true,
+          "notes": [
+            "recover-missing-draft-json-and-select-the-last-valid-draft",
+            "exhausted-support-draft-retries-must-return-a-blocked-result"
+          ],
+          "id": "f-65fc1201a8ec1bababf0a394"
+        },
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "line": 330,
+          "message": "The support task now supplies output_schema, directly violating the documented exception requiring raw invocation and local validation. The alleged shared-runner logging failure cannot be independently verified from the supplied code.",
+          "evidence": "The deleted `MultiTurnSession.start_raw(...)` invocation omitted output_schema. The replacement calls `MultiTurnSession.start(...)` with `model=SupportReplyDraft` and `output_schema=anthropic_json_schema(SupportReplyDraft)`.",
+          "confidence": 0.99,
+          "note": "keep-support-draft-recovery-local-and-omit-task-output-schem",
+          "inChange": true,
+          "notes": [
+            "keep-support-draft-recovery-local-and-omit-task-output-schem"
+          ],
+          "id": "f-61fa4a1b1964027e8bef28bc"
+        }
+      ],
+      "cost": 0,
+      "tokens": 24815,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-752738e4bd3e10612504",
+            "file": "products/conversations/backend/temporal/tests/test_pipeline.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "        assert \"Do not end the turn while a tool or search is still running\" in prompt\n        assert (output.reply, output.verdict) == (expected, \"answerable\")\n        assert (output.reply, output.verdict, output.confidence) == (\"\", \"blocked_on_knowledge\", 0.0)\n        assert (output.verdict, output.confidence, output.task_run_id) == (\"blocked_on_knowledge\", 0.0, \"\")",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "changed": [],
+          "removed": [
+            "DraftNotProducedError",
+            "_parse_draft",
+            "_give_up",
+            "_draft_from_session"
+          ]
+        },
+        {
+          "path": "products/conversations/backend/temporal/pipeline.py",
+          "changed": [
+            "SupportReplyWorkflow.run"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+          "changed": [
+            "TestUntrustedTicketGuard.fake_start",
+            "TestUntrustedTicketGuard.test_draft_prompt_requires_plan_and_verdict",
+            "TestUntrustedTicketGuard.test_followup_prompt_forbids_another_question",
+            "TestDiagnosticScopes.fake_start",
+            "TestDiagnosticScopes.test_always_on_context_is_authoritative"
+          ],
+          "removed": [
+            "TestDraftWithoutJson",
+            "TestDraftWithoutJson._draft",
+            "TestDraftWithoutJson._session",
+            "TestDraftWithoutJson.test_uses_the_final_draft_json",
+            "TestDraftWithoutJson.test_no_draft_retries_then_blocks",
+            "TestDraftWithoutJson.test_failed_first_turn_retries_then_blocks"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "recover-missing-draft-json-and-select-the-last-valid-draft",
+          "title": "Recover missing draft JSON and select the last valid draft",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105707"
+          },
+          "why": "rests on products/conversations/backend/temporal/ai_reply/activities/draft.py:_parse_draft, products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_from_session, products/conversations/backend/temporal/ai_reply/activities/draft.py:_DRAFT_NUDGE_POLL_SECONDS, products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow; 46 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "keep-support-draft-recovery-local-and-omit-task-output-schem",
+          "title": "Keep support draft recovery local and omit task output_schema",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105707"
+          },
+          "why": "rests on products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_from_session, products/conversations/backend/temporal/ai_reply/activities/draft.py:_give_up; 33 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "exhausted-support-draft-retries-must-return-a-blocked-result",
+          "title": "Exhausted support draft retries must return a blocked result",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105707"
+          },
+          "why": "rests on products/conversations/backend/temporal/ai_reply/activities/draft.py:_give_up, products/conversations/backend/temporal/ai_reply/constants.py:DRAFT_ACTIVITY_MAX_ATTEMPTS, products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow; 21 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "share-bounded-retries-for-observation-and-thumbnail-state-ac",
+          "title": "Share bounded retries for observation and thumbnail state activities",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105551"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "codex-ratings-must-use-the-trace-id-actually-stamped-on-gate",
+          "title": "Codex ratings must use the trace ID actually stamped on gateway requests",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105852"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "enrich-acp-turn-complete-events-before-persistence-and-broad",
+          "title": "Enrich ACP turn-complete events before persistence and broadcast",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105852"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "unused-bigquery-key-file-credentials-must-not-block-source-s",
+          "title": "Unused BigQuery key-file credentials must not block source setup",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105736"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "evict-stale-database-connections-before-async-replay-vision",
+          "title": "Evict stale database connections before async Replay Vision activities",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105551"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "bigquery-key-file-completeness-requires-nonempty-values-and",
+          "title": "BigQuery key-file completeness requires nonempty values and upload guidance",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "PostHog/posthog#105736"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "99680e43-7e85-42f3-b458-76566ba53536",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "e02390c1-70a9-4b7f-881b-e5975edf6fc0",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "99680e43-7e85-42f3-b458-76566ba53536",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 23220,
+                "cached_input_tokens": 14336,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 1595,
+                "reasoning_output_tokens": 947
+              }
+            ],
+            "tokens": {
+              "inputTokens": 23220,
+              "outputTokens": 1595,
+              "cacheReadTokens": 14336,
+              "cacheWriteTokens": null,
+              "totalTokens": 24815
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:23:06.676Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "99680e43-7e85-42f3-b458-76566ba53536",
+            "startedAt": "2026-10-07T00:22:15.394Z",
+            "completedAt": "2026-10-07T00:23:06.677Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 24815,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+                "line": 321,
+                "message": "The change deletes the final-attempt blocked-result fallback and the handlers that invoke it, while retaining two activity attempts. Draft-production failures therefore lose the shown recovery path that lets the workflow record a terminal result; the workflow explicitly documents that unexpected crashes leave triage unfinished.",
+                "evidence": "Deleted `_give_up`: `if llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS: raise DraftNotProducedError(reason)`, followed by `SupportReplyDraft(reply=\"\", citations=[], confidence=0.0, verdict=\"blocked_on_knowledge\", investigation_summary=reason)`. Deleted handlers caught `EmptyAgentTurnError` and `Exception` and invoked `_give_up`. Replacement directly awaits `MultiTurnSession.start(...)`; pipeline retains `RetryPolicy(maximum_attempts=2)`. Workflow documentation: `An empty outcome (unexpected crash) is never marked done.`",
+                "confidence": 0.97,
+                "note": "exhausted-support-draft-retries-must-return-a-blocked-result",
+                "inChange": true,
+                "notes": [
+                  "recover-missing-draft-json-and-select-the-last-valid-draft",
+                  "exhausted-support-draft-retries-must-return-a-blocked-result"
+                ],
+                "id": "f-65fc1201a8ec1bababf0a394"
+              },
+              {
+                "severity": "warning",
+                "category": "violation",
+                "file": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+                "line": 330,
+                "message": "The support task now supplies output_schema, directly violating the documented exception requiring raw invocation and local validation. The alleged shared-runner logging failure cannot be independently verified from the supplied code.",
+                "evidence": "The deleted `MultiTurnSession.start_raw(...)` invocation omitted output_schema. The replacement calls `MultiTurnSession.start(...)` with `model=SupportReplyDraft` and `output_schema=anthropic_json_schema(SupportReplyDraft)`.",
+                "confidence": 0.99,
+                "note": "keep-support-draft-recovery-local-and-omit-task-output-schem",
+                "inChange": true,
+                "notes": [
+                  "keep-support-draft-recovery-local-and-omit-task-output-schem"
+                ],
+                "id": "f-61fa4a1b1964027e8bef28bc"
+              }
+            ],
+            "notes": {
+              "consulted": 9,
+              "direct": 3,
+              "related": 6,
+              "assessed": 9,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "products/conversations/backend/temporal/tests/test_pipeline.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "9134f5bd-83db-43b1-b61e-8b8afd478215",
+            "t": "2026-10-07T00:23:06.678Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 51287,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "status": "M",
+          "added": 14,
+          "removed": 101
+        },
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "products/conversations/backend/temporal/pipeline.py",
+          "status": "M",
+          "added": 1,
+          "removed": 2
+        },
+        {
+          "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+          "status": "M",
+          "added": 21,
+          "removed": 93
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 3,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "products/conversations/backend/temporal/tests/test_pipeline.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No bugs are supported by the code shown. The draft implementation and removed constant definitions are not shown, so their correctness cannot be assessed."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 20221,
+      "model": "gpt-6.1-sol",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-752738e4bd3e10612504",
+            "file": "products/conversations/backend/temporal/tests/test_pipeline.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "        assert \"Do not end the turn while a tool or search is still running\" in prompt\n        assert (output.reply, output.verdict) == (expected, \"answerable\")\n        assert (output.reply, output.verdict, output.confidence) == (\"\", \"blocked_on_knowledge\", 0.0)\n        assert (output.verdict, output.confidence, output.task_run_id) == (\"blocked_on_knowledge\", 0.0, \"\")",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+          "changed": [],
+          "removed": [
+            "DraftNotProducedError",
+            "_parse_draft",
+            "_give_up",
+            "_draft_from_session"
+          ]
+        },
+        {
+          "path": "products/conversations/backend/temporal/pipeline.py",
+          "changed": [
+            "SupportReplyWorkflow.run"
+          ],
+          "removed": []
+        },
+        {
+          "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+          "changed": [
+            "TestUntrustedTicketGuard.fake_start",
+            "TestUntrustedTicketGuard.test_draft_prompt_requires_plan_and_verdict",
+            "TestUntrustedTicketGuard.test_followup_prompt_forbids_another_question",
+            "TestDiagnosticScopes.fake_start",
+            "TestDiagnosticScopes.test_always_on_context_is_authoritative"
+          ],
+          "removed": [
+            "TestDraftWithoutJson",
+            "TestDraftWithoutJson._draft",
+            "TestDraftWithoutJson._session",
+            "TestDraftWithoutJson.test_uses_the_final_draft_json",
+            "TestDraftWithoutJson.test_no_draft_retries_then_blocks",
+            "TestDraftWithoutJson.test_failed_first_turn_retries_then_blocks"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "f771198d-2712-483d-a3a3-abd0780c7524",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "8545fcb2-2f2f-4131-9f51-deb2dbc1870c",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "f771198d-2712-483d-a3a3-abd0780c7524",
+            "provider": "codex",
+            "model": "gpt-6.1-sol",
+            "usage": [
+              {
+                "input_tokens": 20130,
+                "cached_input_tokens": 14336,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 91,
+                "reasoning_output_tokens": 50
+              }
+            ],
+            "tokens": {
+              "inputTokens": 20130,
+              "outputTokens": 91,
+              "cacheReadTokens": 14336,
+              "cacheWriteTokens": null,
+              "totalTokens": 20221
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:23:27.767Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          },
+          {
+            "op": "impact-review",
+            "runId": "f771198d-2712-483d-a3a3-abd0780c7524",
+            "startedAt": "2026-10-07T00:23:06.695Z",
+            "completedAt": "2026-10-07T00:23:27.767Z",
+            "head": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+            "branch": null,
+            "scope": {
+              "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gpt-6.1-sol",
+            "tokens": 20221,
+            "findings": [],
+            "notes": {
+              "consulted": 0,
+              "direct": 3,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "products/conversations/backend/temporal/tests/test_pipeline.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "89bfb0c0-b7de-4157-9621-182e2b6aa12d",
+            "t": "2026-10-07T00:23:27.767Z",
+            "origin": "github.com/posthog/posthog",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/posthog-sol"
+          }
+        ]
+      },
+      "elapsedMs": 21088,
+      "validModel": true
+    }
+  }
+]

@@ -1,0 +1,73 @@
+{
+  "id": "date-axis-locators-converters-must-be-installed-before-adorn",
+  "title": "Date axis locators/converters must be installed before _adorn_subplots (bar subplots showing date labels on every subplot)",
+  "kind": "rule",
+  "answers": [
+    "df.plot(kind='bar', subplots=True) with a DatetimeIndex shows date tick labels on every subplot, not just the bottom one",
+    "where should BarPlot call format_dateaxis",
+    "why are sharex tick labels reappearing on the upper subplots",
+    "order of _make_plot, _adorn_subplots and _post_plot_logic in pandas plotting"
+  ],
+  "body": "Symptom: bar subplots (kind='bar', subplots=True) on a regular-frequency DatetimeIndex/PeriodIndex drew minor date tick labels on the upper subplots too. Line plots hid them as expected.\nRoot cause: BarPlot._post_plot_logic called format_dateaxis. MPLPlot runs _make_plot, then _adorn_subplots (which hides the shared-x labels of non-bottom axes and maps user xticks through the axis converter), then _post_plot_logic. Locators installed in that last step redrew the labels that had been hidden.\nFix pattern: install the axis freq, the period converter and the date locators in pandas/plotting/_matplotlib/core.py:BarPlot._setup_date_axis, which is called from _make_plot. LinePlot calls format_dateaxis at the same point. Convert the index with maybe_convert_index first, and pass anchor=int(self.tick_pos[0]) so the locator grid lands on the bar ordinals.\nConstraints: anything that changes the x-axis converter, locators or formatters must run before _adorn_subplots. Only work that has to come after it belongs in _post_plot_logic: set_xlim, user xticks, and re-applying rot/fontsize.",
+  "applies": "pandas/plotting/_matplotlib core.py plot classes that set up date/period x-axes (BarPlot, LinePlot)",
+  "tags": [
+    "plotting",
+    "matplotlib",
+    "bar-plot",
+    "datetime-axis",
+    "subplots",
+    "sharex",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._setup_date_axis",
+      "hash": "sha256:454a625ce6be37c9d292e40b",
+      "line": 2206,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._post_plot_logic",
+      "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+      "line": 2237,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/plotting/test_datetimelike.py",
+      "symbol": "TestTSPlot.test_bar_plot_date_axis_subplots_sharex",
+      "hash": "sha256:f14191936b7c464c12357d5d",
+      "line": 2098,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70228"
+  },
+  "created": "2026-10-07T00:24:18.325Z",
+  "verified": "2026-10-07T00:24:18.325Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "barplot-must-re-apply-rot-fontsize-after-set-xlim-on-dynamic"
+  ]
+}

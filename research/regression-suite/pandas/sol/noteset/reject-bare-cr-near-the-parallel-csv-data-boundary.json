@@ -1,0 +1,71 @@
+{
+  "id": "reject-bare-cr-near-the-parallel-csv-data-boundary",
+  "title": "Reject bare CR near the parallel CSV data boundary",
+  "kind": "rule",
+  "answers": [
+    "Why does read_csv silently drop the first data row?",
+    "Why does parallel CSV reading add a junk first row after a quoted multiline header?",
+    "When should bare carriage returns trigger serial CSV fallback?"
+  ],
+  "body": "Symptom: Parallel read_csv silently drops the first data row or adds a junk first row when a bare CR occurs before the data boundary.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks uses an LF-based data-start offset, but the tokenizer also ends lines at bare CR; the row-count check can miss the mismatch with blank lines or quoted multiline headers.\nFix pattern: Before trusting the boundary, inspect the preamble plus first data line, remove CRLF pairs, and return None from _read_csv_chunks if any CR remains so reading falls back to serial.\nConstraints: Apply this guard to the parallel path's preamble and first data line, including skipped rows; preserve CRLF eligibility. This guard does not validate line endings throughout the remaining file.",
+  "applies": "Parallel read_csv chunk-boundary validation for large local files, including headers, skipped rows, and the first data line.",
+  "tags": [
+    "read_csv",
+    "parallel-parsing",
+    "line-endings",
+    "serial-fallback"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_bare_cr_before_data_matches_serial",
+      "hash": "sha256:3c01f488ddc9ffb366d7677f",
+      "line": 1069,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "TestReadCsvParallel.test_bare_cr_before_data_returns_none",
+      "hash": "sha256:d04175efd696d0714a7e0ed1",
+      "line": 688,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70403"
+  },
+  "created": "2026-10-07T00:26:50.908Z",
+  "verified": "2026-10-07T00:26:50.908Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "chunk-read-failures-defer-to-serial-csv-parsing",
+    "parallel-csv-success-tests-must-prove-the-parallel-path-ran",
+    "csv-warnings-must-survive-failures-without-duplication"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "validate-public-wildcard-imports-in-a-fresh-interpreter",
+  "title": "Validate public wildcard imports in a fresh interpreter",
+  "kind": "rule",
+  "answers": [
+    "Why can import consistency tests miss a broken wildcard import?",
+    "How do we test public imports without accidentally enabling experimental estimators?",
+    "Where is the regression check for star-importing public sklearn modules?"
+  ],
+  "body": "sklearn/tests/test_common.py:test_wildcard_import_for_public_modules validates wildcard imports in a fresh interpreter because test_common itself enables halving search, which can hide import failures in the test process.\nIt enumerates top-level modules with pkgutil.iter_modules, excluding underscore-prefixed names, tests and conftest, and executes their wildcard imports through assert_run_python_script_without_output.\nThe subprocess also asserts that no sklearn.experimental.* modules entered sys.modules: public wildcard imports must not implicitly activate experimental features.\nThe test is marked xfail on _IS_WASM because that environment cannot start a subprocess.",
+  "applies": "Regression coverage for public module exports and experimental import side effects.",
+  "tags": [
+    "testing",
+    "imports",
+    "experimental",
+    "subprocess"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/tests/test_common.py",
+      "symbol": "test_wildcard_import_for_public_modules",
+      "hash": "sha256:14907364e4101acd3c592992",
+      "line": 166,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35042"
+  },
+  "created": "2026-10-07T00:32:47.998Z",
+  "verified": "2026-10-07T00:32:47.998Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

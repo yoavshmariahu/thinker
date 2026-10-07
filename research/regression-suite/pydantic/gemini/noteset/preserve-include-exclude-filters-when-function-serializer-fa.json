@@ -1,0 +1,48 @@
+{
+  "id": "preserve-include-exclude-filters-when-function-serializer-fa",
+  "title": "Preserve include/exclude filters when function serializer falls back",
+  "kind": "rule",
+  "answers": [
+    "Why does model_dump(include=...) or model_dump(exclude=...) not work with model_serializer(when_used='json')?",
+    "How to prevent include and exclude from being dropped when a custom serializer falls back?",
+    "model_dump ignores exclude or include parameters when when_used condition is not met"
+  ],
+  "body": "Symptom: Calling model_dump() with include or exclude ignores the filters when a model has a model_serializer configured with when_used='json'.\nRoot cause: pydantic-core/src/serializers/type_serializers/function.rs:function_type_serializer cleared include/exclude unconditionally, dropping user filters even when the serializer was skipped and fallback was called.\nFix pattern: Check whether the serializer function executed or fell back; clear include/exclude only when the function executed, and preserve state.include_exclude() on fallback.\nConstraints: Applies to function serializers with fallback logic; when the custom function actually executes, include/exclude must still be cleared because the function handles its own filtering.",
+  "applies": "Function-based serializers in pydantic-core with fallback serializers such as when_used conditions.",
+  "tags": [
+    "pydantic-core",
+    "serialization",
+    "model_serializer",
+    "include-exclude"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+      "symbol": "when_used",
+      "hash": "sha256:5b85076a6c7f9bbcf3b8a7cf",
+      "line": 122,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/extra.rs",
+      "hash": "sha256:aa86bf3d9d59c35b63b2165f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13702"
+  },
+  "created": "2026-10-07T00:51:39.874Z",
+  "verified": "2026-10-07T00:51:39.874Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

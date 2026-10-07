@@ -1,0 +1,147 @@
+[
+  {
+    "id": "pandas-70631",
+    "baselineMatches": [
+      0,
+      1
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify RangeIndex/non-interval ExtensionArray inputs reaching the ndarray-only Cython interval conversion without coercion, producing TypeError. Test-only coverage findings are excluded."
+  },
+  {
+    "id": "pandas-70493",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify mixed-array astype(str) decoding non-ASCII bytes as ASCII and raising UnicodeDecodeError. The focused probe independently reproduces the failure."
+  },
+  {
+    "id": "pandas-69026",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify the narrow object/string dtype allowlist silently bypassing compiled regex replacement on Arrow string and categorical Arrow string columns."
+  },
+  {
+    "id": "pandas-70405",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify loss of encoding_errors propagation through the text-to-bytes wrapper, restoring strict UnicodeEncodeError despite replace/ignore requests."
+  },
+  {
+    "id": "pandas-70300",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removed Arrow boxing/is_in exception fallback causing isin to raise for mixed-type or out-of-range candidate values instead of returning membership results."
+  },
+  {
+    "id": "pandas-70404",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies chunk-worker read exceptions escaping fut.result rather than forcing serial fallback, the mechanism behind the quoted-newline boundary failure."
+  },
+  {
+    "id": "pandas-70515",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies bypassed dtype reconstruction in the masked mode return path, causing nullable-boolean mode(dropna=False) failure."
+  },
+  {
+    "id": "pandas-69445",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removal of final frequency restoration after intermediate unions/sorting, producing order-dependent loss of CustomBusinessDay frequency."
+  },
+  {
+    "id": "pandas-70403",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removal of the bare-CR guard allowing readline/tokenizer boundary disagreement to silently drop a data row or insert a junk row."
+  },
+  {
+    "id": "pandas-70228",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify date locators installed after shared-axis label hiding, redrawing labels on inner bar subplots. The generic broken-reference finding for drawn is unrelated and excluded."
+  },
+  {
+    "id": "pandas-70526",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removal of NaN remasking after Normalize, causing missing values to receive the lowest colormap color when vmin equals vmax."
+  },
+  {
+    "id": "pandas-69446",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify missing allow_fill=True making MultiIndex code -1 wrap to the last level value during Excel export. The focused probe reproduces the difference using pinned upstream Index.take semantics."
+  },
+  {
+    "id": "pandas-69961",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify OpenpyxlWriter accepting date_format/datetime_format but omitting them from the superclass call, silently ignoring custom formats."
+  },
+  {
+    "id": "pandas-68929",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached finding 0's additional production location identifies the restored unconditional _maybe_align_series_as_frame call and need to keep clip bounds 1D; that is the targeted broadcasting mechanism that degrades extension dtype to object. Its main axis=None exception warning is secondary and is not the basis of the hit."
+  },
+  {
+    "id": "pandas-68637",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify len(other) evaluated before the hashability guard, raising TypeError for hashable iterators without __len__ during Categorical comparison."
+  }
+]

@@ -1,0 +1,57 @@
+{
+  "id": "treat-zero-decimal-places-as-an-explicit-formatting-setting",
+  "title": "Treat zero decimal places as an explicit formatting setting",
+  "kind": "rule",
+  "answers": [
+    "Why does Decimal places set to 0 still show fractions in a SQL Big number?",
+    "How should table formatting distinguish zero decimal places from an unset value?",
+    "Should Short style honor a retained decimal places setting?"
+  ],
+  "body": "Symptom: A SQL insight Big number or table cell displays fractions under style None even when Decimal places is 0.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and dataVisualizationLogic (tabularData selector) used truthiness checks that skipped zero.\nFix pattern: Check decimalPlaces != null before applying configured rounding; the table selector must bypass this rounding under Short style.\nConstraints: Zero is a valid setting. Unset decimal places must preserve full precision in formatDataWithSettings; Short style ignores retained decimal places and uses its own formatting.",
+  "applies": "SQL insight numeric display formatting in Big numbers and table cells.",
+  "tags": [
+    "sql-insights",
+    "decimal-places",
+    "table-formatting"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:18:24.716Z",
+  "verified": "2026-10-07T00:18:24.716Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-chart-series-precision-until-display-formatting",
+    "apply-show-nulls-as-zero-after-numeric-parsing-fails"
+  ]
+}

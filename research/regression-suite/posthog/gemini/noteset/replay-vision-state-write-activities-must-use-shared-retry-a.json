@@ -1,0 +1,55 @@
+{
+  "id": "replay-vision-state-write-activities-must-use-shared-retry-a",
+  "title": "Replay Vision state write activities must use shared retry and timeout constants",
+  "kind": "rule",
+  "answers": [
+    "What retry policy should Replay Vision Postgres state-write activities use?",
+    "How to configure retry and timeout policies for observation media workflow activities?",
+    "Where are state activity retry policies defined in Replay Vision Temporal workflows?"
+  ],
+  "body": "Postgres state-transition activities across Replay Vision workflows must use centralized retry and timeout constants.\nWhere enforced: products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_RETRY and products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_SCHEDULE_TO_CLOSE.\nShort state writes (such as observation status updates and thumbnail preparation/finalization) must use STATE_ACTIVITY_RETRY (5 attempts with exponential backoff) and STATE_ACTIVITY_SCHEDULE_TO_CLOSE (3-minute ceiling).\nWhat breaks if skipped: Shorter ad-hoc retry policies (e.g. 3 attempts in ~3s) permanently drop operations during transient DB connection resets, while unconstrained retry chains can exceed workflow execution timeouts.",
+  "applies": "Postgres state-write activities in Replay Vision Temporal workflows",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "retry-policy",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_RETRY",
+      "hash": "sha256:3ce24d24e502eaa232f558e6",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_SCHEDULE_TO_CLOSE",
+      "hash": "sha256:12e576072f73358e589cdf36",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:20:43.275Z",
+  "verified": "2026-10-07T00:20:43.275Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

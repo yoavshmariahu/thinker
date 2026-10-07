@@ -1,0 +1,52 @@
+{
+  "id": "mutabledataframe-must-accept-writes-to-its-derived-length-du",
+  "title": "MutableDataFrame must accept writes to its derived length during object copying",
+  "kind": "rule",
+  "answers": [
+    "Why does Explore’s raw Prometheus view crash with multiple instant queries?",
+    "Why does cloneDeep(props.data) throw in a plugin under an ESM build?",
+    "Why does MutableDataFrame have an empty length setter?",
+    "Can RawListContainer use the supplied tableResult directly?"
+  ],
+  "body": "Symptom: Explore’s raw Prometheus view with two or more instant queries, or a plugin cloning its data, can throw “Cannot set property length … which has only a getter” under strict ESM builds.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame.length was getter-only; generic copiers recreate the prototype and assign properties, including length. public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer unnecessarily deep-cloned the merged frame.\nFix pattern: Keep a no-op setter for the derived length so generic copiers can assign it without throwing; read-only consumers such as RawListContainer can use the supplied frame directly.\nConstraints: Length remains derived from the first field, so assigning it must not resize the frame or override the getter’s value. Direct frame reuse applies to consumers that only read it; consumers that mutate data need a separate ownership decision.",
+  "applies": "Changes to MutableDataFrame’s length accessor, generic frame copying, or Explore’s read-only raw Prometheus list.",
+  "tags": [
+    "dataframes",
+    "strict-mode",
+    "cloning",
+    "explore",
+    "prometheus"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+      "symbol": "MutableDataFrame.length",
+      "hash": "sha256:43ad0430d0b0e4f460c6fd75",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+      "symbol": "RawListContainer",
+      "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-07T00:05:03.674Z",
+  "verified": "2026-10-07T00:05:03.674Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

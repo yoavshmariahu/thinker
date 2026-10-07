@@ -1,0 +1,18 @@
+{
+  "allow-64-bit-sparse-array-indices-in-spectralembedding-with.json": "37ed8327f67dcb550c584b654a6d83e47de12da235f20a0ea96094d168c208cc",
+  "avoid-division-by-zero-on-line-search-step-stagnation-in-new.json": "dd9c0b70167c33547e977a2b919de2370650432d462a1cff5d18121e19758d03",
+  "check-sorted-weights-instead-of-original-sample-weights-duri.json": "0a5b76a60d836dc8434d551bcb0ff15edfd151a8bc2db32edce6f1f27bfbc914",
+  "converting-non-ndarray-array-likes-before-cross-namespace-ar.json": "eeb264d9ddf996504fe3056c9d821f6604ac8b67b77b38d13777d99f7b0b3fd5",
+  "default-transform-input-to-x-val-in-pipeline-and-make-pipeli.json": "b33aa646b8b039bd48d3bf162a1441313e3f19f0b96d69cfdbc0410f2273f269",
+  "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce.json": "712f5261301650a3e1500edbf7440aa55efb2e5d864eb83f11277a57fd4f8e1d",
+  "freeze-progressbar-timer-using-task-finished-time-on-complet.json": "85db36a7cc600c034abf6162a9fd38348375877e6462e3dabc0fba64e63be8bb",
+  "keep-experimental-estimators-out-of-module-all-to-prevent-wi.json": "a2320e3d1b06d050cddcb0d7c2d53bccd8c9246017ddff36e5e2aaa75a655b4e",
+  "mixed-device-and-string-label-array-api-handling-in-lineardi.json": "8d672e4b2256cd15c9c1258f8368882745b1890c24a9f8a3a902ef9471011450",
+  "order-move-to-before-dtype-validation-for-mixed-array-api-in.json": "f028fa944dba303c0475b3cab56089e3755201b8d453745ca5e9818f3d2d15db",
+  "preserve-native-dataframe-and-series-container-types-in-inde.json": "d1eb7eb065bd8cbc71b597614904bf0cd533c9281cac93171fe4cb8e74c9c2ef",
+  "route-metadata-kwargs-to-matching-sub-estimator-method-in-ba.json": "aeb2f24614f8f1f737f6c53f36190daaa75eaf4e65e12bac9c38d5872970f667",
+  "target-pre-encoding-invariant-for-lineardiscriminantanalysis.json": "d85b69c7fc56955e6f9ba42fc3c3b029843b1c2dffb08f2b4243e3bb354024fd",
+  "unwrap-bound-callback-hooks-before-caching-signatures-to-pre.json": "89cfb93f51792d1f3703625adcc56d94e3cfeeeb03876574d732a5f30a1984ab",
+  "unwrap-narwhals-dataframes-to-native-pandas-before-checking.json": "5ee4d0776ac0fe96c272abff5b5117d95567afb5ca9b61509b1e1d3254fd379b",
+  "validate-finite-values-in-selectormixin-transform-for-pandas.json": "63ada8e28098c8159059af911e6d030722302fb7da052c078b35160399424488"
+}

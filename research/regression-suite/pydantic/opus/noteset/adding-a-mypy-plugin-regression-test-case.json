@@ -1,0 +1,57 @@
+{
+  "id": "adding-a-mypy-plugin-regression-test-case",
+  "title": "Adding a mypy plugin regression test case",
+  "kind": "howto",
+  "answers": [
+    "how to add a test for the pydantic mypy plugin",
+    "where do expected mypy outputs live",
+    "test a multi-module import cycle with mypy plugin"
+  ],
+  "body": "1. Put the test module in tests/mypy/modules/<name>.py. Helper modules can sit next to it and be imported relatively (e.g. import_cycle_base.py imported via `from .import_cycle_base import Base`).\n2. Register the case as a `('<config>.ini', '<name>.py')` tuple in the `cases` list in tests/mypy/test_mypy.py.\n3. Expected output goes in tests/mypy/outputs/<config with '.' replaced by '_'>/<name>.py (e.g. outputs/mypy-plugin_ini/). It is the source file with `# MYPY: error: ...  [code]` comments placed after the offending line.\n4. Intentional typos in test code (e.g. kwarg `nam`) trip codespell. Add them to `ignore-words-list` under the codespell config in pyproject.toml.",
+  "applies": "tests/mypy test suite for pydantic/mypy.py",
+  "tags": [
+    "mypy-plugin",
+    "testing",
+    "codespell"
+  ],
+  "deps": [
+    {
+      "path": "tests/mypy/test_mypy.py",
+      "hash": "sha256:ca958a207d71e8655bf2f7a1",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:49e8264b75946f2ed2761c7f",
+      "missing": false
+    },
+    {
+      "path": "tests/mypy/outputs/mypy-plugin_ini/import_cycle.py",
+      "hash": "sha256:2c16cbc6748a0513eeb0c559",
+      "missing": false
+    },
+    {
+      "path": "tests/mypy/modules/import_cycle_base.py",
+      "symbol": "Base",
+      "hash": "sha256:f96d66a99f33ae5afb838590",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 3,
+        "refs": 69
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13767"
+  },
+  "created": "2026-10-07T00:36:04.411Z",
+  "verified": "2026-10-07T00:36:04.411Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

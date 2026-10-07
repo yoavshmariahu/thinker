@@ -1,0 +1,43 @@
+{
+  "id": "report-overflowing-bytesize-strings-as-validation-errors",
+  "title": "Report overflowing ByteSize strings as validation errors",
+  "kind": "rule",
+  "answers": [
+    "Why does a very large byte-size string raise OverflowError?",
+    "How should ByteSize handle oversized values such as a 310-digit number followed by KB?",
+    "How do I preserve ByteSize validation errors when changing unit conversion?"
+  ],
+  "body": "Symptom: Validating an extremely large byte-size string raises OverflowError instead of ValidationError.\nRoot cause: pydantic/types.py:ByteSize converts the numeric string to float, multiplies by the unit multiplier, and converts to int; this conversion can overflow.\nFix pattern: Catch OverflowError around the scaled numeric conversion and raise PydanticCustomError with code 'byte_size' and message 'could not parse value and unit from byte string'.\nConstraints: This handling applies to overflow during numeric conversion with a recognized unit; unsupported units retain the separate 'byte_size_unit' error.",
+  "applies": "ByteSize validation of numeric strings with byte units, especially values large enough to overflow float-to-int conversion.",
+  "tags": [
+    "validation",
+    "bytesize",
+    "overflow",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "ByteSize",
+      "hash": "sha256:9a9dc2a562815452915c3854",
+      "line": 2070,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 1,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13850"
+  },
+  "created": "2026-10-07T00:41:11.214Z",
+  "verified": "2026-10-07T00:41:11.214Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

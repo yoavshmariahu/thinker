@@ -1,0 +1,71 @@
+{
+  "id": "support-draft-uses-start-raw-without-output-schema-and-parse",
+  "title": "Support draft uses start_raw without output_schema and parses the last valid JSON object",
+  "kind": "rule",
+  "answers": [
+    "why does the support draft not use output_schema",
+    "draft poll fails with no agent message",
+    "AI reply used example JSON instead of the real answer",
+    "where is the support draft JSON parsed"
+  ],
+  "body": "The draft call in draft.py:_draft_async uses MultiTurnSession.start_raw and does not pass output_schema. With a schema set, storing the output completes the task run before an agent message reaches the log, so the poll fails with \"no agent message\". Do not restore output_schema on this call. A Greptile request to restore it was declined for this reason. The five one-shot model calls still keep their JSON schemas.\nParsing happens in draft.py:_parse_draft. It scans every '{' with json.JSONDecoder.raw_decode and returns the LAST dict that validates as SupportReplyDraft, so example or ticket JSON earlier in the text is skipped. The 0–1 confidence coercion (from #105049) still guards bad scores.\nIf the first turn has no draft, draft.py:_draft_from_session sends one follow-up (_DRAFT_JSON_NUDGE) through send_followup_raw with max_poll_seconds=_DRAFT_NUDGE_POLL_SECONDS (90). The first poll plus the nudge polls must fit inside the activity's 20-minute start_to_close_timeout. EmptyAgentTurnError from start_raw means the run is already ended, so there is nothing to nudge.\nConvention: keep nudge and salvage logic in products/conversations. Do not change the shared products/tasks runner, because that would change runner behavior for other callers.",
+  "applies": "Support reply draft agent call and its output parsing in products/conversations",
+  "tags": [
+    "conversations",
+    "multi-turn-session",
+    "output-schema",
+    "json-parsing",
+    "tasks"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_parse_draft",
+      "hash": "sha256:78a03c99859f120b00671770",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_from_session",
+      "hash": "sha256:4a73c2839f265c623658cb84",
+      "line": 110,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:18:18.575Z",
+  "verified": "2026-10-07T00:18:18.575Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "support-draft-activity-must-return-a-blocked-draft-on-its-la"
+  ]
+}

@@ -1,0 +1,4239 @@
+[
+  {
+    "id": "grafana-132418",
+    "pr": 132418,
+    "source": "https://github.com/grafana/grafana/pull/132418",
+    "sha": "a28ada17ad879a24aafe451b947bf1c12faa832d",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "claude-opus-5-5",
+    "reasoningEffort": "high",
+    "cohort": "opus",
+    "expect": {
+      "packages/grafana-data/src/field/fieldOverrides.test.ts": [
+        352
+      ],
+      "packages/grafana-data/src/field/fieldOverrides.ts": [
+        290,
+        292,
+        287
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 52
+        },
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 8
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "This change brings back a known bug: panel config gets written into the query's shared data. `applyFieldOverrides` now merges the panel's field config straight into the field objects inside nested frames, and those objects come from the source query. Before, it copied each field and its config first. Without the copy, one panel's settings leak into data that other panels and the query runner also read. The change also deletes the regression test that checked the input frames stay untouched, so nothing will catch the leak."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "line": 290,
+          "message": "Nested frames are now changed in place. `defaultsDeep` writes this panel's resolved field config straight into `valueField.config`, and `newValues[idx]` holds the original `nestedFrame` object. The removed comment and test explain why that's a problem: nested frames, such as the sparkline frames built by the \"Time series to table\" transformation, use the source query's own field objects. So this panel's config (unit, displayName, overrides) leaks into data that other panels and the query runner still read. Because `defaultsDeep` only fills undefined keys, the first panel to run also locks in its values for later panels. It's also inconsistent with the top level of the same function, which clones each field and calls `cloneDeep` on its config before changing it.",
+          "evidence": "-            newFields[fieldIndex] = {\n-              ...valueField,\n-              config: defaultsDeep(cloneDeep(valueField.config) || {}, config),\n-            };\n+            valueField.config = defaultsDeep(valueField.config || {}, config);\n           }\n-          newValues[idx] = { ...nestedFrame, fields: newFields };\n+          newValues[idx] = nestedFrame;",
+          "confidence": 0.85,
+          "inChange": true,
+          "notes": [],
+          "id": "f-924699b2399cdb57640cf719"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+          "line": 352,
+          "message": "The regression test 'will not write the panel config onto the frames it was given' is deleted along with the fix. It checked that `nested.fields[1].config` and `sourceFrame.fields[1].config` stay `{}`. Without it, nothing catches the in-place change above.",
+          "evidence": "-    it('will not write the panel config onto the frames it was given', () => {\n...\n-      expect(nested.fields[1].config).toEqual({});\n-      expect(sourceFrame.fields[1].config).toEqual({});",
+          "confidence": 0.7,
+          "inChange": false,
+          "notes": [],
+          "id": "f-c69d9f36a79305cc7903e887"
+        }
+      ],
+      "cost": 0.058196,
+      "tokens": 5513,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-8957af233d61b9eb0493",
+            "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(withOverrides[0].fields[1].values[0].fields[1].config).toMatchObject({\n      expect(nested.fields[1].config).toEqual({});\n      expect(sourceFrame.fields[1].config).toEqual({});",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "changed": [
+            "applyFieldOverrides"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "5d6f28f6-f5c2-49bd-913d-3216e269c623",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "a7ea8dab-3599-4511-a418-008fc1a958e3",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "5d6f28f6-f5c2-49bd-913d-3216e269c623",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 4336,
+              "cache_read_input_tokens": 0,
+              "output_tokens": 1175,
+              "output_tokens_details": {
+                "thinking_tokens": 248
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 4336,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 4338,
+              "outputTokens": 1175,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 4336,
+              "totalTokens": 5513
+            },
+            "cost": 0.058196,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:06:10.675Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "5d6f28f6-f5c2-49bd-913d-3216e269c623",
+            "startedAt": "2026-10-07T00:05:58.983Z",
+            "completedAt": "2026-10-07T00:06:10.686Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 5513,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "packages/grafana-data/src/field/fieldOverrides.ts",
+                "line": 290,
+                "message": "Nested frames are now changed in place. `defaultsDeep` writes this panel's resolved field config straight into `valueField.config`, and `newValues[idx]` holds the original `nestedFrame` object. The removed comment and test explain why that's a problem: nested frames, such as the sparkline frames built by the \"Time series to table\" transformation, use the source query's own field objects. So this panel's config (unit, displayName, overrides) leaks into data that other panels and the query runner still read. Because `defaultsDeep` only fills undefined keys, the first panel to run also locks in its values for later panels. It's also inconsistent with the top level of the same function, which clones each field and calls `cloneDeep` on its config before changing it.",
+                "evidence": "-            newFields[fieldIndex] = {\n-              ...valueField,\n-              config: defaultsDeep(cloneDeep(valueField.config) || {}, config),\n-            };\n+            valueField.config = defaultsDeep(valueField.config || {}, config);\n           }\n-          newValues[idx] = { ...nestedFrame, fields: newFields };\n+          newValues[idx] = nestedFrame;",
+                "confidence": 0.85,
+                "inChange": true,
+                "notes": [],
+                "id": "f-924699b2399cdb57640cf719"
+              },
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+                "line": 352,
+                "message": "The regression test 'will not write the panel config onto the frames it was given' is deleted along with the fix. It checked that `nested.fields[1].config` and `sourceFrame.fields[1].config` stay `{}`. Without it, nothing catches the in-place change above.",
+                "evidence": "-    it('will not write the panel config onto the frames it was given', () => {\n...\n-      expect(nested.fields[1].config).toEqual({});\n-      expect(sourceFrame.fields[1].config).toEqual({});",
+                "confidence": 0.7,
+                "inChange": false,
+                "notes": [],
+                "id": "f-c69d9f36a79305cc7903e887"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "16597298-5a23-4cd9-926b-4256d8d7cbb5",
+            "t": "2026-10-07T00:06:10.686Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 11707,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 52
+        },
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 8
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change reverses the fix that stops applyFieldOverrides from changing input frames. Nested FieldType.frame fields again have their config changed in place with defaultsDeep, and the original nested frame is passed on unchanged, so panel config leaks into data shared with the source query and other panels. It also deletes the regression test that guarded this. This breaks the applyFieldOverrides note. The other notes are unrelated and none is out of date."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "line": 290,
+          "message": "Nested frame fields now have their config changed in place with lodash defaultsDeep, which changes its first argument, and the original nestedFrame is returned. These field objects and configs are shared with the source query (\"Time series to table\" reuses them), so this panel's config (displayName, unit, thresholds, custom.cellOptions) leaks into data the query runner and other panels hold. This reverts the fix: build new field objects with defaultsDeep(cloneDeep(valueField.config) || {}, config) and a new frame {...nestedFrame, fields: newFields}.",
+          "evidence": "-            newFields[fieldIndex] = {\n-              ...valueField,\n-              config: defaultsDeep(cloneDeep(valueField.config) || {}, config),\n-            };\n+            valueField.config = defaultsDeep(valueField.config || {}, config);\n...\n-          newValues[idx] = { ...nestedFrame, fields: newFields };\n+          newValues[idx] = nestedFrame;",
+          "confidence": 0.95,
+          "note": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+          "inChange": true,
+          "notes": [
+            "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel"
+          ],
+          "locations": [
+            {
+              "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+              "line": 353,
+              "message": "Removes the regression test 'will not write the panel config onto the frames it was given', which checked that the source frame's config stays {}. With it gone, nothing catches the in-place change of shared nested frame config.",
+              "evidence": "-    it('will not write the panel config onto the frames it was given', () => {\n...\n-      expect(nested.fields[1].config).toEqual({});\n-      expect(sourceFrame.fields[1].config).toEqual({});",
+              "severity": "warning",
+              "confidence": 0.9,
+              "inChange": false
+            }
+          ],
+          "id": "f-bd900ca2121f1efa7e59c0b9"
+        }
+      ],
+      "cost": 0.10125200000000001,
+      "tokens": 10223,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-8957af233d61b9eb0493",
+            "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(withOverrides[0].fields[1].values[0].fields[1].config).toMatchObject({\n      expect(nested.fields[1].config).toEqual({});\n      expect(sourceFrame.fields[1].config).toEqual({});",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+          "changed": [
+            "applyFieldOverrides"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+          "title": "applyFieldOverrides must not mutate input frames; nested FieldType.frame fields share config with the source query",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132418"
+          },
+          "why": "rests on packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides; 10 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "clonedeep-of-a-mutabledataframe-throws-cannot-set-property-l",
+          "title": "cloneDeep of a MutableDataFrame throws 'Cannot set property length ... which has only a getter' in Rspack/ESM builds",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132648"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "flamegraph-tree-transforms-must-carry-valueright-diff-side-o",
+          "title": "Flamegraph tree transforms must carry valueRight (diff side) on every LevelItem they create",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132572"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "unit-testing-flamegraph-tree-transforms-with-diff-valueright",
+          "title": "Unit-testing flamegraph tree transforms with diff (valueRight) data",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132572"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "jest-cannot-reproduce-strict-mode-lodash-crashes-test-the-pr",
+          "title": "Jest cannot reproduce strict-mode lodash crashes; test the property assignment directly",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132648"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "combobox-floating-popover-only-run-autoupdate-while-open-and",
+          "title": "Combobox floating popover: only run autoUpdate while open, and dedupe size measurements via a ref",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132877"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+          "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "a86cc074-5793-4f90-9b4f-be31af20c1ae",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "5f743edd-c8f1-4c9f-b3e8-3ae282c32725",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "a86cc074-5793-4f90-9b4f-be31af20c1ae",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 8598,
+              "cache_read_input_tokens": 0,
+              "output_tokens": 1623,
+              "output_tokens_details": {
+                "thinking_tokens": 254
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 8598,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 8600,
+              "outputTokens": 1623,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": 8598,
+              "totalTokens": 10223
+            },
+            "cost": 0.10125200000000001,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:06:25.854Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "a86cc074-5793-4f90-9b4f-be31af20c1ae",
+            "startedAt": "2026-10-07T00:06:10.692Z",
+            "completedAt": "2026-10-07T00:06:25.855Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 10223,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "packages/grafana-data/src/field/fieldOverrides.ts",
+                "line": 290,
+                "message": "Nested frame fields now have their config changed in place with lodash defaultsDeep, which changes its first argument, and the original nestedFrame is returned. These field objects and configs are shared with the source query (\"Time series to table\" reuses them), so this panel's config (displayName, unit, thresholds, custom.cellOptions) leaks into data the query runner and other panels hold. This reverts the fix: build new field objects with defaultsDeep(cloneDeep(valueField.config) || {}, config) and a new frame {...nestedFrame, fields: newFields}.",
+                "evidence": "-            newFields[fieldIndex] = {\n-              ...valueField,\n-              config: defaultsDeep(cloneDeep(valueField.config) || {}, config),\n-            };\n+            valueField.config = defaultsDeep(valueField.config || {}, config);\n...\n-          newValues[idx] = { ...nestedFrame, fields: newFields };\n+          newValues[idx] = nestedFrame;",
+                "confidence": 0.95,
+                "note": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+                "inChange": true,
+                "notes": [
+                  "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel"
+                ],
+                "locations": [
+                  {
+                    "file": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+                    "line": 353,
+                    "message": "Removes the regression test 'will not write the panel config onto the frames it was given', which checked that the source frame's config stays {}. With it gone, nothing catches the in-place change of shared nested frame config.",
+                    "evidence": "-    it('will not write the panel config onto the frames it was given', () => {\n...\n-      expect(nested.fields[1].config).toEqual({});\n-      expect(sourceFrame.fields[1].config).toEqual({});",
+                    "severity": "warning",
+                    "confidence": 0.9,
+                    "inChange": false
+                  }
+                ],
+                "id": "f-bd900ca2121f1efa7e59c0b9"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "b1f4482e-2e8e-47f3-952c-51670088e23b",
+            "t": "2026-10-07T00:06:25.855Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 15169,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-132940",
+    "pr": 132940,
+    "source": "https://github.com/grafana/grafana/pull/132940",
+    "sha": "d0e5844a9290c1329fd14160c348ce77a4f32e2d",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "claude-opus-5-5",
+    "reasoningEffort": "high",
+    "cohort": "opus",
+    "expect": {
+      "public/app/features/dashboard/api/v2.test.ts": [
+        323
+      ],
+      "public/app/features/dashboard/api/v2.ts": [
+        159,
+        160,
+        157
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/dashboard/api/v2.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 12
+        },
+        {
+          "path": "public/app/features/dashboard/api/v2.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 3
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [
+          {
+            "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+            "reason": "Only one detail is wrong: the note says the DeprecatedInternalId label is removed only on the update path. The code shown also removes it before client.create (\"clear the deprecated id label so the backend generates a new unique id\"), and the diff does not touch that line, so this was true before the change. The main rule still holds and this change breaks it. Corrected body: Delete obj.metadata.resourceVersion unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> client.create / POST), matching v1.ts. The DeprecatedInternalId label is deleted on both paths: on update before PUT, and on create so the backend generates a new unique id. Tests in v2.test.ts assert that mockPost.mock.calls[0][1].metadata has no resourceVersion and that mockPut is not called.",
+            "correction": ""
+          }
+        ],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change moves `delete obj.metadata.resourceVersion` back inside the update branch and deletes its regression test. Creating a dashboard can again POST a resourceVersion, the bug the cache note describes, and v2.ts no longer matches v1.ts. The note is still correct on its main rule, but its claim that the DeprecatedInternalId label is removed only on update is wrong: the create path also removes it. The other notes do not apply."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0.1044398,
+      "tokens": 11345,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-ee76b0c06058414ffc22",
+            "file": "public/app/features/dashboard/api/v2.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(mockPut).not.toHaveBeenCalled();\n      expect(mockPost).toHaveBeenCalledTimes(1);\n      expect(mockPost.mock.calls[0][1].metadata).not.toHaveProperty('resourceVersion');",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/dashboard/api/v2.ts",
+          "changed": [
+            "K8sDashboardV2API"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+          "title": "v2 dashboard save must strip metadata.resourceVersion on both create and update paths (keep in sync with v1)",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132940"
+          },
+          "why": "rests on public/app/features/dashboard/api/v2.ts:K8sDashboardV2API, public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard; 10 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "router-aggregate-discovery-must-request-aggregated-discovery",
+          "title": "Router aggregate discovery must request aggregated discovery format, or CRD groups on apiextensions targets are never seen",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132966"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "v2-external-export-must-keep-the-dashboard-datasource-refere",
+          "title": "v2 external export must keep the '-- Dashboard --' datasource reference untouched",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+          "title": "v2 dashboard import: datasource remap of query variables must keep refresh (including 'never')",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+          "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-export-round-trips-export-json-reload-then-resolv",
+          "title": "Testing v2 export round-trips: export, JSON reload, then resolve via layout serializer utils",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-span-links-under-the-dynamic-trace-to-logs-feature-f",
+          "title": "Testing span links under the dynamic trace-to-logs feature flag",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#130358"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "6b796db7-c7ee-4067-8697-51ef1c0b5d86",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "0258ee0e-c615-4a9c-a06c-2bf473fbb05d",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "6b796db7-c7ee-4067-8697-51ef1c0b5d86",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 7432,
+              "cache_read_input_tokens": 1679,
+              "output_tokens": 2232,
+              "output_tokens_details": {
+                "thinking_tokens": 662
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 7432,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 9113,
+              "outputTokens": 2232,
+              "cacheReadTokens": 1679,
+              "cacheWriteTokens": 7432,
+              "totalTokens": 11345
+            },
+            "cost": 0.1044398,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:06:47.662Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "6b796db7-c7ee-4067-8697-51ef1c0b5d86",
+            "startedAt": "2026-10-07T00:06:26.011Z",
+            "completedAt": "2026-10-07T00:06:47.662Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 11345,
+            "findings": [],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [
+                {
+                  "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+                  "reason": "Only one detail is wrong: the note says the DeprecatedInternalId label is removed only on the update path. The code shown also removes it before client.create (\"clear the deprecated id label so the backend generates a new unique id\"), and the diff does not touch that line, so this was true before the change. The main rule still holds and this change breaks it. Corrected body: Delete obj.metadata.resourceVersion unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> client.create / POST), matching v1.ts. The DeprecatedInternalId label is deleted on both paths: on update before PUT, and on create so the backend generates a new unique id. Tests in v2.test.ts assert that mockPost.mock.calls[0][1].metadata has no resourceVersion and that mockPut is not called.",
+                  "correction": ""
+                }
+              ],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "fe6057c4-1ffb-479c-9540-c576892de2a0",
+            "t": "2026-10-07T00:06:47.662Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 21655,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/dashboard/api/v2.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 12
+        },
+        {
+          "path": "public/app/features/dashboard/api/v2.ts",
+          "status": "M",
+          "added": 2,
+          "removed": 3
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "This change is a regression on the create path. `resourceVersion` used to be stripped for every save. Now it is stripped only when `metadata.name` is set (update). A create call that passes `k8s.resourceVersion` will send it in the POST body. The Kubernetes API server rejects that with \"resourceVersion should not be set on objects to be created\". The test that guarded this was deleted in the same change rather than fixed."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "public/app/features/dashboard/api/v2.ts",
+          "line": 160,
+          "message": "`resourceVersion` is now deleted only on the update path. On the create path, `obj.metadata` is built by spreading `options.k8s`, so any `resourceVersion` the caller passes (for example '0', or a stale value from an imported or copied dashboard) goes out in the POST to `client.create`. The Kubernetes API server rejects creates where `resourceVersion` is set, so saving a new dashboard in those cases will fail. Before this change it was deleted unconditionally.",
+          "evidence": "-    // remove resource version when updating\n-    delete obj.metadata.resourceVersion;\n-\n     if (obj.metadata.name) {\n+      // remove resource version when updating\n+      delete obj.metadata.resourceVersion;",
+          "confidence": 0.72,
+          "inChange": true,
+          "notes": [],
+          "id": "f-9708e7d2fda5897e76108c46"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "public/app/features/dashboard/api/v2.test.ts",
+          "line": 324,
+          "message": "The test that checked `resourceVersion` is left out of the create POST was removed instead of updated. That hides the behavior change on the create path, and nothing now covers it.",
+          "evidence": "-    it('does not send resourceVersion when creating a dashboard', async () => {\n...\n-      expect(mockPost.mock.calls[0][1].metadata).not.toHaveProperty('resourceVersion');",
+          "confidence": 0.6,
+          "inChange": false,
+          "notes": [],
+          "id": "f-56ea58f3b8ac8da1f420507f"
+        }
+      ],
+      "cost": 0.0432394,
+      "tokens": 5124,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-ee76b0c06058414ffc22",
+            "file": "public/app/features/dashboard/api/v2.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(mockPut).not.toHaveBeenCalled();\n      expect(mockPost).toHaveBeenCalledTimes(1);\n      expect(mockPost.mock.calls[0][1].metadata).not.toHaveProperty('resourceVersion');",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/dashboard/api/v2.ts",
+          "changed": [
+            "K8sDashboardV2API"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "ee971c1a-e37f-4f99-a487-20896bb4a199",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "529bcf5b-f632-4bed-af5e-4c419a20c933",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "ee971c1a-e37f-4f99-a487-20896bb4a199",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 2827,
+              "cache_read_input_tokens": 1277,
+              "output_tokens": 1018,
+              "output_tokens_details": {
+                "thinking_tokens": 331
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 2827,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 4106,
+              "outputTokens": 1018,
+              "cacheReadTokens": 1277,
+              "cacheWriteTokens": 2827,
+              "totalTokens": 5124
+            },
+            "cost": 0.0432394,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:06:58.022Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "ee971c1a-e37f-4f99-a487-20896bb4a199",
+            "startedAt": "2026-10-07T00:06:47.673Z",
+            "completedAt": "2026-10-07T00:06:58.023Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 5124,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "public/app/features/dashboard/api/v2.ts",
+                "line": 160,
+                "message": "`resourceVersion` is now deleted only on the update path. On the create path, `obj.metadata` is built by spreading `options.k8s`, so any `resourceVersion` the caller passes (for example '0', or a stale value from an imported or copied dashboard) goes out in the POST to `client.create`. The Kubernetes API server rejects creates where `resourceVersion` is set, so saving a new dashboard in those cases will fail. Before this change it was deleted unconditionally.",
+                "evidence": "-    // remove resource version when updating\n-    delete obj.metadata.resourceVersion;\n-\n     if (obj.metadata.name) {\n+      // remove resource version when updating\n+      delete obj.metadata.resourceVersion;",
+                "confidence": 0.72,
+                "inChange": true,
+                "notes": [],
+                "id": "f-9708e7d2fda5897e76108c46"
+              },
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "public/app/features/dashboard/api/v2.test.ts",
+                "line": 324,
+                "message": "The test that checked `resourceVersion` is left out of the create POST was removed instead of updated. That hides the behavior change on the create path, and nothing now covers it.",
+                "evidence": "-    it('does not send resourceVersion when creating a dashboard', async () => {\n...\n-      expect(mockPost.mock.calls[0][1].metadata).not.toHaveProperty('resourceVersion');",
+                "confidence": 0.6,
+                "inChange": false,
+                "notes": [],
+                "id": "f-56ea58f3b8ac8da1f420507f"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "706f008d-c41e-4955-8c65-672a7d46dd5a",
+            "t": "2026-10-07T00:06:58.023Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 10359,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-132860",
+    "pr": 132860,
+    "source": "https://github.com/grafana/grafana/pull/132860",
+    "sha": "d9e458c09e38027cb6bc74d5cc2206901ebbcef9",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "claude-opus-5-5",
+    "reasoningEffort": "high",
+    "cohort": "opus",
+    "expect": {
+      "public/app/features/logs/components/panel/grammar.test.ts": [
+        126
+      ],
+      "public/app/features/logs/components/panel/grammar.ts": [
+        9
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/logs/components/panel/grammar.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 9
+        },
+        {
+          "path": "public/app/features/logs/components/panel/grammar.ts",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change replaces `\\b` with `(\\b|\\B)` in the log-token-key regex. That pattern always matches, so it removes the boundary check, and the regex should behave the same in practice. The change also deletes the only test for key highlighting, which leaves that regex untested for no stated reason."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "public/app/features/logs/components/panel/grammar.test.ts",
+          "line": 126,
+          "message": "The change deletes the only test of key highlighting (`log-token-key`) at the same time as editing that regex. The deleted test looks like it should still pass, so removing it loses coverage without explanation.",
+          "evidence": "-  test('Identifies keys in key-value pairs', () => {\n-    const { tokens } = generateScenario('foo=bar');\n-    ...\n-      expect(tokens[0].type).toBe('log-token-key');",
+          "confidence": 0.5,
+          "inChange": false,
+          "notes": [],
+          "id": "f-0a1eb18c2f1ce0b0526bcc29"
+        }
+      ],
+      "cost": 0.046875400000000005,
+      "tokens": 4344,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-158326aff143e4cb74c0",
+            "file": "public/app/features/logs/components/panel/grammar.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(tokens[0].content).toBe('foo');\n      expect(tokens[0].type).toBe('log-token-key');",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "c029f343-1b36-4259-a37c-619e85c57ef5",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "a6cf5873-058d-43de-8715-4848cab3d2f8",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "c029f343-1b36-4259-a37c-619e85c57ef5",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 1224,
+              "cache_read_input_tokens": 1277,
+              "output_tokens": 1841,
+              "output_tokens_details": {
+                "thinking_tokens": 869
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 1224,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 2503,
+              "outputTokens": 1841,
+              "cacheReadTokens": 1277,
+              "cacheWriteTokens": 1224,
+              "totalTokens": 4344
+            },
+            "cost": 0.046875400000000005,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:07:17.462Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "c029f343-1b36-4259-a37c-619e85c57ef5",
+            "startedAt": "2026-10-07T00:06:58.167Z",
+            "completedAt": "2026-10-07T00:07:17.462Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 4344,
+            "findings": [
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "public/app/features/logs/components/panel/grammar.test.ts",
+                "line": 126,
+                "message": "The change deletes the only test of key highlighting (`log-token-key`) at the same time as editing that regex. The deleted test looks like it should still pass, so removing it loses coverage without explanation.",
+                "evidence": "-  test('Identifies keys in key-value pairs', () => {\n-    const { tokens } = generateScenario('foo=bar');\n-    ...\n-      expect(tokens[0].type).toBe('log-token-key');",
+                "confidence": 0.5,
+                "inChange": false,
+                "notes": [],
+                "id": "f-0a1eb18c2f1ce0b0526bcc29"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "5f1722ff-d905-4b60-ac48-735025c02745",
+            "t": "2026-10-07T00:07:17.462Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 19300,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/logs/components/panel/grammar.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 9
+        },
+        {
+          "path": "public/app/features/logs/components/panel/grammar.ts",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 6,
+        "direct": 1,
+        "related": 5,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "This change undoes a documented performance fix. It puts back the `(\\b|\\B)` prefix on logsGrammar's 'log-token-key' regex, which causes quadratic backtracking on long log lines with no `=`. It also removes the `foo=bar` key-value test that the note says must keep passing. That is a violation of the logs-grammar note. The other notes are about unrelated test areas, and none of them are outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "public/app/features/logs/components/panel/grammar.ts",
+          "line": 9,
+          "message": "The change puts the `(\\b|\\B)` prefix back on the 'log-token-key' rule. That prefix matches at every position, so for each start offset the engine runs the greedy `[\\w_]+` and then fails the `(?=\\s*=)` lookahead. On a long line with no `=` (for example ~16KB), that is quadratic work during Prism tokenization and can freeze the Logs panel main thread. This undoes the earlier fix (~820ms down to ~0.16ms). Keep `/\\b[\\w_]+(?=\\s*=)/gi`.",
+          "evidence": "-  'log-token-key': /\\b[\\w_]+(?=\\s*=)/gi,\n+  'log-token-key': /(\\b|\\B)[\\w_]+(?=\\s*=)/gi,",
+          "confidence": 0.92,
+          "note": "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad",
+          "inChange": true,
+          "notes": [
+            "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad"
+          ],
+          "locations": [
+            {
+              "file": "public/app/features/logs/components/panel/grammar.test.ts",
+              "line": 126,
+              "message": "The change deletes the 'Identifies keys in key-value pairs' test. That test checked that `foo=bar` gives a 'log-token-key' token with content `foo`. Without it, nothing in generateLogGrammar's tests checks key-value tokenization, even though this same change edits the key rule.",
+              "evidence": "-  test('Identifies keys in key-value pairs', () => {\n-    const { tokens } = generateScenario('foo=bar');\n-    if (tokens[0] instanceof Token) {\n-      expect(tokens[0].content).toBe('foo');\n-      expect(tokens[0].type).toBe('log-token-key');",
+              "severity": "warning",
+              "confidence": 0.8,
+              "inChange": false
+            }
+          ],
+          "id": "f-6a23329ccb75f2755cfa4bdb"
+        }
+      ],
+      "cost": 0.0651558,
+      "tokens": 8335,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-158326aff143e4cb74c0",
+            "file": "public/app/features/logs/components/panel/grammar.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(tokens[0].content).toBe('foo');\n      expect(tokens[0].type).toBe('log-token-key');",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad",
+          "title": "Logs panel highlight grammar regexes must not backtrack quadratically on long lines",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132860"
+          },
+          "why": "rests on public/app/features/logs/components/panel/grammar.ts:logsGrammar, public/app/features/logs/components/panel/grammar.test.ts; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "testing-span-links-under-the-dynamic-trace-to-logs-feature-f",
+          "title": "Testing span links under the dynamic trace-to-logs feature flag",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#130358"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-export-round-trips-export-json-reload-then-resolv",
+          "title": "Testing v2 export round-trips: export, JSON reload, then resolve via layout serializer utils",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+          "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-auto-grid-content-fit-scenarios-via-the-devenv-dashb",
+          "title": "Testing auto-grid content-fit scenarios via the devenv dashboard tabs and Playwright",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132082"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-the-per-request-openfeature-evaluation-context-in-co",
+          "title": "Testing the per-request OpenFeature evaluation context in contexthandler",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133033"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "625290a7-5e3c-47e1-a38e-1f26b22ef73a",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ab72b8c9-a695-4220-8c59-184bc103e46f",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "625290a7-5e3c-47e1-a38e-1f26b22ef73a",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 5689,
+              "cache_read_input_tokens": 1679,
+              "output_tokens": 965,
+              "output_tokens_details": {
+                "thinking_tokens": 77
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 5689,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 7370,
+              "outputTokens": 965,
+              "cacheReadTokens": 1679,
+              "cacheWriteTokens": 5689,
+              "totalTokens": 8335
+            },
+            "cost": 0.0651558,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:07:27.035Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "625290a7-5e3c-47e1-a38e-1f26b22ef73a",
+            "startedAt": "2026-10-07T00:07:17.471Z",
+            "completedAt": "2026-10-07T00:07:27.036Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 8335,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "public/app/features/logs/components/panel/grammar.ts",
+                "line": 9,
+                "message": "The change puts the `(\\b|\\B)` prefix back on the 'log-token-key' rule. That prefix matches at every position, so for each start offset the engine runs the greedy `[\\w_]+` and then fails the `(?=\\s*=)` lookahead. On a long line with no `=` (for example ~16KB), that is quadratic work during Prism tokenization and can freeze the Logs panel main thread. This undoes the earlier fix (~820ms down to ~0.16ms). Keep `/\\b[\\w_]+(?=\\s*=)/gi`.",
+                "evidence": "-  'log-token-key': /\\b[\\w_]+(?=\\s*=)/gi,\n+  'log-token-key': /(\\b|\\B)[\\w_]+(?=\\s*=)/gi,",
+                "confidence": 0.92,
+                "note": "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad",
+                "inChange": true,
+                "notes": [
+                  "logs-panel-highlight-grammar-regexes-must-not-backtrack-quad"
+                ],
+                "locations": [
+                  {
+                    "file": "public/app/features/logs/components/panel/grammar.test.ts",
+                    "line": 126,
+                    "message": "The change deletes the 'Identifies keys in key-value pairs' test. That test checked that `foo=bar` gives a 'log-token-key' token with content `foo`. Without it, nothing in generateLogGrammar's tests checks key-value tokenization, even though this same change edits the key rule.",
+                    "evidence": "-  test('Identifies keys in key-value pairs', () => {\n-    const { tokens } = generateScenario('foo=bar');\n-    if (tokens[0] instanceof Token) {\n-      expect(tokens[0].content).toBe('foo');\n-      expect(tokens[0].type).toBe('log-token-key');",
+                    "severity": "warning",
+                    "confidence": 0.8,
+                    "inChange": false
+                  }
+                ],
+                "id": "f-6a23329ccb75f2755cfa4bdb"
+              }
+            ],
+            "notes": {
+              "consulted": 6,
+              "direct": 1,
+              "related": 5,
+              "assessed": 6,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "7ba33ddb-b527-4a0e-adcb-63ad36a7b7fc",
+            "t": "2026-10-07T00:07:27.036Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 9572,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-131837",
+    "pr": 131837,
+    "source": "https://github.com/grafana/grafana/pull/131837",
+    "sha": "916b6b3f89de0b6f2fa61b0799901b85a0673bf3",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "claude-opus-5-5",
+    "reasoningEffort": "high",
+    "cohort": "opus",
+    "expect": {
+      "public/app/features/manage-dashboards/import/utils/inputs.test.ts": [
+        2203,
+        2204,
+        2205,
+        2206,
+        2207,
+        2208,
+        2209,
+        2210,
+        2211,
+        2212,
+        2213,
+        2224,
+        2226,
+        1862
+      ],
+      "public/app/features/manage-dashboards/import/utils/inputs.ts": [
+        781,
+        782,
+        783,
+        784
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+          "status": "M",
+          "added": 13,
+          "removed": 44
+        },
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+          "status": "M",
+          "added": 4,
+          "removed": 0
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "public/app/features/manage-dashboards/import/utils/inputs.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "This change puts back the bug the cache note describes. It adds a `refresh` override in replaceVariableDatasources (inputs.ts:783) that turns 'never' into 'onDashboardLoad', so the author's setting is lost when a v2 dashboard is exported for sharing and imported again. The tests were rewritten to expect this behavior. The applyV2Inputs test for keeping refresh was deleted, and so was the assertion that options are reset to []. The other notes (export of the -- Dashboard -- datasource, v2 save, fieldOverrides, Combobox) are unrelated to this change."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+          "line": 783,
+          "message": "The change brings back the explicit `refresh` override on remapped QueryVariables. It forces 'never' (and a missing value) to 'onDashboardLoad'. The note names this exact pattern as the root cause of round-trip data loss on v2 import. The fix should spread `variable.spec` and override only `query.datasource`, `options` and `current`. 'never' is safe with cleared options because the scene still runs validateAndUpdate on activation. The export side leaves refresh alone, so rewriting it on import loses the author's setting.",
+          "evidence": "refresh:\n            variable.spec.refresh && variable.spec.refresh !== 'never' ? variable.spec.refresh : 'onDashboardLoad',",
+          "confidence": 0.85,
+          "note": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+          "inChange": true,
+          "notes": [
+            "v2-dashboard-import-datasource-remap-of-query-variables-must"
+          ],
+          "id": "f-e5a411b47d1fa7c0789a1d1e"
+        },
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+          "line": 2211,
+          "message": "The tests were changed to fit the regression instead of catching it. The parametrized case now expects 'never' to become 'onDashboardLoad', and the `onDashboardLoad` passthrough case was dropped. The `options` reset-to-[] assertion was removed. The applyV2Inputs entry-point test that checked refresh survives import was deleted. The howto note says these tests should assert that author fields like `refresh` survive and that `options` is reset to [].",
+          "evidence": "desc: 'upgrades a \"never\" refresh setting so the cleared options repopulate',\n        refresh: 'never' as const,\n        expectedRefresh: 'onDashboardLoad',\n...\n-      expect(variable?.spec.options).toEqual([]);",
+          "confidence": 0.75,
+          "note": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+          "inChange": true,
+          "notes": [
+            "testing-v2-import-input-mapping-applyv2inputs-and-replacedat"
+          ],
+          "id": "f-c5e51ed762c3223a5b385992"
+        }
+      ],
+      "cost": 0.0925678,
+      "tokens": 10824,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-5dcea1ee21cd7bf3ef63",
+            "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    expect(variable.spec.query?.datasource?.name).toBe('ds-uid');\n    expect(variable.spec.refresh).toBe('onTimeRangeChanged');\n      expect(variable?.spec.refresh).toBe(expected);",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+          "changed": [
+            "replaceVariableDatasources"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+          "title": "v2 dashboard import: datasource remap of query variables must keep refresh (including 'never')",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "rests on public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources; 4 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+          "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "v2-external-export-must-keep-the-dashboard-datasource-refere",
+          "title": "v2 external export must keep the '-- Dashboard --' datasource reference untouched",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-v2-export-round-trips-export-json-reload-then-resolv",
+          "title": "Testing v2 export round-trips: export, JSON reload, then resolve via layout serializer utils",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+          "title": "v2 dashboard save must strip metadata.resourceVersion on both create and update paths (keep in sync with v1)",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132940"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+          "title": "applyFieldOverrides must not mutate input frames; nested FieldType.frame fields share config with the source query",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132418"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "combobox-floating-popover-only-run-autoupdate-while-open-and",
+          "title": "Combobox floating popover: only run autoUpdate while open, and dedupe size measurements via a ref",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132877"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "8be85e08-5d1c-4745-b0b5-51a3a437ee35",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "4fb8796c-e3d5-446c-a28d-5f1d6f6f062c",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "8be85e08-5d1c-4745-b0b5-51a3a437ee35",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 7553,
+              "cache_read_input_tokens": 1679,
+              "output_tokens": 1590,
+              "output_tokens_details": {
+                "thinking_tokens": 639
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 7553,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 9234,
+              "outputTokens": 1590,
+              "cacheReadTokens": 1679,
+              "cacheWriteTokens": 7553,
+              "totalTokens": 10824
+            },
+            "cost": 0.0925678,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:07:42.645Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "8be85e08-5d1c-4745-b0b5-51a3a437ee35",
+            "startedAt": "2026-10-07T00:07:27.490Z",
+            "completedAt": "2026-10-07T00:07:42.645Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 10824,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+                "line": 783,
+                "message": "The change brings back the explicit `refresh` override on remapped QueryVariables. It forces 'never' (and a missing value) to 'onDashboardLoad'. The note names this exact pattern as the root cause of round-trip data loss on v2 import. The fix should spread `variable.spec` and override only `query.datasource`, `options` and `current`. 'never' is safe with cleared options because the scene still runs validateAndUpdate on activation. The export side leaves refresh alone, so rewriting it on import loses the author's setting.",
+                "evidence": "refresh:\n            variable.spec.refresh && variable.spec.refresh !== 'never' ? variable.spec.refresh : 'onDashboardLoad',",
+                "confidence": 0.85,
+                "note": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+                "inChange": true,
+                "notes": [
+                  "v2-dashboard-import-datasource-remap-of-query-variables-must"
+                ],
+                "id": "f-e5a411b47d1fa7c0789a1d1e"
+              },
+              {
+                "severity": "warning",
+                "category": "violation",
+                "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+                "line": 2211,
+                "message": "The tests were changed to fit the regression instead of catching it. The parametrized case now expects 'never' to become 'onDashboardLoad', and the `onDashboardLoad` passthrough case was dropped. The `options` reset-to-[] assertion was removed. The applyV2Inputs entry-point test that checked refresh survives import was deleted. The howto note says these tests should assert that author fields like `refresh` survive and that `options` is reset to [].",
+                "evidence": "desc: 'upgrades a \"never\" refresh setting so the cleared options repopulate',\n        refresh: 'never' as const,\n        expectedRefresh: 'onDashboardLoad',\n...\n-      expect(variable?.spec.options).toEqual([]);",
+                "confidence": 0.75,
+                "note": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+                "inChange": true,
+                "notes": [
+                  "testing-v2-import-input-mapping-applyv2inputs-and-replacedat"
+                ],
+                "id": "f-c5e51ed762c3223a5b385992"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "public/app/features/manage-dashboards/import/utils/inputs.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "02830dc0-3f53-4622-a939-aea8e86c9f91",
+            "t": "2026-10-07T00:07:42.645Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 15159,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+          "status": "M",
+          "added": 13,
+          "removed": 44
+        },
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+          "status": "M",
+          "added": 4,
+          "removed": 0
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "public/app/features/manage-dashboards/import/utils/inputs.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "I found no bugs in this change. When a QueryVariable's datasource is remapped, the new code keeps the author's `refresh` setting, unless it is 'never' or missing, in which case it becomes 'onDashboardLoad'. That matters because remapping clears the variable's options. The code matches its comment and the updated tests. Variables that aren't remapped are left as they were. The only concern is in the tests: some still-valid checks were removed, which leaves less coverage."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "info",
+          "category": "bug",
+          "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+          "line": 1862,
+          "message": "An end-to-end applyV2Inputs test was deleted even though the new code should still pass it. It was the only test checking that 'onTimeRangeChanged' survives the import-form path, not just replaceDatasourcesInDashboard. Deleting it reduces coverage of the behavior this change is meant to preserve.",
+          "evidence": "-  it('keeps the query variable refresh setting when binding the datasource picked at import', () => { ... expect(variable.spec.refresh).toBe('onTimeRangeChanged');",
+          "confidence": 0.5,
+          "inChange": false,
+          "notes": [],
+          "id": "f-3f527683a1be69acef0e96c3"
+        }
+      ],
+      "cost": 0.0544754,
+      "tokens": 6083,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-5dcea1ee21cd7bf3ef63",
+            "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    expect(variable.spec.query?.datasource?.name).toBe('ds-uid');\n    expect(variable.spec.refresh).toBe('onTimeRangeChanged');\n      expect(variable?.spec.refresh).toBe(expected);",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+          "changed": [
+            "replaceVariableDatasources"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 1
+      },
+      "runId": "8013d5af-a948-4e1e-950f-4fab060217e7",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "1948e0ab-3cf9-4b6d-bb4f-55d035b40c42",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "8013d5af-a948-4e1e-950f-4fab060217e7",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 3489,
+              "cache_read_input_tokens": 1277,
+              "output_tokens": 1315,
+              "output_tokens_details": {
+                "thinking_tokens": 448
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 3489,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 4768,
+              "outputTokens": 1315,
+              "cacheReadTokens": 1277,
+              "cacheWriteTokens": 3489,
+              "totalTokens": 6083
+            },
+            "cost": 0.0544754,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:07:55.674Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "8013d5af-a948-4e1e-950f-4fab060217e7",
+            "startedAt": "2026-10-07T00:07:42.654Z",
+            "completedAt": "2026-10-07T00:07:55.674Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 6083,
+            "findings": [
+              {
+                "severity": "info",
+                "category": "bug",
+                "file": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+                "line": 1862,
+                "message": "An end-to-end applyV2Inputs test was deleted even though the new code should still pass it. It was the only test checking that 'onTimeRangeChanged' survives the import-form path, not just replaceDatasourcesInDashboard. Deleting it reduces coverage of the behavior this change is meant to preserve.",
+                "evidence": "-  it('keeps the query variable refresh setting when binding the datasource picked at import', () => { ... expect(variable.spec.refresh).toBe('onTimeRangeChanged');",
+                "confidence": 0.5,
+                "inChange": false,
+                "notes": [],
+                "id": "f-3f527683a1be69acef0e96c3"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "public/app/features/manage-dashboards/import/utils/inputs.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "6744dc6c-066c-4e7b-a5e0-8b8bfdd88a52",
+            "t": "2026-10-07T00:07:55.674Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 13027,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-131464",
+    "pr": 131464,
+    "source": "https://github.com/grafana/grafana/pull/131464",
+    "sha": "afbdc71e12d5a269bc5b5bde85ab19432d6af582",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "claude-opus-5-5",
+    "reasoningEffort": "high",
+    "cohort": "opus",
+    "expect": {
+      "pkg/services/annotations/annotationsimpl/xorm_store.go": [
+        266
+      ],
+      "pkg/services/annotations/annotationsimpl/xorm_store_test.go": [
+        461
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        },
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 11
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 2,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "Adding \"tag_id\" to MustCols makes the DELETE also require tag_id = 0 (the bean's zero value). It then matches no rows, so tags removed during an update stay linked in annotation_tag. The integration test that checked for exactly this was deleted in the same change, so the regression is not caught."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "line": 266,
+          "message": "Adding \"tag_id\" to MustCols makes xorm add the bean's zero-valued TagID to the WHERE clause (tag_id = 0), along with the In(\"tag_id\", tagsDelete) filter. The DELETE matches no rows, so tags removed from an annotation are never unlinked from annotation_tag, and no error is returned.",
+          "evidence": "sess.MustCols(\"annotation_id\", \"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID})",
+          "confidence": 0.85,
+          "inChange": true,
+          "notes": [],
+          "id": "f-9109cf03c50153f0f689dade"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "line": 461,
+          "message": "The change removes the only assertion that replaced tags are actually deleted from annotation_tag. That check would have caught the broken delete above, so the regression now passes silently.",
+          "evidence": "-\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,\n-\t\t\"replaced tags must be deleted from annotation_tag, not just from annotation.tags\")",
+          "confidence": 0.7,
+          "inChange": false,
+          "notes": [],
+          "id": "f-de74e1a8c2a6028b2bccb1ff"
+        }
+      ],
+      "cost": 0.053715399999999996,
+      "tokens": 6027,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-fac68ad6030a896d5ba1",
+            "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "\t\t\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "changed": [
+            "ensureTags"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "changed": [
+            "TestIntegrationAnnotations"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "81f73005-0bf9-4bb9-8497-43990da4a35b",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ff7fa4a0-b35f-4e41-a19d-33e2f9a24067",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "81f73005-0bf9-4bb9-8497-43990da4a35b",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 3459,
+              "cache_read_input_tokens": 1277,
+              "output_tokens": 1289,
+              "output_tokens_details": {
+                "thinking_tokens": 243
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 3459,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 4738,
+              "outputTokens": 1289,
+              "cacheReadTokens": 1277,
+              "cacheWriteTokens": 3459,
+              "totalTokens": 6027
+            },
+            "cost": 0.053715399999999996,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:08:08.854Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "81f73005-0bf9-4bb9-8497-43990da4a35b",
+            "startedAt": "2026-10-07T00:07:55.824Z",
+            "completedAt": "2026-10-07T00:08:08.855Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 6027,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+                "line": 266,
+                "message": "Adding \"tag_id\" to MustCols makes xorm add the bean's zero-valued TagID to the WHERE clause (tag_id = 0), along with the In(\"tag_id\", tagsDelete) filter. The DELETE matches no rows, so tags removed from an annotation are never unlinked from annotation_tag, and no error is returned.",
+                "evidence": "sess.MustCols(\"annotation_id\", \"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID})",
+                "confidence": 0.85,
+                "inChange": true,
+                "notes": [],
+                "id": "f-9109cf03c50153f0f689dade"
+              },
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+                "line": 461,
+                "message": "The change removes the only assertion that replaced tags are actually deleted from annotation_tag. That check would have caught the broken delete above, so the regression now passes silently.",
+                "evidence": "-\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,\n-\t\t\"replaced tags must be deleted from annotation_tag, not just from annotation.tags\")",
+                "confidence": 0.7,
+                "inChange": false,
+                "notes": [],
+                "id": "f-de74e1a8c2a6028b2bccb1ff"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 2,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "aae3ac6a-39ea-40d0-b70f-7e9ca97a04ca",
+            "t": "2026-10-07T00:08:08.855Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 13036,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        },
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 11
+        }
+      ],
+      "notes": {
+        "consulted": 6,
+        "direct": 2,
+        "related": 4,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change reintroduces the ensureTags delete bug by adding \"tag_id\" to MustCols. Because TagID is zero on the bean, the WHERE clause becomes `tag_id IN (...) AND tag_id = 0` and nothing is deleted. It also removes the only test assertion that checked the annotation_tag join table, so the bug goes undetected. Both annotation-tag notes are violated and neither is outdated. The other four notes are unrelated to this change."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "line": 266,
+          "message": "Adding \"tag_id\" to MustCols forces the zero-valued TagID on the bean into the WHERE clause, giving `tag_id IN (...) AND tag_id = 0`. Nothing can match, so tags removed from an annotation are never deleted from annotation_tag. This brings back the known ensureTags delete bug. MustCols should list only \"annotation_id\".",
+          "evidence": "-\t\t\tif _, err := sess.MustCols(\"annotation_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID}); err != nil {\n+\t\t\tif _, err := sess.MustCols(\"annotation_id\", \"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID}); err != nil {",
+          "confidence": 0.93,
+          "note": "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column",
+          "inChange": true,
+          "notes": [
+            "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column"
+          ],
+          "id": "f-5620fe469b7fa5152c22777f"
+        },
+        {
+          "severity": "warning",
+          "category": "violation",
+          "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "line": 461,
+          "message": "The assertion that queried the annotation_tag join table directly was removed. The remaining assertions read only items[0].Tags, which comes from the annotation.tags column, so they pass even when the join table is wrong. That leaves the reintroduced delete bug undetected.",
+          "evidence": "-\t\t\tvar linkedTags []string\n-\t\t\terr = sql.WithDbSession(context.Background(), func(dbSession *db.Session) error {\n-\t\t\t\treturn dbSession.SQL(\n-\t\t\t\t\t\"SELECT tag.key FROM annotation_tag JOIN tag ON tag.id = annotation_tag.tag_id WHERE annotation_tag.annotation_id = ?\",\n...\n-\t\t\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,\n-\t\t\t\t\"replaced tags must be deleted from annotation_tag, not just from annotation.tags\")",
+          "confidence": 0.88,
+          "note": "annotation-tags-live-in-two-places-the-annotation-tags-colum",
+          "inChange": false,
+          "notes": [
+            "annotation-tags-live-in-two-places-the-annotation-tags-colum"
+          ],
+          "id": "f-0ec0ffdd36e015579613b0f9"
+        }
+      ],
+      "cost": 0.0924558,
+      "tokens": 10174,
+      "model": "claude-opus-5-5",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-fac68ad6030a896d5ba1",
+            "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "\t\t\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+          "changed": [
+            "ensureTags"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+          "changed": [
+            "TestIntegrationAnnotations"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "annotation-tags-live-in-two-places-the-annotation-tags-colum",
+          "title": "Annotation tags live in two places: the annotation.tags column and the annotation_tag join table, so tests must check both",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "rests on pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags, pkg/services/annotations/annotationsimpl/xorm_store_test.go:TestIntegrationAnnotations; 13 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column",
+          "title": "xorm MustCols on a Delete/Find bean adds every listed column to WHERE, even zero values",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "rests on pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "openfeature-eval-context-namespace-must-stay-concrete-never",
+          "title": "OpenFeature eval context namespace must stay concrete: never '*' or empty from wildcard identities",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133033"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "adding-a-sql-store-migration-register-at-the-end-and-append",
+          "title": "Adding a SQL store migration: register at the end and append its ID to migration_ids.txt",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "alert-rule-db-column-types-must-match-the-int64-model-fields",
+          "title": "Alert rule DB column types must match the int64 model fields, in both alert_rule and alert_rule_version",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "testing-the-per-request-openfeature-evaluation-context-in-co",
+          "title": "Testing the per-request OpenFeature evaluation context in contexthandler",
+          "kind": "howto",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133033"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "claude/claude-opus-5-5": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "e26c5725-e148-4554-b005-04429212ed68",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "6b2a052d-dd8c-49c3-bcce-309c9dbdeaf1",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "e26c5725-e148-4554-b005-04429212ed68",
+            "provider": "claude",
+            "model": "claude-opus-5-5",
+            "usage": {
+              "input_tokens": 2,
+              "cache_creation_input_tokens": 6479,
+              "cache_read_input_tokens": 1679,
+              "output_tokens": 2014,
+              "output_tokens_details": {
+                "thinking_tokens": 500
+              },
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 6479,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "inference_geo": "not_available",
+              "iterations": [],
+              "speed": "standard",
+              "fallback_credit": null
+            },
+            "tokens": {
+              "inputTokens": 8160,
+              "outputTokens": 2014,
+              "cacheReadTokens": 1679,
+              "cacheWriteTokens": 6479,
+              "totalTokens": 10174
+            },
+            "cost": 0.0924558,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:08:34.966Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          },
+          {
+            "op": "impact-review",
+            "runId": "e26c5725-e148-4554-b005-04429212ed68",
+            "startedAt": "2026-10-07T00:08:08.860Z",
+            "completedAt": "2026-10-07T00:08:34.967Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "claude-opus-5-5",
+            "tokens": 10174,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+                "line": 266,
+                "message": "Adding \"tag_id\" to MustCols forces the zero-valued TagID on the bean into the WHERE clause, giving `tag_id IN (...) AND tag_id = 0`. Nothing can match, so tags removed from an annotation are never deleted from annotation_tag. This brings back the known ensureTags delete bug. MustCols should list only \"annotation_id\".",
+                "evidence": "-\t\t\tif _, err := sess.MustCols(\"annotation_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID}); err != nil {\n+\t\t\tif _, err := sess.MustCols(\"annotation_id\", \"tag_id\").In(\"tag_id\", tagsDelete).Delete(annotationTag{AnnotationID: annotationID}); err != nil {",
+                "confidence": 0.93,
+                "note": "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column",
+                "inChange": true,
+                "notes": [
+                  "xorm-mustcols-on-a-delete-find-bean-adds-every-listed-column"
+                ],
+                "id": "f-5620fe469b7fa5152c22777f"
+              },
+              {
+                "severity": "warning",
+                "category": "violation",
+                "file": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+                "line": 461,
+                "message": "The assertion that queried the annotation_tag join table directly was removed. The remaining assertions read only items[0].Tags, which comes from the annotation.tags column, so they pass even when the join table is wrong. That leaves the reintroduced delete bug undetected.",
+                "evidence": "-\t\t\tvar linkedTags []string\n-\t\t\terr = sql.WithDbSession(context.Background(), func(dbSession *db.Session) error {\n-\t\t\t\treturn dbSession.SQL(\n-\t\t\t\t\t\"SELECT tag.key FROM annotation_tag JOIN tag ON tag.id = annotation_tag.tag_id WHERE annotation_tag.annotation_id = ?\",\n...\n-\t\t\tassert.ElementsMatch(t, []string{\"newtag1\", \"newtag3\"}, linkedTags,\n-\t\t\t\t\"replaced tags must be deleted from annotation_tag, not just from annotation.tags\")",
+                "confidence": 0.88,
+                "note": "annotation-tags-live-in-two-places-the-annotation-tags-colum",
+                "inChange": false,
+                "notes": [
+                  "annotation-tags-live-in-two-places-the-annotation-tags-colum"
+                ],
+                "id": "f-0ec0ffdd36e015579613b0f9"
+              }
+            ],
+            "notes": {
+              "consulted": 6,
+              "direct": 2,
+              "related": 4,
+              "assessed": 6,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "749667be-dbdf-4a12-b64e-fd3bd113d877",
+            "t": "2026-10-07T00:08:34.967Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-opus"
+          }
+        ]
+      },
+      "elapsedMs": 26111,
+      "validModel": true
+    }
+  }
+]

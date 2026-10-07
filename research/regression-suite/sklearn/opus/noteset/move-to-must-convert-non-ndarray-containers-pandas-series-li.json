@@ -1,0 +1,47 @@
+{
+  "id": "move-to-must-convert-non-ndarray-containers-pandas-series-li",
+  "title": "move_to must convert non-ndarray containers (pandas Series, lists) to numpy before dlpack transfer",
+  "kind": "rule",
+  "answers": [
+    "classification metric fails with pandas Series y_true and torch/array_api_strict y_pred under array_api_dispatch",
+    "move_to dlpack error with pandas Series",
+    "pandas categorical labels break array API metrics on another device",
+    "mixed pandas and array API inputs to accuracy_score/f1_score"
+  ],
+  "body": "Symptom: with array_api_dispatch=True, classification metrics raised errors when y_true was a pandas Series (int or categorical) and y_pred/y_prob came from another namespace or device (e.g. torch, array_api_strict device1).\nRoot cause: sklearn/utils/_array_api.py:move_to. get_namespace reports the numpy namespace for pandas Series and lists, but those objects do not support the dlpack protocol, so the cross-namespace transfer failed.\nFix pattern: in move_to, when the source namespace is numpy, the target is not numpy, and the object is not a numpy.ndarray, call numpy.asarray(array) before the dlpack transfer. The torch negative-stride workaround (numpy.ascontiguousarray) runs after this step, so it also applies to the converted array.\nConstraints: the conversion happens only when the target namespace is not numpy. A transfer from numpy to numpy keeps the original container. Any new cross-namespace helper must also normalise array-likes to ndarray before it uses __dlpack__.",
+  "applies": "sklearn/utils/_array_api.py move_to and any metric/estimator receiving pandas or list inputs alongside array API arrays",
+  "tags": [
+    "array-api",
+    "pandas",
+    "dlpack",
+    "metrics",
+    "move_to"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/_array_api.py",
+      "symbol": "move_to",
+      "hash": "sha256:896ec9ad3f9301295c44793d",
+      "line": 523,
+      "missing": false,
+      "fanout": {
+        "files": 49,
+        "sites": 183,
+        "refs": 234
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34779"
+  },
+  "created": "2026-10-07T00:29:38.043Z",
+  "verified": "2026-10-07T00:29:38.043Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "array-api-mixed-inputs-encode-y-to-integer-codes-then-move-i"
+  ]
+}

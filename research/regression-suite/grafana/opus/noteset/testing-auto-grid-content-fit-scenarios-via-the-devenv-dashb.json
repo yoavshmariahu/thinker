@@ -1,0 +1,112 @@
+{
+  "id": "testing-auto-grid-content-fit-scenarios-via-the-devenv-dashb",
+  "title": "Testing auto-grid content-fit scenarios via the devenv dashboard tabs and Playwright",
+  "kind": "howto",
+  "answers": [
+    "how to add an e2e test for auto grid content fit",
+    "where are the auto grid content fit test dashboards",
+    "playwright test for panel height in auto grid"
+  ],
+  "body": "Content-fit behaviors are covered by one devenv dashboard, devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json, which has one TabsLayoutTab per scenario (e.g. '8. Row packs to short panel'). Panels are defined in `elements` (panel-N) and referenced from the tab's AutoGridLayout items.\nTo add a scenario: add the panels and a new tab with the layout settings (fitContent, minHeightMode/minHeight, matchRowHeights, rowHeightMode). Then add a test in e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts that does `tabs.select(<tab title>)` and looks panels up by title with `panels.getPanel`.\nAssert heights with the spec's expectHeightAt/expectHeightGrewBeyond helpers and HEIGHT_TOLERANCE, since rendered heights can be a border or rounding pixel off. The row gap between grid rows is GRID_ROW_GAP = 8 (theme.spacing(1) in AutoGridLayoutRenderer). Poll boundingBox values with expect.poll.\nFor the unit side, getAutoRowsTemplate is pure and is tested directly in AutoGridLayoutManager.test.ts. Enable the flag with setTestFlags({ [FlagKeys.GrafanaDashboardsAutoHeightPanels]: true }).",
+  "applies": "Writing tests for dashboard auto-grid content-fit / min-max height behavior",
+  "tags": [
+    "e2e",
+    "playwright",
+    "devenv",
+    "auto-grid",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json",
+      "hash": "sha256:6035882f3a0ba48cc2568f5a",
+      "missing": false
+    },
+    {
+      "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+      "symbol": "expectHeightAt",
+      "hash": "sha256:cece9a17a9a14850f1249c86",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 10,
+        "refs": 10
+      }
+    },
+    {
+      "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+      "symbol": "expectHeightGrewBeyond",
+      "hash": "sha256:0e1980fa939a25cf6aff3e4a",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+      "symbol": "HEIGHT_TOLERANCE",
+      "hash": "sha256:b31329129184c439ea2ad6c0",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+      "symbol": "GRID_ROW_GAP",
+      "hash": "sha256:fb2695d225f695d135306a02",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.test.ts",
+      "symbol": "setTestFlags",
+      "hash": "sha256:1aa2a7745b4254fc22a14b6e",
+      "line": 206,
+      "missing": false,
+      "fanout": {
+        "files": 136,
+        "sites": 548,
+        "refs": 721
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:05:43.186Z",
+  "verified": "2026-10-07T00:05:43.186Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "auto-grid-fit-content-row-track-floor-must-follow-the-fit-mi",
+    "lowering-the-auto-grid-track-floor-requires-non-fit-items-to"
+  ]
+}

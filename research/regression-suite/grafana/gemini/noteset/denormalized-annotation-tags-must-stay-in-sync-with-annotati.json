@@ -1,0 +1,81 @@
+{
+  "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+  "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+  "kind": "rule",
+  "answers": [
+    "How are annotation tags stored and queried between annotation.tags and annotation_tag?",
+    "Why does Get return updated annotation tags while GetTags returns stale removed tags?",
+    "How to test that removed tags are deleted from the annotation_tag join table?"
+  ],
+  "body": "Invariant: Denormalized annotation.tags column and annotation_tag join table rows must be kept in sync on all tag mutations.\nWhere enforced: pkg/services/annotations/annotationsimpl/xorm_store.go:xormRepositoryImpl.ensureTags synchronizes join table links with updated tags.\nWhat breaks if skipped: Get reads annotation.tags directly and appears correct, but GetTags joins annotation_tag and returns stale tags for filtering.\nTest placement: Integration tests in pkg/services/annotations/annotationsimpl/xorm_store_test.go:TestIntegrationAnnotations must verify annotation_tag via SQL directly because ItemDTO.Tags assertions cannot detect join table desync.",
+  "applies": "pkg/services/annotations/annotationsimpl tag synchronization and testing",
+  "tags": [
+    "annotations",
+    "testing",
+    "xorm",
+    "data-integrity"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "xormRepositoryImpl",
+      "hash": "sha256:b0e32b22ab300b8d9faac7b1",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 21
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "GetTags",
+      "hash": "sha256:8a6cc41da193f8422c0ae7dd",
+      "line": 579,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 12,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+      "symbol": "TestIntegrationAnnotations",
+      "hash": "sha256:99e419faa33c8690d9f4de24",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/state/historian/annotation.go",
+      "symbol": "tags",
+      "hash": "sha256:00716a03f5cc52b4169a6b89",
+      "line": 367,
+      "missing": false,
+      "fanout": {
+        "files": 232,
+        "sites": 24,
+        "refs": 1193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131464"
+  },
+  "created": "2026-10-07T00:07:42.247Z",
+  "verified": "2026-10-07T00:07:42.247Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "xorm-mustcols-with-in-clause-generates-unsatisfiable-zero-va"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "validate-finite-values-in-selectormixin-transform-for-pandas",
+  "title": "Validate finite values in SelectorMixin transform for pandas output",
+  "kind": "rule",
+  "answers": [
+    "Why does SelectKBest.transform allow inf values when using set_output(transform='pandas')?",
+    "How does SelectorMixin validate non-finite values when preserving pandas DataFrame input?",
+    "Feature selector transform fails to reject infinite values with pandas output"
+  ],
+  "body": "Symptom: Feature selector transform allows infinite values or unexpected NaNs when set_output(transform=\"pandas\") is enabled.\nRoot cause: sklearn/feature_selection/_base.py:SelectorMixin.transform skips array checking via validate_data(skip_check_array=preserve_X), bypassing ensure_all_finite validation.\nFix pattern: Explicitly call assert_all_finite(X) when preserve_X is True and NaN values are not allowed.\nConstraints: Applies only when preserve_X is True and get_tags(self).input_tags.allow_nan is False; estimators with allow_nan=True (e.g., VarianceThreshold) remain exempt.",
+  "applies": "Feature selectors inheriting from SelectorMixin when transforming pandas DataFrames with set_output(transform='pandas')",
+  "tags": [
+    "feature-selection",
+    "validation",
+    "pandas",
+    "set-output"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/feature_selection/_base.py",
+      "symbol": "SelectorMixin.transform",
+      "hash": "sha256:e9df1007b37e30f0b1ba9227",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 217,
+        "sites": 1010,
+        "refs": 1875
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34513"
+  },
+  "created": "2026-10-07T00:41:01.094Z",
+  "verified": "2026-10-07T00:41:01.094Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,58 @@
+{
+  "id": "trace-to-logs-metrics-link-queries-must-carry-the-full-datas",
+  "title": "Trace-to-logs/metrics link queries must carry the full datasource ref ({type, uid}), not just uid",
+  "kind": "rule",
+  "answers": [
+    "Show context on logs opened from a trace says 'No more logs available'",
+    "log context UI not mounting after clicking Logs for this span",
+    "trace to metrics link query missing datasource type",
+    "why does the explore query from a span link only have datasource uid"
+  ],
+  "body": "Symptom: In Explore, after clicking \"Logs for this span\" on a trace, \"Show context\" on a log row shows the generic \"No more logs available\" state. The surrounding log lines and the datasource-specific controls never appear. Trace-to-metrics links produce the same incomplete query.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory built the inner Explore queries with `datasource: { uid }` only, or with no datasource at all for metrics. Explore can still run a query that has only a uid, but datasource-specific features such as the log context UI can't reliably tell which plugin it belongs to without `type`.\nFix pattern: Any query you put into a span link (the main `query`, every `alternativeQueries` entry, and the metrics `{expr, refId}` query) gets `datasource: { type: <settings>.type, uid: <settings>.uid }` from logsDataSourceSettings or metricsDataSourceSettings. Spread the original query first, then override `datasource`.\nConstraints: This applies to every logs backend (Loki, Splunk, Elasticsearch, Google Cloud Logging, Falcon LogScale, VictoriaLogs) and to Prometheus metrics. It also applies with the GrafanaDynamicTraceToLogs flag both on and off. The tests in createSpanLink.test.ts compare full encoded hrefs, so the key order `{\"type\":...,\"uid\":...}` must match exactly. If you add a new link type, a new datasource, or a new query field, update the expected hrefs too.",
+  "applies": "Span-link generation for trace-to-logs and trace-to-metrics in Explore TraceView",
+  "tags": [
+    "explore",
+    "traceview",
+    "trace-to-logs",
+    "trace-to-metrics",
+    "datasource-ref",
+    "log-context"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+      "symbol": "legacyCreateSpanLinkFactory",
+      "hash": "sha256:9d9b347650c49e0e7564738a",
+      "line": 149,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+      "symbol": "alternativeQueries",
+      "hash": "sha256:b93253aeabbc650fee848a02",
+      "line": 104,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 21
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#130358"
+  },
+  "created": "2026-10-07T00:05:57.730Z",
+  "verified": "2026-10-07T00:05:57.730Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,54 @@
+{
+  "id": "keep-experimental-halving-estimators-out-of-wildcard-exports",
+  "title": "Keep experimental halving estimators out of wildcard exports",
+  "kind": "rule",
+  "answers": [
+    "Why does from sklearn.model_selection import * raise ImportError?",
+    "Can experimental halving search estimators be added to __all__?",
+    "How should model_selection expose HalvingGridSearchCV and HalvingRandomSearchCV?"
+  ],
+  "body": "Symptom: Star-importing sklearn.model_selection fails with an ImportError about enabling halving search.\nRoot cause: sklearn/model_selection/__init__.py:__all__ listed HalvingGridSearchCV and HalvingRandomSearchCV, whose access is rejected by sklearn/model_selection/__init__.py:__getattr__ until enable_halving_search_cv is imported.\nFix pattern: Exclude gated estimators from __all__; retain their TYPE_CHECKING imports with # noqa: F401 for static visibility.\nConstraints: Applies while these estimators are experimental. Preserve the guidance error on explicit access before opt-in and their importability after opt-in; revisit the type-checking workaround when they cease to be experimental.",
+  "applies": "Changes to model_selection exports and experimental halving-search exposure.",
+  "tags": [
+    "model_selection",
+    "experimental",
+    "imports"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/model_selection/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:c0a08e9337f20cbb33aa4816",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 130,
+        "sites": 0,
+        "refs": 182
+      }
+    },
+    {
+      "path": "sklearn/model_selection/__init__.py",
+      "symbol": "__getattr__",
+      "hash": "sha256:62cf16366742639f1663a774",
+      "line": 96,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35042"
+  },
+  "created": "2026-10-07T00:32:47.907Z",
+  "verified": "2026-10-07T00:32:47.907Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

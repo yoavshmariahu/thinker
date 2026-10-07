@@ -1,0 +1,58 @@
+{
+  "id": "preserve-native-dataframe-and-series-container-types-in-inde",
+  "title": "Preserve native DataFrame and Series container types in indexable",
+  "kind": "rule",
+  "answers": [
+    "Why does cross_val_score or cross_val_predict pass Narwhals DataFrames to estimators?",
+    "How to ensure indexable returns native DataFrame types instead of Narwhals objects?",
+    "Estimators fail during cross-validation because DataFrame input type was converted by indexable"
+  ],
+  "body": "Symptom: Cross-validation tools pass Narwhals DataFrames or Series to downstream estimators instead of native DataFrame types.\nRoot cause: sklearn/utils/validation.py:_make_indexable converted native dataframes to Narwhals objects using nw.from_native.\nFix pattern: Return native containers unchanged from indexable helpers so input container type equals output container type.\nConstraints: Applies to indexable validation for estimators; does not prevent using Narwhals in internal helpers that convert back before returning.",
+  "applies": "Input validation and cross-validation indexing of DataFrame and Series objects",
+  "tags": [
+    "validation",
+    "indexable",
+    "cross-validation",
+    "dataframe",
+    "narwhals"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "_make_indexable",
+      "hash": "sha256:984c2cc6247c836044196ad1",
+      "line": 461,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "indexable",
+      "hash": "sha256:23a45194bf414edb05655d1c",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 18,
+        "refs": 48
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34605"
+  },
+  "created": "2026-10-07T00:42:54.520Z",
+  "verified": "2026-10-07T00:42:54.520Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unwrap-narwhals-dataframes-to-native-pandas-before-checking"
+  ]
+}

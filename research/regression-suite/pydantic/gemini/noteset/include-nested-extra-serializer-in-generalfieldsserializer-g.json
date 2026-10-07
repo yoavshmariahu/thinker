@@ -1,0 +1,43 @@
+{
+  "id": "include-nested-extra-serializer-in-generalfieldsserializer-g",
+  "title": "Include nested extra_serializer in GeneralFieldsSerializer GC traversal",
+  "kind": "rule",
+  "answers": [
+    "Why does Python GC fail to collect cyclic references involving model serializers with extra fields?",
+    "How to ensure nested serializers in GeneralFieldsSerializer are visited by the Python garbage collector?",
+    "Which fields must be passed to impl_py_gc_traverse for pydantic-core serializers?"
+  ],
+  "body": "Symptom: Memory leak when objects with cyclic references are serialized with extra fields, as Python garbage collection fails to reclaim them.\nRoot cause: pydantic-core/src/serializers/fields.rs:GeneralFieldsSerializer omitted `extra_serializer` from `impl_py_gc_traverse!`.\nFix pattern: Include all child fields holding Python references or nested serializers in the `impl_py_gc_traverse!` macro invocation.\nConstraints: Applies to PyO3 serializer types with child fields holding Python references or nested serializers; does not apply to non-Python primitive fields such as usize.",
+  "applies": "Python GC traversal in pydantic-core serializer implementations.",
+  "tags": [
+    "pydantic-core",
+    "serializers",
+    "garbage-collection",
+    "memory-leak"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/fields.rs",
+      "symbol": "GeneralFieldsSerializer",
+      "hash": "sha256:20be22439dbf97c4389c1d96",
+      "line": 126,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13629"
+  },
+  "created": "2026-10-07T00:52:03.768Z",
+  "verified": "2026-10-07T00:52:03.768Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

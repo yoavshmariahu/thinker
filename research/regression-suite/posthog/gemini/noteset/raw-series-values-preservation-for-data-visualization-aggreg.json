@@ -1,0 +1,69 @@
+{
+  "id": "raw-series-values-preservation-for-data-visualization-aggreg",
+  "title": "Raw series values preservation for data visualization aggregations",
+  "kind": "rule",
+  "answers": [
+    "Where should rounding be applied to chart series values in data visualization?",
+    "Why are metric card or pie chart totals inaccurate when decimal places are configured?",
+    "Should y-axis or breakdown series selectors round data values?"
+  ],
+  "body": "Invariant: Series extraction and breakdown selectors must keep raw numeric values and never round to configured decimal places.\nWhere enforced: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic in the yData selector and frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts:parseBreakdownSeriesValue.\nWhere display formatting lives: frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts:formatSqlSeriesValue formats values for tooltips, ticks, and labels.\nWhat breaks if skipped: Rounding in series selectors causes metric card totals, averages, change badges, pie totals, and breakdown buckets to sum pre-rounded numbers, creating cumulative rounding errors.",
+  "applies": "Series data extraction and breakdown aggregation in DataVisualization.",
+  "tags": [
+    "data-visualization",
+    "charts",
+    "aggregations",
+    "series"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+      "symbol": "parseBreakdownSeriesValue",
+      "hash": "sha256:abd161cca27e8442ccdf6dca",
+      "line": 78,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "symbol": "formatSqlSeriesValue",
+      "hash": "sha256:0a05e3abdf21780416131363",
+      "line": 242,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 14,
+        "refs": 24
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:24:29.498Z",
+  "verified": "2026-10-07T00:24:29.498Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "zero-decimal-places-formatting-in-data-visualization"
+  ]
+}

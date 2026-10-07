@@ -1,0 +1,66 @@
+{
+  "id": "invalidate-complete-models-with-mocks-during-rebuilding",
+  "title": "Invalidate complete models with mocks during rebuilding",
+  "kind": "rule",
+  "answers": [
+    "Why can model instantiation race with model_rebuild(force=True)?",
+    "How should a forced rebuild invalidate validators and serializers?",
+    "Why must rebuild avoid deleting model schema attributes?"
+  ],
+  "body": "Symptom: Instantiating a model concurrently with a forced rebuild can race with removal of its validation attributes.\nRoot cause: pydantic/main.py:BaseModel.model_rebuild previously deleted schema, validator, and serializer attributes; concurrent reads without the rebuild lock can then resolve attributes from a parent class.\nFix pattern: After marking the model incomplete, replace an already-complete model's schema, validator, and serializer with mocks through _mock_val_ser.set_model_mocks(cls), preventing reuse of the completed artifacts while keeping class attributes present.\nConstraints: Reset mocks when already_complete is true. Incomplete models retain their existing mocks; completed schema, validator, and serializer artifacts must not be reused during rebuilding.",
+  "applies": "Changes to BaseModel rebuilding and invalidation of compiled schema, validation, or serialization artifacts.",
+  "tags": [
+    "free-threading",
+    "model-rebuild",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/main.py",
+      "symbol": "BaseModel.model_rebuild",
+      "hash": "sha256:cc75016c0fdc60ff9225b72a",
+      "line": 677,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 99,
+        "refs": 103
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "test_model_force_rebuild_concurrent_instantiation",
+      "hash": "sha256:d17bd9677b39e44e3d2e3a4a",
+      "line": 146,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic/_internal/_mock_val_ser.py",
+      "symbol": "set_model_mocks",
+      "hash": "sha256:c7be176edd10b3418a91ef27",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:41:43.114Z",
+  "verified": "2026-10-07T00:41:43.114Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

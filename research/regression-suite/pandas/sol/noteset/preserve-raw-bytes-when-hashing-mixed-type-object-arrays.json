@@ -1,0 +1,55 @@
+{
+  "id": "preserve-raw-bytes-when-hashing-mixed-type-object-arrays",
+  "title": "Preserve raw bytes when hashing mixed-type object arrays",
+  "kind": "rule",
+  "answers": [
+    "Why does hash_pandas_object raise UnicodeDecodeError for mixed values containing bytes?",
+    "How should hash_array handle non-ASCII bytes alongside integers and None?",
+    "Why do bytes with trailing NULs hash differently in mixed-type arrays?"
+  ],
+  "body": "Symptom: hash_array and hash_pandas_object raise UnicodeDecodeError on mixed-type object values containing non-ASCII bytes; trailing NULs can also be lost during conversion.\nRoot cause: pandas/core/util/hashing.py:_hash_ndarray used whole-array astype(str) in its TypeError fallback, which decodes bytes as ASCII regardless of the requested encoding and can alter their contents.\nFix pattern: Copy the object array, identify bytes with isinstance, stringify only non-bytes elements, and pass the resulting array to hash_object_array with the requested hash key and encoding.\nConstraints: Apply this conversion in the mixed-type TypeError fallback. Preserve existing stringification of non-bytes values; bytes must hash consistently with non-mixed inputs, including non-ASCII content and trailing NULs, with categorize enabled or disabled (pandas/tests/util/test_hashing.py:test_hash_array_mixed_bytes).",
+  "applies": "Object-array hashing through _hash_ndarray, including hash_array and hash_pandas_object callers.",
+  "tags": [
+    "hashing",
+    "bytes",
+    "mixed-types",
+    "encoding"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/util/hashing.py",
+      "symbol": "_hash_ndarray",
+      "hash": "sha256:d62c3eb8421437ee959d4e4e",
+      "line": 365,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/util/test_hashing.py",
+      "symbol": "test_hash_array_mixed_bytes",
+      "hash": "sha256:e3441bade8a196e91b6d445d",
+      "line": 97,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70493"
+  },
+  "created": "2026-10-07T00:26:07.375Z",
+  "verified": "2026-10-07T00:26:07.375Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

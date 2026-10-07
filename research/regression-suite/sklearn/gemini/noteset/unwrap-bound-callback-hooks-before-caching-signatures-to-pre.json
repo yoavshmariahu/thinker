@@ -1,0 +1,43 @@
+{
+  "id": "unwrap-bound-callback-hooks-before-caching-signatures-to-pre",
+  "title": "Unwrap bound callback hooks before caching signatures to prevent memory leaks",
+  "kind": "rule",
+  "answers": [
+    "Why are callback objects or listeners not garbage collected after fit?",
+    "How should callback hook signatures be cached in sklearn.callback?",
+    "How to prevent signature caching from keeping callback instances alive?"
+  ],
+  "body": "Symptom: Callback instances and background resources (e.g., listeners or threads) are not garbage-collected after fitting an estimator.\nRoot cause: sklearn/callback/_callback_context.py:CallbackContext caches signatures on bound hook methods, holding strong references to callback instances.\nFix pattern: Unwrap bound methods via getattr(hook, \"__func__\", hook) to cache signatures by function rather than bound instance method.\nConstraints: Applies when caching signatures or inspect metadata on instance hooks; not applicable when hooks are already standalone functions.",
+  "applies": "Signature caching and lifecycle management of callback hooks in sklearn.callback.",
+  "tags": [
+    "callback",
+    "caching",
+    "memory-leak",
+    "garbage-collection"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_callback_context.py",
+      "symbol": "CallbackContext",
+      "hash": "sha256:2f1ebde4457d1e590fe44998",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 1,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34837"
+  },
+  "created": "2026-10-07T00:41:29.238Z",
+  "verified": "2026-10-07T00:41:29.238Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,2040 @@
+[
+  {
+    "id": "pydantic-13912",
+    "pr": 13912,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17424,
+    "elapsedMs": 11680,
+    "proposed": [
+      {
+        "title": "Normalize OS errors during ZoneInfo validation",
+        "kind": "rule",
+        "answers": [
+          "Why does an invalid timezone raise an OS error instead of a validation error?",
+          "How should ZoneInfo constructor failures be reported?",
+          "How are overly long timezone names validated?"
+        ],
+        "body": "Symptom: Invalid timezone inputs such as 'America' or a 300-character name raise an OS error instead of a ValidationError.\nRoot cause: pydantic/_internal/_validators.py:validate_str_is_valid_iana_tz did not catch OSError from ZoneInfo(value).\nFix pattern: Translate ZoneInfoNotFoundError, ValueError, TypeError and OSError into PydanticCustomError with type 'zoneinfo_str', message 'invalid timezone: {value}' and the original value in context; regression coverage is in tests/types/test_zoneinfo.py:test_zoneinfo_os_error_is_validation_error.\nConstraints: This normalization applies to ZoneInfo construction during validation; existing ZoneInfo instances pass through, and exceptions outside the listed set are not caught.",
+        "applies": "Validation of ZoneInfo fields and TypeAdapter(ZoneInfo) inputs.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_validators.py",
+            "symbol": "validate_str_is_valid_iana_tz"
+          },
+          {
+            "path": "tests/types/test_zoneinfo.py",
+            "symbol": "test_zoneinfo_os_error_is_validation_error"
+          }
+        ],
+        "tags": [
+          "zoneinfo",
+          "validation",
+          "error-handling"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "normalize-os-errors-during-zoneinfo-validation",
+        "title": "Normalize OS errors during ZoneInfo validation",
+        "kind": "rule",
+        "body": "Symptom: Invalid timezone inputs such as 'America' or a 300-character name raise an OS error instead of a ValidationError.\nRoot cause: pydantic/_internal/_validators.py:validate_str_is_valid_iana_tz did not catch OSError from ZoneInfo(value).\nFix pattern: Translate ZoneInfoNotFoundError, ValueError, TypeError and OSError into PydanticCustomError with type 'zoneinfo_str', message 'invalid timezone: {value}' and the original value in context; regression coverage is in tests/types/test_zoneinfo.py:test_zoneinfo_os_error_is_validation_error.\nConstraints: This normalization applies to ZoneInfo construction during validation; existing ZoneInfo instances pass through, and exceptions outside the listed set are not caught.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_validators.py",
+            "symbol": "validate_str_is_valid_iana_tz",
+            "hash": "sha256:b14945ec48252c7c3f72fdbe",
+            "line": 486,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 2
+            }
+          },
+          {
+            "path": "tests/types/test_zoneinfo.py",
+            "symbol": "test_zoneinfo_os_error_is_validation_error",
+            "hash": "sha256:086fbee23ab710fe9ec2e5fc",
+            "line": 45,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13892",
+    "pr": 13892,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 19019,
+    "elapsedMs": 22873,
+    "proposed": [
+      {
+        "title": "Keep legacy timedelta settings isolated during inferred serialization",
+        "kind": "rule",
+        "answers": [
+          "Why does ser_json_timedelta='float' turn datetime values into numbers?",
+          "How should TypeAdapter(Any) serialize dates and durations?",
+          "Which mode controls inferred timedelta values and dictionary keys?"
+        ],
+        "body": "Symptom: Setting ser_json_timedelta='float' makes inferred datetime, date and time values serialize as numbers instead of ISO strings.\nRoot cause: pydantic-core/src/serializers/config.rs:SerializationConfig::from_config previously resolved one shared temporal mode using the timedelta setting.\nFix pattern: Maintain separate temporal_mode and timedelta_mode fields; use timedelta_mode for timedelta branches in pydantic-core/src/serializers/infer.rs:infer_to_python_known, infer_serialize_known and infer_json_key_known so JSON-compatible values, JSON output and dictionary keys agree.\nConstraints: The legacy ser_json_timedelta setting affects only timedeltas; ser_json_temporal affects all temporal types. This separation concerns JSON serialization by inference, including unknown types such as Any.",
+        "applies": "Changes to temporal configuration or inferred JSON serialization of datetime, date, time and timedelta values and keys.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig"
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig::from_config"
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_to_python_known"
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_serialize_known"
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_json_key_known"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "temporal",
+          "type-inference"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Preserve the two timedelta precedence rules",
+        "kind": "rule",
+        "answers": [
+          "Which setting wins when ser_json_temporal and ser_json_timedelta are both supplied?",
+          "Does explicitly configuring ISO temporal output override float durations?",
+          "How do temporal_mode and timedelta_mode interact in to_jsonable_python?"
+        ],
+        "body": "Invariant: Dictionary configuration gives ser_json_temporal precedence whenever the key is present, including an explicit iso8601 value; otherwise timedeltas use ser_json_timedelta.\nEnforcement: pydantic-core/src/serializers/config.rs:TemporalMode::timedelta_from_config centralizes this presence check and is used by SerializationConfig::from_config and pydantic-core/src/serializers/type_serializers/timedelta.rs:TimeDeltaSerializer::build, keeping inferred and typed timedelta serialization aligned.\nArgument exception: pydantic-core/src/serializers/config.rs:SerializationConfig::from_args instead uses timedelta_mode when temporal_mode equals iso8601; any other temporal_mode takes precedence for timedeltas.\nConsequence: Replacing the configuration presence check with a value comparison changes explicit ISO overrides; applying the presence-based rule to argument resolution removes its default-mode fallback.",
+        "applies": "Changes to timedelta mode resolution across dictionary configuration, serializer construction and direct serialization arguments.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "TemporalMode::timedelta_from_config"
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig::from_config"
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig::from_args"
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+            "symbol": "TimeDeltaSerializer::build"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "configuration",
+          "precedence",
+          "timedelta"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-legacy-timedelta-settings-isolated-during-inferred-seri",
+        "title": "Keep legacy timedelta settings isolated during inferred serialization",
+        "kind": "rule",
+        "body": "Symptom: Setting ser_json_timedelta='float' makes inferred datetime, date and time values serialize as numbers instead of ISO strings.\nRoot cause: pydantic-core/src/serializers/config.rs:SerializationConfig::from_config previously resolved one shared temporal mode using the timedelta setting.\nFix pattern: Maintain separate temporal_mode and timedelta_mode fields; use timedelta_mode for timedelta branches in pydantic-core/src/serializers/infer.rs:infer_to_python_known, infer_serialize_known and infer_json_key_known so JSON-compatible values, JSON output and dictionary keys agree.\nConstraints: The legacy ser_json_timedelta setting affects only timedeltas; ser_json_temporal affects all temporal types. This separation concerns JSON serialization by inference, including unknown types such as Any.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 0,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 0,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "from_config",
+            "hash": "sha256:be1f18ed380cf423b4744d1d",
+            "line": 43,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 12,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "temporal_mode",
+            "hash": "sha256:9b5b0cc62e4cb5ce5e0c6e85",
+            "line": 58,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 33
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "timedelta_mode",
+            "hash": "sha256:5825d73c2a8455c1306b173f",
+            "line": 59,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 16
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_to_python_known",
+            "hash": "sha256:74bbe75b017e4fe3f8963f09",
+            "line": 44,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 3,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_serialize_known",
+            "hash": "sha256:dc8c59f8916d850c984f193c",
+            "line": 326,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 4,
+              "refs": 6
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/infer.rs",
+            "symbol": "infer_json_key_known",
+            "hash": "sha256:307dcfd09025c084cc5f377a",
+            "line": 553,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 6,
+              "refs": 12
+            }
+          }
+        ]
+      },
+      {
+        "id": "preserve-the-two-timedelta-precedence-rules",
+        "title": "Preserve the two timedelta precedence rules",
+        "kind": "rule",
+        "body": "Invariant: Dictionary configuration gives ser_json_temporal precedence whenever the key is present, including an explicit iso8601 value; otherwise timedeltas use ser_json_timedelta.\nEnforcement: pydantic-core/src/serializers/config.rs:TemporalMode::timedelta_from_config centralizes this presence check and is used by SerializationConfig::from_config and pydantic-core/src/serializers/type_serializers/timedelta.rs:TimeDeltaSerializer::build, keeping inferred and typed timedelta serialization aligned.\nArgument exception: pydantic-core/src/serializers/config.rs:SerializationConfig::from_args instead uses timedelta_mode when temporal_mode equals iso8601; any other temporal_mode takes precedence for timedeltas.\nConsequence: Replacing the configuration presence check with a value comparison changes explicit ISO overrides; applying the presence-based rule to argument resolution removes its default-mode fallback.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "TemporalMode",
+            "hash": "sha256:4623a6bad4f56ffb09911823",
+            "line": 157,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 18
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "timedelta_from_config",
+            "hash": "sha256:87c815644f46fd4cda9b6ee7",
+            "line": 158,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 0,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "from_config",
+            "hash": "sha256:be1f18ed380cf423b4744d1d",
+            "line": 43,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 12,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "TemporalMode",
+            "hash": "sha256:4623a6bad4f56ffb09911823",
+            "line": 157,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 18
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "timedelta_from_config",
+            "hash": "sha256:87c815644f46fd4cda9b6ee7",
+            "line": 158,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 0,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "from_config",
+            "hash": "sha256:be1f18ed380cf423b4744d1d",
+            "line": 43,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 12,
+              "refs": 12
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "TemporalMode",
+            "hash": "sha256:4623a6bad4f56ffb09911823",
+            "line": 157,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "timedelta_from_config",
+            "hash": "sha256:87c815644f46fd4cda9b6ee7",
+            "line": 158,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "from_config",
+            "hash": "sha256:be1f18ed380cf423b4744d1d",
+            "line": 43,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+            "symbol": "temporal_mode",
+            "hash": "sha256:63e8f04675345dbb52373909",
+            "line": 28,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "TemporalMode",
+            "hash": "sha256:4623a6bad4f56ffb09911823",
+            "line": 157,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+            "symbol": "temporal_mode",
+            "hash": "sha256:63e8f04675345dbb52373909",
+            "line": 28,
+            "missing": false
+          },
+          {
+            "path": "pydantic-core/src/serializers/config.rs",
+            "symbol": "SerializationConfig",
+            "hash": "sha256:9c5a974183e39dffd98ae250",
+            "line": 42,
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13825",
+    "pr": 13825,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 21936,
+    "elapsedMs": 31127,
+    "proposed": [
+      {
+        "title": "Keep declared configuration separate from derived settings",
+        "kind": "rule",
+        "answers": [
+          "Why does a child model still accept field names after disabling populate_by_name?",
+          "Why did Pydantic add validation settings to my model_config?",
+          "How should internal configuration defaults be applied without changing user configuration?"
+        ],
+        "body": "Symptom: A child model accepts field names despite populate_by_name=False, or model_config exposes validation settings the user never declared.\nRoot cause: pydantic/_internal/_config.py:ConfigWrapper.core_config formerly inserted derived settings into the declared mapping, allowing parent-derived settings to override a child's declaration.\nFix pattern: pydantic/_internal/_config.py:prepare_config copies supplied dictionaries; ConfigWrapper keeps declarations in config_dict and derives effective_config through _build_effective_config. Configuration consumers use wrapper attributes or core_config().\nConstraints: config_dict is exposed as model_config or __pydantic_config__ and supplies inheritance merges, so internal normalization must never mutate it. This does not require effective_config to be a separate copy when no derived settings are needed.",
+        "applies": "Configuration ownership, normalization, inheritance, and consumers of ConfigWrapper.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper"
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "prepare_config"
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "_build_effective_config"
+          },
+          {
+            "path": "tests/test_config.py",
+            "symbol": "test_derived_alias_config_not_inherited"
+          }
+        ],
+        "tags": [
+          "configuration",
+          "inheritance",
+          "ownership"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Normalize alias validation eagerly and use it for signatures",
+        "kind": "rule",
+        "answers": [
+          "How do populate_by_name and validate_by_alias interact?",
+          "Why does disabling alias validation still allow field names?",
+          "Should invalid alias settings fail with defer_build enabled?",
+          "Why does the model signature show an alias despite validate_by_alias=False?"
+        ],
+        "body": "pydantic/_internal/_config.py:_build_effective_config applies compatibility settings only when validate_by_name is absent or None: a non-None populate_by_name forces validate_by_alias=True and supplies validate_by_name; otherwise validate_by_alias=False implies validate_by_name=True.\nThe same function rejects configurations allowing neither aliases nor names with error code validate-by-alias-and-name-false. ConfigWrapper.__init__ enforces this before schema building, including deferred builds and unresolved annotations.\nExplicit non-None validate_by_name bypasses these derivations; preserve that precedence when changing configuration normalization.\nModel and dataclass signature generation receive effective validate_by_alias through pydantic/_internal/_model_construction.py:complete_model_class and pydantic/_internal/_dataclasses.py:complete_dataclass; pydantic/_internal/_signature.py:generate_pydantic_signature does not take validate_by_name.\nSkipping effective configuration when generating signatures can make the displayed constructor parameters disagree with the compatibility settings used for validation.",
+        "applies": "Alias/name validation configuration and generated model or dataclass signatures.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "_build_effective_config"
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper.__init__"
+          },
+          {
+            "path": "pydantic/_internal/_model_construction.py",
+            "symbol": "complete_model_class"
+          },
+          {
+            "path": "pydantic/_internal/_dataclasses.py",
+            "symbol": "complete_dataclass"
+          },
+          {
+            "path": "pydantic/_internal/_signature.py",
+            "symbol": "generate_pydantic_signature"
+          }
+        ],
+        "tags": [
+          "configuration",
+          "aliases",
+          "signatures",
+          "validation"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Emit schema_generator deprecation warnings during configuration preparation",
+        "kind": "rule",
+        "answers": [
+          "Where should the schema_generator deprecation warning be emitted?",
+          "Why are schema_generator warnings repeated during schema construction?",
+          "Does the schema_generator configuration setting still affect validation?"
+        ],
+        "body": "pydantic/_internal/_config.py:check_deprecated warns when schema_generator is non-None; prepare_config invokes this check during configuration preparation.\nKeep this warning out of ConfigWrapper.core_config: the notice belongs to configuration preparation, rather than each core configuration build, which can repeat it.\npydantic/config.py:ConfigDict documents that schema_generator no longer has any effect; pydantic/_internal/_config.py:check_deprecated must retain the PydanticDeprecatedSince210 notice.\npydantic/deprecated/decorator.py:ValidatedFunction.create_model prepares configuration first and then constructs ConfigWrapper with check=False, avoiding a second preparation pass.",
+        "applies": "schema_generator deprecation handling and callers that prepare configuration before constructing ConfigWrapper.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "check_deprecated"
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "prepare_config"
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper.core_config"
+          },
+          {
+            "path": "pydantic/config.py",
+            "symbol": "ConfigDict"
+          },
+          {
+            "path": "pydantic/deprecated/decorator.py",
+            "symbol": "ValidatedFunction.create_model"
+          },
+          {
+            "path": "tests/test_config.py",
+            "symbol": "test_generate_schema_deprecation_warning"
+          }
+        ],
+        "tags": [
+          "configuration",
+          "deprecation",
+          "warnings"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-declared-configuration-separate-from-derived-settings",
+        "title": "Keep declared configuration separate from derived settings",
+        "kind": "rule",
+        "body": "Symptom: A child model accepts field names despite populate_by_name=False, or model_config exposes validation settings the user never declared.\nRoot cause: pydantic/_internal/_config.py:ConfigWrapper.core_config formerly inserted derived settings into the declared mapping, allowing parent-derived settings to override a child's declaration.\nFix pattern: pydantic/_internal/_config.py:prepare_config copies supplied dictionaries; ConfigWrapper keeps declarations in config_dict and derives effective_config through _build_effective_config. Configuration consumers use wrapper attributes or core_config().\nConstraints: config_dict is exposed as model_config or __pydantic_config__ and supplies inheritance merges, so internal normalization must never mutate it. This does not require effective_config to be a separate copy when no derived settings are needed.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper",
+            "hash": "sha256:261e55a6ac2fc90e1b06ad73",
+            "line": 62,
+            "missing": false,
+            "fanout": {
+              "files": 18,
+              "sites": 18,
+              "refs": 56
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "prepare_config",
+            "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+            "line": 335,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 4,
+              "refs": 7
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "_build_effective_config",
+            "hash": "sha256:f65e03c4519e724974fe4eed",
+            "line": 314,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "tests/test_config.py",
+            "symbol": "test_derived_alias_config_not_inherited",
+            "hash": "sha256:e6fd243f01c0ebb083d6c92d",
+            "line": 1041,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper.core_config",
+            "hash": "sha256:a81ebb40b4b239e586967546",
+            "line": 203,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 11,
+              "refs": 32
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "core_config",
+            "hash": "sha256:a81ebb40b4b239e586967546",
+            "line": 203,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 11,
+              "refs": 32
+            }
+          }
+        ]
+      },
+      {
+        "id": "normalize-alias-validation-eagerly-and-use-it-for-signatures",
+        "title": "Normalize alias validation eagerly and use it for signatures",
+        "kind": "rule",
+        "body": "pydantic/_internal/_config.py:_build_effective_config applies compatibility settings only when validate_by_name is absent or None: a non-None populate_by_name forces validate_by_alias=True and supplies validate_by_name; otherwise validate_by_alias=False implies validate_by_name=True.\nThe same function rejects configurations allowing neither aliases nor names with error code validate-by-alias-and-name-false. ConfigWrapper.__init__ enforces this before schema building, including deferred builds and unresolved annotations.\nExplicit non-None validate_by_name bypasses these derivations; preserve that precedence when changing configuration normalization.\nModel and dataclass signature generation receive effective validate_by_alias through pydantic/_internal/_model_construction.py:complete_model_class and pydantic/_internal/_dataclasses.py:complete_dataclass; pydantic/_internal/_signature.py:generate_pydantic_signature does not take validate_by_name.\nSkipping effective configuration when generating signatures can make the displayed constructor parameters disagree with the compatibility settings used for validation.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "_build_effective_config",
+            "hash": "sha256:f65e03c4519e724974fe4eed",
+            "line": 314,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper.__init__",
+            "hash": "sha256:136ece8cc721a8092452412d",
+            "line": 140,
+            "missing": false,
+            "fanout": {
+              "files": 48,
+              "sites": 74,
+              "refs": 149
+            }
+          },
+          {
+            "path": "pydantic/_internal/_model_construction.py",
+            "symbol": "complete_model_class",
+            "hash": "sha256:68eb9facc58e881dbbc98fb4",
+            "line": 561,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 4,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pydantic/_internal/_dataclasses.py",
+            "symbol": "complete_dataclass",
+            "hash": "sha256:883e097d60858edee86b4d35",
+            "line": 85,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 4
+            }
+          },
+          {
+            "path": "pydantic/_internal/_signature.py",
+            "symbol": "generate_pydantic_signature",
+            "hash": "sha256:1b8f0f25ed073cc10b227d4e",
+            "line": 168,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 4
+            }
+          }
+        ]
+      },
+      {
+        "id": "emit-schema-generator-deprecation-warnings-during-configurat",
+        "title": "Emit schema_generator deprecation warnings during configuration preparation",
+        "kind": "rule",
+        "body": "pydantic/_internal/_config.py:check_deprecated warns when schema_generator is non-None; prepare_config invokes this check during configuration preparation.\nKeep this warning out of ConfigWrapper.core_config: the notice belongs to configuration preparation, rather than each core configuration build, which can repeat it.\npydantic/config.py:ConfigDict documents that schema_generator no longer has any effect; pydantic/_internal/_config.py:check_deprecated must retain the PydanticDeprecatedSince210 notice.\npydantic/deprecated/decorator.py:ValidatedFunction.create_model prepares configuration first and then constructs ConfigWrapper with check=False, avoiding a second preparation pass.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "check_deprecated",
+            "hash": "sha256:6aab75cffe29336758f7548f",
+            "line": 389,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "prepare_config",
+            "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+            "line": 335,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 4,
+              "refs": 7
+            }
+          },
+          {
+            "path": "pydantic/_internal/_config.py",
+            "symbol": "ConfigWrapper.core_config",
+            "hash": "sha256:a81ebb40b4b239e586967546",
+            "line": 203,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 11,
+              "refs": 32
+            }
+          },
+          {
+            "path": "pydantic/config.py",
+            "symbol": "ConfigDict",
+            "hash": "sha256:809ca1164e245b6434395824",
+            "line": 34,
+            "missing": false,
+            "fanout": {
+              "files": 73,
+              "sites": 571,
+              "refs": 750
+            }
+          },
+          {
+            "path": "pydantic/deprecated/decorator.py",
+            "symbol": "ValidatedFunction.create_model",
+            "hash": "sha256:d0405e3c3f1b4a48ff1273d0",
+            "line": 229,
+            "missing": false,
+            "fanout": {
+              "files": 42,
+              "sites": 103,
+              "refs": 154
+            }
+          },
+          {
+            "path": "tests/test_config.py",
+            "symbol": "test_generate_schema_deprecation_warning",
+            "hash": "sha256:543f9780d298de8b477b4c50",
+            "line": 974,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13850",
+    "pr": 13850,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16521,
+    "elapsedMs": 12334,
+    "proposed": [
+      {
+        "title": "Report overflowing ByteSize strings as validation errors",
+        "kind": "rule",
+        "answers": [
+          "Why does a very large byte-size string raise OverflowError?",
+          "How should ByteSize handle oversized values such as a 310-digit number followed by KB?",
+          "How do I preserve ByteSize validation errors when changing unit conversion?"
+        ],
+        "body": "Symptom: Validating an extremely large byte-size string raises OverflowError instead of ValidationError.\nRoot cause: pydantic/types.py:ByteSize converts the numeric string to float, multiplies by the unit multiplier, and converts to int; this conversion can overflow.\nFix pattern: Catch OverflowError around the scaled numeric conversion and raise PydanticCustomError with code 'byte_size' and message 'could not parse value and unit from byte string'.\nConstraints: This handling applies to overflow during numeric conversion with a recognized unit; unsupported units retain the separate 'byte_size_unit' error.",
+        "applies": "ByteSize validation of numeric strings with byte units, especially values large enough to overflow float-to-int conversion.",
+        "deps": [
+          {
+            "path": "pydantic/types.py",
+            "symbol": "ByteSize"
+          }
+        ],
+        "tags": [
+          "validation",
+          "ByteSize",
+          "overflow",
+          "error-handling"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "report-overflowing-bytesize-strings-as-validation-errors",
+        "title": "Report overflowing ByteSize strings as validation errors",
+        "kind": "rule",
+        "body": "Symptom: Validating an extremely large byte-size string raises OverflowError instead of ValidationError.\nRoot cause: pydantic/types.py:ByteSize converts the numeric string to float, multiplies by the unit multiplier, and converts to int; this conversion can overflow.\nFix pattern: Catch OverflowError around the scaled numeric conversion and raise PydanticCustomError with code 'byte_size' and message 'could not parse value and unit from byte string'.\nConstraints: This handling applies to overflow during numeric conversion with a recognized unit; unsupported units retain the separate 'byte_size_unit' error.",
+        "deps": [
+          {
+            "path": "pydantic/types.py",
+            "symbol": "ByteSize",
+            "hash": "sha256:9a9dc2a562815452915c3854",
+            "line": 2070,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 1,
+              "refs": 26
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13785",
+    "pr": 13785,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 19670,
+    "elapsedMs": 31986,
+    "proposed": [
+      {
+        "title": "Snapshot class namespaces before concurrent iteration",
+        "kind": "rule",
+        "answers": [
+          "Why does concurrent TypeAdapter construction fail while reading a class?",
+          "Why does creating models or dataclasses with a shared base race?",
+          "How should class namespaces be iterated in free-threaded builds?"
+        ],
+        "body": "Symptom: Concurrent TypeAdapter construction, model/dataclass creation, or model rebuilding can fail because a class dictionary changes size during iteration.\nRoot cause: pydantic/_internal/_decorators.py:_decorator_infos_for_class and pydantic/_internal/_namespace_utils.py:LazyLocalNamespace.data iterate class namespaces that another thread can mutate by first reading annotations; Python 3.14 can add __annotations_cache__ or __annotate_func__.\nFix pattern: Iterate vars(typ).copy().items() when collecting decorators; copy MappingProxyType namespaces before iterating them when assembling lazy locals.\nConstraints: This protects iteration over shared class namespaces during concurrent annotation access. LazyLocalNamespace.data copies only MappingProxyType inputs; other mappings retain their existing iteration behavior.",
+        "applies": "Class namespace iteration during concurrent schema generation, decorator discovery, and annotation resolution.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_decorators.py",
+            "symbol": "_decorator_infos_for_class"
+          },
+          {
+            "path": "pydantic/_internal/_namespace_utils.py",
+            "symbol": "LazyLocalNamespace.data"
+          }
+        ],
+        "tags": [
+          "free-threading",
+          "annotations",
+          "namespaces"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Invalidate complete models with mocks during rebuilding",
+        "kind": "rule",
+        "answers": [
+          "Why can model instantiation race with model_rebuild(force=True)?",
+          "How should a forced rebuild invalidate validators and serializers?",
+          "Why must rebuild avoid deleting model schema attributes?"
+        ],
+        "body": "Symptom: Instantiating a model concurrently with a forced rebuild can race with removal of its validation attributes.\nRoot cause: pydantic/main.py:BaseModel.model_rebuild previously deleted schema, validator, and serializer attributes; concurrent reads without the rebuild lock can then resolve attributes from a parent class.\nFix pattern: After marking the model incomplete, replace an already-complete model's schema, validator, and serializer with mocks through _mock_val_ser.set_model_mocks(cls), preventing reuse of the completed artifacts while keeping class attributes present.\nConstraints: Reset mocks when already_complete is true. Incomplete models retain their existing mocks; completed schema, validator, and serializer artifacts must not be reused during rebuilding.",
+        "applies": "Changes to BaseModel rebuilding and invalidation of compiled schema, validation, or serialization artifacts.",
+        "deps": [
+          {
+            "path": "pydantic/main.py",
+            "symbol": "BaseModel.model_rebuild"
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "test_model_force_rebuild_concurrent_instantiation"
+          }
+        ],
+        "tags": [
+          "free-threading",
+          "model-rebuild",
+          "validation"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Exercise races with fresh shared state and synchronized workers",
+        "kind": "howto",
+        "answers": [
+          "How do I test concurrent TypeAdapter or model creation?",
+          "How do I reproduce a model rebuild race?",
+          "Why are the free-threading tests skipped?"
+        ],
+        "body": "Use tests/test_freethreaded.py:run_concurrently(setup, target, *, rounds=100, threads=8) for concurrency regressions.\nsetup() creates fresh shared state each round; target(ctx, index) receives that state and a worker index, allowing one worker to rebuild while others instantiate or create subclasses.\nA threading.Barrier releases all workers together, and future.result() propagates worker failures to the test.\nThe module skips tests on Emscripten and when tests/conftest.py:is_free_threaded is false; detection uses not sys._is_gil_enabled(), falling back to false when that API is absent.\nFor first-annotation-access races, setup must recreate the class each round so annotation caches from earlier rounds do not remove the triggering condition.",
+        "applies": "Regression tests for shared-class races on Python runtimes running with the GIL disabled.",
+        "deps": [
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "run_concurrently"
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "pytestmark"
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "test_model_rebuild_concurrent_subclass_creation"
+          },
+          {
+            "path": "tests/conftest.py",
+            "symbol": "is_free_threaded"
+          }
+        ],
+        "tags": [
+          "testing",
+          "free-threading",
+          "race-conditions"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "snapshot-class-namespaces-before-concurrent-iteration",
+        "title": "Snapshot class namespaces before concurrent iteration",
+        "kind": "rule",
+        "body": "Symptom: Concurrent TypeAdapter construction, model/dataclass creation, or model rebuilding can fail because a class dictionary changes size during iteration.\nRoot cause: pydantic/_internal/_decorators.py:_decorator_infos_for_class and pydantic/_internal/_namespace_utils.py:LazyLocalNamespace.data iterate class namespaces that another thread can mutate by first reading annotations; Python 3.14 can add __annotations_cache__ or __annotate_func__.\nFix pattern: Iterate vars(typ).copy().items() when collecting decorators; copy MappingProxyType namespaces before iterating them when assembling lazy locals.\nConstraints: This protects iteration over shared class namespaces during concurrent annotation access. LazyLocalNamespace.data copies only MappingProxyType inputs; other mappings retain their existing iteration behavior.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_decorators.py",
+            "symbol": "_decorator_infos_for_class",
+            "hash": "sha256:e62bd05cae2d685d91a19eba",
+            "line": 528,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pydantic/_internal/_namespace_utils.py",
+            "symbol": "LazyLocalNamespace.data",
+            "hash": "sha256:2039319cb509640ecf0dbf1b",
+            "line": 90,
+            "missing": false
+          }
+        ]
+      },
+      {
+        "id": "invalidate-complete-models-with-mocks-during-rebuilding",
+        "title": "Invalidate complete models with mocks during rebuilding",
+        "kind": "rule",
+        "body": "Symptom: Instantiating a model concurrently with a forced rebuild can race with removal of its validation attributes.\nRoot cause: pydantic/main.py:BaseModel.model_rebuild previously deleted schema, validator, and serializer attributes; concurrent reads without the rebuild lock can then resolve attributes from a parent class.\nFix pattern: After marking the model incomplete, replace an already-complete model's schema, validator, and serializer with mocks through _mock_val_ser.set_model_mocks(cls), preventing reuse of the completed artifacts while keeping class attributes present.\nConstraints: Reset mocks when already_complete is true. Incomplete models retain their existing mocks; completed schema, validator, and serializer artifacts must not be reused during rebuilding.",
+        "deps": [
+          {
+            "path": "pydantic/main.py",
+            "symbol": "BaseModel.model_rebuild",
+            "hash": "sha256:cc75016c0fdc60ff9225b72a",
+            "line": 677,
+            "missing": false,
+            "fanout": {
+              "files": 30,
+              "sites": 99,
+              "refs": 103
+            }
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "test_model_force_rebuild_concurrent_instantiation",
+            "hash": "sha256:d17bd9677b39e44e3d2e3a4a",
+            "line": 146,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pydantic/_internal/_mock_val_ser.py",
+            "symbol": "set_model_mocks",
+            "hash": "sha256:c7be176edd10b3418a91ef27",
+            "line": 156,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 5,
+              "refs": 6
+            }
+          }
+        ]
+      },
+      {
+        "id": "exercise-races-with-fresh-shared-state-and-synchronized-work",
+        "title": "Exercise races with fresh shared state and synchronized workers",
+        "kind": "howto",
+        "body": "Use tests/test_freethreaded.py:run_concurrently(setup, target, *, rounds=100, threads=8) for concurrency regressions.\nsetup() creates fresh shared state each round; target(ctx, index) receives that state and a worker index, allowing one worker to rebuild while others instantiate or create subclasses.\nA threading.Barrier releases all workers together, and future.result() propagates worker failures to the test.\nThe module skips tests on Emscripten and when tests/conftest.py:is_free_threaded is false; detection uses not sys._is_gil_enabled(), falling back to false when that API is absent.\nFor first-annotation-access races, setup must recreate the class each round so annotation caches from earlier rounds do not remove the triggering condition.",
+        "deps": [
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "run_concurrently",
+            "hash": "sha256:a608de55d4345750177b38bf",
+            "line": 21,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 5,
+              "refs": 5
+            }
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "pytestmark",
+            "hash": "sha256:0dcdd24f1d5bd30d5b536e7e",
+            "line": 15,
+            "missing": false,
+            "fanout": {
+              "files": 16,
+              "sites": 0,
+              "refs": 18
+            }
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "test_model_rebuild_concurrent_subclass_creation",
+            "hash": "sha256:fd34ae59a12cc93596a1a7df",
+            "line": 114,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "tests/conftest.py",
+            "symbol": "is_free_threaded",
+            "hash": "sha256:d6690dd30a256333901aa1a9",
+            "line": 27,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 0,
+              "refs": 8
+            }
+          },
+          {
+            "path": "tests/test_freethreaded.py",
+            "symbol": "setup",
+            "hash": "sha256:ad9e57e70c1bc352f3b8939d",
+            "line": 39,
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13767",
+    "pr": 13767,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17932,
+    "elapsedMs": 22659,
+    "proposed": [
+      {
+        "title": "Defer mypy subclass processing until tagged model bases are ready",
+        "kind": "rule",
+        "answers": [
+          "Why does the mypy plugin crash with circular model imports?",
+          "Why are inherited fields missing from a model's constructor signature?",
+          "How should the mypy plugin handle an unfinished base model?"
+        ],
+        "body": "Symptom: Mypy crashes with circular Pydantic model imports, and subclass constructor signatures can lose inherited fields.\nRoot cause: pydantic/mypy.py:PydanticModelTransformer.collect_fields_and_class_vars skips bases without completed METADATA_KEY metadata, even when their processing is pending because of unresolved forward references.\nFix pattern: pydantic/mypy.py:PydanticModelTransformer.transform tags models with METADATA_TAG_KEY before collecting fields; collection returns (None, None) for tagged, unfinished bases, and transform explicitly requests another pass with self._api.defer().\nConstraints: Defer only before self._api.final_iteration. Missing METADATA_KEY alone does not justify deferral: untagged bases are still skipped. Preserve inherited fields before generating subclass signatures.",
+        "applies": "Pydantic mypy plugin model transformation when inheritance and unresolved forward references require multiple semantic-analysis passes.",
+        "deps": [
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "PydanticModelTransformer.transform"
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "PydanticModelTransformer.collect_fields_and_class_vars"
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "METADATA_TAG_KEY"
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "METADATA_KEY"
+          }
+        ],
+        "tags": [
+          "mypy",
+          "import-cycles",
+          "inheritance",
+          "forward-references"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "defer-mypy-subclass-processing-until-tagged-model-bases-are",
+        "title": "Defer mypy subclass processing until tagged model bases are ready",
+        "kind": "rule",
+        "body": "Symptom: Mypy crashes with circular Pydantic model imports, and subclass constructor signatures can lose inherited fields.\nRoot cause: pydantic/mypy.py:PydanticModelTransformer.collect_fields_and_class_vars skips bases without completed METADATA_KEY metadata, even when their processing is pending because of unresolved forward references.\nFix pattern: pydantic/mypy.py:PydanticModelTransformer.transform tags models with METADATA_TAG_KEY before collecting fields; collection returns (None, None) for tagged, unfinished bases, and transform explicitly requests another pass with self._api.defer().\nConstraints: Defer only before self._api.final_iteration. Missing METADATA_KEY alone does not justify deferral: untagged bases are still skipped. Preserve inherited fields before generating subclass signatures.",
+        "deps": [
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "PydanticModelTransformer.transform",
+            "hash": "sha256:9a6682e00c747eaae7016a3b",
+            "line": 521,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 33,
+              "refs": 40
+            }
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "PydanticModelTransformer.collect_fields_and_class_vars",
+            "hash": "sha256:504c7c127dbe565bfa23c9a6",
+            "line": 671,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "METADATA_TAG_KEY",
+            "hash": "sha256:555051296ccd16f7cb2e973d",
+            "line": 89,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pydantic/mypy.py",
+            "symbol": "METADATA_KEY",
+            "hash": "sha256:f7c3d574c365aaa7f3f8260d",
+            "line": 88,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 16
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13711",
+    "pr": 13711,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17588,
+    "elapsedMs": 14308,
+    "proposed": [
+      {
+        "title": "Gate temporal serialization formats on JSON schema mode",
+        "kind": "rule",
+        "answers": [
+          "Why does my validation schema say datetime is a number when ISO strings are accepted?",
+          "Should ser_json_temporal change the validation JSON schema?",
+          "Why does ser_json_timedelta='float' produce a numeric validation schema?"
+        ],
+        "body": "Symptom: A temporal field's validation JSON schema declares a number even though the model accepts ISO 8601 strings.\nRoot cause: pydantic/json_schema.py:GenerateJsonSchema._common_temporal_schema consulted the serialization format without checking the schema mode.\nFix pattern: Require self.mode == 'serialization' before emitting a numeric schema for a non-ISO temporal serialization format.\nConstraints: Applies to date, time, datetime and timedelta; validation schemas retain string types with their temporal formats. Serialization schemas still use numbers for seconds or milliseconds. val_temporal_unit controls numeric input interpretation and does not disable ISO string input.",
+        "applies": "Temporal JSON schema generation under ser_json_temporal or ser_json_timedelta settings.",
+        "deps": [
+          {
+            "path": "pydantic/json_schema.py",
+            "symbol": "GenerateJsonSchema._common_temporal_schema"
+          },
+          {
+            "path": "tests/test_json_schema.py",
+            "symbol": "test_date_types_ser_json_temporal"
+          }
+        ],
+        "tags": [
+          "json-schema",
+          "temporal",
+          "validation",
+          "serialization"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "gate-temporal-serialization-formats-on-json-schema-mode",
+        "title": "Gate temporal serialization formats on JSON schema mode",
+        "kind": "rule",
+        "body": "Symptom: A temporal field's validation JSON schema declares a number even though the model accepts ISO 8601 strings.\nRoot cause: pydantic/json_schema.py:GenerateJsonSchema._common_temporal_schema consulted the serialization format without checking the schema mode.\nFix pattern: Require self.mode == 'serialization' before emitting a numeric schema for a non-ISO temporal serialization format.\nConstraints: Applies to date, time, datetime and timedelta; validation schemas retain string types with their temporal formats. Serialization schemas still use numbers for seconds or milliseconds. val_temporal_unit controls numeric input interpretation and does not disable ISO string input.",
+        "deps": [
+          {
+            "path": "pydantic/json_schema.py",
+            "symbol": "GenerateJsonSchema._common_temporal_schema",
+            "hash": "sha256:6c570f7788363b35b47d8523",
+            "line": 906,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 5,
+              "refs": 5
+            }
+          },
+          {
+            "path": "tests/test_json_schema.py",
+            "symbol": "test_date_types_ser_json_temporal",
+            "hash": "sha256:9a4e7c97d75b50ec987d4fd6",
+            "line": 875,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13702",
+    "pr": 13702,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17645,
+    "elapsedMs": 13001,
+    "proposed": [
+      {
+        "title": "Preserve include/exclude when a custom serializer is skipped",
+        "kind": "rule",
+        "answers": [
+          "Why does model_dump ignore include or exclude with a JSON-only model serializer?",
+          "How should fallback serialization handle include/exclude?",
+          "When should function serializers clear filtering state?"
+        ],
+        "body": "Symptom: model_dump() ignores include/exclude when a plain or wrap model serializer is configured with when_used='json' and skipped in Python mode.\nRoot cause: pydantic-core/src/serializers/type_serializers/function.rs:function_type_serializer cleared filtering state before fallback serialization even when self.call reported that the function was not invoked.\nFix pattern: Preserve current filters via pydantic-core/src/serializers/extra.rs:SerializationState::include_exclude for the fallback serializer; use empty filters for the return serializer when the function was invoked. Keep this branching consistent across to_python, json_key, and serde_serialize in function_type_serializer.\nConstraints: Preserve filters only for the skipped-function fallback branch. When the function runs, filtering is treated as handled by that function, so include/exclude must not be reapplied to its returned value.",
+        "applies": "Function serializer dispatch, including plain and wrap model serializers whose when_used condition can skip invocation.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+            "symbol": "function_type_serializer"
+          },
+          {
+            "path": "pydantic-core/src/serializers/extra.rs",
+            "symbol": "SerializationState::include_exclude"
+          },
+          {
+            "path": "tests/test_serialize.py",
+            "symbol": "test_model_serializer_when_used_fallback_respects_include_exclude"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "include-exclude",
+          "model-serializer",
+          "fallback",
+          "when-used"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-include-exclude-when-a-custom-serializer-is-skipped",
+        "title": "Preserve include/exclude when a custom serializer is skipped",
+        "kind": "rule",
+        "body": "Symptom: model_dump() ignores include/exclude when a plain or wrap model serializer is configured with when_used='json' and skipped in Python mode.\nRoot cause: pydantic-core/src/serializers/type_serializers/function.rs:function_type_serializer cleared filtering state before fallback serialization even when self.call reported that the function was not invoked.\nFix pattern: Preserve current filters via pydantic-core/src/serializers/extra.rs:SerializationState::include_exclude for the fallback serializer; use empty filters for the return serializer when the function was invoked. Keep this branching consistent across to_python, json_key, and serde_serialize in function_type_serializer.\nConstraints: Preserve filters only for the skipped-function fallback branch. When the function runs, filtering is treated as handled by that function, so include/exclude must not be reapplied to its returned value.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+            "symbol": "when_used",
+            "hash": "sha256:5b85076a6c7f9bbcf3b8a7cf",
+            "line": 122,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 20
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+            "symbol": "to_python",
+            "hash": "sha256:5046dfef7b1c71a4ae880cdf",
+            "line": 214,
+            "missing": false,
+            "fanout": {
+              "files": 22,
+              "sites": 30,
+              "refs": 30
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+            "symbol": "json_key",
+            "hash": "sha256:3fb078bde59317ab95d13e93",
+            "line": 233,
+            "missing": false,
+            "fanout": {
+              "files": 15,
+              "sites": 20,
+              "refs": 20
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+            "symbol": "serde_serialize",
+            "hash": "sha256:33c7a67c10f8973569ef925d",
+            "line": 254,
+            "missing": false,
+            "fanout": {
+              "files": 9,
+              "sites": 9,
+              "refs": 9
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/extra.rs",
+            "symbol": "SerializationState",
+            "hash": "sha256:aac2697e768ed81ac2f48b90",
+            "line": 86,
+            "missing": false,
+            "fanout": {
+              "files": 47,
+              "sites": 0,
+              "refs": 274
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/extra.rs",
+            "symbol": "include_exclude",
+            "hash": "sha256:c071807dc083c2fbf0eb2628",
+            "line": 149,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 16
+            }
+          },
+          {
+            "path": "tests/test_serialize.py",
+            "symbol": "test_model_serializer_when_used_fallback_respects_include_exclude",
+            "hash": "sha256:ba44b4e700e0bbc3726f7b42",
+            "line": 1445,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/extra.rs",
+            "symbol": "SerializationState",
+            "hash": "sha256:aac2697e768ed81ac2f48b90",
+            "line": 86,
+            "missing": false,
+            "fanout": {
+              "files": 47,
+              "sites": 0,
+              "refs": 274
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13629",
+    "pr": 13629,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16429,
+    "elapsedMs": 13655,
+    "proposed": [
+      {
+        "title": "GeneralFieldsSerializer GC traversal must include the extra serializer",
+        "kind": "rule",
+        "answers": [
+          "Which GeneralFieldsSerializer members must participate in GC traversal?",
+          "How does Python garbage collection reach the extra-field serializer?",
+          "Where should missing serializer GC traversal be fixed?"
+        ],
+        "body": "Invariant: GeneralFieldsSerializer GC traversal must include fields, computed_fields, and extra_serializer.\nEnforcement: pydantic-core/src/serializers/fields.rs:GeneralFieldsSerializer declares these members through impl_py_gc_traverse!.\nConsequence: Omitting extra_serializer leaves the extra-field serializer outside this traversal.\nConstraints: This rule covers GeneralFieldsSerializer; other serializer types require their own traversal definitions to be checked.",
+        "applies": "Changes to GeneralFieldsSerializer members or its Python GC traversal implementation.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/fields.rs",
+            "symbol": "GeneralFieldsSerializer"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "garbage-collection",
+          "pydantic-core"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "generalfieldsserializer-gc-traversal-must-include-the-extra",
+        "title": "GeneralFieldsSerializer GC traversal must include the extra serializer",
+        "kind": "rule",
+        "body": "Invariant: GeneralFieldsSerializer GC traversal must include fields, computed_fields, and extra_serializer.\nEnforcement: pydantic-core/src/serializers/fields.rs:GeneralFieldsSerializer declares these members through impl_py_gc_traverse!.\nConsequence: Omitting extra_serializer leaves the extra-field serializer outside this traversal.\nConstraints: This rule covers GeneralFieldsSerializer; other serializer types require their own traversal definitions to be checked.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/fields.rs",
+            "symbol": "GeneralFieldsSerializer",
+            "hash": "sha256:20be22439dbf97c4389c1d96",
+            "line": 126,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 13
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13604",
+    "pr": 13604,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17462,
+    "elapsedMs": 15976,
+    "proposed": [
+      {
+        "title": "Resolve type-alias references for callable discriminators in both schema-generation paths",
+        "kind": "rule",
+        "answers": [
+          "Why does Field(discriminator=...) fail with a PEP 695 type alias?",
+          "How do callable discriminators find tags behind type-alias references?",
+          "Why does a callable discriminator work in Annotated but fail when supplied through Field?"
+        ],
+        "body": "Symptom: Callable discriminators fail for tagged unions declared through PEP 695 type aliases when supplied via Field(discriminator=...).\nRoot cause: pydantic/_internal/_discriminated_union.py:apply_discriminator did not forward definitions, while pydantic/types.py:Discriminator._convert_schema resolved references only through a schema-generation handler.\nFix pattern: Pass the definitions registry into callable-discriminator conversion and share reference resolution between the root union and choices whose tag metadata is missing.\nConstraints: In pydantic/types.py:Discriminator._convert_schema, use handler resolution when a handler is present, otherwise use the supplied definitions registry; an unresolved root reference must raise MissingDefinitionForUnionRef. Resolve a choice reference for tag lookup only when its tag is missing. This pattern concerns callable discriminators; string discriminators use the inferred-discriminator path.",
+        "applies": "Callable discriminator schema conversion for unions or tagged choices represented by definition references, including PEP 695 type aliases used through Field.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_discriminated_union.py",
+            "symbol": "apply_discriminator"
+          },
+          {
+            "path": "pydantic/types.py",
+            "symbol": "Discriminator._convert_schema"
+          }
+        ],
+        "tags": [
+          "callable-discriminators",
+          "type-aliases",
+          "schema-references"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "resolve-type-alias-references-for-callable-discriminators-in",
+        "title": "Resolve type-alias references for callable discriminators in both schema-generation paths",
+        "kind": "rule",
+        "body": "Symptom: Callable discriminators fail for tagged unions declared through PEP 695 type aliases when supplied via Field(discriminator=...).\nRoot cause: pydantic/_internal/_discriminated_union.py:apply_discriminator did not forward definitions, while pydantic/types.py:Discriminator._convert_schema resolved references only through a schema-generation handler.\nFix pattern: Pass the definitions registry into callable-discriminator conversion and share reference resolution between the root union and choices whose tag metadata is missing.\nConstraints: In pydantic/types.py:Discriminator._convert_schema, use handler resolution when a handler is present, otherwise use the supplied definitions registry; an unresolved root reference must raise MissingDefinitionForUnionRef. Resolve a choice reference for tag lookup only when its tag is missing. This pattern concerns callable discriminators; string discriminators use the inferred-discriminator path.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_discriminated_union.py",
+            "symbol": "apply_discriminator",
+            "hash": "sha256:071097aa6bf88655a5db3955",
+            "line": 33,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 12,
+              "refs": 13
+            }
+          },
+          {
+            "path": "pydantic/types.py",
+            "symbol": "Discriminator._convert_schema",
+            "hash": "sha256:89d72ddd7545a596f06a4e4d",
+            "line": 3117,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13552",
+    "pr": 13552,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16375,
+    "elapsedMs": 15296,
+    "proposed": [
+      {
+        "title": "Avoid double-wrapping polymorphic model serializers",
+        "kind": "rule",
+        "answers": [
+          "Why are polymorphic model serializers wrapped twice?",
+          "How should serializer construction return a resolved model serializer?",
+          "How do I avoid adding a second polymorphism trampoline?"
+        ],
+        "body": "Symptom: Polymorphic model serializers are wrapped twice.\nRoot cause: The CombinedSerializer construction path called pydantic-core/src/serializers/shared.rs:CombinedSerializer::maybe_wrap_in_polymorphism_trampoline again after CombinedSerializer::find_serializer returned.\nFix pattern: Return CombinedSerializer::find_serializer's result directly from the final construction path instead of adding another trampoline wrapper.\nConstraints: Applies to this final serializer-resolution path; the diff does not establish that trampoline wrapping should be removed from other paths.",
+        "applies": "Final serializer resolution in CombinedSerializer when constructing polymorphic model serializers.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "CombinedSerializer::find_serializer"
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "CombinedSerializer::maybe_wrap_in_polymorphism_trampoline"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "polymorphism",
+          "model-serializers"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "avoid-double-wrapping-polymorphic-model-serializers",
+        "title": "Avoid double-wrapping polymorphic model serializers",
+        "kind": "rule",
+        "body": "Symptom: Polymorphic model serializers are wrapped twice.\nRoot cause: The CombinedSerializer construction path called pydantic-core/src/serializers/shared.rs:CombinedSerializer::maybe_wrap_in_polymorphism_trampoline again after CombinedSerializer::find_serializer returned.\nFix pattern: Return CombinedSerializer::find_serializer's result directly from the final construction path instead of adding another trampoline wrapper.\nConstraints: Applies to this final serializer-resolution path; the diff does not establish that trampoline wrapping should be removed from other paths.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "CombinedSerializer",
+            "hash": "sha256:1c0dfad05d9d0ced168ed568",
+            "line": 58,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 0,
+              "refs": 391
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "maybe_wrap_in_polymorphism_trampoline",
+            "hash": "sha256:5d42684e7aced49d88dcb479",
+            "line": 241,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "find_serializer",
+            "hash": "sha256:f5129d1c80eb379f01e28a1d",
+            "line": 59,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 7
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "CombinedSerializer",
+            "hash": "sha256:1c0dfad05d9d0ced168ed568",
+            "line": 58,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 0,
+              "refs": 391
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "maybe_wrap_in_polymorphism_trampoline",
+            "hash": "sha256:5d42684e7aced49d88dcb479",
+            "line": 241,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "find_serializer",
+            "hash": "sha256:f5129d1c80eb379f01e28a1d",
+            "line": 59,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 7
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/shared.rs",
+            "symbol": "CombinedSerializer",
+            "hash": "sha256:1c0dfad05d9d0ced168ed568",
+            "line": 58,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 0,
+              "refs": 391
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13537",
+    "pr": 13537,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16581,
+    "elapsedMs": 12353,
+    "proposed": [
+      {
+        "title": "Compare SecretStr values as bytes to support all strings",
+        "kind": "rule",
+        "answers": [
+          "Why does comparing secrets containing non-ASCII characters raise TypeError?",
+          "How should SecretStr equality preserve constant-time comparison?",
+          "How can SecretStr equality support lone Unicode surrogates?"
+        ],
+        "body": "Symptom: Comparing two SecretStr values containing non-ASCII text raises TypeError instead of returning an equality result.\nRoot cause: pydantic/types.py:SecretStr.__eq__ passed strings to secrets.compare_digest(), which accepts only ASCII string arguments.\nFix pattern: Encode both secret values as UTF-8 bytes with errors='surrogatepass' before calling secrets.compare_digest(); this preserves constant-time comparison and supports lone surrogates.\nConstraints: Preserve the existing class check that returns False for incompatible operands. This encoding applies to SecretStr; SecretBytes already supplies bytes accepted by compare_digest().",
+        "applies": "Changes to SecretStr equality, especially Unicode handling and constant-time comparison.",
+        "deps": [
+          {
+            "path": "pydantic/types.py",
+            "symbol": "SecretStr.__eq__"
+          }
+        ],
+        "tags": [
+          "SecretStr",
+          "equality",
+          "unicode",
+          "constant-time"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "compare-secretstr-values-as-bytes-to-support-all-strings",
+        "title": "Compare SecretStr values as bytes to support all strings",
+        "kind": "rule",
+        "body": "Symptom: Comparing two SecretStr values containing non-ASCII text raises TypeError instead of returning an equality result.\nRoot cause: pydantic/types.py:SecretStr.__eq__ passed strings to secrets.compare_digest(), which accepts only ASCII string arguments.\nFix pattern: Encode both secret values as UTF-8 bytes with errors='surrogatepass' before calling secrets.compare_digest(); this preserves constant-time comparison and supports lone surrogates.\nConstraints: Preserve the existing class check that returns False for incompatible operands. This encoding applies to SecretStr; SecretBytes already supplies bytes accepted by compare_digest().",
+        "deps": [
+          {
+            "path": "pydantic/types.py",
+            "symbol": "SecretStr.__eq__",
+            "hash": "sha256:eed331d60ac2d92f40ea3f3d",
+            "line": 1888,
+            "missing": false,
+            "fanout": {
+              "files": 8,
+              "sites": 6,
+              "refs": 17
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13515",
+    "pr": 13515,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17535,
+    "elapsedMs": 15186,
+    "proposed": [
+      {
+        "title": "Unhashable generic arguments must bypass caching without breaking model creation",
+        "kind": "rule",
+        "answers": [
+          "Why does parameterizing a generic Pydantic model raise an unhashable TypeError?",
+          "Can a generic model use Annotated metadata with __hash__ = None?",
+          "How should the generic type cache handle unhashable type arguments?"
+        ],
+        "body": "Symptom: Parameterizing a generic Pydantic model with unhashable Annotated metadata raises TypeError instead of producing a model that validates normally.\nRoot cause: pydantic/_internal/_generics.py:get_cached_generic_type_early, get_cached_generic_type_late and set_cached_generic_type accessed a cache whose keys can contain unhashable generic arguments.\nFix pattern: Route cache reads and writes through pydantic/_internal/_generics.py:_generic_cache_get and _generic_cache_set; handle TypeError from cache access as a cache miss or skipped write.\nConstraints: Apply this fallback only around cache access, not model construction or validation. Preserve early and late cache entries, including the alternate early key for a single type argument, for hashable arguments.",
+        "applies": "Generic Pydantic model parameterization and its early/late type-cache reads and writes.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "get_cached_generic_type_early"
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "get_cached_generic_type_late"
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "set_cached_generic_type"
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "_generic_cache_get"
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "_generic_cache_set"
+          },
+          {
+            "path": "tests/test_generics.py",
+            "symbol": "test_generics_parameterization_not_hashable"
+          }
+        ],
+        "tags": [
+          "generics",
+          "caching",
+          "unhashable",
+          "annotated"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "unhashable-generic-arguments-must-bypass-caching-without-bre",
+        "title": "Unhashable generic arguments must bypass caching without breaking model creation",
+        "kind": "rule",
+        "body": "Symptom: Parameterizing a generic Pydantic model with unhashable Annotated metadata raises TypeError instead of producing a model that validates normally.\nRoot cause: pydantic/_internal/_generics.py:get_cached_generic_type_early, get_cached_generic_type_late and set_cached_generic_type accessed a cache whose keys can contain unhashable generic arguments.\nFix pattern: Route cache reads and writes through pydantic/_internal/_generics.py:_generic_cache_get and _generic_cache_set; handle TypeError from cache access as a cache miss or skipped write.\nConstraints: Apply this fallback only around cache access, not model construction or validation. Preserve early and late cache entries, including the alternate early key for a single type argument, for hashable arguments.",
+        "deps": [
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "get_cached_generic_type_early",
+            "hash": "sha256:1fc584a8ed39a7e799019a6e",
+            "line": 464,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "get_cached_generic_type_late",
+            "hash": "sha256:b0a64f472805ecb747b5794c",
+            "line": 484,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "set_cached_generic_type",
+            "hash": "sha256:b10009f9e92f386bd469e0b6",
+            "line": 494,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "_generic_cache_get",
+            "hash": "sha256:00cb390ccb9ad4f28bdc39d0",
+            "line": 450,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pydantic/_internal/_generics.py",
+            "symbol": "_generic_cache_set",
+            "hash": "sha256:62ae4f48312386502bce789a",
+            "line": 457,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "tests/test_generics.py",
+            "symbol": "test_generics_parameterization_not_hashable",
+            "hash": "sha256:2eb81ac01f6b336b15f6e04f",
+            "line": 3301,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13452",
+    "pr": 13452,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16806,
+    "elapsedMs": 10405,
+    "proposed": [
+      {
+        "title": "Preserve zero-valued Interval bounds in pipeline validation",
+        "kind": "rule",
+        "answers": [
+          "Why does a pipeline Interval accept negative values despite ge=0?",
+          "Why does Interval(gt=0) allow zero?",
+          "How should pipeline validation handle zero bounds for ge, gt, le and lt?"
+        ],
+        "body": "Symptom: Pipeline Interval validation silently accepts values outside a range when a bound is zero, including zero itself for an exclusive bound.\nRoot cause: pydantic/experimental/pipeline.py:_apply_constraint checked Interval bounds for truthiness, treating zero as absent.\nFix pattern: Check each bound with `is not None` before delegating to its Ge, Gt, Le or Lt constraint; cover zero bounds and boundary acceptance in tests/test_pipeline.py:test_interval_constraints.\nConstraints: Applies to all four optional Interval bounds (ge, gt, le, lt); None means absent, while zero must retain the corresponding inclusive or exclusive comparison semantics.",
+        "applies": "Interval bound decomposition in the experimental pipeline API and its regression tests.",
+        "deps": [
+          {
+            "path": "pydantic/experimental/pipeline.py",
+            "symbol": "_apply_constraint"
+          },
+          {
+            "path": "tests/test_pipeline.py",
+            "symbol": "test_interval_constraints"
+          }
+        ],
+        "tags": [
+          "pipeline",
+          "interval",
+          "validation",
+          "zero-bounds"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-zero-valued-interval-bounds-in-pipeline-validation",
+        "title": "Preserve zero-valued Interval bounds in pipeline validation",
+        "kind": "rule",
+        "body": "Symptom: Pipeline Interval validation silently accepts values outside a range when a bound is zero, including zero itself for an exclusive bound.\nRoot cause: pydantic/experimental/pipeline.py:_apply_constraint checked Interval bounds for truthiness, treating zero as absent.\nFix pattern: Check each bound with `is not None` before delegating to its Ge, Gt, Le or Lt constraint; cover zero bounds and boundary acceptance in tests/test_pipeline.py:test_interval_constraints.\nConstraints: Applies to all four optional Interval bounds (ge, gt, le, lt); None means absent, while zero must retain the corresponding inclusive or exclusive comparison semantics.",
+        "deps": [
+          {
+            "path": "pydantic/experimental/pipeline.py",
+            "symbol": "_apply_constraint",
+            "hash": "sha256:9e80009032750d090d1b5a5a",
+            "line": 486,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 5,
+              "refs": 5
+            }
+          },
+          {
+            "path": "tests/test_pipeline.py",
+            "symbol": "test_interval_constraints",
+            "hash": "sha256:498d683d635fa20909854566",
+            "line": 163,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pydantic-13436",
+    "pr": 13436,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17429,
+    "elapsedMs": 21734,
+    "proposed": [
+      {
+        "title": "Numeric datetime serialization must honor timezone offsets and preserve fractional seconds",
+        "kind": "rule",
+        "answers": [
+          "Why does serializing a timezone-aware datetime as seconds produce the wrong timestamp?",
+          "How should milliseconds serialization account for UTC offsets and microseconds?",
+          "Should datetime dictionary keys honor ser_json_temporal timezone offsets?"
+        ],
+        "body": "Symptom: Serializing a timezone-aware datetime as seconds or milliseconds produces a timestamp that ignores its UTC offset.\nRoot cause: pydantic-core/src/serializers/type_serializers/datetime_etc.rs:datetime_to_seconds and datetime_to_milliseconds combined a date timestamp with local clock time, losing the timezone offset.\nFix pattern: Derive whole seconds from dt.timestamp_tz(), then add microseconds divided by 1_000_000 for seconds; for milliseconds, multiply whole seconds by 1_000 and add microseconds divided by 1_000.\nConstraints: Applies to datetime JSON serialization with ser_json_temporal='seconds' or 'milliseconds', including dictionary keys. Preserve fractional precision and consistent values across JSON-mode Python output and JSON bytes; ordinary to_python retains the datetime, as checked by pydantic-core/tests/serializers/test_datetime.py:test_config_datetime_tz_aware. This pattern does not cover ISO formatting or date/time-only conversion.",
+        "applies": "Timezone-aware datetime values and dictionary keys serialized using numeric temporal modes.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+            "symbol": "datetime_to_seconds"
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+            "symbol": "datetime_to_milliseconds"
+          },
+          {
+            "path": "pydantic-core/tests/serializers/test_datetime.py",
+            "symbol": "test_config_datetime_tz_aware"
+          }
+        ],
+        "tags": [
+          "serialization",
+          "datetime",
+          "timezone",
+          "ser_json_temporal"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "numeric-datetime-serialization-must-honor-timezone-offsets-a",
+        "title": "Numeric datetime serialization must honor timezone offsets and preserve fractional seconds",
+        "kind": "rule",
+        "body": "Symptom: Serializing a timezone-aware datetime as seconds or milliseconds produces a timestamp that ignores its UTC offset.\nRoot cause: pydantic-core/src/serializers/type_serializers/datetime_etc.rs:datetime_to_seconds and datetime_to_milliseconds combined a date timestamp with local clock time, losing the timezone offset.\nFix pattern: Derive whole seconds from dt.timestamp_tz(), then add microseconds divided by 1_000_000 for seconds; for milliseconds, multiply whole seconds by 1_000 and add microseconds divided by 1_000.\nConstraints: Applies to datetime JSON serialization with ser_json_temporal='seconds' or 'milliseconds', including dictionary keys. Preserve fractional precision and consistent values across JSON-mode Python output and JSON bytes; ordinary to_python retains the datetime, as checked by pydantic-core/tests/serializers/test_datetime.py:test_config_datetime_tz_aware. This pattern does not cover ISO formatting or date/time-only conversion.",
+        "deps": [
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+            "symbol": "to_python",
+            "hash": "sha256:107a31e2ba1778ff73fc168b",
+            "line": 88,
+            "missing": false,
+            "fanout": {
+              "files": 22,
+              "sites": 30,
+              "refs": 30
+            }
+          },
+          {
+            "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+            "symbol": "to_python",
+            "hash": "sha256:107a31e2ba1778ff73fc168b",
+            "line": 88,
+            "missing": false,
+            "fanout": {
+              "files": 22,
+              "sites": 30,
+              "refs": 30
+            }
+          },
+          {
+            "path": "pydantic-core/tests/serializers/test_datetime.py",
+            "symbol": "test_config_datetime_tz_aware",
+            "hash": "sha256:afb0640a09471d7ba5f96261",
+            "line": 234,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

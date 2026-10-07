@@ -1,0 +1,47 @@
+{
+  "id": "compiled-regex-replace-on-arrowdtype-string-and-categorical",
+  "title": "Compiled regex replace on ArrowDtype string and Categorical columns",
+  "kind": "rule",
+  "answers": [
+    "Why does Series.replace ignore re.compile patterns on Arrow string dtypes?",
+    "DataFrame.replace silently discards compiled regex on arrow-backed columns",
+    "How does Block._replace_regex validate string dtypes for compiled regexes?",
+    "Series replace with compiled regex is a no-op on pyarrow string"
+  ],
+  "body": "Symptom: Series.replace or DataFrame.replace silently discards a compiled re.Pattern and returns unmodified data on ArrowDtype strings (pa.string(), pa.large_string()) or Categoricals of arrow strings.\nRoot cause: pandas/core/internals/blocks.py:Block._replace_regex gated is_re(to_replace) against a hardcoded list of dtypes [object, \"string\"], skipping execution for ArrowDtype strings while string regex patterns bypassed the check.\nFix pattern: Check regex applicability using is_string_dtype(target_dtype) and target_dtype.kind != \"S\", where target_dtype = _regex_target_dtype(self.dtype), admitting string extension dtypes and Categorical category dtypes while excluding byte strings.\nConstraints: Applies to string ArrowDtype and Categoricals of arrow strings; does not support pa.string_view() or dictionary-encoded arrow strings, and numpy byte strings (kind == \"S\") remain excluded as regexes cannot match bytes.",
+  "applies": "pandas Series and DataFrame regex replacement on blocks with ArrowDtype string dtypes or Categoricals",
+  "tags": [
+    "pandas",
+    "replace",
+    "regex",
+    "arrow",
+    "arrowdtype",
+    "categorical",
+    "blocks"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "Block._replace_regex",
+      "hash": "sha256:9ed600351b63040f2cf39aa1",
+      "line": 763,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69026"
+  },
+  "created": "2026-10-07T00:40:31.215Z",
+  "verified": "2026-10-07T00:40:31.215Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

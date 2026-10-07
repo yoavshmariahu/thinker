@@ -1,0 +1,57 @@
+{
+  "id": "v2-external-export-must-keep-the-dashboard-datasource-refere",
+  "title": "v2 external export must keep the '-- Dashboard --' datasource reference untouched",
+  "kind": "rule",
+  "answers": [
+    "Why does a panel using the Dashboard datasource show Random Walk data after importing a shared v2 dashboard?",
+    "Share dashboard with another instance breaks panels that reuse another panel's query results",
+    "Which datasource references does makeExportableV2 skip when anonymizing?",
+    "exported v2 dashboard loses -- Dashboard -- datasource name"
+  ],
+  "body": "Symptom: A v2 dashboard is exported with \"Share dashboard with another instance\" and reimported. A panel that reuses another panel's results (the -- Dashboard -- datasource) then falls back to Grafana's built-in datasource and shows generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 handled `dataQueryKind.datasource.name === '-- Dashboard --'` like an instance-specific UID. It removed the name and attached datasource-remapping labels.\nFix pattern: In the per-query loop, return early when the name equals SHARED_DASHBOARD_QUERY (app/plugins/datasource/dashboard/constants). This check comes before the template-variable branch, label generation and UID removal, so the query keeps `datasource: { name: '-- Dashboard --' }` and gets no labels.\nConstraints: Only this exact reference is exempt, whether the query group is 'datasource' or 'dashboard'. Other built-ins are still anonymized: `grafana` gets an ExportLabel such as 'grafana-1', and Prometheus etc. get ExportLabel/ExportDatasourceName. Mixed panels keep the '-- Mixed --' panel datasource. Library panels inlined during external export go through the same path, so they must also keep the reference. If you add another datasource with a stable UID across installations, it needs a similar exemption.",
+  "applies": "Dashboard v2 export for external sharing (makeExportableV2 with isSharingExternally=true)",
+  "tags": [
+    "dashboard-export",
+    "v2-schema",
+    "datasource-anonymization",
+    "dashboard-datasource",
+    "share-externally"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/plugins/datasource/dashboard/constants.ts",
+      "symbol": "SHARED_DASHBOARD_QUERY",
+      "hash": "sha256:f774aab2db51ee0712fd0459",
+      "line": 1,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 0,
+        "refs": 136
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-10-07T00:02:06.201Z",
+  "verified": "2026-10-07T00:02:06.201Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

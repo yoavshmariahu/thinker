@@ -1,0 +1,94 @@
+{
+  "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+  "title": "v2 dashboard save must strip metadata.resourceVersion on both create and update paths (keep in sync with v1)",
+  "kind": "rule",
+  "answers": [
+    "Saving a new v2 dashboard fails when k8s metadata has a resourceVersion",
+    "Why does importing or creating a dashboard with schema v2 fail on save?",
+    "Where is resourceVersion removed before dashboard save?",
+    "Does dashboard create POST send resourceVersion?"
+  ],
+  "body": "Symptom: Saving a new dashboard through the v2 (schema v2 / k8s) API fails when the incoming k8s metadata carries a resourceVersion (e.g. `k8s: { resourceVersion: '0' }` from an import or copied dashboard).\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard deleted `obj.metadata.resourceVersion` only inside the `if (obj.metadata.name)` update branch, so the create path (`client.create`, a POST) sent a resourceVersion, which a create request must not carry.\nFix pattern: Delete `obj.metadata.resourceVersion` unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> POST). This matches the logic already in public/app/features/dashboard/api/v1.ts. Removing the `DeprecatedInternalId` label still happens only on the update path.\nConstraints: Any change to save-path metadata handling in v1.ts or v2.ts should be mirrored in the other. Tests in public/app/features/dashboard/api/v2.test.ts check this with `mockPost.mock.calls[0][1].metadata` not having resourceVersion, and check that mockPut is not called.",
+  "applies": "Frontend dashboard save via K8sDashboardV2API (and v1 counterpart) in public/app/features/dashboard/api",
+  "tags": [
+    "dashboards",
+    "v2",
+    "k8s",
+    "resourceversion",
+    "save",
+    "create"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard/api/v2.ts",
+      "symbol": "K8sDashboardV2API",
+      "hash": "sha256:6861cee6364bd84ecfc6b124",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 25,
+        "refs": 35
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/api/v1.ts",
+      "hash": "sha256:407d97fbfd52d87cb5dd0a61",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/api/v2.test.ts",
+      "symbol": "mockPost",
+      "hash": "sha256:686cf8c0ba5f2aa6c335b09a",
+      "line": 57,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 2,
+        "refs": 34
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/api/v2.test.ts",
+      "symbol": "mockPut",
+      "hash": "sha256:b380e6b9dfa53034d02abb07",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/api/v2.ts",
+      "symbol": "K8sDashboardV2API.saveDashboard",
+      "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+      "line": 118,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 108,
+        "refs": 144
+      }
+    },
+    {
+      "path": "devenv/docker/loadtest/modules/client.js",
+      "symbol": "create",
+      "hash": "sha256:80d304bea91b61c98980f21e",
+      "line": 32,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132940"
+  },
+  "created": "2026-10-07T00:03:47.748Z",
+  "verified": "2026-10-07T00:03:47.748Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

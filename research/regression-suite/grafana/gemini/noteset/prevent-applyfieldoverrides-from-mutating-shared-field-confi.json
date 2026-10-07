@@ -1,0 +1,43 @@
+{
+  "id": "prevent-applyfieldoverrides-from-mutating-shared-field-confi",
+  "title": "Prevent applyFieldOverrides from mutating shared field configs in nested frames",
+  "kind": "rule",
+  "answers": [
+    "Why does a panel using the Dashboard datasource inherit field display names or units from another panel?",
+    "Why are field overrides leaking into raw query results from Time series to table?",
+    "How to prevent applyFieldOverrides from mutating shared source DataFrame configurations?"
+  ],
+  "body": "Symptom: Downstream panels consuming queries via the -- Dashboard -- datasource inherit unexpected display names, units, colors, or thresholds from an upstream table panel.\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides merged nested frame field configurations in-place with defaultsDeep, mutating shared query field objects.\nFix pattern: Deep-clone field configs before merging with defaultsDeep (defaultsDeep(cloneDeep(valueField.config) || {}, config)) and return new frame and field copies.\nConstraints: Applies when processing nested frames (FieldType.frame) sharing field references; shallow copying is insufficient because defaultsDeep mutates nested objects like custom and thresholds.",
+  "applies": "packages/grafana-data field override processing for nested DataFrame fields (FieldType.frame)",
+  "tags": [
+    "fieldoverrides",
+    "dataframe",
+    "fieldtype.frame",
+    "dashboard datasource"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+      "symbol": "applyFieldOverrides",
+      "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+      "line": 96,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 60,
+        "refs": 118
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132418"
+  },
+  "created": "2026-10-07T00:01:55.853Z",
+  "verified": "2026-10-07T00:01:55.853Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

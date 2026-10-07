@@ -1,0 +1,95 @@
+{
+  "id": "read-only-impersonation-403s-on-read-only-post-endpoints-all",
+  "title": "Read-only impersonation 403s on read-only POST endpoints; allowlist the exact action, never the prefix",
+  "kind": "rule",
+  "answers": [
+    "support staff impersonating get 403 impersonation_read_only on a POST endpoint",
+    "audience count / blast radius never loads while impersonating",
+    "how do I let a read-only impersonation session call a POST that only reads",
+    "why does the workflow builder fail during read-only impersonation"
+  ],
+  "body": "Symptom: during a read-only impersonation session a feature that reads through a POST (filters in the body, e.g. workflow audience sizing `hog_flows/user_blast_radius`) never loads, and the request fails with `403 impersonation_read_only`.\nRoot cause: posthog/middleware.py:ImpersonationReadOnlyMiddleware rejects every non-idempotent method before the viewset runs, so the viewset's own permissions/scopes never get a say. It is fail-closed and only lets through entries in posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS.\nFix pattern: first confirm the action writes nothing (trace its helpers). Then add one `(\"POST\", re.compile(r\"^/api/(environments|projects)/([0-9]+|@current)/<prefix>/<action>/?$\"))` entry with a comment saying why it only reads. Name the exact action(s), because prefixes like `hog_flows/` and `logs/` also host writing actions (publish, run, bulk_delete, CRUD). The `environments` alternative follows the other entries' style. EnvironmentsRewriteMiddleware rewrites the path to `/api/projects/...` anyway.\nConstraints: never allowlist an endpoint that spends a token or dispatches work (e.g. hog_flows `run`, `batch_jobs`). Add the allowed path to posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_allows_allowlisted_post. Add writing siblings under the same prefix to test_read_only_impersonation_blocks_mutating_siblings, so a later edit that widens the regex fails CI. Changing how the middleware decides \"read-only\" (e.g. having it ask the viewset) is a platform change that needs its own security-reviewed PR. As of this PR, `POST feature_flags/user_blast_radius` was still blocked; sibling PR #105805 handles it.",
+  "applies": "Any POST/PUT/PATCH/DELETE endpoint that must work during read-only impersonation (posthog/middleware.py allowlist)",
+  "tags": [
+    "impersonation",
+    "middleware",
+    "permissions",
+    "allowlist",
+    "hog_flows",
+    "workflows",
+    "403"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "EnvironmentsRewriteMiddleware",
+      "hash": "sha256:5f056dca47971d4e72ede9a1",
+      "line": 681,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 2,
+        "refs": 8
+      }
+    },
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "TestImpersonationReadOnlyMiddleware",
+      "hash": "sha256:3e78e978ed926757b4c1fe86",
+      "line": 974,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_allows_allowlisted_post",
+      "hash": "sha256:9797ae3251012ee532a18424",
+      "line": 1106,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-10-07T00:15:15.164Z",
+  "verified": "2026-10-07T00:15:15.164Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

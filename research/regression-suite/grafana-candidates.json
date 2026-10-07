@@ -1,0 +1,516 @@
+{
+  "repo": "grafana/grafana",
+  "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "grafana-132418",
+      "pr": 132418,
+      "sha": "a28ada17ad879a24aafe451b947bf1c12faa832d",
+      "parent": "85414ce65e084951aa75a5708284be9d2ee318c8",
+      "subject": "FieldOverrides: Don't write panel field config onto shared source frames (#132418)",
+      "codeLines": 10,
+      "totalLines": 62,
+      "files": [
+        "packages/grafana-data/src/field/fieldOverrides.test.ts",
+        "packages/grafana-data/src/field/fieldOverrides.ts"
+      ],
+      "production": [
+        "packages/grafana-data/src/field/fieldOverrides.ts"
+      ]
+    },
+    {
+      "id": "grafana-133103",
+      "pr": 133103,
+      "sha": "9ade367fef689d13048ea840438e30bd4c538491",
+      "parent": "b96a727fcc0192993c4d00168a92b82f2754ffc5",
+      "subject": "Provisioning: preserve ResourceRef client export (#133103)",
+      "codeLines": 1,
+      "totalLines": 1,
+      "files": [
+        "packages/grafana-api-clients/src/clients/rtkq/provisioning/v0alpha1/index.ts"
+      ],
+      "production": [
+        "packages/grafana-api-clients/src/clients/rtkq/provisioning/v0alpha1/index.ts"
+      ]
+    },
+    {
+      "id": "grafana-133093",
+      "pr": 133093,
+      "sha": "39afd1bcd157b23d1b13c3d04ddf1d78da02df46",
+      "parent": "9e0fda30ccc556bef032c1f00dcf8e901e39ac0a",
+      "subject": "Dashboards: Preserve Dashboard datasource references in v2 exports (#133093)",
+      "codeLines": 6,
+      "totalLines": 175,
+      "files": [
+        "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+        "public/app/features/dashboard-scene/scene/export/exporters.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/scene/export/exporters.ts"
+      ]
+    },
+    {
+      "id": "grafana-133023",
+      "pr": 133023,
+      "sha": "24a0b5be4da0ca1e1ff2ff0e073bd74b656307a6",
+      "parent": "49459d943306667173792bbf50c108b1a49756c7",
+      "subject": "Alerting: Support missing-series resolution counts above the SMALLINT limit (#133023)",
+      "codeLines": 12,
+      "totalLines": 43,
+      "files": [
+        "pkg/services/ngalert/store/alert_rule_test.go",
+        "pkg/services/sqlstore/migrations/migrations.go",
+        "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+        "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go"
+      ],
+      "production": [
+        "pkg/services/sqlstore/migrations/migrations.go",
+        "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go"
+      ]
+    },
+    {
+      "id": "grafana-133033",
+      "pr": 133033,
+      "sha": "37d8dfc381d01552dc75a4498233d48856c0d8fe",
+      "parent": "cf7a3c674fbc3bf97f99742ec5654e82bfdd8403",
+      "subject": "OpenFeature: Don't let wildcard namespace override eval context (#133033)",
+      "codeLines": 5,
+      "totalLines": 71,
+      "files": [
+        "pkg/services/contexthandler/contexthandler.go",
+        "pkg/services/contexthandler/contexthandler_test.go"
+      ],
+      "production": [
+        "pkg/services/contexthandler/contexthandler.go"
+      ]
+    },
+    {
+      "id": "grafana-133030",
+      "pr": 133030,
+      "sha": "675b26f585698b76eafda9bd4d8aeabc43f90a70",
+      "parent": "20596911b2e41de38700cfeb8bd6ecad1d3c11a6",
+      "subject": "Visual refresh: Fix sticky background colors (#133030)",
+      "codeLines": 9,
+      "totalLines": 9,
+      "files": [
+        "public/app/features/dashboard-scene/pages/PublicDashboardScenePage.tsx",
+        "public/app/features/dashboard/components/PublicDashboard/DashboardBrandingFooter.tsx",
+        "public/app/features/dashboard/dashgrid/DashboardLibrary/TemplateDashboardModal.tsx"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/pages/PublicDashboardScenePage.tsx",
+        "public/app/features/dashboard/components/PublicDashboard/DashboardBrandingFooter.tsx",
+        "public/app/features/dashboard/dashgrid/DashboardLibrary/TemplateDashboardModal.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132979",
+      "pr": 132979,
+      "sha": "f085524b1c939cb040779223dfb27c367ac3500c",
+      "parent": "d8d06830b5e833fa5214384cd1dfacbf784c7962",
+      "subject": "Modals: Fixes cut focus (#132979)",
+      "codeLines": 42,
+      "totalLines": 42,
+      "files": [
+        "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx"
+      ],
+      "production": [
+        "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132674",
+      "pr": 132674,
+      "sha": "d8d06830b5e833fa5214384cd1dfacbf784c7962",
+      "parent": "1c767ba734930a5e2dd58ad3d55819a751d07686",
+      "subject": "fix(assistant): remove legacy investigations navigation gate (#132674)",
+      "codeLines": 33,
+      "totalLines": 35,
+      "files": [
+        "pkg/services/navtree/navtreeimpl/applinks.go",
+        "pkg/services/navtree/navtreeimpl/applinks_test.go"
+      ],
+      "production": [
+        "pkg/services/navtree/navtreeimpl/applinks.go"
+      ]
+    },
+    {
+      "id": "grafana-126539",
+      "pr": 126539,
+      "sha": "ee234350fa3a645e6a48c6d531c7fbad9b1e80b4",
+      "parent": "f7a5da208074fe02015a8445f482480064024596",
+      "subject": "fix(deps): update dependency @grafana/prometheus to v13.1.14 (#126539)",
+      "codeLines": 9,
+      "totalLines": 220,
+      "files": [
+        "package.json",
+        "public/app/features/dashboard-scene/settings/variables/editors/QueryVariableEditor/VariableOptionsSpreadsheet/VariableOptionsSpreadsheet.tsx",
+        "yarn.lock"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/settings/variables/editors/QueryVariableEditor/VariableOptionsSpreadsheet/VariableOptionsSpreadsheet.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132877",
+      "pr": 132877,
+      "sha": "339c8161461b7d3aeefe1fea9d0a32b2d6806dea",
+      "parent": "91fd9516e910c9692897dc5b7fd55c5396f70022",
+      "subject": "Combobox: Ensure useComboboxFloat does not cause excessive rerenders (#132877)",
+      "codeLines": 23,
+      "totalLines": 124,
+      "files": [
+        "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+        "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts"
+      ],
+      "production": [
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts"
+      ]
+    },
+    {
+      "id": "grafana-132988",
+      "pr": 132988,
+      "sha": "a957f45cc3550c01b4fe84b75d77348e8364f84e",
+      "parent": "01d1d456cc9f3992fe7be44c903b81824df4e99e",
+      "subject": "Chore: fix `FilterInput` story (#132988)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "packages/grafana-ui/src/components/FilterInput/FilterInput.story.tsx"
+      ],
+      "production": [
+        "packages/grafana-ui/src/components/FilterInput/FilterInput.story.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132856",
+      "pr": 132856,
+      "sha": "02f04bbac1106b8368c532b7f557e8bcee40e6a5",
+      "parent": "77ca0f742ce1d1eb9ded97b9f96e4ea20ba863d4",
+      "subject": "Chore: fix eslint suppressions — no-explicit-any in grafana datasource annotations (#132856)",
+      "codeLines": 4,
+      "totalLines": 7,
+      "files": [
+        "eslint-suppressions.json",
+        "public/app/plugins/datasource/grafana/datasource.ts"
+      ],
+      "production": [
+        "public/app/plugins/datasource/grafana/datasource.ts"
+      ]
+    },
+    {
+      "id": "grafana-132966",
+      "pr": 132966,
+      "sha": "3bdabb21d49f27cdb62a3ff97c560ca695b5a706",
+      "parent": "bf10a75099d75e06ee2346a48cc2cf51225ac4d4",
+      "subject": "router: handle aggregate discovery format from apiextensions (#132966)",
+      "codeLines": 55,
+      "totalLines": 85,
+      "files": [
+        "pkg/router/aggregate_discovery.go",
+        "pkg/router/aggregate_discovery_test.go"
+      ],
+      "production": [
+        "pkg/router/aggregate_discovery.go"
+      ]
+    },
+    {
+      "id": "grafana-132940",
+      "pr": 132940,
+      "sha": "d0e5844a9290c1329fd14160c348ce77a4f32e2d",
+      "parent": "042a372678e6cb6482eed2617e4b5ea584ca2ccb",
+      "subject": "Dashboards: Fix v2 save failing with resourceVersion set on create (#132940)",
+      "codeLines": 5,
+      "totalLines": 17,
+      "files": [
+        "public/app/features/dashboard/api/v2.test.ts",
+        "public/app/features/dashboard/api/v2.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard/api/v2.ts"
+      ]
+    },
+    {
+      "id": "grafana-132931",
+      "pr": 132931,
+      "sha": "54c9d2575a4e04c07126557cbf73ee3f3c1dcdf4",
+      "parent": "21ff740df9d9844ae9009a065d587554bedeacaf",
+      "subject": "Text: Gate missing features behind feature flag (#132931)",
+      "codeLines": 82,
+      "totalLines": 125,
+      "files": [
+        "public/app/plugins/panel/text/v2/TextNGHtmlView.tsx",
+        "public/app/plugins/panel/text/v2/TextNGPanel.test.tsx",
+        "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+        "public/app/plugins/panel/text/v2/editor/TextNGFormatToolbar.tsx",
+        "public/app/plugins/panel/text/v2/module.tsx",
+        "public/app/plugins/panel/text/v2/renderContent.ts",
+        "public/app/plugins/panel/text/v2/utils.ts"
+      ],
+      "production": [
+        "public/app/plugins/panel/text/v2/TextNGHtmlView.tsx",
+        "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+        "public/app/plugins/panel/text/v2/editor/TextNGFormatToolbar.tsx",
+        "public/app/plugins/panel/text/v2/module.tsx",
+        "public/app/plugins/panel/text/v2/renderContent.ts",
+        "public/app/plugins/panel/text/v2/utils.ts"
+      ]
+    },
+    {
+      "id": "grafana-132860",
+      "pr": 132860,
+      "sha": "d9e458c09e38027cb6bc74d5cc2206901ebbcef9",
+      "parent": "efeddb7176bba72f2fd074a17a3b23e6bcd462e2",
+      "subject": "fix(logs): remove \\B alternation from key regex to prevent catastrophic backtracking (#132860)",
+      "codeLines": 2,
+      "totalLines": 11,
+      "files": [
+        "public/app/features/logs/components/panel/grammar.test.ts",
+        "public/app/features/logs/components/panel/grammar.ts"
+      ],
+      "production": [
+        "public/app/features/logs/components/panel/grammar.ts"
+      ]
+    },
+    {
+      "id": "grafana-131837",
+      "pr": 131837,
+      "sha": "916b6b3f89de0b6f2fa61b0799901b85a0673bf3",
+      "parent": "185645e58870a71abc62392bf1aae0f09604b4cc",
+      "subject": "Dashboards: Fix query variable refresh reset to onDashboardLoad on v2 UI import (#131837)",
+      "codeLines": 4,
+      "totalLines": 61,
+      "files": [
+        "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+        "public/app/features/manage-dashboards/import/utils/inputs.ts"
+      ],
+      "production": [
+        "public/app/features/manage-dashboards/import/utils/inputs.ts"
+      ]
+    },
+    {
+      "id": "grafana-132745",
+      "pr": 132745,
+      "sha": "185645e58870a71abc62392bf1aae0f09604b4cc",
+      "parent": "a178369468bd7cbab834abf96eaff7e8c8d9533e",
+      "subject": "Notebooks: Fix A11y Keyboard Interactions (#132745)",
+      "codeLines": 17,
+      "totalLines": 17,
+      "files": [
+        "public/app/features/notebook/scene/layout-notebook/cells/CodeCell.tsx",
+        "public/app/features/notebook/scene/layout-notebook/cells/MarkdownCellEditor.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx"
+      ],
+      "production": [
+        "public/app/features/notebook/scene/layout-notebook/cells/CodeCell.tsx",
+        "public/app/features/notebook/scene/layout-notebook/cells/MarkdownCellEditor.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132861",
+      "pr": 132861,
+      "sha": "baee51c8950abede24a4f3ef0f6a3417d1d20ff7",
+      "parent": "9fba85f6cabd2e8f2e283d1fed5a9352f2c6ffe2",
+      "subject": "Dashboard: Query editor: Fix  long datasource errors instead of widening the page (#132861)",
+      "codeLines": 5,
+      "totalLines": 5,
+      "files": [
+        "public/app/features/query/components/QueryErrorAlert.tsx"
+      ],
+      "production": [
+        "public/app/features/query/components/QueryErrorAlert.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132769",
+      "pr": 132769,
+      "sha": "fade077af4e048727ff9fec073dce826f175bc98",
+      "parent": "56cdd7181738ee548644f3f4513402d7b7af731b",
+      "subject": "Notebooks: Fix header bar overlapping the left nav at narrow viewports (#132769)",
+      "codeLines": 8,
+      "totalLines": 8,
+      "files": [
+        "public/app/features/notebook/scene/NotebookScene.tsx",
+        "public/app/features/notebook/toolbar/NotebookToolbar.tsx"
+      ],
+      "production": [
+        "public/app/features/notebook/scene/NotebookScene.tsx",
+        "public/app/features/notebook/toolbar/NotebookToolbar.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132825",
+      "pr": 132825,
+      "sha": "f64006b97f710749638e650625835a7a4fd0a2b8",
+      "parent": "0e1cbde2694cf0d8c99fab0e9bb13f0af1890983",
+      "subject": "Provisioning: Github style doc tab name casing fix (#132825)",
+      "codeLines": 6,
+      "totalLines": 20,
+      "files": [
+        "public/app/features/provisioning/components/Folders/FolderReadmePanel.test.tsx",
+        "public/app/features/provisioning/components/Folders/FolderReadmePanel.tsx"
+      ],
+      "production": [
+        "public/app/features/provisioning/components/Folders/FolderReadmePanel.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132808",
+      "pr": 132808,
+      "sha": "901c2ed6b200a9eaf55730dfae846093fdf30632",
+      "parent": "c82744d09249f9172e2f0b87951361c685217aea",
+      "subject": "GrafanaUI: Fix focus ring appearance (#132808)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "packages/grafana-ui/src/themes/mixins.ts"
+      ],
+      "production": [
+        "packages/grafana-ui/src/themes/mixins.ts"
+      ]
+    },
+    {
+      "id": "grafana-132572",
+      "pr": 132572,
+      "sha": "4f3a18aad9c3ffbc6f81621c854fcb8060c3b7c1",
+      "parent": "abd388a2147863985af0e52a2fe62a8f44796630",
+      "subject": "Flamegraph: Fix NaN/undefined diff tooltip in sandwich view (#132572)",
+      "codeLines": 19,
+      "totalLines": 70,
+      "files": [
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts"
+      ],
+      "production": [
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts"
+      ]
+    },
+    {
+      "id": "grafana-132753",
+      "pr": 132753,
+      "sha": "1f1eb251e84c0c90a172810d709a0a2a48e6c697",
+      "parent": "a89e40005f118d6288611b33f6073f7f316c5f7c",
+      "subject": "Alerting: fix recursive route types (#132753)",
+      "codeLines": 15,
+      "totalLines": 15,
+      "files": [
+        "packages/grafana-alerting/src/grafana/notificationPolicies/types.ts"
+      ],
+      "production": [
+        "packages/grafana-alerting/src/grafana/notificationPolicies/types.ts"
+      ]
+    },
+    {
+      "id": "grafana-132648",
+      "pr": 132648,
+      "sha": "8d38599e07d370e23da9da440de58225383895de",
+      "parent": "f58512f20b4d411482d2572150170593728603bc",
+      "subject": "Frontend: Fix MutableDataFrame for ESM strict mode (#132648)",
+      "codeLines": 8,
+      "totalLines": 18,
+      "files": [
+        "packages/grafana-data/src/dataframe/MutableDataFrame.test.ts",
+        "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+        "public/app/features/explore/PrometheusListView/RawListContainer.tsx"
+      ],
+      "production": [
+        "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+        "public/app/features/explore/PrometheusListView/RawListContainer.tsx"
+      ]
+    },
+    {
+      "id": "grafana-132735",
+      "pr": 132735,
+      "sha": "1cff24a397c159b9ef83c2d097a716a88e231d88",
+      "parent": "4c2254b6a044f57c113c2cba39cf0b03f9db3aeb",
+      "subject": "Chore: fix eslint suppressions — no-explicit-any in calculateHeatmap editor helper (#132735)",
+      "codeLines": 4,
+      "totalLines": 9,
+      "files": [
+        "eslint-suppressions.json",
+        "public/app/features/transformers/calculateHeatmap/editor/helper.ts"
+      ],
+      "production": [
+        "public/app/features/transformers/calculateHeatmap/editor/helper.ts"
+      ]
+    },
+    {
+      "id": "grafana-131464",
+      "pr": 131464,
+      "sha": "afbdc71e12d5a269bc5b5bde85ab19432d6af582",
+      "parent": "7050cfa249423447b2b2e66d35132471b9673fbc",
+      "subject": "Annotations: fix ensureTags never deleting removed tag links (#131464)",
+      "codeLines": 2,
+      "totalLines": 13,
+      "files": [
+        "pkg/services/annotations/annotationsimpl/xorm_store.go",
+        "pkg/services/annotations/annotationsimpl/xorm_store_test.go"
+      ],
+      "production": [
+        "pkg/services/annotations/annotationsimpl/xorm_store.go"
+      ]
+    },
+    {
+      "id": "grafana-132082",
+      "pr": 132082,
+      "sha": "e210f56df0d36b3b64a8471e122eff48a3596f15",
+      "parent": "ad08cb76c53daf707f01928dc4ee8d297588bbda",
+      "subject": "Dashboards: Fix for panels with lower min height than row height (#132082)",
+      "codeLines": 47,
+      "totalLines": 229,
+      "files": [
+        "devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json",
+        "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.test.ts",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.test.ts",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts"
+      ]
+    },
+    {
+      "id": "grafana-132620",
+      "pr": 132620,
+      "sha": "36d7460131232e898238c0b5f8b4d0a723c723c8",
+      "parent": "707430d6e7e11753df85f7c202ae9668825ff345",
+      "subject": "Chore: fix eslint suppressions — @typescript-eslint/no-explicit-any in moment_wrapper.ts (#132620)",
+      "codeLines": 2,
+      "totalLines": 7,
+      "files": [
+        "eslint-suppressions.json",
+        "packages/grafana-data/src/datetime/moment_wrapper.ts"
+      ],
+      "production": [
+        "packages/grafana-data/src/datetime/moment_wrapper.ts"
+      ]
+    },
+    {
+      "id": "grafana-130358",
+      "pr": 130358,
+      "sha": "2a5bd25ae7bbd3e873cbad6ab4ce0ac07a5d619f",
+      "parent": "a018e97b87e98ce5c66f9b8502c28eb451fefc6e",
+      "subject": "Explore: Preserve datasource type in trace-to-logs and trace-to-metrics queries (#130358)",
+      "codeLines": 8,
+      "totalLines": 86,
+      "files": [
+        "public/app/features/explore/TraceView/createSpanLink.test.ts",
+        "public/app/features/explore/TraceView/createSpanLink.tsx"
+      ],
+      "production": [
+        "public/app/features/explore/TraceView/createSpanLink.tsx"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "id": "testing-v2-import-input-mapping-applyv2inputs-and-replacedat",
+  "title": "Testing v2 import input mapping: applyV2Inputs and replaceDatasourcesInDashboard in inputs.test.ts",
+  "kind": "howto",
+  "answers": [
+    "how to test v2 dashboard import datasource mapping",
+    "where are tests for applyV2Inputs",
+    "unit test for import form datasource selection v2"
+  ],
+  "body": "Tests for the v2 import transforms are in public/app/features/manage-dashboards/import/utils/inputs.test.ts, under `describe('applyV2Inputs')` and `describe('replaceDatasourcesInDashboard')`.\nEntry-point tests: build a minimal `DashboardV2Spec`, cast with `as unknown as DashboardV2Spec`. Give the variable's `query.labels` the keys `[ExportLabel]: '<input-name>'` and `[ExportDatasourceName]`. Then pass an `ImportFormDataV2` whose key `'datasource-<input-name>'` holds `{ uid, type, name }`.\nCheck the remap through `spec.query.datasource.name`, which holds the new uid. Also assert that author fields such as `refresh` survive and that `options` is reset to [].\nThe lower-level tests use the helpers `createQueryVariable(group, uid)` and `getQueryVariable(result)` together with `it.each` across field values.",
+  "applies": "Unit tests for dashboard import input/datasource mapping (v2 schema)",
+  "tags": [
+    "testing",
+    "dashboards",
+    "import",
+    "schema-v2"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+      "symbol": "describe",
+      "hash": "sha256:0e793364dc236e6de49eb225",
+      "line": 1320,
+      "missing": false,
+      "fanout": {
+        "files": 697,
+        "sites": 1974,
+        "refs": 2000
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+      "symbol": "ImportFormDataV2",
+      "hash": "sha256:3aea3062b7e56cb46c55ebe3",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 23
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+      "symbol": "createQueryVariable",
+      "hash": "sha256:cd4cda587d8f610ef3dc1577",
+      "line": 2197,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 14,
+        "refs": 17
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+      "symbol": "getQueryVariable",
+      "hash": "sha256:111a6ca9b458b1fbf26e0876",
+      "line": 2118,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "applyV2Inputs",
+      "hash": "sha256:bc1995649daff102fcb4f407",
+      "line": 547,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131837"
+  },
+  "created": "2026-10-07T00:04:17.206Z",
+  "verified": "2026-10-07T00:04:17.206Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "v2-dashboard-import-datasource-remap-of-query-variables-must"
+  ]
+}

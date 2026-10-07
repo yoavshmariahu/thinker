@@ -1,0 +1,29 @@
+sklearn/gemini: mined scikit-learn-35042: 1 notes
+sklearn/gemini: mined scikit-learn-34965: 1 notes
+sklearn/gemini: mined scikit-learn-35043: 1 notes
+sklearn/gemini: mined scikit-learn-34513: 1 notes
+sklearn/gemini: mined scikit-learn-34959: 1 notes
+sklearn/gemini: mined scikit-learn-34837: 1 notes
+sklearn/gemini: mined scikit-learn-34779: 1 notes
+sklearn/gemini: mined scikit-learn-34746: 1 notes
+sklearn/gemini: mined scikit-learn-34475: 2 notes
+sklearn/gemini: mined scikit-learn-34605: 1 notes
+sklearn/gemini: mined scikit-learn-34480: 1 notes
+sklearn/gemini: mined scikit-learn-34263: 1 notes
+sklearn/gemini: mined scikit-learn-34188: 1 notes
+sklearn/gemini: mined scikit-learn-34051: 1 notes
+sklearn/gemini: mined scikit-learn-33260: 1 notes
+sklearn/gemini: reviewed scikit-learn-35042: 1/1 findings
+sklearn/gemini: reviewed scikit-learn-34746: 0/1 findings
+file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65
+   if(!validModel)throw Error(`${c.id} ${arm} invalid model/error: ${JSON.stringify({models:report.models,errors:report.errors})}`);
+                        ^
+
+Error: scikit-learn-34605 baseline invalid model/error: {"models":{},"errors":[{"id":"nocache","error":"no JSON in the reply: (empty string)"}]}
+    at file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65:25
+
+Node.js v24.15.0
+sklearn/gemini: reviewed scikit-learn-34605: 2/1 findings
+sklearn/gemini: reviewed scikit-learn-34480: 1/0 findings
+sklearn/gemini: reviewed scikit-learn-33260: 1/1 findings
+sklearn/gemini: COMPLETE

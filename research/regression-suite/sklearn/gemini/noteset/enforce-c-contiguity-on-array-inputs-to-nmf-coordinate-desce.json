@@ -1,0 +1,55 @@
+{
+  "id": "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce",
+  "title": "Enforce C-contiguity on array inputs to NMF coordinate descent",
+  "kind": "rule",
+  "answers": [
+    "Why does NMF.fit_transform raise 'ValueError: ndarray is not C-contiguous'?",
+    "How to fix ndarray is not C-contiguous error in NMF coordinate descent?",
+    "Why does NMF fail in _update_cdnmf_fast with non-C-contiguous arrays?"
+  ],
+  "body": "Symptom: NMF.fit or NMF.fit_transform raises ValueError: ndarray is not C-contiguous.\nRoot cause: sklearn/decomposition/_nmf.py:_fit_coordinate_descent passed array W to Cython routine _update_cdnmf_fast without ensuring C-contiguity for floating[:, ::1].\nFix pattern: Wrap input arrays in np.ascontiguousarray before invoking Cython routines expecting C-contiguous memoryviews, and convert CSC sparse matrices to CSR.\nConstraints: Applies to Cython memoryviews requiring contiguous layout ([:, ::1]); unnecessary when Cython accepts strided memoryviews ([:, :]).",
+  "applies": "NMF coordinate descent solver in sklearn/decomposition",
+  "tags": [
+    "nmf",
+    "cython",
+    "c-contiguous",
+    "coordinate-descent"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/decomposition/_nmf.py",
+      "symbol": "_fit_coordinate_descent",
+      "hash": "sha256:4ac364bdf869510ee80f349d",
+      "line": 399,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/decomposition/_nmf.py",
+      "symbol": "NMF.fit_transform",
+      "hash": "sha256:99a971e31df28fe1a62328af",
+      "line": 1558,
+      "missing": false,
+      "fanout": {
+        "files": 206,
+        "sites": 1087,
+        "refs": 1317
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#33260"
+  },
+  "created": "2026-10-07T00:44:47.194Z",
+  "verified": "2026-10-07T00:44:47.194Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

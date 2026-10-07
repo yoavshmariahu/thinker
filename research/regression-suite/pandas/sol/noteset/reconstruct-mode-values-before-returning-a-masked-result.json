@@ -1,0 +1,55 @@
+{
+  "id": "reconstruct-mode-values-before-returning-a-masked-result",
+  "title": "Reconstruct mode values before returning a masked result",
+  "kind": "rule",
+  "answers": [
+    "Why does Series.mode(dropna=False) raise TypeError for nullable booleans?",
+    "How should algorithms.mode return values with a result mask?",
+    "Why does DataFrame.mode fail with boolean dtype when missing values are included?"
+  ],
+  "body": "Symptom: Series.mode(dropna=False) or DataFrame.mode(dropna=False) raises TypeError for nullable \"boolean\" dtype.\nRoot cause: pandas/core/algorithms.py:mode returned numeric counting results directly on the masked return path, before conversion back to booleans for BooleanArray construction.\nFix pattern: Reconstruct result values with _reconstruct_data(npresult, original.dtype, original) before returning them alongside res_mask.\nConstraints: This applies to the early return when res_mask is not None; preserve the mask alongside the reconstructed values. The normal return path already reconstructs its result.",
+  "applies": "Masked results from pandas/core/algorithms.py:mode, including nullable boolean mode with dropna=False.",
+  "tags": [
+    "mode",
+    "nullable-boolean",
+    "dtype",
+    "missing-values"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/algorithms.py",
+      "symbol": "mode",
+      "hash": "sha256:376ec0787f5a8f545ba49783",
+      "line": 1183,
+      "missing": false,
+      "fanout": {
+        "files": 129,
+        "sites": 116,
+        "refs": 816
+      }
+    },
+    {
+      "path": "pandas/core/algorithms.py",
+      "symbol": "_reconstruct_data",
+      "hash": "sha256:d15c947446eb930769f9f301",
+      "line": 193,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70515"
+  },
+  "created": "2026-10-07T00:25:52.411Z",
+  "verified": "2026-10-07T00:25:52.411Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

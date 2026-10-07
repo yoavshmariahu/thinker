@@ -1,0 +1,120 @@
+{
+  "id": "configwrapper-config-dict-is-declared-only-and-must-not-be-m",
+  "title": "ConfigWrapper: config_dict is declared-only and must not be mutated; read effective_config",
+  "kind": "rule",
+  "answers": [
+    "where to add a derived or backwards-compat config setting",
+    "how to set a default config key internally without mutating user config",
+    "where do config deprecation warnings go",
+    "ConfigWrapper config_dict vs effective_config"
+  ],
+  "body": "Invariant: `ConfigWrapper.config_dict` in pydantic/_internal/_config.py holds the config exactly as the user declared it. It is exposed as `model_config`/`__pydantic_config__` and merged into subclasses, so never write into it. All consumers read `effective_config`, which both `ConfigWrapper.__getattr__` and `ConfigWrapper.core_config` use.\nDerived or backwards-compat settings, and cross-setting checks such as the `validate-by-alias-and-name-false` error, belong in `_build_effective_config`. It runs in `ConfigWrapper.__init__`, so these errors fire at class creation even when `defer_build` is set or annotations are unresolved.\nDeprecation warnings for settings (e.g. `schema_generator`) belong in `check_deprecated`. It runs once per config. `core_config` runs once per core-schema build, so a warning there would repeat.\nInternal code that needs to inject a default (e.g. pydantic/deprecated/decorator.py:ValidatedFunction.create_model forcing `extra='forbid'`) should get a copy from `prepare_config(config)`, edit that copy, then build `ConfigWrapper(config_dict, check=False)`.\nAny new non-ConfigDict attribute on ConfigWrapper must also be excluded in tests/test_config.py:test_config_wrapper_match.\nSignature generation (pydantic/_internal/_signature.py:generate_pydantic_signature) no longer takes `validate_by_name`. It reads the effective `validate_by_alias`, so `populate_by_name=True` forces alias parameters in `__signature__`.",
+  "applies": "any change to pydantic/_internal/_config.py ConfigWrapper or code that reads or edits model config",
+  "tags": [
+    "config",
+    "configwrapper",
+    "effective_config",
+    "deprecation",
+    "signature",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "check_deprecated",
+      "hash": "sha256:6aab75cffe29336758f7548f",
+      "line": 389,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic/deprecated/decorator.py",
+      "symbol": "ValidatedFunction.create_model",
+      "hash": "sha256:d0405e3c3f1b4a48ff1273d0",
+      "line": 229,
+      "missing": false,
+      "fanout": {
+        "files": 42,
+        "sites": 103,
+        "refs": 154
+      }
+    },
+    {
+      "path": "pydantic/_internal/_signature.py",
+      "symbol": "generate_pydantic_signature",
+      "hash": "sha256:1b8f0f25ed073cc10b227d4e",
+      "line": 168,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "symbol": "test_config_wrapper_match",
+      "hash": "sha256:96cebbb141a10f348deee65e",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.__getattr__",
+      "hash": "sha256:4357f788b793c0c6ea62aedb",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 24,
+        "sites": 2,
+        "refs": 33
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.__init__",
+      "hash": "sha256:136ece8cc721a8092452412d",
+      "line": 140,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 74,
+        "refs": 149
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:35:18.012Z",
+  "verified": "2026-10-07T00:35:18.012Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "inherited-populate-by-name-leaked-into-subclasses-because-co"
+  ]
+}

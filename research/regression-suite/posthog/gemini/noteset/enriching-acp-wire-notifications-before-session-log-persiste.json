@@ -1,0 +1,58 @@
+{
+  "id": "enriching-acp-wire-notifications-before-session-log-persiste",
+  "title": "Enriching ACP wire notifications before session log persistence",
+  "kind": "rule",
+  "answers": [
+    "Why must ACP wire notifications be enriched before calling logWriter.appendNotification?",
+    "Why does reloading a thread lose the trace ID on agent turns?",
+    "Where are ACP wire messages stamped with run trace IDs?"
+  ],
+  "body": "ACP wire notifications must be enriched with turn metadata (such as stamping traceId via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId) before being written to logWriter.appendNotification.\nEnforced in: products/desktop/packages/agent/src/adapters/acp-connection.ts:installWireTaps\nWhat breaks if skipped: Thread reloading reads stored events from the session log rather than the broadcast stream; persisting unstamped wire events causes reloaded threads to lose the turn trace ID.",
+  "applies": "PostHog desktop ACP connection wiretap handling and session log writing.",
+  "tags": [
+    "acp",
+    "wire-tap",
+    "session-log",
+    "turn-complete",
+    "trace-id"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+      "symbol": "installWireTaps",
+      "hash": "sha256:8a11f7d669709986e34f0e5f",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:18:21.530Z",
+  "verified": "2026-10-07T00:18:21.530Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-run-trace-id-propagation-for-ai-observability-and-slac"
+  ]
+}

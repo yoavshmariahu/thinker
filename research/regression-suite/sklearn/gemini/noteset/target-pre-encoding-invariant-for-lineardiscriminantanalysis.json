@@ -1,0 +1,55 @@
+{
+  "id": "target-pre-encoding-invariant-for-lineardiscriminantanalysis",
+  "title": "Target pre-encoding invariant for LinearDiscriminantAnalysis internal helpers",
+  "kind": "rule",
+  "answers": [
+    "What input format do _class_means and _class_cov expect for target y in LinearDiscriminantAnalysis?",
+    "Why do LinearDiscriminantAnalysis solvers pass y_encoded and n_classes to internal helpers?",
+    "How to compute class means and covariances with pre-encoded targets in LinearDiscriminantAnalysis?"
+  ],
+  "body": "Invariant: Internal class statistic helpers require targets pre-encoded as zero-based integer codes indexing self.classes_, accompanied by an explicit keyword-only n_classes parameter.\nWhere enforced: Enforced in sklearn/discriminant_analysis.py:_class_means and sklearn/discriminant_analysis.py:_class_cov.\nConsequences: Passing raw labels or omitting n_classes breaks group indexing (y_encoded == idx) and bincount operations, causing shape mismatches or silent mean corruption.",
+  "applies": "Class mean and covariance helper computations in sklearn/discriminant_analysis.py.",
+  "tags": [
+    "discriminant-analysis",
+    "optimization",
+    "internal-api",
+    "invariants"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_means",
+      "hash": "sha256:8c550af8088936df2fc13a58",
+      "line": 98,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "_class_cov",
+      "hash": "sha256:58102af9641539ab4b519d60",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:42:33.235Z",
+  "verified": "2026-10-07T00:42:33.235Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

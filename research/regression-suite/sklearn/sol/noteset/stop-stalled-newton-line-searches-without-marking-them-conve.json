@@ -1,0 +1,42 @@
+{
+  "id": "stop-stalled-newton-line-searches-without-marking-them-conve",
+  "title": "Stop stalled Newton line searches without marking them converged",
+  "kind": "rule",
+  "answers": [
+    "Why does the Newton solver line search emit a divide-by-zero warning?",
+    "How should backtracking handle an unchanged step length?",
+    "Should hitting the minimum line-search step count as convergence?"
+  ],
+  "body": "Symptom: The Newton solver emits a divide-by-zero warning during a failing line search.\nRoot cause: sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver can reduce alpha to the same value as alpha_old, including at min_step_length; another iteration then divides by a zero denominator.\nFix pattern: Exit backtracking when the reduced step length is unchanged. Track convergence explicitly at each acceptance branch so an unsuccessful early exit still emits the line-search failure warning.\nConstraints: Applies when successive step lengths are identical. Stopping a stalled search avoids the arithmetic warning but does not make the search converge; only a successful acceptance check marks convergence.",
+  "applies": "NewtonSolver backtracking step reduction, acceptance checks, and line-search failure reporting.",
+  "tags": [
+    "newton-solver",
+    "line-search",
+    "numerical-stability"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/_newton_solver.py",
+      "symbol": "NewtonSolver",
+      "hash": "sha256:6809613e1766eaaba506f86a",
+      "line": 109,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35043"
+  },
+  "created": "2026-10-07T00:33:13.896Z",
+  "verified": "2026-10-07T00:33:13.896Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

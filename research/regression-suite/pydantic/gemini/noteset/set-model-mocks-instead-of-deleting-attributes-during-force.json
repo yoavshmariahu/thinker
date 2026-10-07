@@ -1,0 +1,56 @@
+{
+  "id": "set-model-mocks-instead-of-deleting-attributes-during-force",
+  "title": "Set model mocks instead of deleting attributes during force rebuild",
+  "kind": "rule",
+  "answers": [
+    "Why does concurrent BaseModel.model_rebuild(force=True) cause race conditions with model instantiation?",
+    "How to reset core schema, validator, and serializer during model rebuild without breaking thread safety?",
+    "How do I invalidate a BaseModel without delattr race conditions in free-threaded builds?"
+  ],
+  "body": "Symptom: Instantiating a model while another thread runs model_rebuild(force=True) resolves uncompleted parent attributes or fails due to missing schema attributes.\nRoot cause: pydantic/main.py:BaseModel.model_rebuild used delattr on core schema, validator, and serializer attributes, exposing an incomplete unmocked window where concurrent readers fall back to parent class definitions.\nFix pattern: Call _mock_val_ser.set_model_mocks(cls) on already complete models rather than deleting attributes via delattr.\nConstraints: Applies when invalidating or rebuilding existing models (when already_complete is True); initial model construction handles mock initialization through the metaclass.",
+  "applies": "BaseModel schema rebuilding under concurrent or free-threaded execution.",
+  "tags": [
+    "threading",
+    "free-threaded",
+    "basemodel",
+    "model_rebuild",
+    "thread-safety"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/main.py",
+      "symbol": "BaseModel.model_rebuild",
+      "hash": "sha256:cc75016c0fdc60ff9225b72a",
+      "line": 677,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 99,
+        "refs": 103
+      }
+    },
+    {
+      "path": "pydantic/_internal/_mock_val_ser.py",
+      "symbol": "set_model_mocks",
+      "hash": "sha256:c7be176edd10b3418a91ef27",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:50:30.042Z",
+  "verified": "2026-10-07T00:50:30.042Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

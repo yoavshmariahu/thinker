@@ -1,0 +1,418 @@
+[
+  {
+    "file": "1791333599503-gemini.json",
+    "sha256": "320ae02ff650fb660128ea2340313ca9c9aa78b276db7b1b74477a9371e19f80",
+    "bytes": 1477,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15710,
+      "output_tokens": 7449,
+      "thinking_tokens": 7206,
+      "cache_read_tokens": 0,
+      "total_tokens": 23159
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333621601-gemini.json",
+    "sha256": "f90b4195fe8268f9293f44b0deb62caa9d6713e67cf7b82e566fdf48748199d3",
+    "bytes": 1772,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15913,
+      "output_tokens": 7174,
+      "thinking_tokens": 6831,
+      "cache_read_tokens": 0,
+      "total_tokens": 23087
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333643818-gemini.json",
+    "sha256": "77fe12168c788b63780cf294b974ac7d989cb4b9732dfd21c3aeaf8eb95d7e11",
+    "bytes": 1627,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 14879,
+      "output_tokens": 5242,
+      "thinking_tokens": 4944,
+      "cache_read_tokens": 0,
+      "total_tokens": 20121
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333660993-gemini.json",
+    "sha256": "8c8496cf320aa3aca12f053fcb452ca2edf23233cd2bd8211c3da905b4af13b9",
+    "bytes": 1608,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15918,
+      "output_tokens": 5167,
+      "thinking_tokens": 4878,
+      "cache_read_tokens": 0,
+      "total_tokens": 21085
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333675119-gemini.json",
+    "sha256": "d15d97d5a7e7705a8d4be16ec0180114332623d5ae571ed41828ad6e0995339c",
+    "bytes": 1711,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15044,
+      "output_tokens": 3993,
+      "thinking_tokens": 3678,
+      "cache_read_tokens": 0,
+      "total_tokens": 19037
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333689157-gemini.json",
+    "sha256": "9e23f5e2fbcf907894d8ce59c5193fa4cbe0dd1a31b39fe8af955dc9e49f5dd5",
+    "bytes": 1517,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15166,
+      "output_tokens": 4169,
+      "thinking_tokens": 3933,
+      "cache_read_tokens": 0,
+      "total_tokens": 19335
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333703797-gemini.json",
+    "sha256": "798eb61520231495954d0d22935874f83c1a197d405587877c702b03cfa082b3",
+    "bytes": 1873,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16046,
+      "output_tokens": 4480,
+      "thinking_tokens": 4135,
+      "cache_read_tokens": 0,
+      "total_tokens": 20526
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333722520-gemini.json",
+    "sha256": "237d71f725fbd0e763c34ad4ab39e103ee394fa126cfda636ba40cfae25e62d4",
+    "bytes": 1411,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 14501,
+      "output_tokens": 4467,
+      "thinking_tokens": 4233,
+      "cache_read_tokens": 0,
+      "total_tokens": 18968
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333753144-gemini.json",
+    "sha256": "0c732d6262d9237f6ca91fc1e3af2e9986e1e28681c68beb012f4522db6a3046",
+    "bytes": 3061,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 18229,
+      "output_tokens": 10864,
+      "thinking_tokens": 10272,
+      "cache_read_tokens": 0,
+      "total_tokens": 29093
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333774386-gemini.json",
+    "sha256": "7d8ee00d3cbc99392f7e0de7d1ac4903b645853d356339513d1c3f871bc371ff",
+    "bytes": 1577,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15215,
+      "output_tokens": 7131,
+      "thinking_tokens": 6864,
+      "cache_read_tokens": 0,
+      "total_tokens": 22346
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333812017-gemini.json",
+    "sha256": "85d7e23ae4605793297825988d6a2031474c013e7c6c2225d1063ed237caa7f8",
+    "bytes": 2037,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15660,
+      "output_tokens": 15413,
+      "thinking_tokens": 15006,
+      "cache_read_tokens": 0,
+      "total_tokens": 31073
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333835237-gemini.json",
+    "sha256": "4154bcb97750920ba127bf02460a888d813b0f225aaf1803295cd6cdc41bee4f",
+    "bytes": 1818,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16531,
+      "output_tokens": 8004,
+      "thinking_tokens": 7687,
+      "cache_read_tokens": 0,
+      "total_tokens": 24535
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333852525-gemini.json",
+    "sha256": "514fd62cec8cb8d2eb552429a26c698cbadd9dea15230cc72612e508c5e54d12",
+    "bytes": 1650,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 14550,
+      "output_tokens": 4564,
+      "thinking_tokens": 4284,
+      "cache_read_tokens": 0,
+      "total_tokens": 19114
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333871010-gemini.json",
+    "sha256": "e6fa86806f5d37a54270badbad6fb5bd2646d2d19e4baf25c8bfb7de5348801f",
+    "bytes": 1672,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16008,
+      "output_tokens": 6080,
+      "thinking_tokens": 5742,
+      "cache_read_tokens": 0,
+      "total_tokens": 22088
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333886912-gemini.json",
+    "sha256": "a6ee87ec59068c0ecfb125b860656237556bdd8590f49fc1064c6957c5f2b07d",
+    "bytes": 1463,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15805,
+      "output_tokens": 5100,
+      "thinking_tokens": 4809,
+      "cache_read_tokens": 0,
+      "total_tokens": 20905
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333925749-gemini.json",
+    "sha256": "2cbdabeab0ce1d9d8aac8f8b5ad66af88af273a5a15061d15f04bf0a5ae17740",
+    "bytes": 1683,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15223,
+      "output_tokens": 13091,
+      "thinking_tokens": 12752,
+      "cache_read_tokens": 0,
+      "total_tokens": 28314
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333961049-gemini.json",
+    "sha256": "d3ade735d15acb0ee07ec0494deb5be277304b09d4747c9386637ba13e8e557d",
+    "bytes": 1482,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16339,
+      "output_tokens": 14991,
+      "thinking_tokens": 14699,
+      "cache_read_tokens": 0,
+      "total_tokens": 31330
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791333985662-gemini.json",
+    "sha256": "9ff8136404e4e9100065c257ed3619d414493ed263111a86707a73e5cd58c6e3",
+    "bytes": 969,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15161,
+      "output_tokens": 8392,
+      "thinking_tokens": 8230,
+      "cache_read_tokens": 0,
+      "total_tokens": 23553
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334009619-gemini.json",
+    "sha256": "0c00d41bc05a171ad20e1c665f93597b11944c7c494c595b5ae2a8f4f49d33db",
+    "bytes": 469,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 14232,
+      "output_tokens": 7520,
+      "thinking_tokens": 7476,
+      "cache_read_tokens": 0,
+      "total_tokens": 21752
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334037181-gemini.json",
+    "sha256": "2a7fc2473ec53a009dc8278ab4348095f72b1336f2e6023463eec6a2785e4f0f",
+    "bytes": 1187,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16832,
+      "output_tokens": 10736,
+      "thinking_tokens": 10520,
+      "cache_read_tokens": 0,
+      "total_tokens": 27568
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334194017-gemini.json",
+    "sha256": "b40c15c9bd2511baabe7a3608e00c0c4cf3c556591df12d2d21403eaa1002ab3",
+    "bytes": 323,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15191,
+      "output_tokens": 63060,
+      "thinking_tokens": 62914,
+      "cache_read_tokens": 0,
+      "total_tokens": 78251
+    },
+    "disposition": "archived invalid attempt; not scored"
+  },
+  {
+    "file": "1791334449849-gemini.json",
+    "sha256": "189a0b5496ed36969bab40ddf93784e487e3535bf4081e8093f65f770a615ba6",
+    "bytes": 2217,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15194,
+      "output_tokens": 55604,
+      "thinking_tokens": 55166,
+      "cache_read_tokens": 0,
+      "total_tokens": 70798
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334545079-gemini.json",
+    "sha256": "c6d78fc7514ae087b483ea949f8add705bed3d4261c71bfe6b9aaa4f54b9b96e",
+    "bytes": 1331,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 16668,
+      "output_tokens": 45418,
+      "thinking_tokens": 45132,
+      "cache_read_tokens": 0,
+      "total_tokens": 62086
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334588787-gemini.json",
+    "sha256": "01479f60ed68e6756d345630b74daa8661de1501f725c700cc6d677e89b135b5",
+    "bytes": 1815,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 18566,
+      "output_tokens": 18282,
+      "thinking_tokens": 17891,
+      "cache_read_tokens": 0,
+      "total_tokens": 36848
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334615445-gemini.json",
+    "sha256": "8763fae7674de023984919967ad3984a4821ea54b7cee8254f993c3ef1b59d18",
+    "bytes": 1092,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 15284,
+      "output_tokens": 9925,
+      "thinking_tokens": 9692,
+      "cache_read_tokens": 0,
+      "total_tokens": 25209
+    },
+    "disposition": "successful response"
+  },
+  {
+    "file": "1791334650698-gemini.json",
+    "sha256": "8a0254ef7ba9de67658f3b2cfb93382fb27437345bb357f409c1407251ff6f21",
+    "bytes": 1804,
+    "reportedModel": null,
+    "status": "SUCCESS",
+    "turns": 1,
+    "usage": {
+      "input_tokens": 9076,
+      "output_tokens": 14816,
+      "thinking_tokens": 14380,
+      "cache_read_tokens": 8150,
+      "total_tokens": 23892
+    },
+    "disposition": "successful response"
+  }
+]

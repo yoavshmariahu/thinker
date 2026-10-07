@@ -1,0 +1,72 @@
+{
+  "id": "align-for-op-flex-none-is-clip-only-and-must-leave-a-series",
+  "title": "_align_for_op flex=None is clip-only and must leave a Series operand 1-D (no broadcast to frame)",
+  "kind": "rule",
+  "answers": [
+    "what does flex=None mean in DataFrame._align_for_op",
+    "when does _maybe_align_series_as_frame broadcast a Series",
+    "why does where with a 2-D EA other produce object dtype",
+    "changing _maybe_align_series_as_frame breaks clip"
+  ],
+  "body": "In pandas/core/frame.py:DataFrame._align_for_op, `flex` has three meanings. `flex=True` means a flex op, which reindexes. `flex=False` is the default arithmetic/comparison path. `flex=None` is used only by clip (NDFrame._clip_with_one_bound). With None the method skips the alignment check for a DataFrame `other`, and it does not call `_maybe_align_series_as_frame` on a Series `other`, so the operand stays 1-D.\nWhy this matters: clip passes the aligned bound to `DataFrame.where`. `where` keeps extension dtypes column by column only when `other` is 1-D. A 2-D frame with EA columns (which `_maybe_align_series_as_frame` now returns for EA Series, since GH-61828) gets interleaved to object.\nIf you change `_maybe_align_series_as_frame`, or add new `flex=None` callers, keep that 1-D guarantee for clip. Otherwise clip with Int64 or other EA bounds degrades to object and inplace clip breaks.\nCallers that get a Series back with axis=None must give the axis explicitly (clip uses axis=1, the columns), because `DataFrame.align(Series, axis=None)` raises.",
+  "applies": "pandas/core/frame.py DataFrame._align_for_op / _maybe_align_series_as_frame and their callers",
+  "tags": [
+    "alignment",
+    "ops",
+    "clip",
+    "where",
+    "extension-dtype",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._align_for_op",
+      "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+      "line": 10327,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._maybe_align_series_as_frame",
+      "hash": "sha256:8c6dfa13ac2237b3a9e06c45",
+      "line": 10482,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/core/generic.py",
+      "symbol": "NDFrame._clip_with_one_bound",
+      "hash": "sha256:034ccae315879cd76ee1d42e",
+      "line": 8910,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68929"
+  },
+  "created": "2026-10-07T00:24:52.098Z",
+  "verified": "2026-10-07T00:24:52.098Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dataframe-clip-with-extension-dtype-array-index-bound-went-t"
+  ]
+}

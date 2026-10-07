@@ -1,0 +1,83 @@
+{
+  "id": "intervalarray-new-must-pass-only-ndarrays-to-cython-interval",
+  "title": "IntervalArray.__new__ must pass only ndarrays to Cython intervals_to_interval_bounds (RangeIndex / non-interval EA input)",
+  "kind": "rule",
+  "answers": [
+    "TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray, got RangeIndex)",
+    "IntervalIndex union with empty RangeIndex / pd.DataFrame().index fails",
+    "pd.Index([], dtype='Int64').astype('interval') raises Cython TypeError",
+    "pd.IntervalIndex(pd.Index(['a'], dtype='string')) gives an unhelpful error instead of 'is not an interval'"
+  ],
+  "body": "Symptom: building an IntervalIndex, or calling astype(\"interval\"), from a RangeIndex or a non-interval ExtensionArray (masked Int64/Float64, arrow, string, datetimelike, sparse) raised `TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray, got ...)`. This also broke IntervalIndex set ops with an empty RangeIndex, e.g. `pd.DataFrame().index`.\nRoot cause: pandas/core/arrays/interval.py:IntervalArray.__new__ passed data straight to the Cython `intervals_to_interval_bounds`, which only accepts np.ndarray. `extract_array(..., extract_numpy=True)` leaves a RangeIndex as it is, and `_maybe_convert_platform_interval` can still return an EA.\nFix pattern: call `extract_array(data, extract_numpy=True, extract_range=True)`, then, after `_maybe_convert_platform_interval`, run `np.asarray(data)` on any remaining ExtensionArray before the Cython call. Empty or all-NA input now gives an IntervalIndex of NaN that matches the numpy-backed equivalent (all-NA Int64 gives an interval[float64] subtype). Any other input raises the usual TypeError \"... is not an interval\".\nConstraints: make the conversion in the constructor itself, not in `_maybe_convert_platform_interval`. That helper also serves `IntervalArray.from_breaks`, which has to keep EA breaks intact (an earlier attempt, GH-68345, special-cased RangeIndex there instead). Any new Cython helper call in this module needs the same ndarray coercion.",
+  "applies": "pandas/core/arrays/interval.py IntervalArray constructor and anything that converts non-interval input to IntervalArray (IntervalIndex(), astype('interval'), set ops)",
+  "tags": [
+    "interval",
+    "intervalindex",
+    "rangeindex",
+    "extension-array",
+    "cython",
+    "astype",
+    "gh68343"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "IntervalArray.__new__",
+      "hash": "sha256:3562f9ab2ec92b922a82420e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 32,
+        "refs": 62
+      }
+    },
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "_maybe_convert_platform_interval",
+      "hash": "sha256:6a237cb1fed760827bd6d452",
+      "line": 1928,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pandas/tests/indexes/interval/test_constructors.py",
+      "symbol": "test_constructor_non_interval_empty_or_na",
+      "hash": "sha256:b63772099021af22a1b24484",
+      "line": 563,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "IntervalArray.from_breaks",
+      "hash": "sha256:48b3b559beb928f49cc68618",
+      "line": 405,
+      "missing": false,
+      "fanout": {
+        "files": 66,
+        "sites": 173,
+        "refs": 187
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:22:26.170Z",
+  "verified": "2026-10-07T00:22:26.170Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

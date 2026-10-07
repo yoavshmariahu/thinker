@@ -1,0 +1,360 @@
+{
+  "repo": "PostHog/posthog",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "posthog-105736",
+      "pr": 105736,
+      "sha": "b88941af8682f32651d053deb6c40f0b6ab11ea4",
+      "parent": "d3eecc6a7ee6151a41e7e126a3263442fedade89",
+      "subject": "fix(bigquery): stop key file field names blocking source setup (#105736)",
+      "codeLines": 50,
+      "totalLines": 77,
+      "files": [
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/tests/test_source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+        "products/warehouse_sources/backend/tests/api/test_external_data_source.py"
+      ],
+      "production": [
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py"
+      ],
+      "target": "fix(bigquery): stop key file field names blocking source setup (#105736)",
+      "assignmentKey": "60ba13471fafb6b0f1863cef1bf8a7ba6df62e307fe048665521d67ec1a450d0",
+      "cohort": "gemini",
+      "caseIndex": 0
+    },
+    {
+      "id": "posthog-105852",
+      "pr": 105852,
+      "sha": "d6ae6a9ea78220cdeaec4185f5baacd182563bfc",
+      "parent": "d2a0c9b18a700e60f56ca53e6bf160ce01f83f10",
+      "subject": "fix(tasks): give a codex turn one trace id (#105852)",
+      "codeLines": 67,
+      "totalLines": 136,
+      "files": [
+        "products/desktop/packages/agent/src/acp-extensions.test.ts",
+        "products/desktop/packages/agent/src/acp-extensions.ts",
+        "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+        "products/desktop/packages/agent/src/server/agent-server.configure-environment.test.ts",
+        "products/desktop/packages/agent/src/server/agent-server.ts"
+      ],
+      "production": [
+        "products/desktop/packages/agent/src/acp-extensions.ts",
+        "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+        "products/desktop/packages/agent/src/server/agent-server.ts"
+      ],
+      "target": "fix(tasks): give a codex turn one trace id (#105852)",
+      "assignmentKey": "62edbdfe8ee38488f9f939d5fe600ab334bd0690866b7c519efef534e26e91ce",
+      "cohort": "opus",
+      "caseIndex": 1
+    },
+    {
+      "id": "posthog-104706",
+      "pr": 104706,
+      "sha": "d2a0c9b18a700e60f56ca53e6bf160ce01f83f10",
+      "parent": "2e4bd799d2823ba8c464aa28cf9fc483fa83b181",
+      "subject": "fix(warehouse-sources): stop reporting a quiet schema as a stalled schedule (#104706)",
+      "codeLines": 104,
+      "totalLines": 135,
+      "files": [
+        "products/data_warehouse/backend/sync_status.py",
+        "products/warehouse_sources/backend/models/external_data_schema.py",
+        "products/warehouse_sources/backend/stalled_schedules.py",
+        "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+        "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py",
+        "products/warehouse_sources/backend/tests/test_stalled_schedules.py"
+      ],
+      "production": [
+        "products/data_warehouse/backend/sync_status.py",
+        "products/warehouse_sources/backend/models/external_data_schema.py",
+        "products/warehouse_sources/backend/stalled_schedules.py",
+        "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+        "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py"
+      ],
+      "target": "fix(warehouse-sources): stop reporting a quiet schema as a stalled schedule (#104706)",
+      "assignmentKey": "1f523cb01ce99fdd1c10ff87311e4a0912bf7c4528a64b503a8e2ca1676a4115",
+      "cohort": "gemini",
+      "caseIndex": 2
+    },
+    {
+      "id": "posthog-91352",
+      "pr": 91352,
+      "sha": "e0bbcdac24951794db7ece30f979266a5b12812a",
+      "parent": "4364547b943f749374bf512266034a985e247940",
+      "subject": "fix(messaging): stop merge tags inserting double quotes (#91352)",
+      "codeLines": 17,
+      "totalLines": 33,
+      "files": [
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.test.ts",
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx"
+      ],
+      "production": [
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx"
+      ],
+      "target": "fix(messaging): stop merge tags inserting double quotes (#91352)",
+      "assignmentKey": "af01bc3f302c1770141c250e1d281bcbb92c31719afc7d50864c975c0ea1b2e9",
+      "cohort": "opus",
+      "caseIndex": 3
+    },
+    {
+      "id": "posthog-105660",
+      "pr": 105660,
+      "sha": "a191c89aba329be2f20b95196bbf724b2c0b610c",
+      "parent": "0a05fe429b9bcda27147abd42a578c47eabd6739",
+      "subject": "fix(prompts): cap the label-referencing parent listing (#105660)",
+      "codeLines": 8,
+      "totalLines": 37,
+      "files": [
+        "posthog/api/test/test_llm_prompt.py",
+        "products/ai_observability/backend/prompt_references.py"
+      ],
+      "production": [
+        "products/ai_observability/backend/prompt_references.py"
+      ],
+      "target": "fix(prompts): cap the label-referencing parent listing (#105660)",
+      "assignmentKey": "1691b4b9d2aee736145d76d3d90d1910ff00ad4341c7c051e1792d87ae53ebf8",
+      "cohort": "opus",
+      "caseIndex": 4
+    },
+    {
+      "id": "posthog-105551",
+      "pr": 105551,
+      "sha": "32e87cf0610db2997ab6c7c32859b51ddc94ff26",
+      "parent": "386842e45cf7bd0c5776b5b15d5a4b772a015921",
+      "subject": "fix(replay-vision): evict stale connections before async activities run (#105551)",
+      "codeLines": 76,
+      "totalLines": 87,
+      "files": [
+        "products/replay_vision/backend/temporal/activities/observation_media.py",
+        "products/replay_vision/backend/temporal/constants.py",
+        "products/replay_vision/backend/temporal/decorators.py",
+        "products/replay_vision/backend/temporal/media_workflow.py",
+        "products/replay_vision/backend/temporal/workflow.py",
+        "products/replay_vision/backend/tests/test_observation_media.py"
+      ],
+      "production": [
+        "products/replay_vision/backend/temporal/activities/observation_media.py",
+        "products/replay_vision/backend/temporal/constants.py",
+        "products/replay_vision/backend/temporal/decorators.py",
+        "products/replay_vision/backend/temporal/media_workflow.py",
+        "products/replay_vision/backend/temporal/workflow.py"
+      ],
+      "target": "fix(replay-vision): evict stale connections before async activities run (#105551)",
+      "assignmentKey": "29c3ddcee6cc938c70e4e1cf42193585259a285772b116cf5b08683bd198cb0f",
+      "cohort": "opus",
+      "caseIndex": 5
+    },
+    {
+      "id": "posthog-105799",
+      "pr": 105799,
+      "sha": "4a4c1c500f50ab0c94d5525ddad1660d3f9934b4",
+      "parent": "c24ca7ca00004fd8d5e6f0742b258800c4a1eff6",
+      "subject": "fix(workflows): size audiences during read-only impersonation (#105799)",
+      "codeLines": 3,
+      "totalLines": 6,
+      "files": [
+        "posthog/middleware.py",
+        "posthog/test/test_middleware.py"
+      ],
+      "production": [
+        "posthog/middleware.py"
+      ],
+      "target": "fix(workflows): size audiences during read-only impersonation (#105799)",
+      "assignmentKey": "347c82df75a85e214a94bd64ce3a8c42cda1648c05a44f073cb7addbd67b0f18",
+      "cohort": "sol",
+      "caseIndex": 6
+    },
+    {
+      "id": "posthog-105133",
+      "pr": 105133,
+      "sha": "a67cc3978faf4fa4ea9618b0eeb46b3305cd1429",
+      "parent": "bfa602e8af3503ec72675782516ffaadae22ccee",
+      "subject": "fix(ingestion): drop latest_processed_timestamp_ms series on partition revoke (#105133)",
+      "codeLines": 47,
+      "totalLines": 69,
+      "files": [
+        "nodejs/src/common/kafka/consumer/consumer-v1.test.ts",
+        "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+        "nodejs/src/common/kafka/consumer/index.ts",
+        "nodejs/src/ingestion/ingestion-consumer.serial.test.ts",
+        "nodejs/src/ingestion/ingestion-consumer.ts"
+      ],
+      "production": [
+        "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+        "nodejs/src/common/kafka/consumer/index.ts",
+        "nodejs/src/ingestion/ingestion-consumer.ts"
+      ],
+      "target": "fix(ingestion): drop latest_processed_timestamp_ms series on partition revoke (#105133)",
+      "assignmentKey": "e21c2ca23f6ccf260ede97784ed97058ca2db8109c0a652dcbcfecdfb1a77bd1",
+      "cohort": "opus",
+      "caseIndex": 7
+    },
+    {
+      "id": "posthog-105670",
+      "pr": 105670,
+      "sha": "bfa602e8af3503ec72675782516ffaadae22ccee",
+      "parent": "bf86e0fbc6a92d5a2fe2dfc367b4a99a6d1e0a56",
+      "subject": "fix(insights): sort unordered insight list on an indexed column (#105670)",
+      "codeLines": 5,
+      "totalLines": 34,
+      "files": [
+        "products/product_analytics/backend/presentation/insight.py",
+        "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr",
+        "products/product_analytics/backend/tests/api/test_insight.py"
+      ],
+      "production": [
+        "products/product_analytics/backend/presentation/insight.py"
+      ],
+      "target": "fix(insights): sort unordered insight list on an indexed column (#105670)",
+      "assignmentKey": "7d46dec32ad77911f7c566f55199f334ee0df83b224070f0a2a8286435fe87de",
+      "cohort": "sol",
+      "caseIndex": 8
+    },
+    {
+      "id": "posthog-105737",
+      "pr": 105737,
+      "sha": "5158cf75d458ffd6d2bcf68b923ddf13ff3b2e4a",
+      "parent": "5617caf2eba9fdb012ae31428d6f340b3b2ed889",
+      "subject": "fix(insights): stop the insight editor auto-saving on a chart-type change (#105737)",
+      "codeLines": 18,
+      "totalLines": 42,
+      "files": [
+        "frontend/src/scenes/insights/insightDataLogic.test.ts",
+        "frontend/src/scenes/insights/insightDataLogic.tsx"
+      ],
+      "production": [
+        "frontend/src/scenes/insights/insightDataLogic.tsx"
+      ],
+      "target": "fix(insights): stop the insight editor auto-saving on a chart-type change (#105737)",
+      "assignmentKey": "bb21b91820604e6f40f4a02e1d926e203b7773c6cb07e44cf07d9eb5483799ad",
+      "cohort": "sol",
+      "caseIndex": 9
+    },
+    {
+      "id": "posthog-105409",
+      "pr": 105409,
+      "sha": "cd310654eaac416f5d70f52861a9f43d9074b693",
+      "parent": "69aa3275268790be1a4ec094854a97a913317d7d",
+      "subject": "fix(alerts): report the real outcome when an AI detector check fails (#105409)",
+      "codeLines": 33,
+      "totalLines": 175,
+      "files": [
+        "posthog/tasks/alerts/utils.py",
+        "posthog/templates/email/alert_check_failed_to_evaluate.html",
+        "posthog/temporal/alerts/activities.py",
+        "posthog/temporal/tests/test_alerts_activities.py",
+        "posthog/temporal/tests/test_alerts_workflows.py",
+        "products/alerts/backend/judge/contract.py",
+        "products/alerts/backend/test/test_email_notifications.py",
+        "products/alerts/backend/tests/api/test_alert.py"
+      ],
+      "production": [
+        "posthog/tasks/alerts/utils.py",
+        "posthog/temporal/alerts/activities.py",
+        "products/alerts/backend/judge/contract.py"
+      ],
+      "target": "fix(alerts): report the real outcome when an AI detector check fails (#105409)",
+      "assignmentKey": "cdfaf9a091223447b735d8c386d4855d95cac5f828f6345bdf29058e825b1c68",
+      "cohort": "gemini",
+      "caseIndex": 10
+    },
+    {
+      "id": "posthog-105690",
+      "pr": 105690,
+      "sha": "8388d7933682c2554ef3b1c55d9e78b941dae4cf",
+      "parent": "09030e5e6ef0636ccd30cce5fe86a67595ece4f5",
+      "subject": "fix(insights): honor 0 decimal places in data viz formatting (#105690)",
+      "codeLines": 33,
+      "totalLines": 140,
+      "files": [
+        "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.test.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.test.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts"
+      ],
+      "production": [
+        "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts"
+      ],
+      "target": "fix(insights): honor 0 decimal places in data viz formatting (#105690)",
+      "assignmentKey": "ad0e3c6868eb56dd75c07c4da6a5b4ac9d6c486eb345a3b401d2d21001d11ac3",
+      "cohort": "gemini",
+      "caseIndex": 11
+    },
+    {
+      "id": "posthog-96235",
+      "pr": 96235,
+      "sha": "f18e93bf43e07e0625ce6e6520531aa3ee30621d",
+      "parent": "7fe0116042cfea7c84b3646d974a199b19010dfa",
+      "subject": "fix(workflows): accept issued invocation ids when cancelling runs (#96235)",
+      "codeLines": 6,
+      "totalLines": 39,
+      "files": [
+        "nodejs/src/cdp/cdp-api.serial.test.ts",
+        "nodejs/src/cdp/cdp-api.ts",
+        "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+      ],
+      "production": [
+        "nodejs/src/cdp/cdp-api.ts"
+      ],
+      "target": "fix(workflows): accept issued invocation ids when cancelling runs (#96235)",
+      "assignmentKey": "18ccb29cee3b2f8ec284f73a00dfb3c076e8a9a4c1abbffc1d8b5c18e3bc4f56",
+      "cohort": "sol",
+      "caseIndex": 12
+    },
+    {
+      "id": "posthog-105707",
+      "pr": 105707,
+      "sha": "4e3c6fae08ebff8160997c936ea11f35588317e4",
+      "parent": "c73790a20f985d561e8301825f58a0fb846f389d",
+      "subject": "fix(conversations): finish support drafts that end without json (#105707)",
+      "codeLines": 120,
+      "totalLines": 234,
+      "files": [
+        "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+        "products/conversations/backend/temporal/ai_reply/constants.py",
+        "products/conversations/backend/temporal/pipeline.py",
+        "products/conversations/backend/temporal/tests/test_pipeline.py"
+      ],
+      "production": [
+        "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+        "products/conversations/backend/temporal/ai_reply/constants.py",
+        "products/conversations/backend/temporal/pipeline.py"
+      ],
+      "target": "fix(conversations): finish support drafts that end without json (#105707)",
+      "assignmentKey": "e41760c3602b4252f4e3899e56ecb9b34a0c6f205eb5cba3b9e1560fc7596e5f",
+      "cohort": "sol",
+      "caseIndex": 13
+    },
+    {
+      "id": "posthog-103110",
+      "pr": 103110,
+      "sha": "856d6a2fee85226d3fc2651c5876d042482078df",
+      "parent": "34c6c28e597be45f1330670c607e3255974c9ab4",
+      "subject": "fix(mcp-store): report a tool listing that never produced tools (#103110)",
+      "codeLines": 35,
+      "totalLines": 57,
+      "files": [
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.test.tsx",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts"
+      ],
+      "production": [
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts"
+      ],
+      "target": "fix(mcp-store): report a tool listing that never produced tools (#103110)",
+      "assignmentKey": "e6c8e50b80e2f9d9935c579f65cfe063b4fe4ce1646c7dba134a336a91db1f4d",
+      "cohort": "gemini",
+      "caseIndex": 14
+    }
+  ],
+  "frozenAt": "2026-10-06",
+  "assignment": "Sort SHA256(regression-suite-2026-10-06:<slug>:<fix-sha>), then cycle opus/sol/gemini; five per model, frozen before scored outputs.",
+  "excludedBeforeFreeze": "Documentation, examples, typing-only changes, warning-only cleanup, performance-only hash collision cleanup and unrelated feature work. Selection is compact reversible historical fixes, not representative random sampling."
+}

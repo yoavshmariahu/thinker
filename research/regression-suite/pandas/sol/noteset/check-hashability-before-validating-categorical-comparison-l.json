@@ -1,0 +1,55 @@
+{
+  "id": "check-hashability-before-validating-categorical-comparison-l",
+  "title": "Check hashability before validating Categorical comparison lengths",
+  "kind": "rule",
+  "answers": [
+    "Why does comparing a Categorical with an iterator raise a TypeError about len()?",
+    "Should Categorical equality treat an iterator as a scalar or as elementwise values?",
+    "How should Categorical comparisons handle hashable list-like operands?"
+  ],
+  "body": "Symptom: Comparing a Categorical with an iterator raises TypeError because the iterator has no length.\nRoot cause: pandas/core/arrays/categorical.py:_cat_compare_op evaluated len(other) before excluding hashable operands from the list-like length check.\nFix pattern: Short-circuit on non-hashability before checking list-likeness and length; hashable operands such as tuples and iterators take the scalar-like path.\nConstraints: Apply length validation only to non-hashable list-like operands; mismatched lengths must still raise ValueError. pandas/tests/arrays/categorical/test_operators.py:TestCategoricalOps.test_comparison_with_iterator verifies that comparing Categorical([\"a\", \"b\"]) with iter([\"a\", \"b\"]) yields all False for == and all True for !=.",
+  "applies": "Categorical comparison operand classification and length validation in _cat_compare_op.",
+  "tags": [
+    "categorical",
+    "comparisons",
+    "iterators",
+    "hashability"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/categorical.py",
+      "symbol": "_cat_compare_op",
+      "hash": "sha256:fc2f8619c31ddcd9e19734df",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pandas/tests/arrays/categorical/test_operators.py",
+      "symbol": "TestCategoricalOps.test_comparison_with_iterator",
+      "hash": "sha256:c9178833b4653957ae708b7f",
+      "line": 209,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68637"
+  },
+  "created": "2026-10-07T00:28:25.818Z",
+  "verified": "2026-10-07T00:28:25.818Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

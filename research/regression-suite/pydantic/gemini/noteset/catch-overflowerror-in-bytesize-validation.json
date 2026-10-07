@@ -1,0 +1,43 @@
+{
+  "id": "catch-overflowerror-in-bytesize-validation",
+  "title": "Catch OverflowError in ByteSize validation",
+  "kind": "rule",
+  "answers": [
+    "Why does ByteSize raise an unhandled OverflowError on huge string values?",
+    "How to handle OverflowError when validating large string inputs in ByteSize?",
+    "ByteSize validation crashes on very large numbers instead of raising ValidationError"
+  ],
+  "body": "Symptom: Validating a ByteSize field from a string with an excessively large numeric value crashes with an unhandled OverflowError instead of a ValidationError.\nRoot cause: pydantic/types.py:ByteSize converts the scalar using float(scalar) * unit_mult without catching float OverflowError.\nFix pattern: Wrap numeric string conversions in try/except OverflowError and reraise as PydanticCustomError to ensure proper ValidationError reporting.\nConstraints: Applies to string parsing into float scalars; does not apply to direct integer inputs which support arbitrary precision in Python.",
+  "applies": "ByteSize string parsing in pydantic/types.py",
+  "tags": [
+    "types",
+    "validation",
+    "bytesize",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "ByteSize",
+      "hash": "sha256:9a9dc2a562815452915c3854",
+      "line": 2070,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 1,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13850"
+  },
+  "created": "2026-10-07T00:50:12.471Z",
+  "verified": "2026-10-07T00:50:12.471Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

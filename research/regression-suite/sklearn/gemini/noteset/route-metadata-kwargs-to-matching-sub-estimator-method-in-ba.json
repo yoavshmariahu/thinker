@@ -1,0 +1,55 @@
+{
+  "id": "route-metadata-kwargs-to-matching-sub-estimator-method-in-ba",
+  "title": "Route metadata kwargs to matching sub-estimator method in BaggingClassifier predict_proba",
+  "kind": "rule",
+  "answers": [
+    "Why is metadata routing failing in BaggingClassifier predict_proba when base estimators lack predict_proba?",
+    "How should metadata parameters be routed to base estimators in BaggingClassifier.predict_proba?",
+    "TypeError unexpected keyword argument in BaggingClassifier predict_proba with metadata routing"
+  ],
+  "body": "Symptom: Metadata routed to sub-estimators in BaggingClassifier.predict_proba is passed to the wrong method or rejected with unexpected keyword arguments.\nRoot cause: sklearn/ensemble/_bagging.py:_parallel_predict_proba passed predict_params to estimator.predict_proba and predict_proba_params to fallback estimator.predict.\nFix pattern: Pass method-specific routed metadata kwargs to the method actually invoked (predict_proba_params to predict_proba, predict_params to predict).\nConstraints: Applies to composite estimators dynamically routing metadata to sub-estimator methods based on estimator capabilities.",
+  "applies": "sklearn/ensemble/_bagging.py metadata routing in BaggingClassifier.predict_proba",
+  "tags": [
+    "metadata-routing",
+    "bagging",
+    "ensemble",
+    "predict-proba"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "_parallel_predict_proba",
+      "hash": "sha256:6fa979c6e4cbf263f1a5292d",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "BaggingClassifier.predict_proba",
+      "hash": "sha256:0c5401cb2b3976f802ed8b00",
+      "line": 968,
+      "missing": false,
+      "fanout": {
+        "files": 143,
+        "sites": 379,
+        "refs": 990
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34188"
+  },
+  "created": "2026-10-07T00:44:12.668Z",
+  "verified": "2026-10-07T00:44:12.668Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

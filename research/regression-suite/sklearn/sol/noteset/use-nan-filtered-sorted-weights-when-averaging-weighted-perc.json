@@ -1,0 +1,54 @@
+{
+  "id": "use-nan-filtered-sorted-weights-when-averaging-weighted-perc",
+  "title": "Use NaN-filtered sorted weights when averaging weighted percentiles",
+  "kind": "rule",
+  "answers": [
+    "Why does the maximum weighted percentile return NaN despite ignoring missing values?",
+    "How should _weighted_percentile handle NaNs with average=True?",
+    "Which weights should weighted-percentile averaging use to detect zero-weight samples?"
+  ],
+  "body": "Symptom: The 100th weighted percentile can return NaN when missing values should be ignored and average=True.\nRoot cause: sklearn/utils/stats.py:_weighted_percentile checked the next sample's original weight, which did not reflect the zero weight assigned to NaNs in sorted_weights.\nFix pattern: Check zero-weight eligibility using sorted_weights and the corresponding sorted indices so averaging respects the effective weights used to ignore NaNs.\nConstraints: This failure occurs with average=True at percentile_rank=100 because sorted NaNs are last; sklearn/utils/tests/test_stats.py:test_weighted_percentile_nan_filtered checks equivalence to removing NaNs for ranks 0, 30, and 100, both averaging modes, and one- or two-dimensional weights.",
+  "applies": "The private _weighted_percentile helper's NaN filtering and zero-weight handling during averaging.",
+  "tags": [
+    "weighted-percentile",
+    "nan-handling",
+    "sample-weights"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/stats.py",
+      "symbol": "_weighted_percentile",
+      "hash": "sha256:9fe14945e412bec99fec41aa",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 46,
+        "refs": 68
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_stats.py",
+      "symbol": "test_weighted_percentile_nan_filtered",
+      "hash": "sha256:2c5e66137763f5fff5c14d58",
+      "line": 366,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34959"
+  },
+  "created": "2026-10-07T00:33:41.326Z",
+  "verified": "2026-10-07T00:33:41.326Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

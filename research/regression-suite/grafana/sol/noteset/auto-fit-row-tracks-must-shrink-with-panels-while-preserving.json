@@ -1,0 +1,57 @@
+{
+  "id": "auto-fit-row-tracks-must-shrink-with-panels-while-preserving",
+  "title": "Auto-fit row tracks must shrink with panels while preserving non-fit height",
+  "kind": "rule",
+  "answers": [
+    "Why is there empty space below a short auto-fit panel?",
+    "How should minimum panel height affect auto-grid row sizing?",
+    "How do non-fit panels keep their configured row height?"
+  ],
+  "body": "Symptom: A short auto-fit panel leaves unexpected bottom padding before the next dashboard row.\nRoot cause: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate reserved the configured row height even when the panel's fit minimum was lower.\nFix pattern: Floor fit-enabled row tracks at min(configured row height, resolved fit minimum), with max-content growth; a minimum of \"none\" resolves to zero. In public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx:AutoGridItemRenderer, preserve non-fit panels' row-height minimum when row heights are matched and auto-height panels are enabled, or their explicit row height when unmatched.\nConstraints: Lower the shared track floor only when fit content is present and fillScreen is false. Clamp larger fit minimums to the configured row height so they do not inflate non-fit-only rows; fit panels contribute their own minimum.",
+  "applies": "Dashboard auto-grid sizing with fit-content panels, including layouts mixing fit and non-fit panels.",
+  "tags": [
+    "dashboards",
+    "auto-grid",
+    "fit-content",
+    "row-height"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+      "symbol": "getAutoRowsTemplate",
+      "hash": "sha256:05ff2d7b650b4737c660aa59",
+      "line": 637,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+      "symbol": "AutoGridItemRenderer",
+      "hash": "sha256:b090eb847acbb352f0557664",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132082"
+  },
+  "created": "2026-10-07T00:05:52.614Z",
+  "verified": "2026-10-07T00:05:52.614Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-derived-auto-grid-row-sizing-consistent-across-creation"
+  ]
+}

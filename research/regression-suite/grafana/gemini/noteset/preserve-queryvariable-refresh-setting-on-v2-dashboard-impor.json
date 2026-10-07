@@ -1,0 +1,43 @@
+{
+  "id": "preserve-queryvariable-refresh-setting-on-v2-dashboard-impor",
+  "title": "Preserve QueryVariable refresh setting on v2 dashboard import",
+  "kind": "rule",
+  "answers": [
+    "Why does a query variable stop updating on time range change after importing a v2 dashboard?",
+    "Why does dashboard import reset query variable refresh to onDashboardLoad?",
+    "How to avoid losing query variable refresh configuration when remapping datasources during v2 import?"
+  ],
+  "body": "Symptom: An imported v2 dashboard's query variable stops updating on time range change because its refresh setting was reset to onDashboardLoad.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources hardcoded refresh to 'onDashboardLoad' when rebuilding query variables with remapped datasources.\nFix pattern: Omit the refresh override and preserve the author's variable.spec.refresh through the spread while still clearing options to an empty array.\nConstraints: Applies when remapping datasources for QueryVariables in v2 dashboard UI import; does not apply to variables referencing $datasourceVar or v1 imports.",
+  "applies": "v2 dashboard UI import datasource remapping for QueryVariables",
+  "tags": [
+    "dashboards",
+    "import",
+    "variables",
+    "v2"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "replaceVariableDatasources",
+      "hash": "sha256:6a6208936d3a8ee52db20d5b",
+      "line": 738,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131837"
+  },
+  "created": "2026-10-07T00:05:57.361Z",
+  "verified": "2026-10-07T00:05:57.361Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

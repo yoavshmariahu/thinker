@@ -1,0 +1,69 @@
+{
+  "id": "handling-base-class-deferral-in-mypy-plugin-during-import-cy",
+  "title": "Handling base class deferral in Mypy plugin during import cycles",
+  "kind": "rule",
+  "answers": [
+    "Why does Mypy report unexpected keyword argument errors on a Pydantic subclass when there is an import cycle?",
+    "How does the Pydantic Mypy plugin handle circular imports between base and child models?",
+    "Why does the Mypy plugin fail to collect inherited fields from a base model during circular imports?",
+    "Why is Mypy crashing when two Pydantic models import each other?"
+  ],
+  "body": "Symptom: Mypy crashes or reports false-positive unexpected keyword argument errors on model subclasses when models reference each other in an import cycle.\nRoot cause: pydantic/mypy.py:PydanticModelTransformer.collect_fields_and_class_vars skipped base classes whose processing was deferred in import cycles because METADATA_KEY was not yet populated, finalizing subclasses without inherited fields.\nFix pattern: Tag model TypeInfo metadata at start of transformation, detect tagged but incomplete base classes during ancestor inspection, and defer subclass processing via api.defer() for another pass.\nConstraints: Applies to Mypy AST type-checking passes where class dependencies resolve out of order; deferral must check not api.final_iteration to prevent infinite analysis loops.",
+  "applies": "Pydantic Mypy plugin model transformation when resolving base class fields across import cycles",
+  "tags": [
+    "mypy",
+    "plugin",
+    "import-cycle",
+    "type-checking",
+    "inheritance"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.collect_fields_and_class_vars",
+      "hash": "sha256:504c7c127dbe565bfa23c9a6",
+      "line": 671,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.transform",
+      "hash": "sha256:9a6682e00c747eaae7016a3b",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 33,
+        "refs": 40
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "METADATA_TAG_KEY",
+      "hash": "sha256:555051296ccd16f7cb2e973d",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13767"
+  },
+  "created": "2026-10-07T00:50:53.941Z",
+  "verified": "2026-10-07T00:50:53.941Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

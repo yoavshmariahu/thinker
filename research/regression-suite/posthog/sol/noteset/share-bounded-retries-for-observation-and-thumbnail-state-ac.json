@@ -1,0 +1,79 @@
+{
+  "id": "share-bounded-retries-for-observation-and-thumbnail-state-ac",
+  "title": "Share bounded retries for observation and thumbnail state activities",
+  "kind": "rule",
+  "answers": [
+    "Which retry policy should Replay Vision state writes use?",
+    "Does the thumbnail workflow retry state activities for three minutes?",
+    "Where are scan and thumbnail state-write retry limits defined?"
+  ],
+  "body": "Convention: Observation and media state activities in the scan and thumbnail workflows reuse products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_RETRY and products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_SCHEDULE_TO_CLOSE.\nEnforcement: products/replay_vision/backend/temporal/workflow.py:ApplyScannerWorkflow and products/replay_vision/backend/temporal/media_workflow.py:ObservationMediaWorkflow pass these constants when scheduling the relevant activities.\nRetry semantics: The shared policy allows five attempts, starting with a one-second interval capped at ten seconds; its backoff totals about fifteen seconds (1+2+4+8).\nInvariant: The three-minute schedule-to-close timeout bounds the entire retry chain, including backoff, so state-write failure handling fits within the scanner execution timeout. It does not promise three minutes of retries; maximum_attempts can end the chain earlier.\nConstraints: Reuse this policy for short PostgreSQL state activities; asset creation, asset ensuring, and thumbnail extraction retain their separate retry policies.",
+  "applies": "Scheduling short observation and media state activities in ApplyScannerWorkflow and ObservationMediaWorkflow.",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "retries",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_RETRY",
+      "hash": "sha256:3ce24d24e502eaa232f558e6",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_SCHEDULE_TO_CLOSE",
+      "hash": "sha256:12e576072f73358e589cdf36",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/workflow.py",
+      "symbol": "ApplyScannerWorkflow",
+      "hash": "sha256:e51e92abc936c01cf3f57c2f",
+      "line": 258,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 9
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/media_workflow.py",
+      "symbol": "ObservationMediaWorkflow",
+      "hash": "sha256:024481da84006ed4d1f63c42",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:15:24.651Z",
+  "verified": "2026-10-07T00:15:24.651Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

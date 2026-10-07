@@ -1,0 +1,50 @@
+{
+  "id": "adding-a-sql-store-migration-register-at-the-end-and-append",
+  "title": "Adding a SQL store migration: register at the end and append its ID to migration_ids.txt",
+  "kind": "howto",
+  "answers": [
+    "how do I add a new database migration in grafana",
+    "where to register a migration",
+    "migration_ids.txt test failing",
+    "how to alter a column type for mysql and postgres only"
+  ],
+  "body": "1. Write a function taking *migrator.Migrator in pkg/services/sqlstore/migrations/<area>/ (alerting migrations live in ualert/).\n2. Call it at the end of pkg/services/sqlstore/migrations/migrations.go:OSSMigrations.AddMigration. Order matters, so new migrations go last.\n3. Append each migration ID string, in quotes and in the same order, to pkg/services/sqlstore/migrations/testdata/migration_ids.txt.\n4. For per-dialect type changes, use migrator.NewRawSQLMigration(\"\").Mysql(...).Postgres(...). In MySQL, `MODIFY col TYPE NULL` redefines the whole column, so state nullability again. In Postgres, `ALTER COLUMN col TYPE ...` keeps it.\n5. Never edit a migration that has already shipped (its ID has been recorded). Add a new one instead.",
+  "applies": "Any new migration in pkg/services/sqlstore/migrations",
+  "tags": [
+    "migrations",
+    "sqlstore",
+    "mysql",
+    "postgres",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/migrations.go",
+      "symbol": "OSSMigrations",
+      "hash": "sha256:565725227f2f6891410fd77f",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+      "hash": "sha256:4b53fc6ce3b6938cea762e2f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:02:28.898Z",
+  "verified": "2026-10-07T00:02:28.898Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

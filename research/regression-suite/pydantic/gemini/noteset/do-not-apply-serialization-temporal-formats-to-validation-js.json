@@ -1,0 +1,44 @@
+{
+  "id": "do-not-apply-serialization-temporal-formats-to-validation-js",
+  "title": "Do not apply serialization temporal formats to validation JSON schemas",
+  "kind": "rule",
+  "answers": [
+    "Why does model_json_schema(mode='validation') output type number for datetime when ser_json_temporal is configured?",
+    "Why does validation JSON schema say number for timedelta when ser_json_timedelta is float?",
+    "How to prevent serialization temporal format settings from changing validation schemas in GenerateJsonSchema?"
+  ],
+  "body": "Symptom: Validation JSON schema for datetime, date, time, or timedelta indicates 'type': 'number' instead of 'string' when ser_json_temporal or ser_json_timedelta is configured.\nRoot cause: pydantic/json_schema.py:GenerateJsonSchema._common_temporal_schema inspected temporal serialization formats without verifying self.mode == 'serialization'.\nFix pattern: Gate serialization-specific schema type overrides behind a self.mode == 'serialization' check.\nConstraints: Applies when serializer configurations alter output format/type while validation still accepts standard representations (e.g. ISO 8601 strings).",
+  "applies": "Generating validation vs serialization JSON schemas for temporal fields in GenerateJsonSchema",
+  "tags": [
+    "json-schema",
+    "serialization",
+    "validation",
+    "temporal",
+    "datetime"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/json_schema.py",
+      "symbol": "GenerateJsonSchema._common_temporal_schema",
+      "hash": "sha256:6c570f7788363b35b47d8523",
+      "line": 906,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13711"
+  },
+  "created": "2026-10-07T00:51:11.393Z",
+  "verified": "2026-10-07T00:51:11.393Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

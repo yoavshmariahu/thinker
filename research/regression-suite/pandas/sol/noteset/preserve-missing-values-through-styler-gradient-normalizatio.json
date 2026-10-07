@@ -1,0 +1,55 @@
+{
+  "id": "preserve-missing-values-through-styler-gradient-normalizatio",
+  "title": "Preserve missing values through Styler gradient normalization",
+  "kind": "rule",
+  "answers": [
+    "Why do missing cells get the lowest gradient color when all valid values are equal?",
+    "How should background_gradient and text_gradient color NaN cells?",
+    "How do I preserve a colormap's custom bad color when vmin equals vmax?"
+  ],
+  "body": "Symptom: Missing cells receive the lowest colormap color in background_gradient or text_gradient when all valid values are equal.\nRoot cause: pandas/io/formats/style.py:_background_gradient uses matplotlib Normalize, which maps NaN to zero when vmin == vmax.\nFix pattern: Restore NaN using the original gmap's missing-value mask after normalization, then pass the preserved result to both default and explicitly supplied colormaps so their missing-value color is respected.\nConstraints: Both gradient methods must preserve missing-value coloring whether equal bounds arise from the data or explicit vmin/vmax; valid values must retain their normalized colors.\nRegression coverage: pandas/tests/io/formats/style/test_matplotlib.py:test_background_gradient_nan_single_value checks both methods and implicit/explicit equal bounds, comparing missing-cell styles across constant and varying columns and against valid cells.",
+  "applies": "Styler background_gradient and text_gradient changes involving normalization or colormap application.",
+  "tags": [
+    "styler",
+    "gradients",
+    "missing-values",
+    "matplotlib"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "_background_gradient",
+      "hash": "sha256:ddcbb4b02b5690b35f7806f8",
+      "line": 4271,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/tests/io/formats/style/test_matplotlib.py",
+      "symbol": "test_background_gradient_nan_single_value",
+      "hash": "sha256:de2ac130449c60d884e00778",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70526"
+  },
+  "created": "2026-10-07T00:23:47.739Z",
+  "verified": "2026-10-07T00:23:47.739Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

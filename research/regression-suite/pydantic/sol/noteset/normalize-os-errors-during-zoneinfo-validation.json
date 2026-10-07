@@ -1,0 +1,54 @@
+{
+  "id": "normalize-os-errors-during-zoneinfo-validation",
+  "title": "Normalize OS errors during ZoneInfo validation",
+  "kind": "rule",
+  "answers": [
+    "Why does an invalid timezone raise an OS error instead of a validation error?",
+    "How should ZoneInfo constructor failures be reported?",
+    "How are overly long timezone names validated?"
+  ],
+  "body": "Symptom: Invalid timezone inputs such as 'America' or a 300-character name raise an OS error instead of a ValidationError.\nRoot cause: pydantic/_internal/_validators.py:validate_str_is_valid_iana_tz did not catch OSError from ZoneInfo(value).\nFix pattern: Translate ZoneInfoNotFoundError, ValueError, TypeError and OSError into PydanticCustomError with type 'zoneinfo_str', message 'invalid timezone: {value}' and the original value in context; regression coverage is in tests/types/test_zoneinfo.py:test_zoneinfo_os_error_is_validation_error.\nConstraints: This normalization applies to ZoneInfo construction during validation; existing ZoneInfo instances pass through, and exceptions outside the listed set are not caught.",
+  "applies": "Validation of ZoneInfo fields and TypeAdapter(ZoneInfo) inputs.",
+  "tags": [
+    "zoneinfo",
+    "validation",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_validators.py",
+      "symbol": "validate_str_is_valid_iana_tz",
+      "hash": "sha256:b14945ec48252c7c3f72fdbe",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/types/test_zoneinfo.py",
+      "symbol": "test_zoneinfo_os_error_is_validation_error",
+      "hash": "sha256:086fbee23ab710fe9ec2e5fc",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13912"
+  },
+  "created": "2026-10-07T00:40:04.877Z",
+  "verified": "2026-10-07T00:40:04.877Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

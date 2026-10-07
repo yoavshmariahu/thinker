@@ -1,0 +1,96 @@
+{
+  "id": "ser-json-timedelta-must-only-affect-timedelta-values-includi",
+  "title": "ser_json_timedelta must only affect timedelta values, including in inferred (Any) serialization",
+  "kind": "rule",
+  "answers": [
+    "ser_json_timedelta='float' makes datetimes/dates serialize as numbers with Any type",
+    "datetime keys serialized as numbers in dump_json when only timedelta config set",
+    "why does to_jsonable_python timedelta_mode change datetime output",
+    "inference serializer uses wrong temporal mode for timedelta"
+  ],
+  "body": "Symptom: with only `ser_json_timedelta` set (e.g. 'float'), values serialized by inference (`TypeAdapter(Any)`, `to_jsonable_python`, dict keys) had datetime/date/time output in the timedelta format, not ISO 8601.\nRoot cause: `SerializationConfig::from_config` / `from_args` in pydantic-core/src/serializers/config.rs folded the deprecated timedelta mode into the single `temporal_mode` field, and infer.rs used that field for every datetime type.\nFix pattern: keep two resolved fields on `SerializationConfig`: `temporal_mode` (only `ser_json_temporal`) and `timedelta_mode` (temporal wins if set, otherwise `ser_json_timedelta`). In pydantic-core/src/serializers/infer.rs, `ObType::Timedelta` branches (`infer_to_python_known`, `infer_serialize_known`, `infer_json_key_known`) must read `state.config.timedelta_mode`, and datetime/date/time branches read `temporal_mode`.\nConstraints: covers all three infer paths (python json mode, serde serialize, json keys). Regression test: tests/test_datetime.py::test_ser_json_timedelta_only_applies_to_timedelta_inference.",
+  "applies": "pydantic-core serializer inference for datetime/date/time/timedelta and the ser_json_timedelta/ser_json_temporal config",
+  "tags": [
+    "serialization",
+    "timedelta",
+    "datetime",
+    "config",
+    "pydantic-core",
+    "inference"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_serialize_known",
+      "hash": "sha256:dc8c59f8916d850c984f193c",
+      "line": 326,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_to_python_known",
+      "hash": "sha256:74bbe75b017e4fe3f8963f09",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_json_key_known",
+      "hash": "sha256:307dcfd09025c084cc5f377a",
+      "line": 553,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 12
+      }
+    },
+    {
+      "path": "tests/test_datetime.py",
+      "symbol": "test_ser_json_timedelta_only_applies_to_timedelta_inference",
+      "hash": "sha256:1b9831abe97d340d022f6e22",
+      "line": 853,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13892"
+  },
+  "created": "2026-10-07T00:34:59.382Z",
+  "verified": "2026-10-07T00:34:59.382Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "timedelta-mode-precedence-ser-json-temporal-over-ser-json-ti"
+  ]
+}

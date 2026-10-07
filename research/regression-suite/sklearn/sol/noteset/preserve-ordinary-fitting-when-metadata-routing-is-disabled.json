@@ -1,0 +1,51 @@
+{
+  "id": "preserve-ordinary-fitting-when-metadata-routing-is-disabled",
+  "title": "Preserve ordinary fitting when metadata routing is disabled",
+  "kind": "rule",
+  "answers": [
+    "Why can Pipeline fit with its default transform_input when routing is disabled?",
+    "Why does transform_input=[\"X_val\"] raise but the default tuple does not?",
+    "Why does passing X_val to fit fail without metadata routing?"
+  ],
+  "body": "Invariant: With metadata routing disabled, the default transform_input=(\"X_val\",) must allow ordinary fitting without validation metadata.\nEnforcement: sklearn/pipeline.py:Pipeline.fit rejects transform_input only when it is truthy and differs from (\"X_val\",); None and empty lists or tuples also bypass this guard.\nBoundary: The exemption compares the actual value, so [\"X_val\"] still triggers the transform_input guard. Passing X_val to fit with the default instead produces the usual \"Pipeline.fit does not accept\" error.\nRegression coverage: sklearn/tests/test_pipeline.py:test_transform_input_no_slep6 checks custom-input rejection, ordinary default fitting, and rejection of supplied X_val; removing the default exemption would break ordinary fitting with routing disabled.",
+  "applies": "Pipeline.fit compatibility and error handling when metadata routing is disabled.",
+  "tags": [
+    "pipeline",
+    "metadata-routing",
+    "compatibility"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.fit",
+      "hash": "sha256:d505cee8aac0d040c8acdcaa",
+      "line": 585,
+      "missing": false
+    },
+    {
+      "path": "sklearn/tests/test_pipeline.py",
+      "symbol": "test_transform_input_no_slep6",
+      "hash": "sha256:146f92fb3fdece2614b247ad",
+      "line": 2222,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34263"
+  },
+  "created": "2026-10-07T00:35:47.078Z",
+  "verified": "2026-10-07T00:35:47.078Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "transform-routed-validation-data-alongside-training-data-by"
+  ]
+}

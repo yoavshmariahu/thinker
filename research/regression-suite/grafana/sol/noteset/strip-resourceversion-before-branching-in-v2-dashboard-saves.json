@@ -1,0 +1,43 @@
+{
+  "id": "strip-resourceversion-before-branching-in-v2-dashboard-saves",
+  "title": "Strip resourceVersion before branching in v2 dashboard saves",
+  "kind": "rule",
+  "answers": [
+    "Why does saving a new v2 dashboard fail when resourceVersion is set?",
+    "Should v2 dashboard saves include resourceVersion?",
+    "Where should dashboard save metadata be sanitized?"
+  ],
+  "body": "Symptom: Saving a new v2 dashboard fails when the supplied metadata includes resourceVersion.\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard stripped resourceVersion only in the update branch, leaving it in create requests.\nFix pattern: Remove metadata.resourceVersion from the outgoing object before branching between create and update, so both save paths receive sanitized metadata.\nConstraints: Applies to both create and update through the v2 dashboard save API; this does not establish a rule for other resource APIs.",
+  "applies": "Changes to outgoing metadata in K8sDashboardV2API.saveDashboard, including saves with caller-supplied Kubernetes metadata.",
+  "tags": [
+    "dashboards",
+    "v2-api",
+    "save",
+    "resourceversion"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard/api/v2.ts",
+      "symbol": "K8sDashboardV2API.saveDashboard",
+      "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+      "line": 118,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 108,
+        "refs": 144
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132940"
+  },
+  "created": "2026-10-07T00:03:48.364Z",
+  "verified": "2026-10-07T00:03:48.364Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

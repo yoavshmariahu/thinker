@@ -1,0 +1,69 @@
+{
+  "id": "normalize-non-interval-inputs-before-cython-interval-parsing",
+  "title": "Normalize non-interval inputs before Cython interval parsing",
+  "kind": "rule",
+  "answers": [
+    "Why does IntervalIndex construction raise an expected numpy.ndarray TypeError?",
+    "Why does astype(\"interval\") fail on an empty nullable index?",
+    "How should IntervalArray handle RangeIndex and non-interval extension arrays?"
+  ],
+  "body": "Symptom: IntervalIndex construction, astype(\"interval\"), or set operations with an empty RangeIndex raise an uninformative Cython TypeError about expecting numpy.ndarray.\nRoot cause: pandas/core/arrays/interval.py:IntervalArray.__new__ passed RangeIndex or non-interval ExtensionArray input to intervals_to_interval_bounds, which requires an ndarray.\nFix pattern: Extract RangeIndex with extract_range=True, then convert remaining ExtensionArray input with np.asarray after _maybe_convert_platform_interval and before the Cython call.\nConstraints: Normalize in the non-IntervalArray constructor branch; empty or all-NA input must construct successfully, while populated non-interval input must raise the usual 'is not an interval' error, as checked by pandas/tests/indexes/interval/test_constructors.py:test_constructor_non_interval_empty_or_na and test_constructor_non_interval_raises.",
+  "applies": "IntervalArray construction and IntervalIndex construction or interval casts from RangeIndex and non-interval extension arrays.",
+  "tags": [
+    "interval",
+    "constructor",
+    "extension-array",
+    "cython"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "IntervalArray.__new__",
+      "hash": "sha256:3562f9ab2ec92b922a82420e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 32,
+        "refs": 62
+      }
+    },
+    {
+      "path": "pandas/tests/indexes/interval/test_constructors.py",
+      "symbol": "test_constructor_non_interval_empty_or_na",
+      "hash": "sha256:b63772099021af22a1b24484",
+      "line": 563,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/indexes/interval/test_constructors.py",
+      "symbol": "test_constructor_non_interval_raises",
+      "hash": "sha256:f0a6203ed8d0fddd43d8d460",
+      "line": 584,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:24:25.124Z",
+  "verified": "2026-10-07T00:24:25.124Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-constructor-normalization-out-of-the-shared-interval-co"
+  ]
+}

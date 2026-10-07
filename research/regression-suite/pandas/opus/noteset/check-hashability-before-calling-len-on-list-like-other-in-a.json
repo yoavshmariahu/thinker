@@ -1,0 +1,71 @@
+{
+  "id": "check-hashability-before-calling-len-on-list-like-other-in-a",
+  "title": "Check hashability before calling len() on list-like `other` in array comparison ops, because iterators are hashable",
+  "kind": "rule",
+  "answers": [
+    "Categorical == iter(...) raises TypeError: object of type ... has no len()",
+    "comparing a Categorical with a generator or iterator fails",
+    "why is a tuple treated as a scalar in Categorical comparisons",
+    "Lengths must match check in _cat_compare_op"
+  ],
+  "body": "Symptom: `cat == iter([...])` (or `!=`) raised `TypeError: object of type '...' has no len()` instead of returning a boolean array.\nRoot cause: pandas/core/arrays/categorical.py:_cat_compare_op (inner `func`) called `len(other)` whenever `is_list_like(other)` was true and only checked `not hashable` afterwards. Iterators count as list-like and as hashable, but they have no `__len__`.\nFix pattern: check `not hashable` first, so `len()` only runs on non-hashable list-likes. A hashable `other` (a tuple, which may itself be a category, or an iterator) goes down the scalar-like path, so `cat == iter(['a','b'])` gives all False and `!=` gives all True.\nConstraints: the order of the checks matters in any comparison guard of the form `is_list_like(x) and len(x) ...`. Per the PR description, other arrays (for example IntervalArray and IntegerArray `==` an iterator) still treat an iterator as list-like, so they emit the GH-62423 deprecation warning. They switch to scalar-like only when that deprecation is enforced in 4.0. Don't change them separately before then.\nTests: pandas/tests/arrays/categorical/test_operators.py:TestCategoricalOps.test_comparison_with_iterator.",
+  "applies": "Comparison operators on pandas extension arrays, especially Categorical, when `other` is a tuple, iterator or other hashable list-like",
+  "tags": [
+    "categorical",
+    "comparison",
+    "iterator",
+    "hashable",
+    "is_list_like",
+    "gh31646",
+    "gh62423"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/categorical.py",
+      "symbol": "_cat_compare_op",
+      "hash": "sha256:fc2f8619c31ddcd9e19734df",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pandas/tests/arrays/categorical/test_operators.py",
+      "symbol": "TestCategoricalOps",
+      "hash": "sha256:e2784c72a0e8d2aae0af3f8e",
+      "line": 127,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/arrays/categorical/test_operators.py",
+      "symbol": "TestCategoricalOps.test_comparison_with_iterator",
+      "hash": "sha256:c9178833b4653957ae708b7f",
+      "line": 209,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68637"
+  },
+  "created": "2026-10-07T00:25:14.699Z",
+  "verified": "2026-10-07T00:25:14.699Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,135 @@
+[
+  {
+    "id": "posthog-105852",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies missing Codex trace header/fallback/notification stamping causing null trace IDs and broken rating-to-trace links."
+  },
+  {
+    "id": "posthog-91352",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify double-quoted person-property merge tags truncating HTML attributes or breaking rendering. Focused source probe independently reproduces the invalid quoting."
+  },
+  {
+    "id": "posthog-105660",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removal of the ordered MAX_ACTIVE_REFERENCE_RESULTS cap producing unbounded parent listings and oversized error dialogs."
+  },
+  {
+    "id": "posthog-105551",
+    "baselineMatches": [],
+    "cachedMatches": [
+      1
+    ],
+    "reason": "The frozen target is stale connections before async activities. Cached finding 1 identifies removal of ORM-thread connection cleanup. Baseline only catches the secondary change to missing-asset retryability, which does not detect the target stale-connection bug; cached secondary retry findings are also excluded."
+  },
+  {
+    "id": "posthog-105799",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies loss of the exact read-only user_blast_radius POST exception, blocking audience sizing during impersonation."
+  },
+  {
+    "id": "posthog-105670",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify default sorting on the vestigial unindexed order column, restoring expensive full scans/sorts instead of stable indexed modification-time ordering."
+  },
+  {
+    "id": "posthog-105133",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies revoked Kafka partitions retaining stale per-partition timestamp gauge series, producing false delayed-partition alerts after rebalances."
+  },
+  {
+    "id": "posthog-105737",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify the async/stale insightLogicRef guard allowing unintended display-option autosaves while synchronous scene IDs already identify the editor."
+  },
+  {
+    "id": "posthog-96235",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify strict RFC UUID validation rejecting real UUIDT invocation IDs, causing cancellation requests to return 400."
+  },
+  {
+    "id": "posthog-105707",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies removal of final-attempt blocked-result recovery for failed/empty draft production, leaving the workflow without a terminal result. The separate schema-convention warning is not needed for the detection."
+  },
+  {
+    "id": "posthog-105736",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [],
+    "reason": "Baseline identifies generic key-file required-field errors blocking source setup even when the alternate credential option is selected. Cached only flags the secondary flat-auth payload credential-validation bypass; that does not detect the frozen target false rejection from key-file field names, so it is not counted as a target hit."
+  },
+  {
+    "id": "posthog-104706",
+    "baselineMatches": null,
+    "cachedMatches": [
+      0
+    ],
+    "reason": "INVALID PAIR: Gemini baseline failed all three same-model attempts (malformed or empty output); excluded from paired detection rates. The valid cached arm identifies quiet zero-row runs falsely flagged as stalled when staleness uses last_synced_at instead of latest execution time. Retain this unpaired hit separately, not as a paired gain."
+  },
+  {
+    "id": "posthog-105409",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms catch incorrect AI-detector outcome reporting: unavailable is counted per retry, including checks that ultimately succeed, instead of once after retries exhaust. This is an explicit outcome-reporting mechanism in the historical fix. Queue-routing findings (index 1 in both arms) are separate and not needed for this score; neither arm flags the owner-facing copy."
+  },
+  {
+    "id": "posthog-105690",
+    "baselineMatches": [
+      0,
+      3
+    ],
+    "cachedMatches": [
+      1
+    ],
+    "reason": "Both arms identify explicit decimalPlaces=0 being discarded by truthiness checks. Other findings about pre-aggregation rounding, null values and formatting style are not needed for this primary target score."
+  },
+  {
+    "id": "posthog-103110",
+    "baselineMatches": [],
+    "cachedMatches": [],
+    "reason": "Neither arm emits a finding for the target silent empty tool-list outcome after MCP discovery failures/no usable server."
+  }
+]

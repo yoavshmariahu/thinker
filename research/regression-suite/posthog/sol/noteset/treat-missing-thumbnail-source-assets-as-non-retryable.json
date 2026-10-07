@@ -1,0 +1,55 @@
+{
+  "id": "treat-missing-thumbnail-source-assets-as-non-retryable",
+  "title": "Treat missing thumbnail source assets as non-retryable",
+  "kind": "rule",
+  "answers": [
+    "Should thumbnail preparation retry when the analysis asset is gone?",
+    "Why does thumbnail generation keep retrying a deleted source asset?",
+    "How should deterministic thumbnail preparation failures be reported?"
+  ],
+  "body": "Symptom: Thumbnail preparation retries even though its analysis asset has been deleted and cannot supply a frame.\nRoot cause: products/replay_vision/backend/temporal/activities/observation_media.py:prepare_observation_thumbnail_activity previously let ExportedAsset.DoesNotExist escape from the asset lookup without marking the failure non-retryable.\nFix pattern: Convert deterministic missing-input failures into ApplicationError(non_retryable=True), preserving the original exception as the cause; an absent rendered-object location follows the same non-retryable convention.\nConstraints: The lookup remains scoped by analysis_asset_id and team_id. An empty content location is terminal because the analysis render has already finished; this classification does not apply to transient database failures.",
+  "applies": "Analysis asset lookup and rendered-object validation during observation thumbnail preparation.",
+  "tags": [
+    "replay-vision",
+    "thumbnails",
+    "temporal",
+    "non-retryable-errors"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/activities/observation_media.py",
+      "symbol": "prepare_observation_thumbnail_activity",
+      "hash": "sha256:eb4da6f9877c9ef50352a6ef",
+      "line": 69,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/tests/test_observation_media.py",
+      "symbol": "TestObservationMedia.test_a_missing_analysis_asset_fails_without_retrying",
+      "hash": "sha256:f5185ff36f4ca7aed75f3d80",
+      "line": 124,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:15:27.049Z",
+  "verified": "2026-10-07T00:15:27.049Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,59 @@
+{
+  "id": "parallel-read-csv-quoted-newline-chunk-error-fallback",
+  "title": "Parallel read_csv quoted-newline chunk error fallback",
+  "kind": "rule",
+  "answers": [
+    "Why does pd.read_csv raise ValueError on CSV files with quoted newlines when multithreading?",
+    "How are chunk parsing errors handled during parallel CSV reading in read_csv?",
+    "Why does parallel read_csv fall back to serial reading on worker exceptions?",
+    "read_csv fails with ValueError on multiline quoted fields in parallel mode"
+  ],
+  "body": "Symptom: pd.read_csv() raises ValueError or converter errors on valid CSV files with quoted newlines when reading in parallel, or reports non-deterministic error positions on invalid files.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks worker threads did not catch reader._engine.read() exceptions, allowing misaligned chunks after quoted-newline split boundaries to raise conversion errors before serial fallback could occur.\nFix pattern: Catch chunk read exceptions in worker threads, halt remaining workers via a shared threading.Event, and return None from pandas/io/parsers/readers.py:_read_csv_chunks to trigger serial fallback.\nConstraints: Applies to parallel chunk parsing where split boundaries can misalign tokens or produce out-of-order errors; does not apply to non-chunk errors in pandas/io/parsers/readers.py:_read or post-chunk concatenation, which signal bugs and must propagate.",
+  "applies": "pandas.read_csv parallel chunk parsing with C engine across multiple worker threads",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "multithreading",
+    "csv-parsing",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read",
+      "hash": "sha256:318fb6cbaef72af479e0bbe4",
+      "line": 352,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:37:49.153Z",
+  "verified": "2026-10-07T00:37:49.153Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fallback-to-serial-read-csv-on-bare-carriage-returns-before"
+  ]
+}

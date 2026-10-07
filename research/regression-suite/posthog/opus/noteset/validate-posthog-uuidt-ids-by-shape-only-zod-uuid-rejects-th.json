@@ -1,0 +1,71 @@
+{
+  "id": "validate-posthog-uuidt-ids-by-shape-only-zod-uuid-rejects-th",
+  "title": "Validate PostHog UUIDT ids by shape only; zod .uuid() rejects them",
+  "kind": "rule",
+  "answers": [
+    "workflow run cancel button fails with a validation error",
+    "cancel invocations API returns 400 for invocation_ids from the runs list",
+    "why does z.string().uuid() reject our invocation ids",
+    "how to validate a UUIDT in zod"
+  ],
+  "body": "Symptom: An operator clicks Cancel on a running workflow, or calls the cancel API with `invocation_ids`. The request fails with a validation error and the run keeps going.\nRoot cause: nodejs/src/cdp/cdp-api.ts:CdpApi checked each id with zod's `z.string().uuid()`, which also checks the RFC version and variant. The invocation store issues UUIDTs. In a UUIDT those nibbles hold a series counter and random bytes, so the check rejected every real id.\nFix pattern: check the shape only with `z.string().refine((id) => UUID.validateString(id, false), msg)`. Keep the shape check: `cancelJobs` binds the ids as `::uuid[]`, so a malformed id must get a 400 at the route and never reach Postgres, where it would cause a 500. On the Python side Django's `UUIDField` already accepts UUIDTs. Do not add a version-aware check to the Django cancel serializer.\nConstraints: this applies to any id generated as a UUIDT (posthog.uuidt.UUIDT / nodejs UUIDT). Per the PR, nodejs/src/cdp/schema/hogflow.ts still uses the version-aware rule for `message_category_id` and `template_uuid`, which are also UUIDT-backed. That is a known latent bug of the same kind and was not fixed here. Tests should use real `new UUIDT()` / `str(UUIDT())` ids. A `uuid4` passes either rule and hides this bug.",
+  "applies": "Any zod/serializer validation of ids generated as PostHog UUIDTs, especially the CDP hog_flow invocations cancel route",
+  "tags": [
+    "uuidt",
+    "zod",
+    "validation",
+    "workflows",
+    "cdp",
+    "cancel",
+    "hog_flows"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/cdp/cdp-api.ts",
+      "symbol": "CdpApi",
+      "hash": "sha256:fe0e27f04f380d7f19512765",
+      "line": 131,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 8,
+        "refs": 32
+      }
+    },
+    {
+      "path": "nodejs/src/cdp/schema/hogflow.ts",
+      "hash": "sha256:957928d46f982d9e1c3c6402",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/cdp/cdp-api.serial.test.ts",
+      "hash": "sha256:34c87b6d6aed156fb1a6a565",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+      "symbol": "TestHogFlowCancelInvocations",
+      "hash": "sha256:c2d50b2def83b11db96c9609",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#96235"
+  },
+  "created": "2026-10-07T00:17:44.932Z",
+  "verified": "2026-10-07T00:17:44.932Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "workflow-invocation-cancel-django-proxy-and-cdp-route-must-a"
+  ]
+}

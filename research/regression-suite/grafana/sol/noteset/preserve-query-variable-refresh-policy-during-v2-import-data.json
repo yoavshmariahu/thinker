@@ -1,0 +1,44 @@
+{
+  "id": "preserve-query-variable-refresh-policy-during-v2-import-data",
+  "title": "Preserve query variable refresh policy during v2 import datasource remapping",
+  "kind": "rule",
+  "answers": [
+    "Why does importing a dashboard change a query variable's refresh setting?",
+    "Should a variable with refresh set to never be upgraded when its datasource changes?",
+    "Which query variable settings should survive datasource remapping during UI import?"
+  ],
+  "body": "Symptom: A query variable's configured refresh setting changes after importing a v2 dashboard and selecting a replacement datasource.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt the variable spec with an explicit refresh override, replacing the author's policy.\nFix pattern: Preserve refresh through the existing spec spread, including onTimeRangeChanged, onDashboardLoad, and never; continue clearing datasource-dependent options and current selection.\nConstraints: Applies when v2 import remaps a query variable to a selected datasource. Clearing options does not require upgrading never to onDashboardLoad. Variables retaining a $datasourceVar reference and the v1 import path are outside this replacement behavior.",
+  "applies": "V2 dashboard UI import when replacing a query variable's datasource with the datasource selected in the import form.",
+  "tags": [
+    "dashboards",
+    "import",
+    "query-variables",
+    "datasource-remapping",
+    "refresh"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "replaceVariableDatasources",
+      "hash": "sha256:6a6208936d3a8ee52db20d5b",
+      "line": 738,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131837"
+  },
+  "created": "2026-10-07T00:04:19.839Z",
+  "verified": "2026-10-07T00:04:19.839Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

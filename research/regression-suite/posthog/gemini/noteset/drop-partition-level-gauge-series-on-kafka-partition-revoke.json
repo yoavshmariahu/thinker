@@ -1,0 +1,93 @@
+{
+  "id": "drop-partition-level-gauge-series-on-kafka-partition-revoke",
+  "title": "Drop partition-level gauge series on Kafka partition revoke",
+  "kind": "rule",
+  "answers": [
+    "Why is IngestionAnalyticsSinglePartitionDelayed alerting for a partition that is not behind?",
+    "Why does latest_processed_timestamp_ms report stale metrics after a Kafka consumer rebalance?",
+    "How to remove partition gauge series when Kafka partitions are revoked?",
+    "Why does a reassigned Kafka partition keep emitting old processed timestamps from previous pods?"
+  ],
+  "body": "Symptom: The on-call rotation receives a false IngestionAnalyticsSinglePartitionDelayed alert for a partition that is not behind.\nRoot cause: nodejs/src/ingestion/ingestion-consumer.ts:latestOffsetTimestampGauge keeps exporting timestamps for partitions revoked in a rebalance, winning max by (groupId, topic, partition) queries over new owners without series.\nFix pattern: Use the onPartitionsRevoked hook in nodejs/src/common/kafka/consumer/index.ts:KafkaConsumerInterface.connect to call latestOffsetTimestampGauge.remove({ topic, partition, groupId }) in nodejs/src/ingestion/ingestion-consumer.ts:IngestionConsumer.onPartitionsRevoked.\nConstraints: Applies to partition-keyed gauge metrics aggregated across consumers; partitions whose new owner stalls before processing any messages will export no series until the first message.",
+  "applies": "Kafka consumers exporting per-partition Prometheus gauge metrics across consumer rebalances.",
+  "tags": [
+    "kafka",
+    "metrics",
+    "prometheus",
+    "ingestion",
+    "rebalance"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "latestOffsetTimestampGauge",
+      "hash": "sha256:e700a654886808abf4be83c4",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "IngestionConsumer",
+      "hash": "sha256:29959869dadbd05a68bf2ae9",
+      "line": 125,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 18
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/index.ts",
+      "symbol": "KafkaConsumerInterface",
+      "hash": "sha256:e4bd321bb11a3106c49d767e",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/index.ts",
+      "symbol": "KafkaConsumerInterface.connect",
+      "hash": "sha256:90c6a6dd1f9c0f6883486adc",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 931,
+        "sites": 821,
+        "refs": 1979
+      }
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "IngestionConsumer.onPartitionsRevoked",
+      "hash": "sha256:3afbcb0228cc859807bd3043",
+      "line": 469,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 6,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105133"
+  },
+  "created": "2026-10-07T00:22:22.720Z",
+  "verified": "2026-10-07T00:22:22.720Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

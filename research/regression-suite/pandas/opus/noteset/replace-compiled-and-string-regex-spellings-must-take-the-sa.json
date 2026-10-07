@@ -1,0 +1,71 @@
+{
+  "id": "replace-compiled-and-string-regex-spellings-must-take-the-sa",
+  "title": "replace: compiled and string regex spellings must take the same path and be tested together",
+  "kind": "rule",
+  "answers": [
+    "replace regex=True vs re.compile behave differently",
+    "what tests to add when changing regex replace for arrow strings",
+    "replace with regex upcasts arrow string column to object",
+    "Categorical replace regex new category raises TypeError"
+  ],
+  "body": "Any spelling of the same pattern must behave the same: `regex={pat: v}`, `to_replace=pat, regex=True`, `to_replace=[re.compile(pat)], value=[v], regex=True`, and bare `to_replace=re.compile(pat)`. This covers the upcast to object when an arrow string column can't hold the replacement (GH-70458). The compiled list/dict forms go through replace_list and reach the same Block._replace_regex guard.\nTests parametrize over all four spellings: pandas/tests/series/methods/test_replace.py (test_replace_compiled_regex_arrow_dtype, test_replace_regex_non_string_arrow_dtype with `compile_pattern`) and pandas/tests/arrays/categorical/test_replace.py (…_arrow_strings variants). For a Categorical, a replacement that matches an existing category works, and a new category raises `TypeError: Cannot setitem on a Categorical with a new category`.\nWhen a test checks that the original was not mutated, compare against a copy explicitly. Asserting the result alone passes even after mutation, because `^a` no longer matches substituted values. Also cover inplace=True with a view (`ser[:]`), which now reaches ArrowExtensionArray.__setitem__.\nKnown open inconsistency: non-regex `ser.replace(\"a\", 1)` on arrow strings still raises instead of upcasting.",
+  "applies": "Changes to replace/regex handling for string, arrow and categorical dtypes and their tests",
+  "tags": [
+    "replace",
+    "regex",
+    "testing",
+    "arrowdtype",
+    "categorical"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "Block._replace_regex",
+      "hash": "sha256:9ed600351b63040f2cf39aa1",
+      "line": 763,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/tests/series/methods/test_replace.py",
+      "symbol": "test_replace_compiled_regex_arrow_dtype",
+      "hash": "sha256:32d879fd5fcaedbc9ba87d90",
+      "line": 792,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/arrays/categorical/test_replace.py",
+      "symbol": "test_replace_regex_existing_category_arrow_strings",
+      "hash": "sha256:f2e0628b1853e7b0c3310bfa",
+      "line": 101,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69026"
+  },
+  "created": "2026-10-07T00:24:35.027Z",
+  "verified": "2026-10-07T00:24:35.027Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "compiled-re-pattern-in-replace-was-silently-ignored-on-arrow"
+  ]
+}

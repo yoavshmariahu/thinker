@@ -1,0 +1,94 @@
+{
+  "id": "datetime-seconds-milliseconds-temporal-serialization-must-ap",
+  "title": "Datetime 'seconds'/'milliseconds' temporal serialization must apply the tz offset (use timestamp_tz)",
+  "kind": "rule",
+  "answers": [
+    "datetime with timezone serialized to wrong unix timestamp with ser_json_temporal='seconds'",
+    "temporal_mode milliseconds ignores tzinfo / UTC offset",
+    "to_json of aware datetime does not match datetime.timestamp()",
+    "dict keys of datetimes serialized as epoch numbers are off by the timezone offset"
+  ],
+  "body": "Symptom: with config `ser_json_temporal`/`temporal_mode` set to 'seconds' or 'milliseconds', a tz-aware datetime (e.g. UTC-5) serialized to an epoch number that ignored its offset, so it didn't match Python's `dt.timestamp()`. Both values and dict keys were affected (JSON mode).\nRoot cause: `pydantic-core/src/serializers/type_serializers/datetime_etc.rs:datetime_to_seconds` / `datetime_to_milliseconds` added up `dt.date.timestamp()` and the time-of-day seconds, so `dt.time.tz_offset` was never used.\nFix pattern: build the epoch from speedate's `DateTime::timestamp_tz()`, which subtracts the offset, then add the fractional part from `dt.time.microsecond` (divide by 1e6 for seconds, 1e3 for ms; multiply the whole seconds by 1000 for ms).\nConstraints: this applies only to full datetimes. `date_to_seconds` and the time helpers have no offset to apply. If you add another numeric temporal mode, compute it from `timestamp_tz()`, not from the date and time parts separately. Tests go in `pydantic-core/tests/serializers/test_datetime.py` (`test_config_datetime_tz_aware`). They check `to_python(mode='json')`, `to_json`, and the dict-key form against `dt.timestamp()`.",
+  "applies": "pydantic-core datetime serialization with ser_json_temporal seconds/milliseconds",
+  "tags": [
+    "pydantic-core",
+    "serialization",
+    "datetime",
+    "timezone",
+    "temporal_mode",
+    "rust"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "temporal_mode",
+      "hash": "sha256:cd932955b323551af0df2130",
+      "line": 80,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 33
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "to_python",
+      "hash": "sha256:107a31e2ba1778ff73fc168b",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 30,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "temporal_mode",
+      "hash": "sha256:cd932955b323551af0df2130",
+      "line": 80,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 33
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "to_python",
+      "hash": "sha256:107a31e2ba1778ff73fc168b",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 30,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pydantic-core/tests/serializers/test_datetime.py",
+      "symbol": "test_config_datetime_tz_aware",
+      "hash": "sha256:afb0640a09471d7ba5f96261",
+      "line": 234,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13436"
+  },
+  "created": "2026-10-07T00:37:40.177Z",
+  "verified": "2026-10-07T00:37:40.177Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

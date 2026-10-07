@@ -1,0 +1,63 @@
+{
+  "id": "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l",
+  "title": "Parallel read_csv must fall back to serial when byte-level line finding can disagree with the C tokenizer (bare \\r)",
+  "kind": "rule",
+  "answers": [
+    "read_csv on a large file drops the first data row or adds a junk row",
+    "parallel read_csv wrong result with old Mac CR line endings in header",
+    "when does _read_csv_parallel return None / fall back to serial",
+    "read_csv parallel first chunk starts at wrong offset"
+  ],
+  "body": "Symptom: a large local CSV read with default settings (the parallel path, new in 3.1) silently loses its first data row, or gains an extra junk first row, when the header, a skipped row or the first data line contains a bare `\\r`.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks finds data_start and the first data line by counting `\\n`-terminated lines (fd.readline / _find_data_start_offset). The C tokenizer also ends a line at a bare `\\r`, so the two can disagree about where data starts. The row-count sanity check misses this when the next line is blank or completes a header that a quoted newline split.\nFix pattern: when the byte-level boundary logic can't be trusted, return None from the parallel path so read_csv does a serial read. Here the check is `b\"\\r\" in (preamble + first_line).replace(b\"\\r\\n\", b\"\")`.\nConstraints: CRLF must stay on the parallel path, so only a `\\r` not followed by `\\n` triggers the fallback. The check covers only the preamble and the first data line. Any new boundary logic in the parallel path has to match how the tokenizer splits lines (\\n, \\r\\n, bare \\r, quoted newlines). If it can't, fall back to serial: the row-count check alone is not enough.",
+  "applies": "pandas/io/parsers/readers.py parallel read_csv chunking (_read_csv_chunks / _read_csv_parallel)",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "line-endings",
+    "carriage-return",
+    "fallback",
+    "tokenizer"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_bare_cr_before_data_matches_serial",
+      "hash": "sha256:3c01f488ddc9ffb366d7677f",
+      "line": 1069,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70403"
+  },
+  "created": "2026-10-07T00:24:02.849Z",
+  "verified": "2026-10-07T00:24:02.849Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-a-failed-chunk-must-fall-back-to-serial-ne",
+    "testing-the-parallel-read-csv-path-force-it-place-chunk-boun",
+    "parallel-read-csv-returns-none-to-mean-read-serially-errors",
+    "testing-the-parallel-read-csv-path-force-parallel-and-compar"
+  ]
+}

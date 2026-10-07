@@ -1,0 +1,50 @@
+{
+  "id": "testing-read-only-impersonation-allowlist-entries-against-mu",
+  "title": "Testing read-only impersonation allowlist entries against mutating siblings",
+  "kind": "rule",
+  "answers": [
+    "How to test additions to READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS?",
+    "Prevent read-only impersonation allowlist from permitting mutating sibling actions",
+    "Why does TestImpersonationReadOnlyMiddleware require mutating sibling tests?"
+  ],
+  "body": "When allowlisting a POST endpoint in posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS, the regex must specify the exact action rather than a broad resource prefix.\nEnforced in posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware by pairing allowlist cases in test_read_only_impersonation_allows_allowlisted_post with mutating sibling checks in test_read_only_impersonation_blocks_mutating_siblings.\nIf mutating sibling test cases are omitted, accidental widening of the allowlist regex will silently expose write endpoints to read-only impersonation sessions.",
+  "applies": "Adding and testing endpoints in READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS",
+  "tags": [
+    "impersonation",
+    "middleware",
+    "testing",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "hash": "sha256:c1bc5f886dae93d4a664d9ce",
+      "missing": false
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "TestImpersonationReadOnlyMiddleware",
+      "hash": "sha256:3e78e978ed926757b4c1fe86",
+      "line": 974,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-10-07T00:21:21.350Z",
+  "verified": "2026-10-07T00:21:21.350Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "allowlisting-read-only-post-endpoints-for-impersonation-sess"
+  ]
+}

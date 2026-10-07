@@ -1,0 +1,73 @@
+{
+  "id": "array-api-mixed-inputs-encode-y-to-integer-codes-then-move-i",
+  "title": "Array API mixed inputs: encode y to integer codes, then move it to X's namespace/device (\"everything follows X\")",
+  "kind": "rule",
+  "answers": [
+    "LinearDiscriminantAnalysis fails when y is on a different device than X",
+    "how to support string labels with array API inputs in a classifier",
+    "check_array_api_mixed_inputs xfail, how do I make an estimator pass it",
+    "y from numpy, X from torch cuda raises an error in fit"
+  ],
+  "body": "Symptom: with array_api_dispatch on, fitting a classifier whose `y` comes from a different namespace/device than `X` (e.g. numpy `y`, torch-GPU `X`), or whose `y` holds string labels, raises an error.\nRoot cause: fit code compared or used `y` directly against arrays in X's namespace (e.g. `xp.unique_counts(y)`, `X[y == group]`). Strings can't be represented in any array API namespace.\nFix pattern (sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit): `self.classes_ = unique_labels(y)` on the original `y`, then `y_encoded = move_to(_encode(y, uniques=self.classes_), xp=xp, device=array_device(X))`. Downstream code uses only `y_encoded` (integer codes that index `classes_`). `classes_` stays in y's namespace/device.\nConstraints: any later step that uses `classes_` together with X-side arrays has to move it explicitly first. When an estimator gains this support, delete its `check_array_api_mixed_inputs` / `check_array_api_string_and_numeric_inputs` entries from `PER_ESTIMATOR_XFAIL_CHECKS` in sklearn/utils/_test_common/instance_generator.py so the common checks actually run. Add changelog fragments under doc/whats_new/upcoming_changes/array-api/.",
+  "applies": "Classifiers in sklearn that are adding array API support for mixed namespace/device or string targets",
+  "tags": [
+    "array-api",
+    "device",
+    "mixed-inputs",
+    "string-labels",
+    "classes_",
+    "xfail"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis.fit",
+      "hash": "sha256:7e99491781076cb52c11e871",
+      "line": 651,
+      "missing": false
+    },
+    {
+      "path": "sklearn/utils/_test_common/instance_generator.py",
+      "hash": "sha256:2c1a38403496460a81abbd58",
+      "missing": false
+    },
+    {
+      "path": "sklearn/utils/_array_api.py",
+      "symbol": "move_to",
+      "hash": "sha256:896ec9ad3f9301295c44793d",
+      "line": 523,
+      "missing": false,
+      "fanout": {
+        "files": 49,
+        "sites": 183,
+        "refs": 234
+      }
+    },
+    {
+      "path": "sklearn/utils/_encode.py",
+      "symbol": "_encode",
+      "hash": "sha256:646366c43d745af5d5cc12ed",
+      "line": 254,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 13,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:30:07.166Z",
+  "verified": "2026-10-07T00:30:07.166Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "move-to-must-convert-non-ndarray-containers-pandas-series-li",
+    "lda-internal-helpers-take-pre-encoded-y-encoded-plus-n-class"
+  ]
+}

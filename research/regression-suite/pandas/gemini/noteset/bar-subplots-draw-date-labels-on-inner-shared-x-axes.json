@@ -1,0 +1,57 @@
+{
+  "id": "bar-subplots-draw-date-labels-on-inner-shared-x-axes",
+  "title": "Bar subplots draw date labels on inner shared-x axes",
+  "kind": "rule",
+  "answers": [
+    "Why do inner subplots show date tick labels in bar plots with shared x-axes?",
+    "How to hide date tick labels on inner subplots for bar plots with DatetimeIndex?",
+    "Where should dynamic date locators be installed in BarPlot to avoid redrawing shared-x labels?"
+  ],
+  "body": "Symptom: In df.plot(kind=\"bar\", subplots=True) with a DatetimeIndex or PeriodIndex, minor date tick labels appear on inner subplots instead of being hidden on shared x-axes.\nRoot cause: pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic installed dynamic date locators after _adorn_subplots had already processed axes and hidden inner tick labels.\nFix pattern: Move format_dateaxis into pandas/plotting/_matplotlib/core.py:BarPlot._setup_date_axis before _adorn_subplots runs so locators are active before tick label suppression.\nConstraints: Applies to BarPlot with dynamic date axes (self._use_dynamic_dateaxis); pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic must still re-apply rot and fontsize because ax.set_xlim can introduce new minor ticks.",
+  "applies": "pandas.plotting._matplotlib.core.BarPlot with DatetimeIndex or PeriodIndex and shared-x subplots",
+  "tags": [
+    "plotting",
+    "matplotlib",
+    "bar-plot",
+    "datetime",
+    "sharex",
+    "subplots"
+  ],
+  "deps": [
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._setup_date_axis",
+      "hash": "sha256:454a625ce6be37c9d292e40b",
+      "line": 2206,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._post_plot_logic",
+      "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+      "line": 2237,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70228"
+  },
+  "created": "2026-10-07T00:40:03.670Z",
+  "verified": "2026-10-07T00:40:03.670Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

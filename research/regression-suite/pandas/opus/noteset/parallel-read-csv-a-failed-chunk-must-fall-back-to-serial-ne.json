@@ -1,0 +1,72 @@
+{
+  "id": "parallel-read-csv-a-failed-chunk-must-fall-back-to-serial-ne",
+  "title": "Parallel read_csv: a failed chunk must fall back to serial, never raise its own error",
+  "kind": "rule",
+  "answers": [
+    "read_csv raises ValueError on a valid CSV with a quoted multi-line field",
+    "parallel read_csv EOF inside string at chunk boundary",
+    "why does parallel read_csv give a different error message or row position than serial",
+    "dtype= or converters fail on a large file with embedded newlines in quotes"
+  ],
+  "body": "Symptom: a valid CSV whose quoted field contains a newline could raise ValueError from read_csv with dtype= or a raising converter. Only the parallel path did this. With two bad values, the error was also nondeterministic, and its row positions were counted from the start of the chunk.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks splits at raw \\n bytes. A boundary inside a quoted newline leaves the chunk before it at EOF inside a string, and the chunk after it starts mid-quote, so its misaligned first line fails to convert. Whichever worker failed first had its exception propagated.\nFix pattern: each worker wraps `reader._engine.read()` in `except Exception` and sets a shared `threading.Event` (`chunk_failed`). The other workers stop through `while not chunk_failed.is_set()`. After the pool joins, _read_csv_chunks returns None, and _read reruns serially, which raises the real error if the file is actually bad.\nConstraints: chunk errors are always possible artifacts of the split, so never surface them. Only exceptions from outside the chunk reads (e.g. _concatenate_chunks, the gather step) propagate. _read still catches ParserError/UnicodeDecodeError/OverflowError from the column-name sample read. Workers hold memoryview slices of the mmap, so they must be closed before it on every failure path.",
+  "applies": "pandas/io/parsers/readers.py parallel read_csv path (_read, _read_csv_parallel, _read_csv_chunks)",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "fallback",
+    "error-handling",
+    "threading"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_parallel",
+      "hash": "sha256:aaf530b0d33c4596895c3c55",
+      "line": 776,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 15,
+        "refs": 26
+      }
+    },
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read",
+      "hash": "sha256:318fb6cbaef72af479e0bbe4",
+      "line": 352,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:23:09.253Z",
+  "verified": "2026-10-07T00:23:09.253Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-returns-none-to-mean-read-serially-errors",
+    "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l"
+  ]
+}

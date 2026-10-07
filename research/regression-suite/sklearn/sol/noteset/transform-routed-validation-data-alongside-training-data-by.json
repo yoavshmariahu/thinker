@@ -1,0 +1,92 @@
+{
+  "id": "transform-routed-validation-data-alongside-training-data-by",
+  "title": "Transform routed validation data alongside training data by default",
+  "kind": "rule",
+  "answers": [
+    "Why does my pipeline transform training data but leave the validation set unchanged?",
+    "How does Pipeline preprocess X_val?",
+    "What should transform_input default to?"
+  ],
+  "body": "Symptom: The validation set reaches an estimator without the preprocessing applied to the training data.\nRoot cause: sklearn/pipeline.py:Pipeline.__init__ and sklearn/pipeline.py:make_pipeline previously defaulted transform_input to None, requiring callers to opt into transforming X_val.\nFix pattern: Keep both constructors defaulting to (\"X_val\",); sklearn/pipeline.py:Pipeline._parameter_constraints accepts tuple, list, and None to support this default and explicit overrides.\nConstraints: Validation metadata transformation requires metadata routing and follows pipeline steps up to the consuming step. Explicit transform_input overrides determine which metadata is transformed.",
+  "applies": "Pipeline and make_pipeline defaults, parameter validation, and validation-set preprocessing through metadata routing.",
+  "tags": [
+    "pipeline",
+    "validation-set",
+    "metadata-routing"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.__init__",
+      "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+      "line": 219,
+      "missing": false,
+      "fanout": {
+        "files": 103,
+        "sites": 197,
+        "refs": 246
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline",
+      "hash": "sha256:079b9bb12295d8d79cd32aa5",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 89,
+        "sites": 200,
+        "refs": 428
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "transform_input",
+      "hash": "sha256:5848016a0e00daf31d60ac0a",
+      "line": 1522,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34263"
+  },
+  "created": "2026-10-07T00:35:47.033Z",
+  "verified": "2026-10-07T00:35:47.033Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "preserve-ordinary-fitting-when-metadata-routing-is-disabled"
+  ]
+}

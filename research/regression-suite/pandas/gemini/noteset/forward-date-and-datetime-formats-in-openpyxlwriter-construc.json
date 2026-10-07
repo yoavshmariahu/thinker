@@ -1,0 +1,43 @@
+{
+  "id": "forward-date-and-datetime-formats-in-openpyxlwriter-construc",
+  "title": "Forward date and datetime formats in OpenpyxlWriter constructor",
+  "kind": "rule",
+  "answers": [
+    "Why are date_format and datetime_format ignored in ExcelWriter with openpyxl?",
+    "How to ensure OpenpyxlWriter preserves custom date and datetime formats in to_excel?",
+    "Why does pandas to_excel ignore date formatting when using engine openpyxl?"
+  ],
+  "body": "Symptom: ExcelWriter with engine=\"openpyxl\" ignores date_format and datetime_format when exporting DataFrames to Excel.\nRoot cause: pandas/io/excel/_openpyxl.py:OpenpyxlWriter.__init__ did not forward date_format and datetime_format to super().__init__.\nFix pattern: Forward date_format and datetime_format arguments to super().__init__ in ExcelWriter subclass constructors.\nConstraints: Applies when subclassing ExcelWriter and delegating date format handling to the base class.",
+  "applies": "pandas/io/excel/_openpyxl.py OpenpyxlWriter initialization",
+  "tags": [
+    "excel",
+    "openpyxl",
+    "excelwriter",
+    "date-format"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/excel/_openpyxl.py",
+      "symbol": "OpenpyxlWriter.__init__",
+      "hash": "sha256:0d482300a9d5d9b01259f286",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 106,
+        "sites": 132,
+        "refs": 197
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69961"
+  },
+  "created": "2026-10-07T00:37:10.269Z",
+  "verified": "2026-10-07T00:37:10.269Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

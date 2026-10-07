@@ -1,0 +1,95 @@
+{
+  "id": "decimal-places-0-is-a-real-value-compare-formatting-decimalp",
+  "title": "Decimal places 0 is a real value: compare formatting.decimalPlaces against null, never by truthiness",
+  "kind": "rule",
+  "answers": [
+    "Decimal places set to 0 does nothing on a SQL insight",
+    "Big number shows 42.195 instead of 42",
+    "table cell ignores zero decimal places under style None",
+    "why does decimalPlaces 0 not round"
+  ],
+  "body": "Symptom: setting Decimal places to 0 on a SQL insight (style None) has no effect; Big number and table cells show 42.195 instead of 42. The Number style rounded correctly because toLocaleString accepts maximumFractionDigits 0.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and the tabularData cell selector used `decimalPlaces ? ...` / `if (formatting?.decimalPlaces)`, and 0 is falsy.\nFix pattern: use `decimalPlaces != null` (or `?? 3` as in sqlLineGraphAdapter.ts:formatSqlSeriesValue). Do NOT use `toFixed(decimalPlaces ?? 0)` in formatDataWithSettings: unset must keep full precision (a test asserts 42.5 stays '42.5').\nConstraints: the table cell selector also skips decimal-places formatting when style is 'short' (a retained decimalPlaces is ignored, matching the settings panel; short 12.345 -> '12.3'). Apply the same null check to any new site that reads formatting.decimalPlaces.",
+  "applies": "Any code in frontend/src/queries/nodes/DataVisualization reading formatting.decimalPlaces",
+  "tags": [
+    "data-visualization",
+    "decimal-places",
+    "falsy-zero",
+    "formatting",
+    "sql-insights"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "decimalPlaces",
+      "hash": "sha256:f6a919a940afd16b753a11c5",
+      "line": 168,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 124
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "symbol": "formatSqlSeriesValue",
+      "hash": "sha256:0a05e3abdf21780416131363",
+      "line": 242,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 14,
+        "refs": 24
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:17:18.378Z",
+  "verified": "2026-10-07T00:17:18.378Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "chart-series-data-must-stay-unrounded-decimal-places-are-app"
+  ]
+}

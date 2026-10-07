@@ -1,0 +1,60 @@
+{
+  "id": "constant-time-string-comparison-must-encode-to-bytes-first-s",
+  "title": "Constant-time string comparison must encode to bytes first (secrets.compare_digest rejects non-ASCII str)",
+  "kind": "rule",
+  "answers": [
+    "SecretStr('café') == SecretStr('café') raises TypeError",
+    "comparing strings with non-ASCII characters is not supported",
+    "how to compare secrets in constant time in pydantic",
+    "SecretStr equality fails with unicode / emoji password"
+  ],
+  "body": "Symptom: comparing two `SecretStr` values that contain non-ASCII characters (e.g. 'café') raises `TypeError: comparing strings with non-ASCII characters is not supported` instead of returning True/False.\nRoot cause: pydantic/types.py:SecretStr.__eq__ passed raw `str` values to `secrets.compare_digest()`. That function only accepts ASCII when given `str` arguments.\nFix pattern: encode both sides before comparing with `.encode('utf-8', errors='surrogatepass')`. The comparison stays constant-time and works for any str. `surrogatepass` is needed so that lone surrogates (e.g. '\\ud800'), which strict utf-8 cannot encode, don't raise.\nConstraints: this applies to every `compare_digest` call that takes `str`. `SecretBytes` needs no change because `compare_digest` accepts arbitrary bytes. Keep the `isinstance(other, self.__class__)` guard: a `SecretStr` must never equal a plain `str`. Tests are in tests/test_types.py:test_secretstr_equality, which covers non-ASCII values and lone surrogates.",
+  "applies": "Equality/constant-time comparison of SecretStr and any secret str compared via secrets.compare_digest in pydantic/types.py",
+  "tags": [
+    "secretstr",
+    "secrets.compare_digest",
+    "unicode",
+    "constant-time",
+    "equality",
+    "regression"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "SecretStr.__eq__",
+      "hash": "sha256:eed331d60ac2d92f40ea3f3d",
+      "line": 1888,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 17
+      }
+    },
+    {
+      "path": "tests/test_types.py",
+      "symbol": "test_secretstr_equality",
+      "hash": "sha256:dd6902754abeec67884d45f8",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13537"
+  },
+  "created": "2026-10-07T00:37:11.805Z",
+  "verified": "2026-10-07T00:37:11.805Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bytesize-validation-huge-numeric-strings-must-raise-validati"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "evaluate-alert-must-skip-when-the-reloaded-detector-type-no",
+  "title": "evaluate_alert must skip when the reloaded detector type no longer matches the queue prepare picked",
+  "kind": "rule",
+  "answers": [
+    "AI detector alert ran on a worker without model credentials",
+    "what happens if alert detector type changes between prepare and evaluate",
+    "uses_llm_detector routing mismatch in CheckAlertWorkflow",
+    "why did my alert check get skipped after editing the detector"
+  ],
+  "body": "Invariant: CheckAlertWorkflow picks the evaluate task queue during prepare, based on the detector type it read (`EvaluateAlertActivityInputs.uses_llm_detector`). Only the AI worker holds the model credentials. posthog/temporal/alerts/activities.py:evaluate_alert reloads the alert with `_load_alert_for_evaluation`, so a detector-type edit made in between could send the check to a worker that cannot run it.\nEnforced in evaluate_alert: if `is_llm_detector_config(alert.detector_config) != inputs.uses_llm_detector`, it logs `alerts.skip_detector_type_changed` and returns `EvaluateAlertResult(alert_check_id=None, should_notify=False, ...)` without writing a check or moving `next_check_at`. The next scheduler tick then prepares and routes the alert again, the same way the fingerprint guard skips.\nAlso: choose the executor (`_LLM_EVALUATE_EXECUTOR`) from the same snapshot you evaluate. Never re-read the alert after routing.\nIf you add new routing inputs computed in prepare, re-validate them against the reloaded snapshot the same way. Tests that run evaluate_alert must pass a `uses_llm_detector` that matches the alert's detector_config, or the activity skips.",
+  "applies": "posthog/temporal/alerts activities that route alert evaluation by detector type",
+  "tags": [
+    "alerts",
+    "temporal",
+    "task-queue",
+    "ai-detector",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "symbol": "test_skips_when_the_detector_type_no_longer_matches_the_routed_queue",
+      "hash": "sha256:fea1ff7c68a32a91b7a10599",
+      "line": 494,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:16:50.624Z",
+  "verified": "2026-10-07T00:16:50.624Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "count-ai-detector-unavailable-outcomes-on-the-retry-exhauste"
+  ]
+}

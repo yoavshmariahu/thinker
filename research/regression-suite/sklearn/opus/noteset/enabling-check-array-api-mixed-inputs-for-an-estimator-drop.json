@@ -1,0 +1,41 @@
+{
+  "id": "enabling-check-array-api-mixed-inputs-for-an-estimator-drop",
+  "title": "Enabling check_array_api_mixed_inputs for an estimator: drop XFAIL and run with SCIPY_ARRAY_API=1",
+  "kind": "howto",
+  "answers": [
+    "how to test mixed namespace/device array API inputs for an estimator",
+    "where are array API xfail checks listed",
+    "how to mark an estimator as supporting mixed array API inputs"
+  ],
+  "body": "Per-estimator expected failures live in sklearn/utils/_test_common/instance_generator.py:PER_ESTIMATOR_XFAIL_CHECKS, e.g. `\"check_array_api_mixed_inputs\": \"mixed array API input support not added yet\"`. Once the estimator supports y/sample_weight from another namespace/device, delete that entry (leave other entries like `check_array_api_same_namespace` until separately fixed).\nRun: `SCIPY_ARRAY_API=1 pytest -k \"array_api_mixed_inputs and <EstimatorName>\"` (SCIPY_ARRAY_API=1 is required for array API tests). cupy/mps parametrizations skip when backends are absent; GPU torch covers the CPU-numpy y -> GPU-torch X case.\nAdd a changelog fragment at doc/whats_new/upcoming_changes/array-api/<PR>.fix.rst.",
+  "applies": "Array API test coverage for sklearn estimators",
+  "tags": [
+    "array-api",
+    "testing",
+    "xfail",
+    "changelog"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/_test_common/instance_generator.py",
+      "hash": "sha256:2c1a38403496460a81abbd58",
+      "missing": false
+    },
+    {
+      "path": "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+      "hash": "sha256:3dd30ff79630aaa561860dc2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34480"
+  },
+  "created": "2026-10-07T00:30:29.239Z",
+  "verified": "2026-10-07T00:30:29.239Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

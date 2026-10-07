@@ -1,0 +1,43 @@
+{
+  "id": "catch-oserror-during-zoneinfo-string-validation",
+  "title": "Catch OSError during ZoneInfo string validation",
+  "kind": "rule",
+  "answers": [
+    "Why does ZoneInfo validation crash with OSError instead of ValidationError?",
+    "How should ZoneInfo instantiation errors be handled when validating timezone strings?",
+    "Why does validating timezone strings like 'America' or long strings fail with unhandled OSError?"
+  ],
+  "body": "Symptom: Validating timezone strings such as 'America' or long strings crashes with an unhandled OSError instead of raising a ValidationError.\nRoot cause: pydantic/_internal/_validators.py:validate_str_is_valid_iana_tz caught (ZoneInfoNotFoundError, ValueError, TypeError) but omitted OSError when instantiating ZoneInfo(value).\nFix pattern: Catch OSError alongside ZoneInfoNotFoundError, ValueError, and TypeError, and raise PydanticCustomError('zoneinfo_str', 'invalid timezone: {value}', {'value': value}).\nConstraints: Applies when initializing ZoneInfo from raw string inputs where filesystem-backed timezone lookups can fail; does not apply to already-constructed ZoneInfo instances.",
+  "applies": "Validation of string inputs into zoneinfo.ZoneInfo objects",
+  "tags": [
+    "zoneinfo",
+    "validators",
+    "error-handling",
+    "exceptions"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_validators.py",
+      "symbol": "validate_str_is_valid_iana_tz",
+      "hash": "sha256:b14945ec48252c7c3f72fdbe",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13912"
+  },
+  "created": "2026-10-07T00:49:11.112Z",
+  "verified": "2026-10-07T00:49:11.112Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

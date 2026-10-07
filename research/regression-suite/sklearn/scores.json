@@ -1,0 +1,138 @@
+[
+  {
+    "id": "scikit-learn-34965",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify unnecessary accept_large_sparse=False rejecting sparse-array int64 indices on the ARPACK path despite eigsh supporting them."
+  },
+  {
+    "id": "scikit-learn-34513",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify pandas-preserving transform skipping check_array and therefore bypassing finite-value validation after the explicit assert_all_finite is removed."
+  },
+  {
+    "id": "scikit-learn-34959",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify the averaging neighbor-weight check reading unadjusted sample_weight instead of sorted weights with NaNs zeroed, allowing NaN percentile results."
+  },
+  {
+    "id": "scikit-learn-34263",
+    "baselineMatches": [],
+    "cachedMatches": [],
+    "reason": "Both arms return no findings for the loss of default X_val transformation through Pipeline."
+  },
+  {
+    "id": "scikit-learn-34051",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies pandas-only dtypes.apply/sparse access on a Narwhals wrapper instead of the native pandas frame, breaking check_array for those inputs. Test warning-management findings are excluded."
+  },
+  {
+    "id": "scikit-learn-35043",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify stalled Newton line-search alpha equaling alpha_old and the next iteration dividing by zero after the unchanged-step guard is removed."
+  },
+  {
+    "id": "scikit-learn-34837",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify cached bound callback methods retaining callback instances and their resources. Focused source/GC probe independently reproduces retention."
+  },
+  {
+    "id": "scikit-learn-34779",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify Python lists/pandas Series reaching cross-namespace Torch transfer without NumPy normalization and failing on missing strides."
+  },
+  {
+    "id": "scikit-learn-34475",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies removed target encoding/namespace-device transfer making LDA send string or mixed-device labels into feature-namespace operations."
+  },
+  {
+    "id": "scikit-learn-34188",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify predict and predict_proba metadata parameters swapped between BaggingClassifier probability and voting branches."
+  },
+  {
+    "id": "scikit-learn-35042",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify unavailable experimental Halving estimators added to __all__, causing wildcard imports to fail."
+  },
+  {
+    "id": "scikit-learn-34746",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies task.elapsed replacing frozen finished_time, so completed progress-bar timers continue advancing."
+  },
+  {
+    "id": "scikit-learn-34605",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms identify the native dataframe/series contract violation caused by returning Narwhals wrappers from _make_indexable."
+  },
+  {
+    "id": "scikit-learn-34480",
+    "baselineMatches": [],
+    "cachedMatches": [],
+    "reason": "Baseline flags an unrelated loss-class __name__ error, not the target mixed namespace/device validation occurring before move_to. Cached arm has no findings; neither catches the primary target."
+  },
+  {
+    "id": "scikit-learn-33260",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms identify missing C-contiguity enforcement for W before Cython NMF coordinate descent, exposed by SciPy SVD output layout changes."
+  }
+]

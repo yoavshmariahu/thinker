@@ -1,0 +1,852 @@
+[
+  {
+    "file": "1791331302317-claude.json",
+    "sha256": "cf8cb95881be03df4a17600889671b79a7cbfe07f5d9f4c9416e64a1782c9bd9",
+    "bytes": 6532,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 4580,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 1126,
+      "output_tokens_details": {
+        "thinking_tokens": 190
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4580,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331324375-claude.json",
+    "sha256": "c06b06336d574031ce9138d5fef9b19944be00301c24cad4b5e9b060334dc258",
+    "bytes": 9571,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 5187,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1961,
+      "output_tokens_details": {
+        "thinking_tokens": 378
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 5187,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331346352-claude.json",
+    "sha256": "473678ebdea1dbf2adeeb9ebb8f75a39470cada1c64f509e9b37dbe330b64718",
+    "bytes": 8555,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 3222,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 2081,
+      "output_tokens_details": {
+        "thinking_tokens": 629
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 3222,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331362523-claude.json",
+    "sha256": "17201b98262e5d0b62d9484c155aeeddea710eef46f176391843bb47ef75be3f",
+    "bytes": 8337,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 2283,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1511,
+      "output_tokens_details": {
+        "thinking_tokens": 212
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 2283,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331375086-claude.json",
+    "sha256": "5713821bc225170e6eea00bdb015f0c761485582fc2aa9966cf799446fbc442d",
+    "bytes": 4810,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 1899,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 921,
+      "output_tokens_details": {
+        "thinking_tokens": 228
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1899,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331391752-claude.json",
+    "sha256": "5af06efaf18ee2614850ac1a26d7f03dc9633ae5304a3e1ba6fd56c681d0c091",
+    "bytes": 8872,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 4719,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1527,
+      "output_tokens_details": {
+        "thinking_tokens": 77
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4719,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331413558-claude.json",
+    "sha256": "76484ee2699c664095db4d4298025a6d397da0f407a9d713b5cac0a8f8b23b98",
+    "bytes": 9008,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 4156,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1938,
+      "output_tokens_details": {
+        "thinking_tokens": 449
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4156,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331425394-claude.json",
+    "sha256": "e96332e1251ecaeb807b70703705abf1fcf869875836a7e9ce7c99bad2f35e60",
+    "bytes": 5525,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 1540,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 943,
+      "output_tokens_details": {
+        "thinking_tokens": 127
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1540,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331436380-claude.json",
+    "sha256": "0c5d68cae84aaf8cc58d6eb8ae3fcfcc724c6ae5360b042eada81b5a592471ae",
+    "bytes": 5483,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 1793,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 872,
+      "output_tokens_details": {
+        "thinking_tokens": 74
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1793,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331452815-claude.json",
+    "sha256": "67a310d357cbff31a396b6768de41d32dfc798ec005c81d0f42d5575713f71ea",
+    "bytes": 9316,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 3242,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1656,
+      "output_tokens_details": {
+        "thinking_tokens": 147
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 3242,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331472366-claude.json",
+    "sha256": "1f53d31a205226196b18cbcfdf3e18e16703c5026bdb36926994b6f8fe3a38c4",
+    "bytes": 8906,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 4971,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1757,
+      "output_tokens_details": {
+        "thinking_tokens": 162
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4971,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331489755-claude.json",
+    "sha256": "82ab06c8b1243278b4a103c241f63226c4aa0cb276bc4843b3234ba7a6644667",
+    "bytes": 8655,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 2492,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1496,
+      "output_tokens_details": {
+        "thinking_tokens": 131
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 2492,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331510810-claude.json",
+    "sha256": "50cd49a5b9c3e3d6ad4fc0d9048be0a0f0e24ac6726529d8750121029b5bdfce",
+    "bytes": 8421,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 3021,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1557,
+      "output_tokens_details": {
+        "thinking_tokens": 190
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 3021,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331537246-claude.json",
+    "sha256": "3b5545cbd50f297080a4f10b9df5d9649c3b83b6895c7b12ae9d8fd4917bd78b",
+    "bytes": 13510,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 8027,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 2705,
+      "output_tokens_details": {
+        "thinking_tokens": 237
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 8027,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331556790-claude.json",
+    "sha256": "0af331725eae9049976aafb8e6cd118e80ee6444060db20ff2d5363316d5f8cb",
+    "bytes": 8807,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 13750,
+      "cache_read_input_tokens": 1497,
+      "output_tokens": 1519,
+      "output_tokens_details": {
+        "thinking_tokens": 90
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 13750,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331570674-claude.json",
+    "sha256": "2195ef71f86d62c09e2e5d605b9030464a75d7e3dc6fdd1daaf2aee8df4ecac5",
+    "bytes": 6590,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 4336,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 1175,
+      "output_tokens_details": {
+        "thinking_tokens": 248
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4336,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331585853-claude.json",
+    "sha256": "dcb3eb3ca91a3e1c59ef403b98d06545be9408926d10b90b7c3497cda2a4476f",
+    "bytes": 6242,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 8598,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 1623,
+      "output_tokens_details": {
+        "thinking_tokens": 254
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 8598,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331607660-claude.json",
+    "sha256": "fade29877d8d5ee8243523375f6a4eec90bf2977f59ecf8494a9ce60dbd7b90c",
+    "bytes": 7509,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 7432,
+      "cache_read_input_tokens": 1679,
+      "output_tokens": 2232,
+      "output_tokens_details": {
+        "thinking_tokens": 662
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 7432,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331618018-claude.json",
+    "sha256": "23a2afaf9008019a013409b68a235b8f67a81a63de1126d163b04893979f3969",
+    "bytes": 5227,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 2827,
+      "cache_read_input_tokens": 1277,
+      "output_tokens": 1018,
+      "output_tokens_details": {
+        "thinking_tokens": 331
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 2827,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331637460-claude.json",
+    "sha256": "aef1e4c4f63b80a3ab4df7b8f00b207ec3639819f2e0ef01a17d803f240bb86a",
+    "bytes": 4554,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 1224,
+      "cache_read_input_tokens": 1277,
+      "output_tokens": 1841,
+      "output_tokens_details": {
+        "thinking_tokens": 869
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1224,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331647033-claude.json",
+    "sha256": "c39067d76e9d137d6d96c190074326c1440808028dea2786dda61b4a5b46e037",
+    "bytes": 5569,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 5689,
+      "cache_read_input_tokens": 1679,
+      "output_tokens": 965,
+      "output_tokens_details": {
+        "thinking_tokens": 77
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 5689,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331662644-claude.json",
+    "sha256": "4990906fae5d214584524cc8201c4343f80250aa10ecef6791186a8d715d1332",
+    "bytes": 6411,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 7553,
+      "cache_read_input_tokens": 1679,
+      "output_tokens": 1590,
+      "output_tokens_details": {
+        "thinking_tokens": 639
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 7553,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331675671-claude.json",
+    "sha256": "ab9d93199e8bcd09cbbdc10728f9661697cd4b902c1997e26141598b0364b452",
+    "bytes": 5042,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 3489,
+      "cache_read_input_tokens": 1277,
+      "output_tokens": 1315,
+      "output_tokens_details": {
+        "thinking_tokens": 448
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 3489,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331688853-claude.json",
+    "sha256": "7281419d96e49cf35fda3ae6b30817862a60737b26195ec616691cc50951cc32",
+    "bytes": 4548,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 3459,
+      "cache_read_input_tokens": 1277,
+      "output_tokens": 1289,
+      "output_tokens_details": {
+        "thinking_tokens": 243
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 3459,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  },
+  {
+    "file": "1791331714964-claude.json",
+    "sha256": "ebeda3b110e0a2bdcb0224ca8689f30bb851079559b9c7699d9ddb322abdbd6b",
+    "bytes": 6291,
+    "attestedModels": [
+      "claude-opus-5-5"
+    ],
+    "canonicalModels": [
+      "claude-opus-5-5"
+    ],
+    "turns": 2,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 6479,
+      "cache_read_input_tokens": 1679,
+      "output_tokens": 2014,
+      "output_tokens_details": {
+        "thinking_tokens": 500
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 6479,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    }
+  }
+]

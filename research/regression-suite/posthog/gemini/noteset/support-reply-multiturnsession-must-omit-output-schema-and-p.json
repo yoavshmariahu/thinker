@@ -1,0 +1,57 @@
+{
+  "id": "support-reply-multiturnsession-must-omit-output-schema-and-p",
+  "title": "Support reply MultiTurnSession must omit output_schema and parse raw text",
+  "kind": "rule",
+  "answers": [
+    "Why does support draft generation use MultiTurnSession.start_raw instead of start with output_schema?",
+    "Why does draft task polling fail with 'no agent message' when output_schema is set?",
+    "How should structured draft JSON be extracted from MultiTurnSession support agent responses?"
+  ],
+  "body": "MultiTurnSession for support draft generation must use start_raw without setting output_schema.\nEnforced in products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async.\nIf output_schema is set, storing task output completes the task run before the agent message reaches the log, causing session polling to fail with \"no agent message\".\nDraft responses must be parsed from raw turn text via products/conversations/backend/temporal/ai_reply/activities/draft.py:_parse_draft, which selects the last valid JSON object to avoid capturing example or ticket JSON.",
+  "applies": "MultiTurnSession draft agent calls in products/conversations.",
+  "tags": [
+    "conversations",
+    "tasks",
+    "ai-reply",
+    "multi-turn-session"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 25
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_parse_draft",
+      "hash": "sha256:78a03c99859f120b00671770",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:25:55.728Z",
+  "verified": "2026-10-07T00:25:55.728Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fallback-to-blocked-draft-when-support-reply-draft-activity"
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "id": "changing-a-pipeline-constructor-default-requires-updating-ma",
+  "title": "Changing a Pipeline constructor default requires updating make_pipeline, docstrings, repr/get_params tests and a changelog fragment",
+  "kind": "rule",
+  "answers": [
+    "what else needs updating when I change a Pipeline parameter default",
+    "test_pprint fails after changing Pipeline default",
+    "get_params expected dict in test_set_pipeline_step_passthrough mismatch"
+  ],
+  "body": "A Pipeline default appears in several places that this PR had to update together:\n- sklearn/pipeline.py:Pipeline.__init__ and sklearn/pipeline.py:make_pipeline both have the default in their signature and docstring. Add a `.. versionchanged::` entry in each docstring.\n- `_parameter_constraints` must accept the type of the new default. Here a tuple was added for `transform_input`.\n- sklearn/tests/test_pipeline.py:test_set_pipeline_step_passthrough has the full get_params dict hard-coded.\n- sklearn/utils/tests/test_pprint.py has Pipeline's full repr text hard-coded, e.g. `transform_input=('X_val',)`.\n- Add a changelog fragment at doc/whats_new/upcoming_changes/sklearn.pipeline/<PR>.fix.rst.",
+  "applies": "Any change to Pipeline/make_pipeline constructor parameters or defaults",
+  "tags": [
+    "pipeline",
+    "changelog",
+    "pprint",
+    "tests",
+    "conventions"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline",
+      "hash": "sha256:079b9bb12295d8d79cd32aa5",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 89,
+        "sites": 200,
+        "refs": 428
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "transform_input",
+      "hash": "sha256:5848016a0e00daf31d60ac0a",
+      "line": 1522,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "get_params",
+      "hash": "sha256:30ecb8835a94e2e100c35a50",
+      "line": 254,
+      "missing": false,
+      "fanout": {
+        "files": 47,
+        "sites": 131,
+        "refs": 152
+      }
+    },
+    {
+      "path": "sklearn/tests/test_pipeline.py",
+      "symbol": "test_set_pipeline_step_passthrough",
+      "hash": "sha256:814f4a869fe688dee6b80569",
+      "line": 855,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_pprint.py",
+      "symbol": "Pipeline",
+      "hash": "sha256:727e0a7f3271b32555ace9d8",
+      "line": 139,
+      "missing": false,
+      "fanout": {
+        "files": 89,
+        "sites": 200,
+        "refs": 428
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_pprint.py",
+      "symbol": "transform_input",
+      "hash": "sha256:95fad347f3ee89898276c089",
+      "line": 307,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_pprint.py",
+      "symbol": "test_pipeline",
+      "hash": "sha256:2bc93595161a9d0fc4dd7b6e",
+      "line": 292,
+      "missing": false
+    },
+    {
+      "path": "sklearn/utils/tests/test_pprint.py",
+      "symbol": "get_params",
+      "hash": "sha256:062ab1adcc5c0e5f89184d84",
+      "line": 647,
+      "missing": false
+    },
+    {
+      "path": "doc/whats_new/upcoming_changes/sklearn.pipeline/34263.fix.rst",
+      "hash": "sha256:b84dfc1620197d589ad811d2",
+      "missing": false
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.__init__",
+      "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+      "line": 219,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34263"
+  },
+  "created": "2026-10-07T00:30:43.662Z",
+  "verified": "2026-10-07T00:30:43.662Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pipeline-transform-input-defaults-to-x-val-the-routing-disab"
+  ]
+}

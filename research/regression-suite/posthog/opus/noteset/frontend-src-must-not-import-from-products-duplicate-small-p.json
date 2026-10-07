@@ -1,0 +1,46 @@
+{
+  "id": "frontend-src-must-not-import-from-products-duplicate-small-p",
+  "title": "frontend/src must not import from products/* (duplicate small pure helpers instead)",
+  "kind": "rule",
+  "answers": [
+    "can I import a helper from products/workflows into frontend/src",
+    "reuse buildDelayExpression in the email templater",
+    "cross-product import rule in the frontend"
+  ],
+  "body": "Frontend rules forbid importing across `products/*` into `frontend/src`. Importing a helper from a product logic file (e.g. `buildDelayExpression` in products/workflows stepDelayLogic) would also pull in a kea logic module connected to `workflowLogic`.\nPattern used: write a small pure helper next to the consumer (`buildPersonPropertyMergeValue` in frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx) and add a comment pointing to the sibling implementation, so the two stay in sync by hand.\nIf you change the quoting/escaping in one of them, check the other.",
+  "applies": "Shared logic between frontend/src scenes and products/* frontends",
+  "tags": [
+    "frontend",
+    "layering",
+    "products",
+    "imports",
+    "conventions"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+      "symbol": "buildPersonPropertyMergeValue",
+      "hash": "sha256:f1286badff44d1b55ee077a9",
+      "line": 174,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#91352"
+  },
+  "created": "2026-10-07T00:14:01.862Z",
+  "verified": "2026-10-07T00:14:01.862Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "liquid-merge-tags-in-workflow-emails-must-never-contain-doub"
+  ]
+}

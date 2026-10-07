@@ -1,0 +1,43 @@
+{
+  "id": "anchor-log-key-matching-at-word-boundaries",
+  "title": "Anchor log key matching at word boundaries",
+  "kind": "rule",
+  "answers": [
+    "Why does the logs panel freeze on a long log line without assignments?",
+    "How can log key highlighting avoid catastrophic regex backtracking?",
+    "Where is key=value highlighting defined for the logs panel?"
+  ],
+  "body": "Symptom: The logs panel can stall when highlighting a long word without an '='.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar — the log-token-key prefix (\\b|\\B) permits matching at every position, repeatedly scanning suffixes for an assignment and causing quadratic backtracking.\nFix pattern: Restrict candidate key starts to word boundaries with /\\b[\\w_]+(?=\\s*=)/gi while retaining the assignment lookahead.\nConstraints: Applies to word-style assignment keys in logs highlighting; preserve recognition of keys such as foo, status, and key_1 before '='. This pattern does not address other token rules.",
+  "applies": "Logs panel Prism grammar changes affecting assignment-key recognition or performance on long unassigned words.",
+  "tags": [
+    "logs",
+    "syntax-highlighting",
+    "regex",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/logs/components/panel/grammar.ts",
+      "symbol": "logsGrammar",
+      "hash": "sha256:60577e559afa47c5d9518eb0",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132860"
+  },
+  "created": "2026-10-07T00:04:01.389Z",
+  "verified": "2026-10-07T00:04:01.389Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}
