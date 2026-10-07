@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
 
@@ -42,10 +43,7 @@ function transcriptPath(sessionId, cwd = repo) {
 // Each concurrent worker gets its own git worktree so change tasks cannot see
 // or clobber each other's edits. Notes stay shared (read from the main repo).
 function makeWorktree(i) {
-  const wt = path.join(HERE, "worktrees", `${repoName}-${tag}-${i}`);
-  if (fs.existsSync(wt)) { try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: repo }); } catch { fs.rmSync(wt, { recursive: true, force: true }); } }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: repo });
-  return wt;
+  return createWorktree(repo, path.join(HERE, 'worktrees', `${repoName}-${tag}-${i}`));
 }
 // The noteset a run is served from. Serving writes to it: `uses`, `lastUsed` and
 // `servedIn` on every note served, and a persisted `status` on every note whose deps
@@ -211,6 +209,10 @@ async function main() {
   const conc = Number(flags.conc) || 1;
   async function worker(wi) {
     const cwd = makeWorktree(wi);
+    try { await runWorker(cwd); }
+    finally { removeWorktree(cwd); }
+  }
+  async function runWorker(cwd) {
     while (jobs.length) {
       const { task, arm, rep } = jobs.shift();
       const id = `${task.id}-${arm}-${rep}`;

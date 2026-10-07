@@ -3,7 +3,7 @@
 // task prompts, cache notes, paired arms, and output schema used by bench/run.js.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installClient } from '../src/clients.js';
@@ -71,14 +71,8 @@ const tasks = (spec.tasks || spec).filter(t => !ONLY.length || ONLY.includes(t.i
 fs.mkdirSync(path.join(OUT, 'events'), { recursive: true });
 
 function makeWorktree(i) {
-  // BENCH_WT names worktrees the benchmark's Codex home already trusts
-  const wt = path.join(HERE, 'worktrees', `${process.env.BENCH_WT || TAG}-${i}`);
-  fs.mkdirSync(path.dirname(wt), { recursive: true });
-  if (fs.existsSync(wt)) {
-    try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: WT_REPO }); }
-    catch { fs.rmSync(wt, { recursive: true, force: true }); }
-  }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, spec.base || 'HEAD'], { cwd: WT_REPO });
+  // BENCH_WT keeps the path stable for Codex trust; existing work is never removed.
+  const wt = createWorktree(WT_REPO, path.join(HERE, 'worktrees', `${process.env.BENCH_WT || TAG}-${i}`), spec.base || 'HEAD');
   ensureCodexTrust(wt);
   return wt;
 }
@@ -217,6 +211,10 @@ const jobs = [];
 for (let rep = 0; rep < REPS; rep++) for (const task of tasks) for (const arm of ARMS) jobs.push({ task, arm, rep });
 async function worker(wi) {
   const cwd = makeWorktree(wi);
+  try { await runWorker(cwd); }
+  finally { removeWorktree(cwd); }
+}
+async function runWorker(cwd) {
   while (jobs.length) {
     const { task, arm, rep } = jobs.shift();
     const id = `${task.id}-${arm}-${rep}`;

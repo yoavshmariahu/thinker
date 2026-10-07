@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
@@ -42,14 +43,7 @@ const CLI = path.join(HERE, '..', 'src', 'cli.js');
 const notesDir = path.resolve(flags['notes-dir'] || path.join(HERE, 'notesets', `${repoName}-v2`, 'notes'));
 
 function makeWorktree(i) {
-  const wt = path.join(HERE, 'worktrees', `${repoName}-${tag}-${i}`);
-  if (fs.existsSync(wt)) {
-    try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: repo }); }
-    catch { fs.rmSync(wt, { recursive: true, force: true }); }
-  }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: repo });
-
-  return wt;
+  return createWorktree(repo, path.join(HERE, 'worktrees', `${repoName}-${tag}-${i}`));
 }
 
 // The MCP server agy starts reads <worktree>/.thinker/notes. The cache arm gets a copy of the noteset
@@ -268,6 +262,10 @@ async function main() {
 
   async function worker(wi) {
     const cwd = makeWorktree(wi);
+    try { await runWorker(cwd, wi); }
+    finally { removeWorktree(cwd); }
+  }
+  async function runWorker(cwd, wi) {
     while (jobs.length) {
       const { task, arm, rep } = jobs.shift();
       const id = `${task.id}-${arm}-${rep}`;
