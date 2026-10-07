@@ -1332,6 +1332,46 @@ evidence. Session and PR commands call this before `saveNotes`; reconciled write
 never fall back to lexical merging. Contradictions are deferred, not overwritten.
 Human behavior notes cannot be authored or replaced by these learning paths.
 
+The gates of `prepareNotes`, and their bars since 2026-10-07. Every one defers the
+note to `.thinker/state/learning-pending/` rather than writing it, so the bars are
+set so that uncertainty does not discard: discarding is the invisible outcome.
+1. The catalog scan (`selectLearningNotes`, `jev-reconcile-search`): one Noul per
+   live note, "should its full body be read before deciding", floor 0.6, at most
+   four candidates (was 0.35 and twelve: every probed note came back with the full
+   twelve, and each candidate is one more relation judgment below). The card is
+   the note's `search` description, or its whole body when it has no current one
+   (`note-search.js:searchText`), so an undescribed cache scans at several times
+   the cost; a rebuild phrases first.
+2. The relation (`jev-reconcile`, `note-learning.js:relation`): a Choice over
+   covered / extends / contradicts / unrelated, judged on complete bodies. Only a
+   verdict at 0.85 or above acts on an existing note: `covered` skips the proposal,
+   `contradicts` defers it for a person, `extends` merges it (the body must contain
+   the old body literally or a `preserves` Noul must reach 0.9; otherwise the
+   deferral carries the target in its diagnostics for the repair round). Anything
+   less is unrelated and the next candidate is judged. Until 2026-10-07 the chosen
+   option itself had to reach 0.85, `unrelated` included, and the first miss
+   discarded the note with no retry: on five deferred notes against this cache, 24
+   of 60 pairings fell under 0.85, eleven of them unrelated at 0.57-0.84, and all
+   five were lost; 694 relation judgments in one mining run reached ten grounding
+   calls. `extends` leading at 0.6 or above but under 0.85 is a hint: with a repair
+   round behind the caller (`repair`, the pull request path) the note goes back to
+   the writer once with the target, to merge or keep separate, and the writer's
+   answer settles it (`repaired`); without one the hint is unrelated.
+3. Grounding (`jev-grounding`): each body line is a claim, judged against the
+   source evidence for support (`SUPPORT`, 0.7; was 0.9) and, independently, for
+   conflict (`CONFLICT`, 0.2, unchanged: a claim the source contradicts is the one
+   thing worth stopping for, and missing evidence is not a conflict). A line that
+   fails defers the note with the unsupported lines in its diagnostics, which the
+   repair round puts to the writer.
+4. Metadata (`jev-grounding-metadata`): the title must not misrepresent the
+   grounded body and `applies` must not exceed it, each under 0.2.
+The repair round (`commands/learn.js`, `prs.js:distillPr` with `repair`) is one
+writer call per pull request over every deferral that carries diagnostics, with
+the same evidence and model; its notes are checked again. Session distillation has
+no repair round. The pending queue has no consumer: a deferral is a record for a
+person to inspect, and a pull request whose proposals were all deferred is still
+recorded as mined.
+
 A note's search description is checked against the note before it is kept
 (`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
 conditions and prohibitions survive"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since

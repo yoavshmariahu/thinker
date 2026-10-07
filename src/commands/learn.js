@@ -482,20 +482,21 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       // must not let legacy note-source inference turn a partial PR into a success.
       recordMinedPrs(store, scopeKey, [], { failed: [pr] });
       if (directories) recordMinedPrs(store, recSlug, [], { failed: [pr] });
-      let prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
+      let prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting, repair: true });
       const s2 = saveNotes(store, prepared.notes, { source, kinds: distillKinds(store), reconciled: prepared.reconciled });
       s2.skipped.push(...prepared.skipped);
-      // One bounded revision of new discoveries, using the exact same PR evidence/model.
-      // Never retry an unavailable judge as a content repair or rewrite an existing note
-      // to resolve a contradiction. No revised claim bypasses grounding/reconciliation.
-      const repairable = prepared.deferred.filter(d => d.status === 'uncertain' && d.diagnostics && !d.note?.extends);
+      // One bounded revision of new discoveries, using the exact same PR evidence/model: unsupported
+      // claims to drop, and extensions to merge or keep separate (note-learning.js carries the target
+      // in the diagnostics). Never retry an unavailable judge as a content repair or rewrite an
+      // existing note to resolve a contradiction. No revised claim bypasses grounding/reconciliation.
+      const repairable = prepared.deferred.filter(d => d.status === 'uncertain' && d.diagnostics);
       if (repairable.length && (phase === 'init' || withinDailyCap(store).ok)) {
         try {
           const revised = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo,
             existing: store.list(), repair: { evidence: r.evidence, findings: repairable },
             accounting: { ...accounting, purpose: 'mine-prs-repair' } });
           tokens += revised.tokens || 0;
-          const checked = await prepareNotes(store, revised.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
+          const checked = await prepareNotes(store, revised.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting, repair: true, repaired: true });
           const savedRevision = saveNotes(store, checked.notes, { source, kinds: distillKinds(store), reconciled: checked.reconciled });
           s2.saved.push(...savedRevision.saved); s2.merged.push(...savedRevision.merged);
           s2.skipped.push(...checked.skipped, ...savedRevision.skipped);
