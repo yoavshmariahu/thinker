@@ -30,14 +30,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 ## Working on this repository
 
 **Pull requests in this repository (MANDATORY RULE):**
-We use PRs here to exercise our own CI review against system behaviors. This is
+We use PRs here to keep every change reviewable in one place. This is
 a contributor workflow for thinker itself, not a product requirement. Teams using
 Thinker may land direct commits or use any Git workflow; setup must not install
 our repository policy guard or require PRs in their repositories.
 - Push task branches and open a GitHub pull request targeting `main`. Never push
   commits directly to remote `main`, including fast-forward pushes.
-- Run the test suite with telemetry disabled, wait for the PR's tests, and merge
-  through GitHub. Bring local `main` up to date from the merged remote branch.
+- **GitHub Actions is off in this repository** since 2026-10-07, at the owner's
+  request: `tests` and `thinker review` are both `disabled_manually`. No check will
+  report on a pull request, so do not wait for one. Run the full suite locally
+  (`npm test`, which sets `THINKER_TEST=1`) before pushing and state the result in
+  the pull request; then merge through GitHub and bring local `main` up to date
+  from the merged remote branch. `gh workflow enable <name>` reverses it.
+- Before it was disabled, `thinker review` reported a green check in 4 seconds with
+  every real step skipped, because the server it posts to is not deployed and
+  `THINKER_SYNC_TOKEN` is unset: the check asserted nothing. Re-enable it only
+  together with a deployed server and that secret.
 - Do not bypass a pre-push guard or disable hooks to push `main`.
 - GitHub server-side enforcement for this private repository requires GitHub Pro
   (the API currently returns 403 on the account's plan). Until enabled, the local
@@ -1112,9 +1120,9 @@ review prompt.
   Without a server the same action reviews on the runner with
   `anthropic-api-key` and `post.mjs` posts (`permissions: pull-requests:
   write`, `fetch-depth: 0`); telemetry and learning are off in that step. This
-  repository runs the server mode on itself in
+  repository has the server mode wired to itself in
   `.github/workflows/thinker-review.yml` (needs the `THINKER_SYNC_TOKEN`
-  secret). Tests: `test/server-review.test.js` runs the server in-process with
+  secret), but that workflow is disabled and its steps were skipping anyway. Tests: `test/server-review.test.js` runs the server in-process with
   the model and GitHub faked; `test/action-review.test.js` covers the poster.
 - Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
   call (`validate(ctx)`) as a C-like method definition; the C-like alternative
