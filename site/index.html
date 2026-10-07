@@ -823,9 +823,9 @@
         <div class="metric-num gain">73% fewer bugs</div>
         <div class="metric-label">Across a 100-bug benchmark set</div>
         <ul class="metric-models">
-          <li><span>Claude Opus 5.5</span><span>71% fewer</span></li>
-          <li><span>GPT-6.1 Sol</span><span>89% fewer</span></li>
-          <li><span>Gemini 3.8 Flash</span><span>38% fewer</span></li>
+          <li><span>Claude Opus 5.5</span><span>&minus;71% bugs</span></li>
+          <li><span>GPT-6.1 Sol</span><span>&minus;89% bugs</span></li>
+          <li><span>Gemini 3.8 Flash</span><span>&minus;38% bugs</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
@@ -875,7 +875,7 @@
                 <div class="bar before"><i style="--w: 28%"></i>28% missed</div>
                 <div class="bar after"><i style="--w: 8%"></i>8% missed</div>
               </div>
-              <div class="bench-delta">&minus;71%</div>
+              <div class="bench-delta">&minus;71% bugs</div>
             </div>
             <div class="bench-row">
               <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort</div></div>
@@ -883,7 +883,7 @@
                 <div class="bar before"><i style="--w: 36%"></i>36% missed</div>
                 <div class="bar after"><i style="--w: 4%"></i>4% missed</div>
               </div>
-              <div class="bench-delta">&minus;89%</div>
+              <div class="bench-delta">&minus;89% bugs</div>
             </div>
             <div class="bench-row">
               <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort</div></div>
@@ -891,7 +891,7 @@
                 <div class="bar before"><i style="--w: 32%"></i>32% missed</div>
                 <div class="bar after"><i style="--w: 20%"></i>20% missed</div>
               </div>
-              <div class="bench-delta">&minus;38%</div>
+              <div class="bench-delta">&minus;38% bugs</div>
             </div>
           </div>
           <p class="bench-lede">Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
