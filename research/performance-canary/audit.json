@@ -1,0 +1,246 @@
+{
+  "hashChecks": {
+    "tasks.json": true,
+    "run.py": true,
+    "memory.mjs": true,
+    "verify.py": true,
+    "model-pins.patch": true
+  },
+  "invocations": [
+    {
+      "id": "click-3364-gemini-baseline",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-gemini-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-gemini-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-opus-baseline",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-opus-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-opus-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-sol-baseline",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-sol-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3364-sol-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-gemini-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-opus-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-opus-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-sol-baseline",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-sol-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3391-sol-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3677-gemini-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3677-opus-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3677-sol-baseline",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3677-sol-learn",
+      "pinValid": true,
+      "revisionValid": true
+    },
+    {
+      "id": "click-3677-sol-thinker",
+      "pinValid": true,
+      "revisionValid": true
+    }
+  ],
+  "learningTrees": [
+    {
+      "id": "click-3364-gemini-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3364-opus-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3364-sol-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3391-gemini-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3391-opus-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3391-sol-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3677-gemini-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3677-opus-learn",
+      "trackedChanges": []
+    },
+    {
+      "id": "click-3677-sol-learn",
+      "trackedChanges": []
+    }
+  ],
+  "immutableNotes": [
+    {
+      "id": "click-3364-gemini-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3364-opus-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3364-sol-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3391-gemini-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3391-opus-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3391-sol-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3677-gemini-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3677-opus-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    },
+    {
+      "id": "click-3677-sol-learn-note-hashes",
+      "unchanged": true,
+      "count": 0
+    }
+  ],
+  "nativeToolCalls": 498,
+  "reviewCandidates": [
+    {
+      "id": "click-3364-gemini-baseline",
+      "tool": "replace_file_content",
+      "input": {
+        "AllowMultiple": "false",
+        "Description": "\"Add tests for multi-value parameters with default_map\"",
+        "EndLine": "379",
+        "Instruction": "\"Add multi-value default_map test functions to test_defaults.py\"",
+        "ReplacementContent": "\"def test_unset_in_default_map(runner):\\n    \\\"\\\"\\\"An ``UNSET`` value in ``default_map`` should be treated as if\\n    the key is absent, and so fallback to the parameter's own default.\\n\\n    Refs: https://github.com/pallets/click/pull/3224#issuecomment-3968643305\\n    \\\"\\\"\\\"\\n\\n    @click.command(\\n        context_settings={\\\"default_map\\\": {\\\"port\\\": UNSET}},\\n    )\\n    @click.option(\\\"--port\\\", default=8000)\\n    def cli(port):\\n        click.echo(f\\\"port={port}\\\")\\n\\n    result = runner.invoke(cli, [])\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"port=8000\\\"\\n\\n\\ndef test_default_map_multi_value_option(runner):\\n    \\\"\\\"\\\"Multi-value options (nargs > 1) with string values in ``default_map``\\n    should be split into values and type-cast. Structured tuple/list defaults\\n    and CLI precedence should be preserved.\\n    \\\"\\\"\\\"\\n\\n    @click.command()\\n    @click.option(\\\"--point\\\", nargs=2, type=int)\\n    def cli(point):\\n        click.echo(f\\\"point={point!r}\\\")\\n\\n    # String value in default_map\\n    result = runner.invoke(cli, [], default_map={\\\"point\\\": \\\"3 4\\\"})\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"point=(3, 4)\\\"\\n\\n    # Already-structured tuple default_map\\n    result = runner.invoke(cli, [], default_map={\\\"point\\\": (3, 4)})\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"point=(3, 4)\\\"\\n\\n    # Already-structured list default_map\\n    result = runner.invoke(cli, [], default_map={\\\"point\\\": [3, 4]})\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"point=(3, 4)\\\"\\n\\n    # CLI argument overrides default_map\\n    result = runner.invoke(cli, [\\\"--point\\\", \\\"10\\\", \\\"20\\\"], default_map={\\\"point\\\": \\\"3 4\\\"})\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"point=(10, 20)\\\"\\n\\n    # Invalid type conversion error\\n    result = runner.invoke(cli, [], default_map={\\\"point\\\": \\\"3 foo\\\"})\\n    assert result.exit_code != 0\\n    assert \\\"Invalid value for '--point'\\\" in result.output\n<truncated 8982 bytes>",
+        "StartLine": "362",
+        "TargetContent": "\"def test_unset_in_default_map(runner):\\n    \\\"\\\"\\\"An ``UNSET`` value in ``default_map`` should be treated as if\\n    the key is absent, and so fallback to the parameter's own default.\\n\\n    Refs: https://github.com/pallets/click/pull/3224#issuecomment-3968643305\\n    \\\"\\\"\\\"\\n\\n    @click.command(\\n        context_settings={\\\"default_map\\\": {\\\"port\\\": UNSET}},\\n    )\\n    @click.option(\\\"--port\\\", default=8000)\\n    def cli(port):\\n        click.echo(f\\\"port={port}\\\")\\n\\n    result = runner.invoke(cli, [])\\n    assert result.exit_code == 0\\n    assert result.output.strip() == \\\"port=8000\\\"\"",
+        "TargetFile": "\"/Users/yoavshmariahu/src/thinker/.worktrees/performance-canary/research/performance-canary/state/click-3364-gemini-baseline/tests/test_defaults.py\"",
+        "toolAction": "\"Adding multi-value default_map tests to test_defaults.py\"",
+        "toolSummary": "\"Add multi-value default_map tests to test_defaults.py\""
+      }
+    },
+    {
+      "id": "click-3364-gemini-thinker",
+      "tool": "run_command",
+      "input": {
+        "CommandLine": "\"thinker_lookup \\\"default_map multi-value parameters\\\"\"",
+        "Cwd": "\"/Users/yoavshmariahu/src/thinker/.worktrees/performance-canary/research/performance-canary/state/click-3364-gemini-thinker\"",
+        "WaitMsBeforeAsync": "5000",
+        "toolAction": "\"Querying thinker_lookup\"",
+        "toolSummary": "\"Query thinker_lookup\""
+      }
+    },
+    {
+      "id": "click-3364-gemini-thinker",
+      "tool": "run_command",
+      "input": {
+        "CommandLine": "\"thinker_lookup \\\"default_map\\\"\"",
+        "Cwd": "\"/Users/yoavshmariahu/src/thinker/.worktrees/performance-canary/research/performance-canary/state/click-3364-gemini-thinker\"",
+        "WaitMsBeforeAsync": "5000",
+        "toolAction": "\"Querying thinker_lookup\"",
+        "toolSummary": "\"Query thinker_lookup\""
+      }
+    },
+    {
+      "id": "click-3364-opus-thinker",
+      "tool": "Bash",
+      "input": {
+        "command": "ls; ls .thinker; thinker_lookup \"default_map multi-value nargs string split\" 2>&1 | head -50",
+        "description": "List repo and query cached knowledge"
+      }
+    }
+  ],
+  "scope": "Checks recorded tool inputs and tracked exploration files; not a claim of OS-level hermetic isolation."
+}

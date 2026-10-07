@@ -1,0 +1,51 @@
+diff --git a/src/llm.js b/src/llm.js
+index 9b7ccfa..3877ca9 100644
+--- a/src/llm.js
++++ b/src/llm.js
+@@ -477,7 +477,9 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
+     else if (p === 'codex') {
+       const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+       if (resolvedModel) args.push('--model', resolvedModel);
++      if (process.env.THINKER_CODEX_REASONING_EFFORT) args.push('--strict-config', '--config', `model_reasoning_effort="${process.env.THINKER_CODEX_REASONING_EFFORT}"`);
+       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
++      if (process.env.THINKER_EVAL_TRACE_DIR) fs.writeFileSync(path.join(process.env.THINKER_EVAL_TRACE_DIR, `${Date.now()}-codex.jsonl`), out);
+       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+       usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage || null);
+       if (!usage.length) usage = null;
+@@ -499,7 +501,9 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
+       const isAgy = path.basename(bin) === 'agy';
+       if (isAgy) {
+         const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '-p', full];
++        if (process.env.THINKER_GEMINI_EFFORT) args.push('--effort', process.env.THINKER_GEMINI_EFFORT);
+         const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
++        if (process.env.THINKER_EVAL_TRACE_DIR) fs.writeFileSync(path.join(process.env.THINKER_EVAL_TRACE_DIR, `${Date.now()}-gemini.json`), JSON.stringify(j));
+         cost = j.total_cost_usd ?? null;
+         onUsage({ usage: j.usage, cost, model: j.model || resolvedModel });
+         text = j.response || ''; usage = j.usage || null;
+@@ -560,18 +564,24 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
+     // tokens of agent instructions, written to the one-hour prompt cache (twice the input price) and
+     // never read again. No settings or skills either: neither is used, both add to the prompt.
+     '--system-prompt', system || CLI_SYSTEM, '--setting-sources', '', '--disable-slash-commands'];
++  if (process.env.THINKER_CLAUDE_EFFORT) args.push('--effort', process.env.THINKER_CLAUDE_EFFORT);
+   if (schema) args.push('--json-schema', JSON.stringify(schema));
+   try {
+     const stdout = await new Promise((resolve, reject) => {
+-      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxTokens), ...(thinkingTokens === undefined ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }) } });
++      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxTokens), ...(thinkingTokens === undefined || process.env.THINKER_CLAUDE_EFFORT ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }) } });
+       let o = '', e = '';
+       const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('claude -p timed out')); }, timeoutMs);
+       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
+       p.on('error', reject);
+-      p.on('close', code => { clearTimeout(timer); code === 0 ? resolve(o) : reject(new Error(`claude -p exited ${code}: ${e.slice(0, 500)} ${o.slice(0, 500)}`)); });
++      p.on('close', code => { clearTimeout(timer); if (code !== 0 && process.env.THINKER_EVAL_TRACE_DIR) fs.writeFileSync(path.join(process.env.THINKER_EVAL_TRACE_DIR, `${Date.now()}-claude-failed.json`), o); code === 0 ? resolve(o) : reject(new Error(`claude -p exited ${code}: ${e.slice(0, 500)} ${o.slice(0, 500)}`)); });
+       p.stdin.end(prompt);
+     });
+     const j = JSON.parse(stdout);
++    if (process.env.THINKER_EVAL_TRACE_DIR) {
++      fs.writeFileSync(path.join(process.env.THINKER_EVAL_TRACE_DIR, `${Date.now()}-claude.json`), stdout);
++      const models = Object.keys(j.modelUsage || {});
++      if (models.length !== 1 || models[0] !== (ALIASES[resolved] || resolved)) throw new Error(`model mismatch: ${models.join(',')}`);
++    }
+     onUsage({ usage: j.usage, cost: j.total_cost_usd, model: j.model || ALIASES[resolved] || resolved });
+     if (j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
+     let json = j.structured_output ?? null;

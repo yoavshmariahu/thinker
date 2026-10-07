@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import {prepareNotes} from '../../src/note-learning.js';
+import {judgeWithJev} from '../../src/jev-decisions.js';
+import {jevKey} from '../../src/jev.js';
+if(process.env.THINKER_TEST!=='1')throw Error('test mode required');
+if(fs.existsSync('research/performance-canary/STOPPED.json'))throw Error('Canary stopped: preserve the diagnostic; do not repeat model calls.');
+const file='research/performance-canary/raw/click-3364-sol-learn-distilled.json',data=JSON.parse(fs.readFileSync(file));
+const requests=[],usage=[];const config={jev:{enabled:true,key:jevKey(),model:'jev-1.13.0',learningTimeoutMs:5000,fetchImpl:async(url,opts)=>{if(url!=='https://api.typesafe.ai/v1/systemone')throw Error('unexpected destination');const r=await fetch(url,opts),j=await r.json();if(j.model!=='jev-1.13.0')throw Error('Jev model mismatch');usage.push(j.usage);return {ok:r.ok,json:async()=>j};}},maintain:{dailyTokens:1e9}};
+const store={config:()=>config,list:()=>[],log:()=>{}};
+const result=await prepareNotes(store,data.notes,{evidence:data.evidence,accounting:{phase:'init'},judge:async(s,req)=>{const r=await judgeWithJev(s,{...req,phase:'init'});requests.push({request:req,response:r});return r;}});
+fs.writeFileSync('research/performance-canary/raw/grounding-diagnostic.json',JSON.stringify({source:file,result,requests,usage},null,2));
+for(const r of requests.filter(x=>x.request.purpose==='jev-grounding'))for(const [i,c] of r.request.state.claims.entries())console.log(JSON.stringify({claim:c,answer:r.response.answers?.['c'+i]}));

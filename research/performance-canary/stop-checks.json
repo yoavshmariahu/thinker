@@ -1,0 +1,28 @@
+[
+  {
+    "command": [
+      "python3",
+      "research/performance-canary/pipeline.py",
+      "sol"
+    ],
+    "blockedBeforeModelCall": true
+  },
+  {
+    "command": [
+      "python3",
+      "research/performance-canary/run.py",
+      "learn",
+      "sol"
+    ],
+    "blockedBeforeModelCall": true
+  },
+  {
+    "command": [
+      "node",
+      "research/performance-canary/memory.mjs",
+      "build",
+      "sol"
+    ],
+    "blockedBeforeModelCall": true
+  }
+]

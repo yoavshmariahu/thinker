@@ -1,0 +1,28 @@
+{
+  "thinkerCommit": "3db79d2a969ccbf18821925acb3b2af2b76da3ed",
+  "tasksSha256": "5e985339dae9ab8e4be58d05c56d89ba165ea9d03ad41b90eee2b8a0f5897655",
+  "runnerSha256": "ade2113394b379cdda290cce4854fe316a4249ed067b0bf211f28f5ba0b8601e",
+  "models": {
+    "opus": "claude-opus-5-5",
+    "sol": "gpt-6.1-sol",
+    "gemini": "gemini-3.8-flash-high"
+  },
+  "effort": "high",
+  "jev": "jev-1.13.0",
+  "codingRuns": 18,
+  "setupSessions": 9,
+  "fallback": false,
+  "testMode": true,
+  "python": "Python 3.13.14",
+  "memoryHarnessSha256": "5c7dc1a7eeaae1bd4e9ebf6ac7d51db0bdbae1ee641f1901099c8d9cdd31c3c3",
+  "testHarnessSha256": "487f7388a190a0f8c560ab6cca747643e1cd2e21c36299bf2aed1e8c69de72fe",
+  "initialMemoryHarnessSha256": "4199cddac285aa27b699cddfd52c697def24927a19d9a64ff4cda003308c085e",
+  "setupDistillations": 9,
+  "prototypeMemoryHarnessSha256": "756f704e01ae9be6e58e197180a65bb902ae48967655760b0e3179c885878352",
+  "modelPinPatchSha256": "c86de67bec1217f39f35de696cd717fbe85302d568c85733bfc125e13245cbde",
+  "status": "invalid-for-efficiency",
+  "frozenHarnessDirectory": "raw/frozen-harness",
+  "codingRunsCompleted": 9,
+  "codingRunsInterrupted": 2,
+  "codingRunsNotStarted": 7
+}
