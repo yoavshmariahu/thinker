@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 26529,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 76761,
+      "cached_input_tokens": 65536,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 527,
+      "reasoning_output_tokens": 52
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Inspected TASK.json, CHANGE.diff, staged extractNodeLabels (lines 641–661), setLabelIfNotEmpty (663–667), and the template-label caller path (418, 436–465). The change consistently renames a local map variable; allocation, branches, label keys, copying, and return behavior are unchanged.",
+    "limitations": [
+      "External constant definitions and JoinStringMaps implementation were not supplied.",
+      "No tests were run; review used only read-only source inspection within the task directory."
+    ],
+    "contribution": "Confirmed that stable and legacy zone extraction calls remain present at lines 657–658. Missing or empty values remain excluded by the unchanged helper; this behavior predates the change. No actionable defect introduced by the rename was found.",
+    "next_action": "finalize"
+  }
+}

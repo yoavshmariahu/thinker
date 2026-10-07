@@ -1,0 +1,35 @@
+{
+  "elapsedMs": 31542,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 69425,
+      "cached_input_tokens": 62720,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 758,
+      "reasoning_output_tokens": 132
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [
+      {
+        "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+        "line": 657,
+        "severity": "P2",
+        "message": "Restore copying corev1.LabelTopologyZone. Removing this call violates the supplied retention contract: an existing node's nonempty topology.kubernetes.io/zone label is omitted from the template when other label sources do not provide it. Retaining the legacy zone label does not preserve the stable label.",
+        "evidence": "CHANGE.diff removes the LabelTopologyZone copy. extractNodeLabels constructs a fresh map containing only explicitly selected keys (lines 641–659), and setLabelIfNotEmpty copies only its requested key (662–665). buildTemplateLabels merges this extracted map from an existing node at line 462; TemplateNodeInfo assigns the result to node.Labels at line 418. Generic labels contain no zone (628–637). Resource-provided labels may supply the stable key, but do not cover the case where it exists only on the existing node."
+      }
+    ],
+    "coverage": "Reviewed TASK.json, CHANGE.diff, the changed extraction helper, and its template-building caller flow. Identified one distinct contract violation and checked alternative label sources.",
+    "limitations": [
+      "Only the supplied production source was inspected; external dependency implementations and scheduler consumers are unavailable.",
+      "No tests were run. Specific downstream scheduling or scale-up failures were not established."
+    ],
+    "contribution": "Established the local path from existing-node label extraction to template node labels, and narrowed the impact to cases where another label source does not supply the stable zone key.",
+    "next_action": "finalize"
+  }
+}

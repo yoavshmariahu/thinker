@@ -1,0 +1,67 @@
+{
+  "valid": true,
+  "elapsedMs": 319,
+  "requestHash": "15a68769eda4857b46146e946d29202a45cf29c384fde3f3397c4e31b69a70ba",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "overclaimed",
+        "confidence": 0.6,
+        "probabilities": {
+          "supported": 0.29,
+          "insufficient": 0,
+          "overclaimed": 0.7,
+          "contradicted": 0.01
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.7,
+        "probabilities": {
+          "unknown": 0,
+          "gap": 0.2,
+          "accounted_for": 0.8
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "inspect_callers",
+        "confidence": 0.7,
+        "probabilities": {
+          "investigate_remaining": 0.02,
+          "inspect_callers": 0.76,
+          "finalize": 0.18,
+          "manual_review": 0,
+          "verify_existing": 0.04
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.88,
+        "probabilities": {
+          "settled": 0.94,
+          "needs_human": 0.06
+        }
+      },
+      "finding_0": {
+        "type": "choice",
+        "choice": "qualified",
+        "confidence": 0.29,
+        "probabilities": {
+          "contradicted": 0.08,
+          "grounded": 0.01,
+          "qualified": 0.47,
+          "missing": 0.44
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 7737,
+      "output_tokens": 244
+    }
+  }
+}

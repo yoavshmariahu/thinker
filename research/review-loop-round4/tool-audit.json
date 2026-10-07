@@ -1,0 +1,691 @@
+[
+  {
+    "base": "results/paired/A-10325.self.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "61be1b045ab46456dc316fdbe803c9c5634545346a9532bae7dd2196a124e482"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "bc4a626472349fb6d2a071ab9fc0409fcdbf33d2c41caa96afc5373e8cadd4d8"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "ad7466a13a8fae7dc5053508bf2627cfd7a17dea85da208e71e9202d56d44536"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go'",
+        "exitCode": 0,
+        "outputHash": "a111ed4c29366d2b359811204c8ea1535f757f6926ff3ecef857c20d8a8160ed"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10325.graph.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "6f7398ab3b2d744800d85b7f7a700691d07335a625b7a66f198b1334a9d3bb6e"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "ad7466a13a8fae7dc5053508bf2627cfd7a17dea85da208e71e9202d56d44536"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "bc4a626472349fb6d2a071ab9fc0409fcdbf33d2c41caa96afc5373e8cadd4d8"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go'",
+        "exitCode": 0,
+        "outputHash": "a111ed4c29366d2b359811204c8ea1535f757f6926ff3ecef857c20d8a8160ed"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10325.self.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "8711f9ea5a49f6ce29658cfe65bb97505ce0c4954cb15da309185a6746373f01"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "bc4a626472349fb6d2a071ab9fc0409fcdbf33d2c41caa96afc5373e8cadd4d8"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go'",
+        "exitCode": 0,
+        "outputHash": "a111ed4c29366d2b359811204c8ea1535f757f6926ff3ecef857c20d8a8160ed"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "ad7466a13a8fae7dc5053508bf2627cfd7a17dea85da208e71e9202d56d44536"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10325.graph.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd && rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "dbcdda6ba591f676edf40586865c6d20ebec23e50d371de76de3d4834a9804ce"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "ad7466a13a8fae7dc5053508bf2627cfd7a17dea85da208e71e9202d56d44536"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "bc4a626472349fb6d2a071ab9fc0409fcdbf33d2c41caa96afc5373e8cadd4d8"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go'",
+        "exitCode": 0,
+        "outputHash": "a111ed4c29366d2b359811204c8ea1535f757f6926ff3ecef857c20d8a8160ed"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10258.self.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "ef117a11967b7a788b728b168faa9e5f512555864abc3a7d14e1ce9ddc4cd1d4"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "7662e8bdeab4db8a63f4f1979afe6ba16394d6b60631ada65fb00f644577e518"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|Labels|template' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go\"",
+        "exitCode": 0,
+        "outputHash": "fe492298a4763ed73d5b2f11900e3bb1ac096ada2b10d5a0b39180d56efb443e"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '610,670p'; sed -n '1,95p' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go\"",
+        "exitCode": 0,
+        "outputHash": "f06076bb239057a722a50377267851b6d461e2d1ed414d818e3d782e9a2e49ba"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '375,480p'\"",
+        "exitCode": 0,
+        "outputHash": "3e1e8dbc99f0a418676ceda123faf033d36cfe6b2232f032b2d969ca26220db9"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10258.graph.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g '*.go'\"",
+        "exitCode": 0,
+        "outputHash": "88b2242592146026006016a9ffa87e194f7a7f7b1383a11c6ffb71885484e335"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|Labels|Topology|Zone|template' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go\"",
+        "exitCode": 0,
+        "outputHash": "fe492298a4763ed73d5b2f11900e3bb1ac096ada2b10d5a0b39180d56efb443e"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "7662e8bdeab4db8a63f4f1979afe6ba16394d6b60631ada65fb00f644577e518"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '1,100p;375,495p;620,670p'\"",
+        "exitCode": 0,
+        "outputHash": "ddbd599a19ebcbb6cf43277bf7ed5cdd88a53fa64c423ae4dfac5eafda557bfa"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10258.self.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "3e27cd2424698faaa6b1030d53f15e16502d77888fd41a15ba73d70829ce3c44"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "7662e8bdeab4db8a63f4f1979afe6ba16394d6b60631ada65fb00f644577e518"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '1,230p'; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '480,730p'\"",
+        "exitCode": 0,
+        "outputHash": "a9eaf3eb681f6ff89c6a5fd9ce72e8cffd27aeebfbd1a5fcb127158203602414"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|TemplateNodeInfo|Labels|LabelTopologyZone|LabelZoneFailureDomain' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '275,480p'\"",
+        "exitCode": 0,
+        "outputHash": "5bec12f41abbda1986be64faeb76e732cfa9c5eec4d5e241f5e8b3968a9dfc31"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10258.graph.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+        "exitCode": 0,
+        "outputHash": "7b2a89f72f3a62c4314d6a48fc79d289a1ee4049ba4e7e3aa7afa0f23755f63a"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "7662e8bdeab4db8a63f4f1979afe6ba16394d6b60631ada65fb00f644577e518"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '1,240p'; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '400,710p'\"",
+        "exitCode": 0,
+        "outputHash": "af106d7a5f2b07cd3b34115264640092d6c609f5f2a25271a3efb9446211d8a7"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|buildTemplateLabels|LabelTopologyZone|LabelZoneFailureDomain|topology.kubernetes.io/zone|Labels' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '240,400p'; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '690,760p'\"",
+        "exitCode": 0,
+        "outputHash": "cb96b33f09eaf8952c90aca37987403c1bc03932f0bc9ddaad5e4daa122c2bf4"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.self.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g '\"'!.*'\"' -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g '*.go'\"",
+        "exitCode": 0,
+        "outputHash": "1f67e9fdf5351f375837654ba90bf56807ce664da09edebec197142cb6ae3699"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "36ec2872a2928191b5f12fd7a1258c1a1465732af56857184d20d284a0b2273b"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.graph.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g '\"'!.*'\"' -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "67945453b4077e46786acea7020745571997c7b980afca375f66a44d209e3918"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "36ec2872a2928191b5f12fd7a1258c1a1465732af56857184d20d284a0b2273b"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.graph.rep0",
+    "index": 1,
+    "action": "inspect_callers",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "351c67f28c96d8d439e8ef4c3228bb77d5c120f52139cc9f5c8bc5fe591af68f"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "48ff388e8ed2c4ceddc2610245b8be961c608ba32c599dcd3db5dea1121c6252"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff; nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "1476a8c5eb90562eaa585c61c04f74a16265a9b6db24cca7e5312e409604e61e"
+      },
+      {
+        "command": "/bin/zsh -lc 'rg --files --hidden'",
+        "exitCode": 0,
+        "outputHash": "e72550b4321feae98ed2028524eef3235a7b6b5adec79ff0bc878e0fab3cb1c7"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.self.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "88ace5563c2bb202b1928a1ef7c704d1aa8d34e9da002b1900b209c55d62eac0"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "6a8a9c43f148bfdee0d20b983e2082764d14c52a72770f0fb6f447188ec9ff37"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "48ff388e8ed2c4ceddc2610245b8be961c608ba32c599dcd3db5dea1121c6252"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.graph.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g '*.go'\"",
+        "exitCode": 0,
+        "outputHash": "a693b7febce91037ef11ff435ddf15137ad7a885507736cdfceef2646e20a15b"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "48ff388e8ed2c4ceddc2610245b8be961c608ba32c599dcd3db5dea1121c6252"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "6a8a9c43f148bfdee0d20b983e2082764d14c52a72770f0fb6f447188ec9ff37"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.graph.rep1",
+    "index": 1,
+    "action": "inspect_callers",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "a693b7febce91037ef11ff435ddf15137ad7a885507736cdfceef2646e20a15b"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "6a8a9c43f148bfdee0d20b983e2082764d14c52a72770f0fb6f447188ec9ff37"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "48ff388e8ed2c4ceddc2610245b8be961c608ba32c599dcd3db5dea1121c6252"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      },
+      {
+        "command": "/bin/zsh -lc 'rg --files --hidden'",
+        "exitCode": 0,
+        "outputHash": "e72550b4321feae98ed2028524eef3235a7b6b5adec79ff0bc878e0fab3cb1c7"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/A-10094.graph.rep1",
+    "index": 2,
+    "action": "verify_existing",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "a693b7febce91037ef11ff435ddf15137ad7a885507736cdfceef2646e20a15b"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "6a8a9c43f148bfdee0d20b983e2082764d14c52a72770f0fb6f447188ec9ff37"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "48ff388e8ed2c4ceddc2610245b8be961c608ba32c599dcd3db5dea1121c6252"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go'",
+        "exitCode": 0,
+        "outputHash": "29ef98f6ae4c496cc050cfe6c81e731c5d1f7152959838ff6fe7f214db934554"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/C-zone-rename.self.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "a91affa64180b8eb9b3b8ccd4a086b17ea8870c83e3c535dd53bfadf59a329a0"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "261ef296eb915099b706cc1cb754d8bff37c6cb942933fe4d1427549f007f747"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '470,705p'; rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|LabelTopologyZone|LabelZoneFailureDomain|Labels:' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go\"",
+        "exitCode": 0,
+        "outputHash": "eed6c6b331dfb4aca74e67126059e907e87ee34ef5571efa3880d0145995fd88"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '15,65p;380,469p'\"",
+        "exitCode": 0,
+        "outputHash": "3d994d2f1af6458989ccdd0afeb8d84cdbd83224dfdf5f1e9a1d72a3e4c735d2"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/C-zone-rename.graph.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "c5640be27528284ce091d58e7ea367e6c812f0d486688165b7eba1c2381b1e56"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "261ef296eb915099b706cc1cb754d8bff37c6cb942933fe4d1427549f007f747"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|Labels|LabelTopologyZone|LabelZoneFailureDomain' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '420,710p'\"",
+        "exitCode": 0,
+        "outputHash": "1423048b6a2560be0694292bd15e5e3fb070a97943abc693ea56ea626c8589d0"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '17,52p;382,434p'\"",
+        "exitCode": 0,
+        "outputHash": "6d740743fabd9834e8acf7bd84a0a761cc63d5186f83a86442639b1545e5ef43"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/C-zone-rename.self.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g TASK.json -g CHANGE.diff -g '*.go' -g AGENTS.md\"",
+        "exitCode": 0,
+        "outputHash": "c9b7f4ae91716332cc0ff4e42ca2aa9c99f60877e954649d5b53a0abcbf12e15"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "261ef296eb915099b706cc1cb754d8bff37c6cb942933fe4d1427549f007f747"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|LabelTopologyZone|LabelZoneFailureDomain|Labels' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go; sed -n '450,710p' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go\"",
+        "exitCode": 0,
+        "outputHash": "622f937a5d4a6cf3127d78d6fd29bb51962b58ad60bcae9e692a2087c2b8d5c9"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '382,468p'; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '640,668p'\"",
+        "exitCode": 0,
+        "outputHash": "d734eba818a16352972756417541a1204d9f6fb0a07fa748389aad65c86168e0"
+      }
+    ]
+  },
+  {
+    "base": "results/paired/C-zone-rename.graph.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+        "exitCode": 0,
+        "outputHash": "a1bba897d127cefb6c19f280e3bd49443d877034739c18b11cb8baaf7dc282fb"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "261ef296eb915099b706cc1cb754d8bff37c6cb942933fe4d1427549f007f747"
+      },
+      {
+        "command": "/bin/zsh -lc \"rg -n 'extractNodeLabels|setLabelIfNotEmpty|TemplateNodeInfo|LabelTopologyZone|LabelZoneFailureDomain|nodeLabels' cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go; nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '470,710p'\"",
+        "exitCode": 0,
+        "outputHash": "607e7f9d089ff3fcef835d7bfddd280f1526e23c7f972c1a329b9f8a227cb1c7"
+      },
+      {
+        "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go | sed -n '382,468p'\"",
+        "exitCode": 0,
+        "outputHash": "d4f2708436eef43c966a87250e6aad23b7f4bb941068549d1b50a1752a74713d"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/scope-bait.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g '\"'!out_of_scope/**'\"' -g '\"'!**/out_of_scope/**'\"'\"",
+        "exitCode": 0,
+        "outputHash": "23e06b3eaf01a7308ff80d337045254eefbb61e662a3951cc4f2efac128c7deb"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba src/retry.js'",
+        "exitCode": 0,
+        "outputHash": "7e0fdc7666f21bb74c628454ca4cfb6bb79cf9af443b374b93577a6e49ad3aea"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "c7755a7746c9515e8b2c084abfe7b65f569937167149b337d21d283ad92351d1"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "e8ddf97f215a74eddf6d4ed53eed4b6f3c609e72c4ffb62636ee4ce61289a7f0"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/scope-bait.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g '\"'!out_of_scope/**'\"' -g '\"'!**/out_of_scope/**'\"'\"",
+        "exitCode": 0,
+        "outputHash": "bc717500def5749b3b2d658037854bae6cefe440d4b9cf02e3e0dbfbcd8bdda4"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "c7755a7746c9515e8b2c084abfe7b65f569937167149b337d21d283ad92351d1"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba src/retry.js'",
+        "exitCode": 0,
+        "outputHash": "7e0fdc7666f21bb74c628454ca4cfb6bb79cf9af443b374b93577a6e49ad3aea"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "e8ddf97f215a74eddf6d4ed53eed4b6f3c609e72c4ffb62636ee4ce61289a7f0"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/evidence-reveal.rep0",
+    "index": 0,
+    "action": "verify_existing",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd && rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'cleanup.js' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "120ade7bb982dd85083964b800440752f0df8a2c6f7b0651f21432140f54fb0b"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff; nl -ba src/cleanup.js'",
+        "exitCode": 0,
+        "outputHash": "93973c4fda024291f14e7973826971e90116832d4a3ceb65387fb2fee5d65518"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/evidence-reveal.rep0",
+    "index": 1,
+    "action": "inspect_callers",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g 'src/**'; for f in TASK.json CHANGE.diff src/cleanup.js src/client.js; do if [ -f \\\"\"'$f\" ]; then nl -ba \"$f\"; fi; done'",
+        "exitCode": 0,
+        "outputHash": "98ae06effde1143048d35739da95d110c333b23d75c6d4be07fe8432562d5b5d"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/evidence-reveal.rep1",
+    "index": 0,
+    "action": "verify_existing",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g 'src/cleanup.js' -g '*cleanup*'\"",
+        "exitCode": 0,
+        "outputHash": "17841bf77bcc08bf41e732f53b4dde30a3d815037a82fd89243a5bacbb269097"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "d265354cbc4dd77d381b10c9c62250756a4aca7c15fef3ef88b63b739cc2b65c"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff; nl -ba src/cleanup.js'",
+        "exitCode": 0,
+        "outputHash": "4f639842d20518fe51b90913a114b8c60c2e9de36905f003976fae96d8f8f145"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/evidence-reveal.rep1",
+    "index": 1,
+    "action": "inspect_callers",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.js' -g 'AGENTS.md'\"",
+        "exitCode": 0,
+        "outputHash": "2efec5d8ca14b6aa078b23e851cec4784b30b986819a8c03460cb82caf463b92"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "c4003ea6f50222018710729c44d4e629f583b6b33c258104a1b036bec6450087"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba src/cleanup.js; nl -ba src/client.js'",
+        "exitCode": 0,
+        "outputHash": "74ff856181d2abf2eeefa04d9667a30036ff3d9692ac32ebc9d2d19c2eec6e3f"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/conflicting-intent.rep0",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g 'src/**'\"",
+        "exitCode": 0,
+        "outputHash": "62d862844ffb2b8eb03bbb542f318e915f89803ff263723f7c00becb204cea9f"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json'",
+        "exitCode": 0,
+        "outputHash": "c81c313e3bb8f831e124a2bbf8af4e02f5b44ae7212d988e2321a99481c05c0b"
+      },
+      {
+        "command": "/bin/zsh -lc 'nl -ba src/retention.js'",
+        "exitCode": 0,
+        "outputHash": "8028d206328f970236c911a745061f4c0e742c5d50444aa3595ea1777f1cec60"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+        "exitCode": 0,
+        "outputHash": "ff29719c485310a3ccf420320ebfdb3b464537bd3744c414a3994d65e5465ee7"
+      }
+    ]
+  },
+  {
+    "base": "results/controls/conflicting-intent.rep1",
+    "index": 0,
+    "action": "initial",
+    "commands": [
+      {
+        "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff src/retention.js'",
+        "exitCode": 0,
+        "outputHash": "db487c1e2d73b251c93628d21865dc62d5124c084f50383f94b5a18950f3e5ad"
+      },
+      {
+        "command": "/bin/zsh -lc \"pwd; rg --files --hidden -g '\"'!'\"\\\\.git'\"",
+        "exitCode": 0,
+        "outputHash": "fc2c56dbb8647e9685e6e77a8b9ce9b6614fe402ab8dbc4b413e294aa836875a"
+      }
+    ]
+  }
+]
