@@ -1,0 +1,134 @@
+[
+  {
+    "id": "grafana-132418",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify defaultsDeep mutating shared nested frame fields and leaking panel configuration. Deleted-test warnings do not independently count."
+  },
+  {
+    "id": "grafana-132940",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [],
+    "reason": "Baseline identifies resourceVersion leaking into create POST. Cached final report has no findings: raw Opus output correctly identified the regression but also corrected a secondary note detail; review.js:680 suppresses findings tied to any outdated note. Counted as an end-to-end product miss, not a model recognition failure. See miss-analysis.json."
+  },
+  {
+    "id": "grafana-133033",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify non-nil wildcard/empty identity namespaces overriding the required stack/default fallback."
+  },
+  {
+    "id": "grafana-132860",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline only complains about test removal; cached identifies quadratic regex retries on long lines without equals. Focused source probe independently reproduces the slowdown."
+  },
+  {
+    "id": "grafana-132572",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify missing valueRight on merged diff-profile nodes causing undefined/NaN tooltip values. Cached also catches parent comparison-value propagation."
+  },
+  {
+    "id": "grafana-131837",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline only emits an informational deleted-test complaint. Cached identifies the restored refresh override changing authored never to onDashboardLoad during import."
+  },
+  {
+    "id": "grafana-131464",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify MustCols(tag_id) forcing zero TagID into the DELETE predicate, preventing obsolete annotation-tag links from being removed."
+  },
+  {
+    "id": "grafana-132648",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify cloneDeep assigning the getter-only MutableDataFrame length after removal of its no-op setter, throwing in strict mode."
+  },
+  {
+    "id": "grafana-132082",
+    "baselineMatches": [],
+    "cachedMatches": [],
+    "reason": "Neither arm returns findings for loss of content-fit minimum-height propagation into the shared grid row height."
+  },
+  {
+    "id": "grafana-130358",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies missing datasource type/UID in generated trace-to-logs and metrics queries, matching the historical loss of datasource-specific behavior."
+  },
+  {
+    "id": "grafana-133093",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removed SHARED_DASHBOARD_QUERY bypass causing the special shared datasource reference to be cleared during v2 export, breaking reimport."
+  },
+  {
+    "id": "grafana-133023",
+    "baselineMatches": [],
+    "cachedMatches": [],
+    "reason": "Both arms return no findings for removal of BIGINT migrations needed for missing-series resolution counts above SMALLINT capacity."
+  },
+  {
+    "id": "grafana-132979",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Baseline returns no findings. Cached identifies custom modal button containers replacing Modal.ButtonRow and clipping keyboard focus rings."
+  },
+  {
+    "id": "grafana-132877",
+    "baselineMatches": [
+      1
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify redundant/infinite rerenders from unconditional setPopoverMaxSize without dimension comparison. Cached also identifies autoUpdate running while the popover is closed. Test-only missing-await findings are excluded."
+  },
+  {
+    "id": "grafana-132966",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify lost aggregated-discovery Accept header/decoder causing dynamic CRD groups to disappear from API discovery."
+  }
+]

@@ -1,0 +1,57 @@
+{
+  "id": "arrow-isin-null-semantics-missing-values-in-values-nan-inclu",
+  "title": "Arrow isin null semantics: missing values in `values` (NaN included) match only nulls",
+  "kind": "rule",
+  "answers": [
+    "does NaN in isin values match NaN in a float64[pyarrow] column",
+    "isin None/NaN behavior for pyarrow dtypes",
+    "why isin([np.nan]) returns False for NaN in arrow float"
+  ],
+  "body": "Invariant: for ArrowExtensionArray.isin, any missing value in `values` (None, NaN, pd.NA) matches only null entries of the array; a non-null float NaN in the array is NOT matched by NaN in `values`. This mirrors `pc.is_in` behavior.\nEnforced in pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin — the fallback path sets `res[mask] = values_mask.any()` and compares non-null entries only against `values[~values_mask]`.\nWhat breaks if skipped: the pyarrow path and the numpy fallback would disagree, so results would depend on whether pyarrow could box `values` (e.g. `[np.nan]` vs `[np.nan, \"a\"]`). Tested by test_isin_arrow_nan_matches_only_null.",
+  "applies": "Any isin implementation/fallback for pyarrow-backed arrays",
+  "tags": [
+    "isin",
+    "pyarrow",
+    "nan",
+    "null-semantics"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/arrow/array.py",
+      "symbol": "ArrowExtensionArray.isin",
+      "hash": "sha256:adce499d277b46378e6f092f",
+      "line": 1969,
+      "missing": false,
+      "fanout": {
+        "files": 57,
+        "sites": 344,
+        "refs": 414
+      }
+    },
+    {
+      "path": "pandas/tests/series/methods/test_isin.py",
+      "symbol": "test_isin_arrow_nan_matches_only_null",
+      "hash": "sha256:a6aeefcdc01bfad38c438ef8",
+      "line": 348,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70300"
+  },
+  "created": "2026-10-07T00:25:28.571Z",
+  "verified": "2026-10-07T00:25:28.571Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "arrowextensionarray-isin-must-fall-back-when-pyarrow-cannot"
+  ]
+}

@@ -1,0 +1,572 @@
+{
+  "repo": "PostHog/posthog",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "posthog-105736",
+      "pr": 105736,
+      "sha": "b88941af8682f32651d053deb6c40f0b6ab11ea4",
+      "parent": "d3eecc6a7ee6151a41e7e126a3263442fedade89",
+      "subject": "fix(bigquery): stop key file field names blocking source setup (#105736)",
+      "codeLines": 50,
+      "totalLines": 77,
+      "files": [
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/tests/test_source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+        "products/warehouse_sources/backend/tests/api/test_external_data_source.py"
+      ],
+      "production": [
+        "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+        "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py"
+      ]
+    },
+    {
+      "id": "posthog-105852",
+      "pr": 105852,
+      "sha": "d6ae6a9ea78220cdeaec4185f5baacd182563bfc",
+      "parent": "d2a0c9b18a700e60f56ca53e6bf160ce01f83f10",
+      "subject": "fix(tasks): give a codex turn one trace id (#105852)",
+      "codeLines": 67,
+      "totalLines": 136,
+      "files": [
+        "products/desktop/packages/agent/src/acp-extensions.test.ts",
+        "products/desktop/packages/agent/src/acp-extensions.ts",
+        "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+        "products/desktop/packages/agent/src/server/agent-server.configure-environment.test.ts",
+        "products/desktop/packages/agent/src/server/agent-server.ts"
+      ],
+      "production": [
+        "products/desktop/packages/agent/src/acp-extensions.ts",
+        "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+        "products/desktop/packages/agent/src/server/agent-server.ts"
+      ]
+    },
+    {
+      "id": "posthog-104706",
+      "pr": 104706,
+      "sha": "d2a0c9b18a700e60f56ca53e6bf160ce01f83f10",
+      "parent": "2e4bd799d2823ba8c464aa28cf9fc483fa83b181",
+      "subject": "fix(warehouse-sources): stop reporting a quiet schema as a stalled schedule (#104706)",
+      "codeLines": 104,
+      "totalLines": 135,
+      "files": [
+        "products/data_warehouse/backend/sync_status.py",
+        "products/warehouse_sources/backend/models/external_data_schema.py",
+        "products/warehouse_sources/backend/stalled_schedules.py",
+        "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+        "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py",
+        "products/warehouse_sources/backend/tests/test_stalled_schedules.py"
+      ],
+      "production": [
+        "products/data_warehouse/backend/sync_status.py",
+        "products/warehouse_sources/backend/models/external_data_schema.py",
+        "products/warehouse_sources/backend/stalled_schedules.py",
+        "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+        "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py"
+      ]
+    },
+    {
+      "id": "posthog-91352",
+      "pr": 91352,
+      "sha": "e0bbcdac24951794db7ece30f979266a5b12812a",
+      "parent": "4364547b943f749374bf512266034a985e247940",
+      "subject": "fix(messaging): stop merge tags inserting double quotes (#91352)",
+      "codeLines": 17,
+      "totalLines": 33,
+      "files": [
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.test.ts",
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx"
+      ],
+      "production": [
+        "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx"
+      ]
+    },
+    {
+      "id": "posthog-105672",
+      "pr": 105672,
+      "sha": "f1a8ec5bc88d5c4e16c22b9c9dc5ac9e783b86dc",
+      "parent": "a191c89aba329be2f20b95196bbf724b2c0b610c",
+      "subject": "fix(experiments): add breathing room between the meta bar and tabs (#105672)",
+      "codeLines": 2,
+      "totalLines": 158,
+      "files": [
+        "frontend/snapshots.yml",
+        "frontend/src/scenes/experiments/ExperimentView/ExperimentView.tsx"
+      ],
+      "production": [
+        "frontend/src/scenes/experiments/ExperimentView/ExperimentView.tsx"
+      ]
+    },
+    {
+      "id": "posthog-105660",
+      "pr": 105660,
+      "sha": "a191c89aba329be2f20b95196bbf724b2c0b610c",
+      "parent": "0a05fe429b9bcda27147abd42a578c47eabd6739",
+      "subject": "fix(prompts): cap the label-referencing parent listing (#105660)",
+      "codeLines": 8,
+      "totalLines": 37,
+      "files": [
+        "posthog/api/test/test_llm_prompt.py",
+        "products/ai_observability/backend/prompt_references.py"
+      ],
+      "production": [
+        "products/ai_observability/backend/prompt_references.py"
+      ]
+    },
+    {
+      "id": "posthog-105551",
+      "pr": 105551,
+      "sha": "32e87cf0610db2997ab6c7c32859b51ddc94ff26",
+      "parent": "386842e45cf7bd0c5776b5b15d5a4b772a015921",
+      "subject": "fix(replay-vision): evict stale connections before async activities run (#105551)",
+      "codeLines": 76,
+      "totalLines": 87,
+      "files": [
+        "products/replay_vision/backend/temporal/activities/observation_media.py",
+        "products/replay_vision/backend/temporal/constants.py",
+        "products/replay_vision/backend/temporal/decorators.py",
+        "products/replay_vision/backend/temporal/media_workflow.py",
+        "products/replay_vision/backend/temporal/workflow.py",
+        "products/replay_vision/backend/tests/test_observation_media.py"
+      ],
+      "production": [
+        "products/replay_vision/backend/temporal/activities/observation_media.py",
+        "products/replay_vision/backend/temporal/constants.py",
+        "products/replay_vision/backend/temporal/decorators.py",
+        "products/replay_vision/backend/temporal/media_workflow.py",
+        "products/replay_vision/backend/temporal/workflow.py"
+      ]
+    },
+    {
+      "id": "posthog-105799",
+      "pr": 105799,
+      "sha": "4a4c1c500f50ab0c94d5525ddad1660d3f9934b4",
+      "parent": "c24ca7ca00004fd8d5e6f0742b258800c4a1eff6",
+      "subject": "fix(workflows): size audiences during read-only impersonation (#105799)",
+      "codeLines": 3,
+      "totalLines": 6,
+      "files": [
+        "posthog/middleware.py",
+        "posthog/test/test_middleware.py"
+      ],
+      "production": [
+        "posthog/middleware.py"
+      ]
+    },
+    {
+      "id": "posthog-105133",
+      "pr": 105133,
+      "sha": "a67cc3978faf4fa4ea9618b0eeb46b3305cd1429",
+      "parent": "bfa602e8af3503ec72675782516ffaadae22ccee",
+      "subject": "fix(ingestion): drop latest_processed_timestamp_ms series on partition revoke (#105133)",
+      "codeLines": 47,
+      "totalLines": 69,
+      "files": [
+        "nodejs/src/common/kafka/consumer/consumer-v1.test.ts",
+        "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+        "nodejs/src/common/kafka/consumer/index.ts",
+        "nodejs/src/ingestion/ingestion-consumer.serial.test.ts",
+        "nodejs/src/ingestion/ingestion-consumer.ts"
+      ],
+      "production": [
+        "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+        "nodejs/src/common/kafka/consumer/index.ts",
+        "nodejs/src/ingestion/ingestion-consumer.ts"
+      ]
+    },
+    {
+      "id": "posthog-105670",
+      "pr": 105670,
+      "sha": "bfa602e8af3503ec72675782516ffaadae22ccee",
+      "parent": "bf86e0fbc6a92d5a2fe2dfc367b4a99a6d1e0a56",
+      "subject": "fix(insights): sort unordered insight list on an indexed column (#105670)",
+      "codeLines": 5,
+      "totalLines": 34,
+      "files": [
+        "products/product_analytics/backend/presentation/insight.py",
+        "products/product_analytics/backend/tests/api/__snapshots__/test_insight.ambr",
+        "products/product_analytics/backend/tests/api/test_insight.py"
+      ],
+      "production": [
+        "products/product_analytics/backend/presentation/insight.py"
+      ]
+    },
+    {
+      "id": "posthog-105737",
+      "pr": 105737,
+      "sha": "5158cf75d458ffd6d2bcf68b923ddf13ff3b2e4a",
+      "parent": "5617caf2eba9fdb012ae31428d6f340b3b2ed889",
+      "subject": "fix(insights): stop the insight editor auto-saving on a chart-type change (#105737)",
+      "codeLines": 18,
+      "totalLines": 42,
+      "files": [
+        "frontend/src/scenes/insights/insightDataLogic.test.ts",
+        "frontend/src/scenes/insights/insightDataLogic.tsx"
+      ],
+      "production": [
+        "frontend/src/scenes/insights/insightDataLogic.tsx"
+      ]
+    },
+    {
+      "id": "posthog-105409",
+      "pr": 105409,
+      "sha": "cd310654eaac416f5d70f52861a9f43d9074b693",
+      "parent": "69aa3275268790be1a4ec094854a97a913317d7d",
+      "subject": "fix(alerts): report the real outcome when an AI detector check fails (#105409)",
+      "codeLines": 33,
+      "totalLines": 175,
+      "files": [
+        "posthog/tasks/alerts/utils.py",
+        "posthog/templates/email/alert_check_failed_to_evaluate.html",
+        "posthog/temporal/alerts/activities.py",
+        "posthog/temporal/tests/test_alerts_activities.py",
+        "posthog/temporal/tests/test_alerts_workflows.py",
+        "products/alerts/backend/judge/contract.py",
+        "products/alerts/backend/test/test_email_notifications.py",
+        "products/alerts/backend/tests/api/test_alert.py"
+      ],
+      "production": [
+        "posthog/tasks/alerts/utils.py",
+        "posthog/temporal/alerts/activities.py",
+        "products/alerts/backend/judge/contract.py"
+      ]
+    },
+    {
+      "id": "posthog-105690",
+      "pr": 105690,
+      "sha": "8388d7933682c2554ef3b1c55d9e78b941dae4cf",
+      "parent": "09030e5e6ef0636ccd30cce5fe86a67595ece4f5",
+      "subject": "fix(insights): honor 0 decimal places in data viz formatting (#105690)",
+      "codeLines": 33,
+      "totalLines": 140,
+      "files": [
+        "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.test.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.test.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts"
+      ],
+      "production": [
+        "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+        "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+        "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts"
+      ]
+    },
+    {
+      "id": "posthog-96235",
+      "pr": 96235,
+      "sha": "f18e93bf43e07e0625ce6e6520531aa3ee30621d",
+      "parent": "7fe0116042cfea7c84b3646d974a199b19010dfa",
+      "subject": "fix(workflows): accept issued invocation ids when cancelling runs (#96235)",
+      "codeLines": 6,
+      "totalLines": 39,
+      "files": [
+        "nodejs/src/cdp/cdp-api.serial.test.ts",
+        "nodejs/src/cdp/cdp-api.ts",
+        "products/workflows/backend/api/test/test_hog_flow_cancel.py"
+      ],
+      "production": [
+        "nodejs/src/cdp/cdp-api.ts"
+      ]
+    },
+    {
+      "id": "posthog-105273",
+      "pr": 105273,
+      "sha": "6c978202e49b3cf7c726a5ede30ab8909b96cf63",
+      "parent": "84f957dc1e8f2e8725ac595902af91e4d24428f6",
+      "subject": "chore(temporal): prefix tuner target settings with `TEMPORAL_` (#105273)",
+      "codeLines": 12,
+      "totalLines": 12,
+      "files": [
+        "posthog/management/commands/start_temporal_worker.py",
+        "posthog/settings/temporal.py"
+      ],
+      "production": [
+        "posthog/management/commands/start_temporal_worker.py",
+        "posthog/settings/temporal.py"
+      ]
+    },
+    {
+      "id": "posthog-105707",
+      "pr": 105707,
+      "sha": "4e3c6fae08ebff8160997c936ea11f35588317e4",
+      "parent": "c73790a20f985d561e8301825f58a0fb846f389d",
+      "subject": "fix(conversations): finish support drafts that end without json (#105707)",
+      "codeLines": 120,
+      "totalLines": 234,
+      "files": [
+        "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+        "products/conversations/backend/temporal/ai_reply/constants.py",
+        "products/conversations/backend/temporal/pipeline.py",
+        "products/conversations/backend/temporal/tests/test_pipeline.py"
+      ],
+      "production": [
+        "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+        "products/conversations/backend/temporal/ai_reply/constants.py",
+        "products/conversations/backend/temporal/pipeline.py"
+      ]
+    },
+    {
+      "id": "posthog-105721",
+      "pr": 105721,
+      "sha": "a4b55551a1dc32bdc1d70f6be703f26570de0c6f",
+      "parent": "7cad632cafe56fcad18cb69e8f37f3009c127a63",
+      "subject": "fix(signals): prevent reviewer removal flicker in inbox (#105721)",
+      "codeLines": 4,
+      "totalLines": 91,
+      "files": [
+        "products/signals/frontend/inbox/logics/inboxReportDetailLogic.test.ts",
+        "products/signals/frontend/inbox/logics/inboxReportDetailLogic.ts"
+      ],
+      "production": [
+        "products/signals/frontend/inbox/logics/inboxReportDetailLogic.ts"
+      ]
+    },
+    {
+      "id": "posthog-103110",
+      "pr": 103110,
+      "sha": "856d6a2fee85226d3fc2651c5876d042482078df",
+      "parent": "34c6c28e597be45f1330670c607e3255974c9ab4",
+      "subject": "fix(mcp-store): report a tool listing that never produced tools (#103110)",
+      "codeLines": 35,
+      "totalLines": 57,
+      "files": [
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.test.tsx",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts"
+      ],
+      "production": [
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+        "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts"
+      ]
+    },
+    {
+      "id": "posthog-104296",
+      "pr": 104296,
+      "sha": "f46ccb44ac241653ab5cc0ad83d170f83c5484e0",
+      "parent": "c6ba47ebd1e2566503e6657c61fbae73131855fb",
+      "subject": "fix(signals): verify period usage before releasing quota blocks (#104296)",
+      "codeLines": 78,
+      "totalLines": 205,
+      "files": [
+        "ee/billing/quota_limiting.py",
+        "ee/billing/test/test_quota_limiting.py"
+      ],
+      "production": [
+        "ee/billing/quota_limiting.py"
+      ]
+    },
+    {
+      "id": "posthog-104484",
+      "pr": 104484,
+      "sha": "3bb66f1c6a0ec0bcdaf10e634c8e49216a8b572a",
+      "parent": "e9150f0aaad9d3deb1eafc7f5249cae78485ac2b",
+      "subject": "fix(insights): restore embedded chart label width (#104484)",
+      "codeLines": 24,
+      "totalLines": 28,
+      "files": [
+        "frontend/snapshots.yml",
+        "products/product_analytics/frontend/insights/trends/TrendsBarChart/TrendsBarChart.stories.tsx",
+        "products/product_analytics/frontend/insights/trends/TrendsBarChart/TrendsBarChart.tsx"
+      ],
+      "production": [
+        "products/product_analytics/frontend/insights/trends/TrendsBarChart/TrendsBarChart.stories.tsx",
+        "products/product_analytics/frontend/insights/trends/TrendsBarChart/TrendsBarChart.tsx"
+      ]
+    },
+    {
+      "id": "posthog-105311",
+      "pr": 105311,
+      "sha": "bf954a20c9078bd136b7917043d9fe839dd2fb3c",
+      "parent": "ca37390f2c9ed7167db7eb63231ee477b94277f9",
+      "subject": "fix(tasks): hold the pr follow-up loop while trunk tests the pr (#105311)",
+      "codeLines": 50,
+      "totalLines": 90,
+      "files": [
+        "products/tasks/backend/temporal/babysit_pr/snapshot.py",
+        "products/tasks/backend/temporal/process_task/activities/get_pr_babysit_snapshot.py",
+        "products/tasks/backend/temporal/process_task/activities/get_pr_context.py",
+        "products/tasks/backend/temporal/process_task/activities/tests/test_get_pr_babysit_snapshot.py",
+        "products/tasks/backend/temporal/process_task/tests/test_ci_follow_up_decision.py",
+        "products/tasks/backend/temporal/process_task/workflow.py",
+        "products/tasks/backend/temporal/task_management/workflow.py"
+      ],
+      "production": [
+        "products/tasks/backend/temporal/babysit_pr/snapshot.py",
+        "products/tasks/backend/temporal/process_task/activities/get_pr_babysit_snapshot.py",
+        "products/tasks/backend/temporal/process_task/activities/get_pr_context.py",
+        "products/tasks/backend/temporal/process_task/workflow.py",
+        "products/tasks/backend/temporal/task_management/workflow.py"
+      ]
+    },
+    {
+      "id": "posthog-104957",
+      "pr": 104957,
+      "sha": "b99bbeb3da96c73810fec4a183d672db1e562418",
+      "parent": "bf041756ae0d16980161aeb6f1a9f802c6f5deb4",
+      "subject": "fix(devex): refuse a webhook body that is not utf-8 with 401 (#104957)",
+      "codeLines": 6,
+      "totalLines": 16,
+      "files": [
+        "posthog/auth.py",
+        "products/messaging/backend/api/test/test_customerio_webhook.py"
+      ],
+      "production": [
+        "posthog/auth.py"
+      ]
+    },
+    {
+      "id": "posthog-105016",
+      "pr": 105016,
+      "sha": "bf041756ae0d16980161aeb6f1a9f802c6f5deb4",
+      "parent": "4f03e567631f9f2420a99d6ef63a13b9c215aa05",
+      "subject": "fix(devex): tell schema authors when the api ratchet flags a builder they only exposed (#105016)",
+      "codeLines": 98,
+      "totalLines": 186,
+      "files": [
+        ".github/workflows/ci-python.yml",
+        "tools/hogli-commands/hogli_commands/api_ratchet.py",
+        "tools/hogli-commands/hogli_commands/tests/test_api_ratchet.py"
+      ],
+      "production": [
+        "tools/hogli-commands/hogli_commands/api_ratchet.py"
+      ]
+    },
+    {
+      "id": "posthog-105501",
+      "pr": 105501,
+      "sha": "2226caf1de0a57346cb040c413f090790670586a",
+      "parent": "0abdbde1bb5c96005c20ecf39a4bf42b96c2c361",
+      "subject": "fix(csp): opt the placeholder posthog-js instance out from init (#105501)",
+      "codeLines": 3,
+      "totalLines": 5,
+      "files": [
+        "frontend/src/loadPostHogJS.test.ts",
+        "frontend/src/loadPostHogJS.tsx"
+      ],
+      "production": [
+        "frontend/src/loadPostHogJS.tsx"
+      ]
+    },
+    {
+      "id": "posthog-105645",
+      "pr": 105645,
+      "sha": "3fe9421c9a561445abeec98bf896686b50568b44",
+      "parent": "edc2adaf0106a154ef4010a0fc9956ccfe0c7ebc",
+      "subject": "fix(desktop): preserve plan mode for warm cloud tasks (#105645)",
+      "codeLines": 46,
+      "totalLines": 89,
+      "files": [
+        "products/desktop/packages/api-client/src/posthog-client.test.ts",
+        "products/desktop/packages/api-client/src/posthog-client.ts",
+        "products/desktop/packages/core/src/task-detail/taskCreationHost.ts",
+        "products/desktop/packages/core/src/task-detail/taskCreationSaga.test.ts",
+        "products/desktop/packages/core/src/task-detail/taskCreationSaga.ts",
+        "products/desktop/packages/ui/src/features/task-detail/components/TaskInput.tsx",
+        "products/desktop/packages/ui/src/features/task-detail/hooks/useWarmTask.test.tsx",
+        "products/desktop/packages/ui/src/features/task-detail/hooks/useWarmTask.ts",
+        "products/desktop/packages/ui/src/features/task-detail/hooks/warmTaskLease.ts",
+        "products/desktop/packages/ui/src/features/task-detail/taskCreationHostImpl.ts"
+      ],
+      "production": [
+        "products/desktop/packages/api-client/src/posthog-client.ts",
+        "products/desktop/packages/core/src/task-detail/taskCreationHost.ts",
+        "products/desktop/packages/core/src/task-detail/taskCreationSaga.ts",
+        "products/desktop/packages/ui/src/features/task-detail/components/TaskInput.tsx",
+        "products/desktop/packages/ui/src/features/task-detail/hooks/useWarmTask.ts",
+        "products/desktop/packages/ui/src/features/task-detail/hooks/warmTaskLease.ts",
+        "products/desktop/packages/ui/src/features/task-detail/taskCreationHostImpl.ts"
+      ]
+    },
+    {
+      "id": "posthog-105637",
+      "pr": 105637,
+      "sha": "754fa69e9d80a13418543ede38875b6f084ab534",
+      "parent": "af50cdc57c775f39478559416fbc5135a2dc540b",
+      "subject": "fix(marketing): align session cache with calendar ranges (#105637)",
+      "codeLines": 24,
+      "totalLines": 129,
+      "files": [
+        "docs/internal/marketing-attribution-session-precompute.md",
+        "products/marketing_analytics/backend/hogql_queries/attribution_sessions_read.py",
+        "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+        "products/marketing_analytics/backend/hogql_queries/test_attribution_sessions_read.py",
+        "products/marketing_analytics/dags/marketing_sessions_precompute.py",
+        "products/marketing_analytics/dags/tests/test_marketing_sessions_precompute.py"
+      ],
+      "production": [
+        "products/marketing_analytics/backend/hogql_queries/attribution_sessions_read.py",
+        "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+        "products/marketing_analytics/dags/marketing_sessions_precompute.py"
+      ]
+    },
+    {
+      "id": "posthog-105597",
+      "pr": 105597,
+      "sha": "a030dfc0290fbf48ab3a5c81c704a0cf1f28e44b",
+      "parent": "debd20ac48f51813a6b45efcdc23b238a696c3c9",
+      "subject": "fix(marketing-analytics): stabilize session cache identity (#105597)",
+      "codeLines": 5,
+      "totalLines": 82,
+      "files": [
+        "docs/internal/marketing-attribution-session-precompute.md",
+        "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+        "products/marketing_analytics/backend/hogql_queries/test_marketing_sessions_precompute.py"
+      ],
+      "production": [
+        "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py"
+      ]
+    },
+    {
+      "id": "posthog-103285",
+      "pr": 103285,
+      "sha": "52245f81baed6ccec0375a10b0747db37d0a2821",
+      "parent": "a1488d22ab01ffb769eaab1f5962db0a142642a5",
+      "subject": "fix(dashboards): page the dashboard list on a stable order (#103285)",
+      "codeLines": 6,
+      "totalLines": 30,
+      "files": [
+        "posthog/api/test/dashboards/__snapshots__/test_dashboard.ambr",
+        "posthog/api/test/dashboards/test_dashboard.py",
+        "products/dashboards/backend/api/dashboard.py"
+      ],
+      "production": [
+        "products/dashboards/backend/api/dashboard.py"
+      ]
+    },
+    {
+      "id": "posthog-104141",
+      "pr": 104141,
+      "sha": "a1488d22ab01ffb769eaab1f5962db0a142642a5",
+      "parent": "9e9a1adbef5795bb3b6e1d6d839aa7a307c3a3b6",
+      "subject": "fix(data-management): stabilize object media preview page order (#104141)",
+      "codeLines": 10,
+      "totalLines": 52,
+      "files": [
+        "posthog/api/object_media_preview.py",
+        "posthog/api/test/test_object_media_preview.py"
+      ],
+      "production": [
+        "posthog/api/object_media_preview.py"
+      ]
+    },
+    {
+      "id": "posthog-102747",
+      "pr": 102747,
+      "sha": "9e9a1adbef5795bb3b6e1d6d839aa7a307c3a3b6",
+      "parent": "fa35fec49428102aa5a0493c6b44f4bdf0cb83a6",
+      "subject": "fix(conversations): stabilize widget ticket list pagination (#102747)",
+      "codeLines": 2,
+      "totalLines": 31,
+      "files": [
+        "products/conversations/backend/api/tests/test_widget.py",
+        "products/conversations/backend/api/widget.py"
+      ],
+      "production": [
+        "products/conversations/backend/api/widget.py"
+      ]
+    }
+  ]
+}

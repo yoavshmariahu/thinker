@@ -1,0 +1,154 @@
+[
+  {
+    "id": "pydantic-13850",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify huge ByteSize strings converting to infinity and leaking raw OverflowError instead of normalized ValidationError."
+  },
+  {
+    "id": "pydantic-13702",
+    "baselineMatches": [
+      2
+    ],
+    "cachedMatches": [
+      2
+    ],
+    "reason": "Both identify include/exclude cleared when a custom serializer is skipped and its fallback runs, so model_dump silently ignores requested filters. Static broken-reference and test-only findings are excluded."
+  },
+  {
+    "id": "pydantic-13629",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify omitted extra_serializer from GeneralFieldsSerializer GC traversal, hiding Python-reference cycles and leaking them."
+  },
+  {
+    "id": "pydantic-13604",
+    "baselineMatches": [
+      0,
+      1
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify lost definitions-based resolution for callable discriminators over PEP 695 alias definition refs, leaving tags unresolved and raising missing-Tag errors."
+  },
+  {
+    "id": "pydantic-13452",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify Interval bound truthiness checks silently skipping zero-valued ge/gt/le/lt constraints and accepting invalid values."
+  },
+  {
+    "id": "pydantic-13825",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify derived alias-validation settings mutating declared/caller configuration, including inherited settings that defeat child overrides. The cached deprecation-warning finding is secondary and excluded."
+  },
+  {
+    "id": "pydantic-13785",
+    "baselineMatches": [
+      7,
+      8,
+      9
+    ],
+    "cachedMatches": [
+      7,
+      8
+    ],
+    "reason": "Both identify live class-namespace iteration racing with annotation access and forced model rebuild exposing inherited validators after deleting real artifacts. Static name-matching warnings about removed test helpers are excluded."
+  },
+  {
+    "id": "pydantic-13767",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify subclasses completing mypy transformation before a deferred base publishes fields, producing incomplete inherited signatures during import cycles."
+  },
+  {
+    "id": "pydantic-13711",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify removed serialization-mode guard applying numeric temporal serialization formats to validation JSON schemas."
+  },
+  {
+    "id": "pydantic-13436",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both identify numeric datetime serialization combining local date/time and dropping the timezone offset instead of using timestamp_tz."
+  },
+  {
+    "id": "pydantic-13912",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms identify unhandled filesystem OSError during ZoneInfo validation instead of conversion to PydanticCustomError."
+  },
+  {
+    "id": "pydantic-13892",
+    "baselineMatches": [
+      0,
+      1
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms identify timedelta serialization mode leaking into inferred datetime/date/time serialization when temporal mode is unspecified/default."
+  },
+  {
+    "id": "pydantic-13552",
+    "baselineMatches": [],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Only the cached arm identifies wrapping find_serializer's already-wrapped result in a second polymorphism trampoline. Baseline has no findings."
+  },
+  {
+    "id": "pydantic-13537",
+    "baselineMatches": [
+      0
+    ],
+    "cachedMatches": [
+      0
+    ],
+    "reason": "Both arms identify compare_digest rejecting non-ASCII SecretStr values unless strings are encoded to bytes. The cached arm additionally names surrogatepass for lone surrogates."
+  },
+  {
+    "id": "pydantic-13515",
+    "baselineMatches": [
+      0,
+      1
+    ],
+    "cachedMatches": [],
+    "reason": "Baseline identifies unhashable generic arguments raising TypeError during cache get/set instead of bypassing caching. Cached arm emits no findings and misses the target."
+  }
+]

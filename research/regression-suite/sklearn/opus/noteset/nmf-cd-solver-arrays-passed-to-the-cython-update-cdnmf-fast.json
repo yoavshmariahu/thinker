@@ -1,0 +1,70 @@
+{
+  "id": "nmf-cd-solver-arrays-passed-to-the-cython-update-cdnmf-fast",
+  "title": "NMF cd solver: arrays passed to the Cython _update_cdnmf_fast must be made C-contiguous explicitly",
+  "kind": "rule",
+  "answers": [
+    "NMF fit_transform raises ValueError: ndarray is not C-contiguous",
+    "NMF breaks with new scipy version / scipy dev",
+    "why does _update_cdnmf_fast fail on memoryview",
+    "nndsvd init produces Fortran-ordered W"
+  ],
+  "body": "Symptom: `NMF(n_components=5).fit_transform(X)` (default solver=\"cd\", nndsvd-style init) crashes with `ValueError: ndarray is not C-contiguous` from `_cdnmf_fast._update_cdnmf_fast`, seen with SciPy dev.\nRoot cause: `sklearn/decomposition/_cdnmf_fast.pyx:_update_cdnmf_fast` declares `W` as a `floating[:, ::1]` (C-contiguous) memoryview, but `sklearn/decomposition/_nmf.py:_fit_coordinate_descent` only forced `Ht` to C order. W from the SVD-based init inherits the memory layout of `scipy.linalg.svd` output, and SciPy changed its C/F ordering (scipy/scipy#24538).\nFix pattern: at the Python/Cython boundary, call `np.ascontiguousarray` on every array that the Cython signature declares `::1` (here both `W` and `Ht = H.T`). Don't rely on the layout an upstream library returns. Sparse X is converted csc->csr only when `sp.issparse(X) and X.format == \"csc\"`.\nConstraints: this applies to any Cython kernel with `[:, ::1]` memoryviews. Transposes (`H.T`) and SVD outputs are the usual sources of F-ordered arrays. `sklearn/decomposition/tests/test_nmf.py:test_nmf_smoke` covers every init (None, nndsvd, nndsvda, nndsvdar, random) × solver (cd, mu) × tall/wide shape. Extend it when you add an init or solver, because the original bug was not caught by CI.",
+  "applies": "sklearn/decomposition NMF coordinate-descent solver and other Python wrappers that call Cython kernels with C-contiguous memoryviews",
+  "tags": [
+    "nmf",
+    "cython",
+    "memory-layout",
+    "c-contiguous",
+    "scipy-compat",
+    "svd"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/decomposition/_nmf.py",
+      "symbol": "_fit_coordinate_descent",
+      "hash": "sha256:4ac364bdf869510ee80f349d",
+      "line": 399,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/decomposition/_cdnmf_fast.pyx",
+      "symbol": "_update_cdnmf_fast",
+      "hash": "sha256:c8e4809caa75fe05b482c4df",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/decomposition/tests/test_nmf.py",
+      "symbol": "test_nmf_smoke",
+      "hash": "sha256:38667edbcfe647b1a0d5164f",
+      "line": 1013,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#33260"
+  },
+  "created": "2026-10-07T00:31:20.169Z",
+  "verified": "2026-10-07T00:31:20.169Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,67 @@
+{
+  "id": "restore-shared-datetime-like-frequency-only-after-the-combin",
+  "title": "Restore shared datetime-like frequency only after the combined index is final",
+  "kind": "rule",
+  "answers": [
+    "Why does changing concat input order lose the index frequency?",
+    "Why does constructing a DataFrame from Series lose CustomBusinessDay holidays?",
+    "Where should frequency be restored after index unions or sorting?"
+  ],
+  "body": "Symptom: Reordering inputs to concat or columns in a DataFrame built from Series can lose the index frequency, including a CustomBusinessDay with holidays.\nRoot cause: pandas/core/indexes/api.py:union_indexes combines indexes pairwise; an irregular intermediate union can drop frequency that inference cannot recover. Sorting in pandas/core/indexes/api.py:_get_combined_index can also drop frequency.\nFix pattern: Validate the shared input frequency against the final values using pandas/core/indexes/api.py:_maybe_restore_freq, called after the special-branch union and after safe_sort_index; reattach the validated offset rather than inferring it or preserving it at every intermediate union.\nConstraints: Restore only when the result is a monotonic-increasing DatetimeIndex or TimedeltaIndex with no frequency, every input is one of those types with the same non-None frequency, and _validate_frequency succeeds. Preserve existing frequency; leave nonmonotonic results, mismatched or missing input frequencies, and nonconforming values unchanged. Skipping validation can attach a frequency despite real gaps.",
+  "applies": "Index combination for concat and DataFrame construction involving DatetimeIndex or TimedeltaIndex.",
+  "tags": [
+    "index-combination",
+    "frequency",
+    "concat",
+    "dataframe-construction"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_maybe_restore_freq",
+      "hash": "sha256:8819240ba586a058d82c2476",
+      "line": 312,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "union_indexes",
+      "hash": "sha256:253cac1a9969780747a568e9",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_get_combined_index",
+      "hash": "sha256:861485905d0fdf1e4a35a884",
+      "line": 116,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69445"
+  },
+  "created": "2026-10-07T00:26:35.431Z",
+  "verified": "2026-10-07T00:26:35.431Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

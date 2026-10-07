@@ -1,0 +1,58 @@
+{
+  "id": "jest-cannot-reproduce-strict-mode-lodash-crashes-test-the-pr",
+  "title": "Jest cannot reproduce strict-mode lodash crashes; test the property assignment directly",
+  "kind": "howto",
+  "answers": [
+    "why does my jest test not reproduce the rspack cloneDeep error",
+    "how to test getter-only property failures in strict mode",
+    "test MutableDataFrame clone"
+  ],
+  "body": "Jest transforms lodash to CommonJS, which is not strict, so `cloneDeep` silently ignores writes to getter-only properties in tests. The production Rspack/ESM build throws on the same writes.\nTo cover a fix like this, reproduce what lodash does directly. Create `Object.create(Klass.prototype)`, assign the property (for example `clone.length = 3`), and assert it does not throw. Test files are ES modules transpiled with class semantics, so the assignment throws there when no setter exists.\nExample: the 'Cloning DataFrame' describe block in packages/grafana-data/src/dataframe/MutableDataFrame.test.ts.",
+  "applies": "Writing Jest tests for bugs that only show up in strict-mode/ESM (Rspack) bundles",
+  "tags": [
+    "jest",
+    "testing",
+    "rspack",
+    "strict-mode",
+    "lodash"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.test.ts",
+      "symbol": "clone",
+      "hash": "sha256:417b33937e96fa34329b3ae7",
+      "line": 71,
+      "missing": false,
+      "fanout": {
+        "files": 163,
+        "sites": 183,
+        "refs": 508
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+      "symbol": "MutableDataFrame",
+      "hash": "sha256:19519b57c185c00e5c8c9cec",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 40,
+        "sites": 94,
+        "refs": 142
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-07T00:04:53.953Z",
+  "verified": "2026-10-07T00:04:53.953Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clonedeep-of-a-mutabledataframe-throws-cannot-set-property-l"
+  ]
+}

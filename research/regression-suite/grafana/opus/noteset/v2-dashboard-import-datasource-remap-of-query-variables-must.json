@@ -1,0 +1,72 @@
+{
+  "id": "v2-dashboard-import-datasource-remap-of-query-variables-must",
+  "title": "v2 dashboard import: datasource remap of query variables must keep refresh (including 'never')",
+  "kind": "rule",
+  "answers": [
+    "Imported v2 dashboard variable no longer refreshes on time range change",
+    "query variable refresh reset to onDashboardLoad after import",
+    "Should I upgrade refresh 'never' when clearing variable options on import?",
+    "Export for sharing externally then import loses variable settings"
+  ],
+  "body": "Symptom: After a v2 dashboard is exported 'for sharing externally' and imported through the UI import dialog, query variables with refresh 'onTimeRangeChanged' (or 'never') come back as 'onDashboardLoad'. Variables then stop re-evaluating when the time range changes, and the data resolves against the default range with no error shown.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt each remapped QueryVariable spec with an explicit `refresh` override. First it was hardcoded, then 'never' was forced to 'onDashboardLoad'.\nFix pattern: when you rebuild a spec, spread the original `variable.spec` and override only the fields tied to the old datasource: `query.datasource`, `options: []` and `current`. Do not override author settings such as `refresh`. 'never' is safe even with cleared options, because transformSaveModelSchemaV2ToScene never seeds query variable options from the spec, and SceneVariableSet runs validateAndUpdate on activation without consulting refresh.\nConstraints: this applies only to the v2 path (applyV2Inputs → replaceDatasourcesInDashboard). Variables that keep a `$datasourceVar` reference keep their options and are not rebuilt. The v1 import path never touches refresh. The export side leaves refresh alone, so any import-side change to it is round-trip data loss.",
+  "applies": "V2 dashboard UI import: datasource remapping of QueryVariables in manage-dashboards/import/utils/inputs.ts",
+  "tags": [
+    "dashboards",
+    "import",
+    "schema-v2",
+    "variables",
+    "refresh",
+    "round-trip"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "replaceVariableDatasources",
+      "hash": "sha256:6a6208936d3a8ee52db20d5b",
+      "line": 738,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "applyV2Inputs",
+      "hash": "sha256:bc1995649daff102fcb4f407",
+      "line": 547,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 16
+      }
+    },
+    {
+      "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+      "symbol": "replaceDatasourcesInDashboard",
+      "hash": "sha256:a22083fa90f0be15dfe68125",
+      "line": 676,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 18,
+        "refs": 21
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131837"
+  },
+  "created": "2026-10-07T00:04:14.744Z",
+  "verified": "2026-10-07T00:04:14.744Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "testing-v2-import-input-mapping-applyv2inputs-and-replacedat"
+  ]
+}

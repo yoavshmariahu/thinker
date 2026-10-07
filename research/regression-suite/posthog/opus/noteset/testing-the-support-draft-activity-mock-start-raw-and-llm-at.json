@@ -1,0 +1,43 @@
+{
+  "id": "testing-the-support-draft-activity-mock-start-raw-and-llm-at",
+  "title": "Testing the support draft activity: mock start_raw and llm_attempts",
+  "kind": "howto",
+  "answers": [
+    "how to unit test _draft_async",
+    "how to simulate a retry attempt in the draft activity tests",
+    "mock MultiTurnSession in conversations tests"
+  ],
+  "body": "Tests are in products/conversations/backend/temporal/tests/test_pipeline.py (TestDraftWithoutJson, TestUntrustedTicketGuard, TestDiagnosticScopes).\nPatch these under DRAFT_MODULE: _hydrate_chunks, resolve_user_id_for_support, get_or_create_support_sandbox_env, and MultiTurnSession.start_raw. Patch start_raw, not start. It returns (session, text) or raises.\nTo choose the attempt number, patch f\"{DRAFT_MODULE}.llm_attempts\" to return 1 or 2. Attempt 1 should raise DraftNotProducedError. Attempt 2 should return a blocked draft.\nTo drive the nudge path, build the session as a MagicMock with an AsyncMock `end` and an AsyncMock `send_followup_raw` (set return_value, or side_effect for crashes). For an empty turn, use EmptyAgentTurnError(\"empty\", total_lines=1, printed_lines=0).\nA valid first-turn payload is the _OK_DRAFT_JSON string. The fake returns raw JSON text, not a SupportReplyDraft.",
+  "applies": "Unit tests for products/conversations draft activity",
+  "tags": [
+    "testing",
+    "conversations",
+    "mocking",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+      "symbol": "TestDraftWithoutJson",
+      "hash": "sha256:707e0ee56fe39b8f891a89f9",
+      "line": 2129,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:18:19.666Z",
+  "verified": "2026-10-07T00:18:19.666Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

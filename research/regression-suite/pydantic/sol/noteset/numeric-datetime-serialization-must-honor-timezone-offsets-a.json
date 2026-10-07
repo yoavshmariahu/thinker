@@ -1,0 +1,67 @@
+{
+  "id": "numeric-datetime-serialization-must-honor-timezone-offsets-a",
+  "title": "Numeric datetime serialization must honor timezone offsets and preserve fractional seconds",
+  "kind": "rule",
+  "answers": [
+    "Why does serializing a timezone-aware datetime as seconds produce the wrong timestamp?",
+    "How should milliseconds serialization account for UTC offsets and microseconds?",
+    "Should datetime dictionary keys honor ser_json_temporal timezone offsets?"
+  ],
+  "body": "Symptom: Serializing a timezone-aware datetime as seconds or milliseconds produces a timestamp that ignores its UTC offset.\nRoot cause: pydantic-core/src/serializers/type_serializers/datetime_etc.rs:datetime_to_seconds and datetime_to_milliseconds combined a date timestamp with local clock time, losing the timezone offset.\nFix pattern: Derive whole seconds from dt.timestamp_tz(), then add microseconds divided by 1_000_000 for seconds; for milliseconds, multiply whole seconds by 1_000 and add microseconds divided by 1_000.\nConstraints: Applies to datetime JSON serialization with ser_json_temporal='seconds' or 'milliseconds', including dictionary keys. Preserve fractional precision and consistent values across JSON-mode Python output and JSON bytes; ordinary to_python retains the datetime, as checked by pydantic-core/tests/serializers/test_datetime.py:test_config_datetime_tz_aware. This pattern does not cover ISO formatting or date/time-only conversion.",
+  "applies": "Timezone-aware datetime values and dictionary keys serialized using numeric temporal modes.",
+  "tags": [
+    "serialization",
+    "datetime",
+    "timezone",
+    "ser_json_temporal"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "to_python",
+      "hash": "sha256:107a31e2ba1778ff73fc168b",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 30,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "symbol": "to_python",
+      "hash": "sha256:107a31e2ba1778ff73fc168b",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 30,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pydantic-core/tests/serializers/test_datetime.py",
+      "symbol": "test_config_datetime_tz_aware",
+      "hash": "sha256:afb0640a09471d7ba5f96261",
+      "line": 234,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13436"
+  },
+  "created": "2026-10-07T00:44:17.785Z",
+  "verified": "2026-10-07T00:44:17.785Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

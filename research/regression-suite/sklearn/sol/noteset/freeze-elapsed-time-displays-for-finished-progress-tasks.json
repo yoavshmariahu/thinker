@@ -1,0 +1,37 @@
+{
+  "id": "freeze-elapsed-time-displays-for-finished-progress-tasks",
+  "title": "Freeze elapsed-time displays for finished progress tasks",
+  "kind": "rule",
+  "answers": [
+    "Why do completed progress bars keep counting time in meta-estimators?",
+    "How should ProgressBar timers behave with max_propagation_depth > 0?",
+    "Which duration should render use for a finished progress task?"
+  ],
+  "body": "Symptom: Full progress bars in meta-estimators keep counting time while subsequent bars fill when max_propagation_depth > 0.\nRoot cause: sklearn/callback/_progressbar.py:render used task.elapsed for finished tasks, so the displayed duration continued increasing.\nFix pattern: Use task.finished_time to display the fixed completion duration when elapsed_when_finished and task.finished are both true.\nConstraints: Apply this to finished-task elapsed displays; the other branch continues to use task.time_remaining.",
+  "applies": "ProgressBar task-time rendering, including completed tasks displayed during propagated meta-estimator progress.",
+  "tags": [
+    "progressbar",
+    "meta-estimators",
+    "timers"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_progressbar.py",
+      "symbol": "render",
+      "hash": "sha256:ca341a0079b1a5779996ecc5",
+      "line": 125,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34746"
+  },
+  "created": "2026-10-07T00:34:32.639Z",
+  "verified": "2026-10-07T00:34:32.639Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,70 @@
+{
+  "id": "workflow-invocation-cancel-django-proxy-and-cdp-route-must-a",
+  "title": "Workflow invocation cancel: Django proxy and CDP route must agree on the id format and the cap",
+  "kind": "rule",
+  "answers": [
+    "where is workflow run cancellation handled",
+    "cancel invocations returns 500 from Django",
+    "raising the max invocation ids for cancel",
+    "invocation_ids vs all selector in hog flow cancel"
+  ],
+  "body": "Cancel flows through the Django workflows API, which proxies to the CDP route `POST /api/projects/:team/hog_flows/:flow/invocations/cancel` in nodejs/src/cdp/cdp-api.ts:CdpApi. That route calls `cancelJobs` filtered on (team_id, function_id).\nInvariant: the Django cancel serializer and the CDP zod schema must accept the same id set. Both read the same env-driven max-ids cap, so raising the env var lifts both limits together. If the CDP route rejects an id that Django accepted, the route returns a 400 and Django surfaces it to the user as a 500.\nThe accepted id format must match too. Both sides must accept UUIDTs: Django's UUIDField already does, and CDP uses `UUID.validateString(id, false)`.\nTesting: the cancel tests in nodejs/src/cdp/cdp-api.serial.test.ts mostly use `all: true`. The `invocation_ids` path needs its own cases. Run them with `jest --config jest.serial.config.js --testPathPatterns=cdp-api.serial -t cancel`. The Django side is products/workflows/backend/api/test/test_hog_flow_cancel.py, which patches the CDP proxy.",
+  "applies": "Changes to hog flow / workflow invocation cancellation in Django or the CDP API",
+  "tags": [
+    "workflows",
+    "cdp",
+    "cancel",
+    "proxy",
+    "validation",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/cdp/cdp-api.ts",
+      "symbol": "CdpApi",
+      "hash": "sha256:fe0e27f04f380d7f19512765",
+      "line": 131,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 8,
+        "refs": 32
+      }
+    },
+    {
+      "path": "products/workflows/backend/api/test/test_hog_flow_cancel.py",
+      "symbol": "TestHogFlowCancelInvocations",
+      "hash": "sha256:c2d50b2def83b11db96c9609",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "nodejs/src/cdp/cdp-api.serial.test.ts",
+      "hash": "sha256:34c87b6d6aed156fb1a6a565",
+      "missing": false
+    },
+    {
+      "path": "nodejs/jest.serial.config.js",
+      "hash": "sha256:eba1698930ed94833c395acc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#96235"
+  },
+  "created": "2026-10-07T00:17:47.448Z",
+  "verified": "2026-10-07T00:17:47.448Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "validate-posthog-uuidt-ids-by-shape-only-zod-uuid-rejects-th"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "testing-excel-header-output-read-back-with-header-none-becau",
+  "title": "Testing Excel header output: read back with header=None because read_excel forward-fills empty MultiIndex header cells",
+  "kind": "howto",
+  "answers": [
+    "how to test to_excel MultiIndex column headers",
+    "why does my to_excel round-trip test pass even though the header is wrong",
+    "read_excel header=[0,1] fills blank header cells"
+  ],
+  "body": "`pd.read_excel(path, header=[0, 1])` forward-fills empty header cells. A round-trip test can therefore hide a wrong or blank header cell: an earlier test for GH#62340 passed on main even though the bug was still there.\nTo check the exact cells written, read the raw rows with `pd.read_excel(tmp_excel, header=None, nrows=<n header rows>)`. Compare the result to a plain DataFrame in which the blank cells are np.nan.\nSee pandas/tests/io/excel/test_writers.py:TestExcelWriter.test_to_excel_multiindex_nan_column_label. It uses the `merge_cells` and `tmp_excel` fixtures, so it runs for every engine and every merge_cells setting.",
+  "applies": "tests for DataFrame.to_excel header/index formatting in pandas/tests/io/excel",
+  "tags": [
+    "excel",
+    "testing",
+    "read_excel",
+    "multiindex",
+    "header"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/excel/test_writers.py",
+      "symbol": "TestExcelWriter.test_to_excel_multiindex_nan_column_label",
+      "hash": "sha256:83fccc0a0b0e36a282ff2932",
+      "line": 906,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69446"
+  },
+  "created": "2026-10-07T00:22:37.761Z",
+  "verified": "2026-10-07T00:22:37.761Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

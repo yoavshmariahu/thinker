@@ -1,0 +1,96 @@
+{
+  "id": "freshness-checks-must-read-externaldataschema-last-run-at-ne",
+  "title": "Freshness checks must read ExternalDataSchema.last_run_at, never last_synced_at alone; don't advance last_synced_at on zero-row runs",
+  "kind": "rule",
+  "answers": [
+    "why is last_synced_at not updated when a sync imports nothing",
+    "how do I tell when a warehouse schema last ran",
+    "schema shows stale / stopped syncing but jobs run on schedule",
+    "should I advance last_synced_at on a zero-batch v3 run"
+  ],
+  "body": "Invariant: `last_synced_at` is also the signals watermark (`partition_field > last_synced_at`). The v3 pipeline deliberately does not advance it on a run that extracts zero rows (`pipeline_v3/pipeline.py:PipelineV3._stamp_full_run` writes only `sync_type_config.last_full_run_at`). If it did advance, rows arriving late with a partition value between two quiet runs would never emit a signal. That is why #104604 rejected the change and this PR kept that decision.\nWhich stamp each kind of run moves: a run that loads rows moves both stamps. A v3 zero-row run moves only `last_full_run_at`. A fast return on a negative probe moves only `last_synced_at`.\nSo any check that asks \"when did a sync last run\" (stale warnings, stall detection) must use `products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_run_at`, which is the max of both. If you read only `last_synced_at`, a schema whose source is simply quiet gets reported as stalled or stale.\nUse `ExternalDataSchema.last_full_run` to parse `last_full_run_at`. It returns None for a string that does not parse or has no timezone, so a naive stamp never counts as fresh. `create_job_model.py:_fast_return_eligible` and `sync_status.py:_is_stale` both use these properties. Don't hand-roll the parsing again.",
+  "applies": "Any data-warehouse code that judges sync freshness or writes sync timestamps on ExternalDataSchema",
+  "tags": [
+    "data-warehouse",
+    "sync",
+    "last_synced_at",
+    "last_full_run_at",
+    "signals-watermark",
+    "staleness"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_run_at",
+      "hash": "sha256:4c79452c1287ee30fbecabfb",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 135,
+        "sites": 0,
+        "refs": 431
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_full_run",
+      "hash": "sha256:f38a5ecc269bef3b7ae2f362",
+      "line": 506,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+      "symbol": "PipelineV3._stamp_full_run",
+      "hash": "sha256:5a315cb50e8df9019aa5ffb9",
+      "line": 603,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/data_warehouse/backend/sync_status.py",
+      "symbol": "_is_stale",
+      "hash": "sha256:d25d62a669b7ab346e3c658a",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 19,
+        "refs": 22
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/create_job_model.py",
+      "symbol": "_fast_return_eligible",
+      "hash": "sha256:ed62f37a7e32181d88f231c7",
+      "line": 240,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 2,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:13:33.291Z",
+  "verified": "2026-10-07T00:13:33.291Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "filter-on-json-timestamps-in-sql-before-limit-and-regex-guar"
+  ]
+}

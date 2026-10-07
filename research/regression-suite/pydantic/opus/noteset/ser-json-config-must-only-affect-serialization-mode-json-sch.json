@@ -1,0 +1,72 @@
+{
+  "id": "ser-json-config-must-only-affect-serialization-mode-json-sch",
+  "title": "ser_json_* config must only affect serialization-mode JSON schemas, never validation-mode",
+  "kind": "rule",
+  "answers": [
+    "Why does model_json_schema() say type number for a datetime when ser_json_temporal='seconds'?",
+    "validation JSON schema for timedelta shows number with ser_json_timedelta='float' but model accepts 'PT5M'",
+    "Should ser_json_temporal change the input/validation schema?",
+    "datetime field schema wrong when serializing to unix seconds"
+  ],
+  "body": "Symptom: a model with `ser_json_temporal='seconds'/'milliseconds'` (or `ser_json_timedelta='float'`) produced a validation schema (`model_json_schema()`, which defaults to validation mode) of `{'type': 'number'}` for date/time/datetime/timedelta, even though `model_validate_json` still accepts ISO 8601 strings.\nRoot cause: `pydantic/json_schema.py:GenerateJsonSchema._common_temporal_schema` checked the `ser_json_*` setting without looking at `self.mode`.\nFix pattern: only use the numeric branch when `self.mode == 'serialization' and temporal_format != 'iso8601'`. Otherwise return `{'type': 'string', 'format': <date|time|date-time|duration>}`.\nInvariant: `ser_json_*` settings describe output only. Validation mode must describe what validators accept. There is no `val_json_temporal`, and `val_temporal_unit` only changes how a *number* is read; ISO strings are still accepted either way. Any new `ser_*` config read inside the schema generator needs a mode check like this one.\nNote: for timedelta under `ser_json_timedelta='float'`, this changed released behaviour (validation schema went from number back to string/duration).\nTests: `tests/test_json_schema.py:test_date_types_ser_json_temporal` asserts both modes.",
+  "applies": "JSON schema generation for date/time/datetime/timedelta, and any ser_json_* config used in GenerateJsonSchema",
+  "tags": [
+    "json-schema",
+    "serialization",
+    "validation",
+    "temporal",
+    "config",
+    "mode"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/json_schema.py",
+      "symbol": "GenerateJsonSchema._common_temporal_schema",
+      "hash": "sha256:6c570f7788363b35b47d8523",
+      "line": 906,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/test_json_schema.py",
+      "symbol": "test_date_types_ser_json_temporal",
+      "hash": "sha256:9a4e7c97d75b50ec987d4fd6",
+      "line": 875,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic/json_schema.py",
+      "symbol": "model_json_schema",
+      "hash": "sha256:4d8413d837fb5c6e17a5aeaf",
+      "line": 2733,
+      "missing": false,
+      "fanout": {
+        "files": 36,
+        "sites": 438,
+        "refs": 451
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13711"
+  },
+  "created": "2026-10-07T00:36:27.647Z",
+  "verified": "2026-10-07T00:36:27.647Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "known-unfixed-bytes-and-inf-nan-json-schemas-use-ser-json-co"
+  ]
+}

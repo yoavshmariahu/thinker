@@ -1,0 +1,55 @@
+{
+  "id": "test-allowlist-exceptions-alongside-blocked-writing-siblings",
+  "title": "Test allowlist exceptions alongside blocked writing siblings",
+  "kind": "rule",
+  "answers": [
+    "How do I test a read-only impersonation allowlist change?",
+    "How do we prevent workflow writes from becoming available while impersonating?",
+    "Where are audience-sizing impersonation regressions covered?"
+  ],
+  "body": "Convention: Extend the existing parameterized cases in posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_allows_allowlisted_post for permitted POST actions.\nGuard: Pair the exception with writing paths in posthog/test/test_middleware.py:TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_blocks_mutating_siblings; workflow coverage includes hog_flows/<id>/publish/ and hog_flows/bulk_delete/.\nFailure mode: The allowed-action case catches a regex that stops matching audience sizing; the blocked-sibling cases catch a regex widened to permit workflow writes.",
+  "applies": "POST exceptions in the read-only impersonation allowlist, especially actions sharing a URL prefix with writes.",
+  "tags": [
+    "impersonation",
+    "workflows",
+    "regression-tests",
+    "allowlist"
+  ],
+  "deps": [
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_allows_allowlisted_post",
+      "hash": "sha256:9797ae3251012ee532a18424",
+      "line": 1106,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "TestImpersonationReadOnlyMiddleware.test_read_only_impersonation_blocks_mutating_siblings",
+      "hash": "sha256:88c5b2875273ae8efa0b7a5e",
+      "line": 1133,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-10-07T00:16:00.536Z",
+  "verified": "2026-10-07T00:16:00.536Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

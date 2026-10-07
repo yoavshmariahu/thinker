@@ -1,0 +1,71 @@
+{
+  "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+  "title": "Widen database column to BIGINT when int64 alert rule fields exceed SMALLINT limit",
+  "kind": "rule",
+  "answers": [
+    "Why does saving an alert rule fail when missing-series evaluations to resolve exceeds 32767?",
+    "How to fix SMALLINT column overflow for missing series resolution counts in Grafana Alerting?",
+    "Can missing-series evals to resolve be set higher than 32,767 in alert rules?"
+  ],
+  "body": "Symptom: Configuring an alert rule missing-series resolution count above 32,767 fails to persist on MySQL or PostgreSQL.\nRoot cause: pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:AddAlertRuleMissingSeriesEvalsToResolve configured missing_series_evals_to_resolve as SMALLINT while the model uses int64.\nFix pattern: Add raw SQL migrations like pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve to alter the column type to BIGINT across MySQL and PostgreSQL.\nConstraints: Applies when int64 model fields are persisted in narrower database columns; does not apply if the database column already accommodates int64 range.",
+  "applies": "Grafana Alerting alert rule database schema on MySQL and PostgreSQL",
+  "tags": [
+    "alerting",
+    "database",
+    "migrations",
+    "mysql",
+    "postgres"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "AddAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:35c1d71f535a159aa82435e4",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/store/alert_rule_test.go",
+      "symbol": "TestIntegrationUpdateAlertRules",
+      "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:03:15.498Z",
+  "verified": "2026-10-07T00:03:15.498Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "alert-rule-schema-changes-must-mirror-between-alert-rule-and",
+    "registering-new-sql-migrations-in-ossmigrations-and-migratio"
+  ]
+}

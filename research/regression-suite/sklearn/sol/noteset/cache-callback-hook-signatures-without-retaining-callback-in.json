@@ -1,0 +1,42 @@
+{
+  "id": "cache-callback-hook-signatures-without-retaining-callback-in",
+  "title": "Cache callback hook signatures without retaining callback instances",
+  "kind": "rule",
+  "answers": [
+    "Why do scoring monitor resources remain alive after fitting and discarding the callback?",
+    "How should callback hook signatures be cached?",
+    "Why does the signature cache grow with each callback instance?"
+  ],
+  "body": "Symptom: Callback objects and their resources remain alive after they are no longer used, and the signature cache grows with callback instances.\nRoot cause: sklearn/callback/_callback_context.py:CallbackContext cached bound hooks, which hold strong references to their callback instances.\nFix pattern: Inspect and cache getattr(hook, \"__func__\", hook), sharing the signature of the underlying function; invoke the original hook to preserve method binding.\nConstraints: Applies to callback hook signature caching. Preserve the fallback for hooks without __func__; unbinding is for signature inspection, not hook invocation.",
+  "applies": "Callback hook signature caching and dispatch in CallbackContext.",
+  "tags": [
+    "callbacks",
+    "signature-cache",
+    "resource-lifetime"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_callback_context.py",
+      "symbol": "CallbackContext",
+      "hash": "sha256:2f1ebde4457d1e590fe44998",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 1,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34837"
+  },
+  "created": "2026-10-07T00:34:04.946Z",
+  "verified": "2026-10-07T00:34:04.946Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

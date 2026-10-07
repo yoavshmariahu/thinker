@@ -1,0 +1,51 @@
+{
+  "id": "whatsnew-policy-no-entry-for-regressions-that-never-shipped",
+  "title": "Whatsnew policy: no entry for regressions that never shipped in a final release",
+  "kind": "rule",
+  "answers": [
+    "do I need a whatsnew entry for fixing a regression on main",
+    "which whatsnew file for read_csv bug fix",
+    "how to note a pyarrow read_csv fix in release notes"
+  ],
+  "body": "If a bug fix only repairs a regression introduced on main or in an unreleased rc (e.g. a 3.1.0rc0-only regression), it gets no whatsnew entry. Behaviour that was already broken in the last final release (e.g. 3.0.6) does get one, in the upcoming release's file under the I/O section, e.g. doc/source/whatsnew/v3.1.0.rst.\nOne PR can do both: here the C-engine part had no entry and the pyarrow part got an entry.\nEntry style: `:func:`read_csv` with ``engine=\"pyarrow\"`` now ... instead of ... (:issue:`NNNN`)`.\nParser tests that should hold across engines go in pandas/tests/io/parser/ and use the `all_parsers` fixture. Skip engines that don't apply with `pytest.skip` and give a reason.",
+  "applies": "Release notes and parser tests for pandas read_csv bug fixes",
+  "tags": [
+    "whatsnew",
+    "release-notes",
+    "convention",
+    "tests",
+    "read_csv"
+  ],
+  "deps": [
+    {
+      "path": "doc/source/whatsnew/v3.1.0.rst",
+      "hash": "sha256:411a59fddf6781110249459a",
+      "missing": false
+    },
+    {
+      "path": "pandas/tests/io/parser/test_encoding.py",
+      "symbol": "test_text_buffer_encoding_errors",
+      "hash": "sha256:898fb0916395b5657a4c15b9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70405"
+  },
+  "created": "2026-10-07T00:25:06.440Z",
+  "verified": "2026-10-07T00:25:06.440Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "get-handle-wrappers-must-apply-encoding-errors-when-converti"
+  ]
+}

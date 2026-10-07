@@ -1,0 +1,75 @@
+{
+  "id": "default-transform-input-to-x-val-in-pipeline-and-make-pipeli",
+  "title": "Default transform_input to ('X_val',) in Pipeline and make_pipeline",
+  "kind": "rule",
+  "answers": [
+    "Why is X_val not being transformed in Pipeline fit?",
+    "How to automatically transform validation data in a scikit-learn Pipeline?",
+    "What is the default transform_input in Pipeline and make_pipeline?",
+    "Why does Pipeline fit accept transform_input without metadata routing enabled?"
+  ],
+  "body": "Symptom: Validation set X_val passed to Pipeline.fit is not transformed by pipeline transformers before reaching estimators consuming it.\nRoot cause: sklearn/pipeline.py:Pipeline.__init__ defaulted transform_input to None, requiring manual configuration to transform validation metadata.\nFix pattern: Default metadata parameters that should be transformed to a tuple such as (\"X_val\",), allow tuple in parameter constraints, and exempt the default value from routing checks in sklearn/pipeline.py:Pipeline.fit.\nConstraints: Applies to Pipeline and make_pipeline; custom transform_input requires enable_metadata_routing=True, while passing X_val without routing enabled raises a metadata routing ValueError.",
+  "applies": "Pipeline and make_pipeline handling of transform_input and X_val validation data",
+  "tags": [
+    "pipeline",
+    "metadata-routing",
+    "transform_input",
+    "validation-data"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline",
+      "hash": "sha256:079b9bb12295d8d79cd32aa5",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 89,
+        "sites": 200,
+        "refs": 428
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.fit",
+      "hash": "sha256:d505cee8aac0d040c8acdcaa",
+      "line": 585,
+      "missing": false
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.__init__",
+      "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+      "line": 219,
+      "missing": false,
+      "fanout": {
+        "files": 103,
+        "sites": 197,
+        "refs": 246
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34263"
+  },
+  "created": "2026-10-07T00:43:55.369Z",
+  "verified": "2026-10-07T00:43:55.369Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

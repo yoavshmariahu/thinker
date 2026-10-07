@@ -1,0 +1,98 @@
+{
+  "id": "llmdetectorunavailableerror-copy-must-name-the-outcome-not-a",
+  "title": "LLMDetectorUnavailableError copy must name the outcome, not a cause; keep the email, in-app and constant in sync",
+  "kind": "rule",
+  "answers": [
+    "AI detector alert email says could not reach model provider but provider was fine",
+    "where is the llm_detector_unavailable message and email wording defined",
+    "alert failed email says settings are correct",
+    "rename detector_unavailable template context key"
+  ],
+  "body": "Invariant: `LLMDetectorUnavailableError` covers four outcomes: the rollout flag lookup returned nothing (llm_detector_limits.py), no free model-call slot on the worker, a provider transport failure, and a model reply the judge could not read (all three in judge/llm.py). Owner-facing text must therefore say the detector could not complete the check. It must not name a provider failure, and it must not claim the alert or insight settings are correct, because that path never reads them.\nThese must change together:\n- products/alerts/backend/judge/contract.py:LLM_DETECTOR_UNAVAILABLE_MESSAGE, with the code `LLM_DETECTOR_UNAVAILABLE_ERROR_CODE`. The code is what gets the message through the check serializer's allowlist (see test_retrieve_check_includes_allowlisted_error_code in products/alerts/backend/tests/api/test_alert.py).\n- posthog/tasks/alerts/utils.py:send_notifications_for_errors, which sets the template context key `detector_unavailable`, and posthog/templates/email/alert_check_failed_to_evaluate.html, which branches on that same key.\n- posthog/temporal/alerts/activities.py:dispatch_alert_error_in_app_notifications, which builds the in-app body and drops the \"review settings\" advice for this code.\nTests assert that the wording is absent as well as present (\"model provider\" and \"there is nothing to change\" must not appear).",
+  "applies": "AI detector failure messaging in alert check errors, error emails and in-app notifications",
+  "tags": [
+    "alerts",
+    "ai-detector",
+    "email",
+    "notifications",
+    "copy"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "symbol": "LLM_DETECTOR_UNAVAILABLE_MESSAGE",
+      "hash": "sha256:72c6fd13fd22f2270421c100",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "posthog/tasks/alerts/utils.py",
+      "symbol": "send_notifications_for_errors",
+      "hash": "sha256:52d1216670faa42f13e4739f",
+      "line": 300,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 3,
+        "refs": 21
+      }
+    },
+    {
+      "path": "posthog/templates/email/alert_check_failed_to_evaluate.html",
+      "hash": "sha256:8cab7fad6063b8c448706a1b",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "dispatch_alert_error_in_app_notifications",
+      "hash": "sha256:ac4c6ea72d29e126ef1bf825",
+      "line": 671,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/alerts/backend/llm_detector_limits.py",
+      "hash": "sha256:a66148de1789ec3d8336a4f3",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/judge/llm.py",
+      "hash": "sha256:1639c2402d073242bf3f848e",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/tests/api/test_alert.py",
+      "symbol": "test_retrieve_check_includes_allowlisted_error_code",
+      "hash": "sha256:d5b7af848c115e378af3611b",
+      "line": 385,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:16:56.301Z",
+  "verified": "2026-10-07T00:16:56.301Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "count-ai-detector-unavailable-outcomes-on-the-retry-exhauste"
+  ]
+}

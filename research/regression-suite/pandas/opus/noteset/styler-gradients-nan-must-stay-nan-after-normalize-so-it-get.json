@@ -1,0 +1,70 @@
+{
+  "id": "styler-gradients-nan-must-stay-nan-after-normalize-so-it-get",
+  "title": "Styler gradients: NaN must stay NaN after Normalize so it gets the colormap's 'bad' color (vmin == vmax case)",
+  "kind": "rule",
+  "answers": [
+    "background_gradient colors NaN cells same as lowest value",
+    "text_gradient missing values wrong color when all values equal",
+    "Styler NaN color when column has a single unique value",
+    "with_extremes(bad=...) ignored in Styler gradient"
+  ],
+  "body": "Symptom: In Styler.background_gradient / text_gradient, NaN cells got the lowest colormap color (looking like the minimum value) instead of the missing-value color, but only when all valid values in the column/row/table were equal or vmin == vmax was passed.\nRoot cause: pandas/io/formats/style.py:_background_gradient passed gmap through matplotlib.colors.Normalize; when vmin == vmax, Normalize returns 0 for every element, NaN included, so the cmap never saw NaN.\nFix pattern: after normalizing, restore NaN explicitly (`normed = np.where(np.isnan(gmap), np.nan, norm(gmap))`) and feed `normed` to the colormap so NaN maps to the cmap's 'bad' color (including custom `cmap.with_extremes(bad=...)`).\nConstraints: Any code that normalizes data through matplotlib Normalize before applying a cmap must not rely on Normalize to keep NaN; this applies to both the default rcParams cmap branch and the explicit cmap branch. text_gradient shares _background_gradient, so fixes there cover both. Test via `df.style.<method>(**kw)._compute().ctx[(row, col)]` comparisons, as in pandas/tests/io/formats/style/test_matplotlib.py:test_background_gradient_nan_single_value.",
+  "applies": "pandas Styler matplotlib-based coloring (background_gradient, text_gradient) in pandas/io/formats/style.py",
+  "tags": [
+    "styler",
+    "matplotlib",
+    "nan",
+    "colormap",
+    "normalize",
+    "background_gradient"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "_background_gradient",
+      "hash": "sha256:ddcbb4b02b5690b35f7806f8",
+      "line": 4271,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/tests/io/formats/style/test_matplotlib.py",
+      "symbol": "test_background_gradient_nan_single_value",
+      "hash": "sha256:de2ac130449c60d884e00778",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "Styler.background_gradient",
+      "hash": "sha256:97a6bc16e4453f494a207dde",
+      "line": 3127,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 21,
+        "refs": 30
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70526"
+  },
+  "created": "2026-10-07T00:22:10.455Z",
+  "verified": "2026-10-07T00:22:10.455Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

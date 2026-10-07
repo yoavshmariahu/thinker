@@ -1,0 +1,18 @@
+{
+  "avoid-double-wrapping-polymorphism-trampoline-for-model-seri.json": "3e9f75c062cfff62ddd05eb3bdd7dc11da68dc9908175ca45d082893704449c4",
+  "catch-oserror-during-zoneinfo-string-validation.json": "a4b839458a2350aad7e19bd23908dff384a77080cacf5def6176d96308b99c86",
+  "catch-overflowerror-in-bytesize-validation.json": "b26e0a5efbc531c7a6f480de7fd3d016b6c51052da000ed86f6a343c24a5bf2e",
+  "catch-typeerror-for-unhashable-type-arguments-in-generic-mod.json": "ec08cfad7346ae34a0af3fab31427252e605afc933ba1ccbb22946f8517a70e4",
+  "copy-class-namespace-before-iteration-to-avoid-free-threaded.json": "0283ec0466f5283ab6041a5fbf2aeb1bf3f0c3af3cac27a1243dec86accc78f3",
+  "do-not-apply-serialization-temporal-formats-to-validation-js.json": "77b17db0e4a22a4ef1792d744bbe03286f255edeb603dc3c39bc5639aa100c17",
+  "do-not-mutate-user-declared-model-config-in-configwrapper.json": "e08bce068fce253f5860c8aa2ea735c584262a752a95f16b800cb66d980ee18e",
+  "handling-base-class-deferral-in-mypy-plugin-during-import-cy.json": "a232080fcc045ad3442ebd786d5a41ce22d4f383bccce75baafc6bfa2acc6371",
+  "include-nested-extra-serializer-in-generalfieldsserializer-g.json": "1e564d5597a321c14b42791019ddbf8a1518ac0fcaee665e0fb6d8baf82179ff",
+  "pipeline-interval-constraint-zero-bound-check.json": "46e2ab80b055673ff40134dd1d68fb2565c0d69e21753319a07538380178acd4",
+  "preserve-include-exclude-filters-when-function-serializer-fa.json": "f9aa24c16493e81dbce74f98049ea533e647cf1de13869cb5a8a087a925e8f8f",
+  "preserve-timezone-offsets-when-serializing-datetime-to-epoch.json": "b5043ea831a156f8f5fa47426e6c3685961ddb021291d8dea37750ad240f090c",
+  "resolving-definition-references-in-callable-union-discrimina.json": "8f04f5e8cc058b9b1f23ce643b1cc34437291ce5d7fd26aacf990c081d28a871",
+  "secretstr-equality-comparison-with-non-ascii-and-surrogate-c.json": "1d646ed0de34985c42a695fc66eccc05b478dfe17d6321d44a0e0a6dd4716e20",
+  "separate-timedelta-serialization-mode-from-temporal-mode-in.json": "efd0527bf932b2fc0500b80f9632a7e68c02d488371c2a7d2a5dcf5b7b2c2d8a",
+  "set-model-mocks-instead-of-deleting-attributes-during-force.json": "394b6908ef2d2686c94560d45bf48f022d687fa988309a939d37583c7efe2b43"
+}

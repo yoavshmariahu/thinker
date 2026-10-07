@@ -1,0 +1,95 @@
+{
+  "id": "normalize-alias-validation-eagerly-and-use-it-for-signatures",
+  "title": "Normalize alias validation eagerly and use it for signatures",
+  "kind": "rule",
+  "answers": [
+    "How do populate_by_name and validate_by_alias interact?",
+    "Why does disabling alias validation still allow field names?",
+    "Should invalid alias settings fail with defer_build enabled?",
+    "Why does the model signature show an alias despite validate_by_alias=False?"
+  ],
+  "body": "pydantic/_internal/_config.py:_build_effective_config applies compatibility settings only when validate_by_name is absent or None: a non-None populate_by_name forces validate_by_alias=True and supplies validate_by_name; otherwise validate_by_alias=False implies validate_by_name=True.\nThe same function rejects configurations allowing neither aliases nor names with error code validate-by-alias-and-name-false. ConfigWrapper.__init__ enforces this before schema building, including deferred builds and unresolved annotations.\nExplicit non-None validate_by_name bypasses these derivations; preserve that precedence when changing configuration normalization.\nModel and dataclass signature generation receive effective validate_by_alias through pydantic/_internal/_model_construction.py:complete_model_class and pydantic/_internal/_dataclasses.py:complete_dataclass; pydantic/_internal/_signature.py:generate_pydantic_signature does not take validate_by_name.\nSkipping effective configuration when generating signatures can make the displayed constructor parameters disagree with the compatibility settings used for validation.",
+  "applies": "Alias/name validation configuration and generated model or dataclass signatures.",
+  "tags": [
+    "configuration",
+    "aliases",
+    "signatures",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "_build_effective_config",
+      "hash": "sha256:f65e03c4519e724974fe4eed",
+      "line": 314,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.__init__",
+      "hash": "sha256:136ece8cc721a8092452412d",
+      "line": 140,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 74,
+        "refs": 149
+      }
+    },
+    {
+      "path": "pydantic/_internal/_model_construction.py",
+      "symbol": "complete_model_class",
+      "hash": "sha256:68eb9facc58e881dbbc98fb4",
+      "line": 561,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pydantic/_internal/_dataclasses.py",
+      "symbol": "complete_dataclass",
+      "hash": "sha256:883e097d60858edee86b4d35",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pydantic/_internal/_signature.py",
+      "symbol": "generate_pydantic_signature",
+      "hash": "sha256:1b8f0f25ed073cc10b227d4e",
+      "line": 168,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:40:58.813Z",
+  "verified": "2026-10-07T00:40:58.813Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-declared-configuration-separate-from-derived-settings",
+    "emit-schema-generator-deprecation-warnings-during-configurat"
+  ]
+}

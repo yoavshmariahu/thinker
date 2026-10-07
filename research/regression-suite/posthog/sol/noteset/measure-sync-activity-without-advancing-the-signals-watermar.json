@@ -1,0 +1,80 @@
+{
+  "id": "measure-sync-activity-without-advancing-the-signals-watermar",
+  "title": "Measure sync activity without advancing the signals watermark",
+  "kind": "rule",
+  "answers": [
+    "Why does a quiet warehouse source appear to have stopped syncing?",
+    "Which timestamp tells us when a schema last ran?",
+    "Can an empty sync advance last_synced_at?"
+  ],
+  "body": "Symptom: A warehouse source keeps syncing on schedule but is reported as stopped and receives an unnecessary schedule repair.\nRoot cause: products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset previously measured silence using only last_synced_at, which stays unchanged on zero-row v3 runs.\nFix pattern: Use the later of last_synced_at and the usable last_full_run_at for run activity, as defined by products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_run_at; products/data_warehouse/backend/sync_status.py:_is_stale also consumes this property.\nConstraints: Neither stamp alone covers every path: zero-row extraction advances only last_full_run_at, while fast return advances only last_synced_at. Preserve products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py:PipelineV3._stamp_full_run leaving last_synced_at untouched, because advancing the signals watermark can exclude late-arriving rows from subsequent signals.",
+  "applies": "Warehouse schema run-health and stale-status calculations, and changes to timestamp writes on empty extraction or fast-return paths.",
+  "tags": [
+    "warehouse-sources",
+    "sync-health",
+    "signals-watermark"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_run_at",
+      "hash": "sha256:4c79452c1287ee30fbecabfb",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 135,
+        "sites": 0,
+        "refs": 431
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "stalled_schema_queryset",
+      "hash": "sha256:8f4f05a5e49dc0f59109876f",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/data_warehouse/backend/sync_status.py",
+      "symbol": "_is_stale",
+      "hash": "sha256:d25d62a669b7ab346e3c658a",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 19,
+        "refs": 22
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+      "symbol": "PipelineV3._stamp_full_run",
+      "hash": "sha256:5a315cb50e8df9019aa5ffb9",
+      "line": 603,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:14:02.660Z",
+  "verified": "2026-10-07T00:14:02.660Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "filter-stalled-schemas-in-sql-before-limiting-candidates"
+  ]
+}

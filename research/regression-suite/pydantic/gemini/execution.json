@@ -1,0 +1,11 @@
+{
+  "repo": "pydantic/pydantic",
+  "base": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash-high",
+  "effort": "high",
+  "thinkerCommit": "1587c4348d48018fafbe0927f812dc4fcd10f324",
+  "manifestSha256": "9fc89980f84845395c7565c91f8adac247f24dd8ad93b828a0289f3c2b7f7320",
+  "patchSha256": "84935ec4cfbb0f9ed3a6fb2b8177acc061878e10e0c0c5b517af103e60b8ee03",
+  "modelFallback": false
+}

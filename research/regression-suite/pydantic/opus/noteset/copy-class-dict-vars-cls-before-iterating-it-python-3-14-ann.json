@@ -1,0 +1,52 @@
+{
+  "id": "copy-class-dict-vars-cls-before-iterating-it-python-3-14-ann",
+  "title": "Copy class __dict__ (vars(cls)) before iterating it; Python 3.14 annotation reads can mutate it from another thread",
+  "kind": "rule",
+  "answers": [
+    "RuntimeError: dictionary changed size during iteration when creating TypeAdapter in threads",
+    "TypeAdapter(TypedDict) crashes on free-threaded Python 3.14",
+    "why does pydantic copy vars(typ) before iterating",
+    "race condition building models concurrently with a shared base class/mixin"
+  ],
+  "body": "Symptom: On free-threaded (no-GIL) Python 3.14, building a TypeAdapter, BaseModel subclass or pydantic dataclass for the same type in several threads at once fails intermittently with \"dictionary changed size during iteration\" (issue #13780).\nRoot cause: Since 3.14, reading a class's annotations for the first time can set attributes such as `__annotations_cache__` or `__annotate_func__` on the class. If another thread is iterating `vars(typ)` at that moment, the mappingproxy changes size mid-iteration. Two places hit this: pydantic/_internal/_decorators.py:_decorator_infos_for_class and pydantic/_internal/_namespace_utils.py:LazyLocalNamespace.data.\nFix pattern: Take a snapshot before iterating: `vars(typ).copy().items()`. In LazyLocalNamespace.data, copy only the namespaces that are `MappingProxyType` (class namespaces); leave plain dicts as they are.\nConstraints: Use this for any new code that iterates a class `__dict__`/`vars(cls)` that user code or another pydantic thread could be processing at the same time. You don't need it for dicts the current call owns. Keep the explanatory comment next to the copy so nobody removes it later as a pointless copy.",
+  "applies": "Any iteration over class namespaces in pydantic/_internal (decorators, namespace resolution, field collection)",
+  "tags": [
+    "free-threading",
+    "thread-safety",
+    "python-3.14",
+    "annotations",
+    "race-condition"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_decorators.py",
+      "symbol": "_decorator_infos_for_class",
+      "hash": "sha256:e62bd05cae2d685d91a19eba",
+      "line": 528,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_namespace_utils.py",
+      "symbol": "LazyLocalNamespace.data",
+      "hash": "sha256:2039319cb509640ecf0dbf1b",
+      "line": 90,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:35:49.823Z",
+  "verified": "2026-10-07T00:35:49.823Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

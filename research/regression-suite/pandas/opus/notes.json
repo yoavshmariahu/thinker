@@ -1,0 +1,1996 @@
+[
+  {
+    "id": "pandas-70526",
+    "pr": 70526,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4651,
+    "elapsedMs": 9596,
+    "proposed": [
+      {
+        "title": "Styler gradients: NaN must stay NaN after Normalize so it gets the colormap's 'bad' color (vmin == vmax case)",
+        "kind": "rule",
+        "answers": [
+          "background_gradient colors NaN cells same as lowest value",
+          "text_gradient missing values wrong color when all values equal",
+          "Styler NaN color when column has a single unique value",
+          "with_extremes(bad=...) ignored in Styler gradient"
+        ],
+        "body": "Symptom: In Styler.background_gradient / text_gradient, NaN cells got the lowest colormap color (looking like the minimum value) instead of the missing-value color, but only when all valid values in the column/row/table were equal or vmin == vmax was passed.\nRoot cause: pandas/io/formats/style.py:_background_gradient passed gmap through matplotlib.colors.Normalize; when vmin == vmax, Normalize returns 0 for every element, NaN included, so the cmap never saw NaN.\nFix pattern: after normalizing, restore NaN explicitly (`normed = np.where(np.isnan(gmap), np.nan, norm(gmap))`) and feed `normed` to the colormap so NaN maps to the cmap's 'bad' color (including custom `cmap.with_extremes(bad=...)`).\nConstraints: Any code that normalizes data through matplotlib Normalize before applying a cmap must not rely on Normalize to keep NaN; this applies to both the default rcParams cmap branch and the explicit cmap branch. text_gradient shares _background_gradient, so fixes there cover both. Test via `df.style.<method>(**kw)._compute().ctx[(row, col)]` comparisons, as in pandas/tests/io/formats/style/test_matplotlib.py:test_background_gradient_nan_single_value.",
+        "applies": "pandas Styler matplotlib-based coloring (background_gradient, text_gradient) in pandas/io/formats/style.py",
+        "deps": [
+          {
+            "path": "pandas/io/formats/style.py",
+            "symbol": "_background_gradient"
+          },
+          {
+            "path": "pandas/tests/io/formats/style/test_matplotlib.py",
+            "symbol": "test_background_gradient_nan_single_value"
+          }
+        ],
+        "tags": [
+          "styler",
+          "matplotlib",
+          "nan",
+          "colormap",
+          "normalize",
+          "background_gradient"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "styler-gradients-nan-must-stay-nan-after-normalize-so-it-get",
+        "title": "Styler gradients: NaN must stay NaN after Normalize so it gets the colormap's 'bad' color (vmin == vmax case)",
+        "kind": "rule",
+        "body": "Symptom: In Styler.background_gradient / text_gradient, NaN cells got the lowest colormap color (looking like the minimum value) instead of the missing-value color, but only when all valid values in the column/row/table were equal or vmin == vmax was passed.\nRoot cause: pandas/io/formats/style.py:_background_gradient passed gmap through matplotlib.colors.Normalize; when vmin == vmax, Normalize returns 0 for every element, NaN included, so the cmap never saw NaN.\nFix pattern: after normalizing, restore NaN explicitly (`normed = np.where(np.isnan(gmap), np.nan, norm(gmap))`) and feed `normed` to the colormap so NaN maps to the cmap's 'bad' color (including custom `cmap.with_extremes(bad=...)`).\nConstraints: Any code that normalizes data through matplotlib Normalize before applying a cmap must not rely on Normalize to keep NaN; this applies to both the default rcParams cmap branch and the explicit cmap branch. text_gradient shares _background_gradient, so fixes there cover both. Test via `df.style.<method>(**kw)._compute().ctx[(row, col)]` comparisons, as in pandas/tests/io/formats/style/test_matplotlib.py:test_background_gradient_nan_single_value.",
+        "deps": [
+          {
+            "path": "pandas/io/formats/style.py",
+            "symbol": "_background_gradient",
+            "hash": "sha256:ddcbb4b02b5690b35f7806f8",
+            "line": 4271,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pandas/tests/io/formats/style/test_matplotlib.py",
+            "symbol": "test_background_gradient_nan_single_value",
+            "hash": "sha256:de2ac130449c60d884e00778",
+            "line": 264,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/io/formats/style.py",
+            "symbol": "Styler.background_gradient",
+            "hash": "sha256:97a6bc16e4453f494a207dde",
+            "line": 3127,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 21,
+              "refs": 30
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70631",
+    "pr": 70631,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6643,
+    "elapsedMs": 15792,
+    "proposed": [
+      {
+        "title": "IntervalArray.__new__ must pass only ndarrays to Cython intervals_to_interval_bounds (RangeIndex / non-interval EA input)",
+        "kind": "rule",
+        "answers": [
+          "TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray, got RangeIndex)",
+          "IntervalIndex union with empty RangeIndex / pd.DataFrame().index fails",
+          "pd.Index([], dtype='Int64').astype('interval') raises Cython TypeError",
+          "pd.IntervalIndex(pd.Index(['a'], dtype='string')) gives an unhelpful error instead of 'is not an interval'"
+        ],
+        "body": "Symptom: building an IntervalIndex, or calling astype(\"interval\"), from a RangeIndex or a non-interval ExtensionArray (masked Int64/Float64, arrow, string, datetimelike, sparse) raised `TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray, got ...)`. This also broke IntervalIndex set ops with an empty RangeIndex, e.g. `pd.DataFrame().index`.\nRoot cause: pandas/core/arrays/interval.py:IntervalArray.__new__ passed data straight to the Cython `intervals_to_interval_bounds`, which only accepts np.ndarray. `extract_array(..., extract_numpy=True)` leaves a RangeIndex as it is, and `_maybe_convert_platform_interval` can still return an EA.\nFix pattern: call `extract_array(data, extract_numpy=True, extract_range=True)`, then, after `_maybe_convert_platform_interval`, run `np.asarray(data)` on any remaining ExtensionArray before the Cython call. Empty or all-NA input now gives an IntervalIndex of NaN that matches the numpy-backed equivalent (all-NA Int64 gives an interval[float64] subtype). Any other input raises the usual TypeError \"... is not an interval\".\nConstraints: make the conversion in the constructor itself, not in `_maybe_convert_platform_interval`. That helper also serves `IntervalArray.from_breaks`, which has to keep EA breaks intact (an earlier attempt, GH-68345, special-cased RangeIndex there instead). Any new Cython helper call in this module needs the same ndarray coercion.",
+        "applies": "pandas/core/arrays/interval.py IntervalArray constructor and anything that converts non-interval input to IntervalArray (IntervalIndex(), astype('interval'), set ops)",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/interval.py",
+            "symbol": "IntervalArray.__new__"
+          },
+          {
+            "path": "pandas/core/arrays/interval.py",
+            "symbol": "_maybe_convert_platform_interval"
+          },
+          {
+            "path": "pandas/tests/indexes/interval/test_constructors.py",
+            "symbol": "test_constructor_non_interval_empty_or_na"
+          }
+        ],
+        "tags": [
+          "interval",
+          "IntervalIndex",
+          "RangeIndex",
+          "extension-array",
+          "cython",
+          "astype",
+          "GH68343"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Result dtype of IntervalIndex set ops with an empty RangeIndex depends on infer_string",
+        "kind": "rule",
+        "answers": [
+          "IntervalIndex.union(RangeIndex(0)) returns object dtype",
+          "why does union with empty index drop interval dtype",
+          "expected dtype for symmetric_difference with an empty RangeIndex"
+        ],
+        "body": "In IntervalIndex `union` and `symmetric_difference` with an empty `pd.RangeIndex(0)`, in either operand order, the empty RangeIndex is ignored for the result dtype only when `using_infer_string` is on (GH#60797). In that case the result equals the IntervalIndex. Otherwise the result is `index.astype(object)`.\nTests of set ops against empty non-interval indexes must branch on the `using_infer_string` fixture. See pandas/tests/indexes/interval/test_setops.py:TestIntervalIndex.test_set_op_empty_rangeindex.",
+        "applies": "Writing or changing tests and behaviour for Index set operations that involve an empty RangeIndex",
+        "deps": [
+          {
+            "path": "pandas/tests/indexes/interval/test_setops.py",
+            "symbol": "TestIntervalIndex.test_set_op_empty_rangeindex"
+          }
+        ],
+        "tags": [
+          "interval",
+          "setops",
+          "RangeIndex",
+          "infer_string",
+          "tests"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "intervalarray-new-must-pass-only-ndarrays-to-cython-interval",
+        "title": "IntervalArray.__new__ must pass only ndarrays to Cython intervals_to_interval_bounds (RangeIndex / non-interval EA input)",
+        "kind": "rule",
+        "body": "Symptom: building an IntervalIndex, or calling astype(\"interval\"), from a RangeIndex or a non-interval ExtensionArray (masked Int64/Float64, arrow, string, datetimelike, sparse) raised `TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray, got ...)`. This also broke IntervalIndex set ops with an empty RangeIndex, e.g. `pd.DataFrame().index`.\nRoot cause: pandas/core/arrays/interval.py:IntervalArray.__new__ passed data straight to the Cython `intervals_to_interval_bounds`, which only accepts np.ndarray. `extract_array(..., extract_numpy=True)` leaves a RangeIndex as it is, and `_maybe_convert_platform_interval` can still return an EA.\nFix pattern: call `extract_array(data, extract_numpy=True, extract_range=True)`, then, after `_maybe_convert_platform_interval`, run `np.asarray(data)` on any remaining ExtensionArray before the Cython call. Empty or all-NA input now gives an IntervalIndex of NaN that matches the numpy-backed equivalent (all-NA Int64 gives an interval[float64] subtype). Any other input raises the usual TypeError \"... is not an interval\".\nConstraints: make the conversion in the constructor itself, not in `_maybe_convert_platform_interval`. That helper also serves `IntervalArray.from_breaks`, which has to keep EA breaks intact (an earlier attempt, GH-68345, special-cased RangeIndex there instead). Any new Cython helper call in this module needs the same ndarray coercion.",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/interval.py",
+            "symbol": "IntervalArray.__new__",
+            "hash": "sha256:3562f9ab2ec92b922a82420e",
+            "line": 212,
+            "missing": false,
+            "fanout": {
+              "files": 39,
+              "sites": 32,
+              "refs": 62
+            }
+          },
+          {
+            "path": "pandas/core/arrays/interval.py",
+            "symbol": "_maybe_convert_platform_interval",
+            "hash": "sha256:6a237cb1fed760827bd6d452",
+            "line": 1928,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 4,
+              "refs": 4
+            }
+          },
+          {
+            "path": "pandas/tests/indexes/interval/test_constructors.py",
+            "symbol": "test_constructor_non_interval_empty_or_na",
+            "hash": "sha256:b63772099021af22a1b24484",
+            "line": 563,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/core/arrays/interval.py",
+            "symbol": "IntervalArray.from_breaks",
+            "hash": "sha256:48b3b559beb928f49cc68618",
+            "line": 405,
+            "missing": false,
+            "fanout": {
+              "files": 66,
+              "sites": 173,
+              "refs": 187
+            }
+          }
+        ]
+      },
+      {
+        "id": "result-dtype-of-intervalindex-set-ops-with-an-empty-rangeind",
+        "title": "Result dtype of IntervalIndex set ops with an empty RangeIndex depends on infer_string",
+        "kind": "rule",
+        "body": "In IntervalIndex `union` and `symmetric_difference` with an empty `pd.RangeIndex(0)`, in either operand order, the empty RangeIndex is ignored for the result dtype only when `using_infer_string` is on (GH#60797). In that case the result equals the IntervalIndex. Otherwise the result is `index.astype(object)`.\nTests of set ops against empty non-interval indexes must branch on the `using_infer_string` fixture. See pandas/tests/indexes/interval/test_setops.py:TestIntervalIndex.test_set_op_empty_rangeindex.",
+        "deps": [
+          {
+            "path": "pandas/tests/indexes/interval/test_setops.py",
+            "symbol": "TestIntervalIndex.test_set_op_empty_rangeindex",
+            "hash": "sha256:3631917c9aacf37db930caf4",
+            "line": 207,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-69446",
+    "pr": 69446,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5688,
+    "elapsedMs": 11512,
+    "proposed": [
+      {
+        "title": "MultiIndex level values must be built with take(codes, allow_fill=True): NaN labels have code -1",
+        "kind": "rule",
+        "answers": [
+          "to_excel writes the wrong column header for NaN in MultiIndex columns",
+          "NaN bin from pd.cut shows up as the last interval in the Excel header",
+          "why does a missing MultiIndex label turn into the last level value",
+          "levels.take(codes) wraps around for -1"
+        ],
+        "body": "Symptom: with MultiIndex columns, DataFrame.to_excel wrote a NaN column label as the last value of that level (e.g. the NaN bin from pd.cut appeared as `(0.0, inf]`) instead of an empty cell.\nRoot cause: pandas/io/formats/excel.py:ExcelFormatter._format_header_mi called `levels.take(level_codes)` without allow_fill. A MultiIndex stores a NaN label as code -1, and plain take treats -1 as a negative index, so it returns the last level element.\nFix pattern: when you turn MultiIndex levels and codes into values, use `levels.take(codes, allow_fill=True)` so -1 becomes NaN. The writer then emits it as `na_rep` (an empty cell), the same way NaN row-index labels are written. The row-index path already used allow_fill=True.\nConstraints: this applies to any code that turns `MultiIndex.levels`/`codes` back into values. It does not apply when the codes are known to contain no -1. Check both the header (column) path and the index (row) path for the same mistake.",
+        "applies": "pandas/io/formats/excel.py ExcelFormatter MultiIndex header/index formatting, and any levels+codes materialization",
+        "deps": [
+          {
+            "path": "pandas/io/formats/excel.py",
+            "symbol": "ExcelFormatter._format_header_mi"
+          }
+        ],
+        "tags": [
+          "excel",
+          "multiindex",
+          "nan",
+          "take",
+          "allow_fill",
+          "to_excel"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing Excel header output: read back with header=None because read_excel forward-fills empty MultiIndex header cells",
+        "kind": "howto",
+        "answers": [
+          "how to test to_excel MultiIndex column headers",
+          "why does my to_excel round-trip test pass even though the header is wrong",
+          "read_excel header=[0,1] fills blank header cells"
+        ],
+        "body": "`pd.read_excel(path, header=[0, 1])` forward-fills empty header cells. A round-trip test can therefore hide a wrong or blank header cell: an earlier test for GH#62340 passed on main even though the bug was still there.\nTo check the exact cells written, read the raw rows with `pd.read_excel(tmp_excel, header=None, nrows=<n header rows>)`. Compare the result to a plain DataFrame in which the blank cells are np.nan.\nSee pandas/tests/io/excel/test_writers.py:TestExcelWriter.test_to_excel_multiindex_nan_column_label. It uses the `merge_cells` and `tmp_excel` fixtures, so it runs for every engine and every merge_cells setting.",
+        "applies": "tests for DataFrame.to_excel header/index formatting in pandas/tests/io/excel",
+        "deps": [
+          {
+            "path": "pandas/tests/io/excel/test_writers.py",
+            "symbol": "TestExcelWriter.test_to_excel_multiindex_nan_column_label"
+          }
+        ],
+        "tags": [
+          "excel",
+          "testing",
+          "read_excel",
+          "multiindex",
+          "header"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "multiindex-level-values-must-be-built-with-take-codes-allow",
+        "title": "MultiIndex level values must be built with take(codes, allow_fill=True): NaN labels have code -1",
+        "kind": "rule",
+        "body": "Symptom: with MultiIndex columns, DataFrame.to_excel wrote a NaN column label as the last value of that level (e.g. the NaN bin from pd.cut appeared as `(0.0, inf]`) instead of an empty cell.\nRoot cause: pandas/io/formats/excel.py:ExcelFormatter._format_header_mi called `levels.take(level_codes)` without allow_fill. A MultiIndex stores a NaN label as code -1, and plain take treats -1 as a negative index, so it returns the last level element.\nFix pattern: when you turn MultiIndex levels and codes into values, use `levels.take(codes, allow_fill=True)` so -1 becomes NaN. The writer then emits it as `na_rep` (an empty cell), the same way NaN row-index labels are written. The row-index path already used allow_fill=True.\nConstraints: this applies to any code that turns `MultiIndex.levels`/`codes` back into values. It does not apply when the codes are known to contain no -1. Check both the header (column) path and the index (row) path for the same mistake.",
+        "deps": [
+          {
+            "path": "pandas/io/formats/excel.py",
+            "symbol": "ExcelFormatter._format_header_mi",
+            "hash": "sha256:6e1b1fc89743277243a66814",
+            "line": 614,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-excel-header-output-read-back-with-header-none-becau",
+        "title": "Testing Excel header output: read back with header=None because read_excel forward-fills empty MultiIndex header cells",
+        "kind": "howto",
+        "body": "`pd.read_excel(path, header=[0, 1])` forward-fills empty header cells. A round-trip test can therefore hide a wrong or blank header cell: an earlier test for GH#62340 passed on main even though the bug was still there.\nTo check the exact cells written, read the raw rows with `pd.read_excel(tmp_excel, header=None, nrows=<n header rows>)`. Compare the result to a plain DataFrame in which the blank cells are np.nan.\nSee pandas/tests/io/excel/test_writers.py:TestExcelWriter.test_to_excel_multiindex_nan_column_label. It uses the `merge_cells` and `tmp_excel` fixtures, so it runs for every engine and every merge_cells setting.",
+        "deps": [
+          {
+            "path": "pandas/tests/io/excel/test_writers.py",
+            "symbol": "TestExcelWriter.test_to_excel_multiindex_nan_column_label",
+            "hash": "sha256:83fccc0a0b0e36a282ff2932",
+            "line": 906,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-69961",
+    "pr": 69961,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5431,
+    "elapsedMs": 8986,
+    "proposed": [
+      {
+        "title": "Excel engine writers must forward date_format/datetime_format to ExcelWriter.__init__",
+        "kind": "rule",
+        "answers": [
+          "to_excel with openpyxl ignores date_format / datetime_format",
+          "ExcelWriter date format not applied, cells still show YYYY-MM-DD",
+          "custom datetime number_format missing in xlsx written by pandas",
+          "adding a new kwarg to ExcelWriter engine subclass"
+        ],
+        "body": "Symptom: `ExcelWriter(path, engine=\"openpyxl\", date_format=..., datetime_format=...)` writes date/datetime cells with the default number_format (`YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`) instead of the requested format, in both mode=\"w\" and mode=\"a\".\nRoot cause: pandas/io/excel/_openpyxl.py:OpenpyxlWriter.__init__ accepted date_format/datetime_format but did not pass them to `super().__init__`, so the base ExcelWriter kept its defaults.\nFix pattern: each engine subclass's `__init__` must forward every common ExcelWriter kwarg (date_format, datetime_format, mode, storage_options, if_sheet_exists, ...) to `super().__init__`; accepting a kwarg in the signature is not enough.\nConstraints: applies to any engine subclass of ExcelWriter. When adding or auditing a kwarg, check the forwarding in every engine's `__init__`. Verify by reading `cell.number_format` with openpyxl.load_workbook, as in test_date_datetime_format.",
+        "applies": "pandas/io/excel engine writer subclasses (OpenpyxlWriter and siblings) and their __init__ kwargs",
+        "deps": [
+          {
+            "path": "pandas/io/excel/_openpyxl.py",
+            "symbol": "OpenpyxlWriter.__init__"
+          },
+          {
+            "path": "pandas/tests/io/excel/test_openpyxl.py",
+            "symbol": "test_date_datetime_format"
+          }
+        ],
+        "tags": [
+          "excel",
+          "openpyxl",
+          "ExcelWriter",
+          "date_format",
+          "datetime_format",
+          "io"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "excel-engine-writers-must-forward-date-format-datetime-forma",
+        "title": "Excel engine writers must forward date_format/datetime_format to ExcelWriter.__init__",
+        "kind": "rule",
+        "body": "Symptom: `ExcelWriter(path, engine=\"openpyxl\", date_format=..., datetime_format=...)` writes date/datetime cells with the default number_format (`YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`) instead of the requested format, in both mode=\"w\" and mode=\"a\".\nRoot cause: pandas/io/excel/_openpyxl.py:OpenpyxlWriter.__init__ accepted date_format/datetime_format but did not pass them to `super().__init__`, so the base ExcelWriter kept its defaults.\nFix pattern: each engine subclass's `__init__` must forward every common ExcelWriter kwarg (date_format, datetime_format, mode, storage_options, if_sheet_exists, ...) to `super().__init__`; accepting a kwarg in the signature is not enough.\nConstraints: applies to any engine subclass of ExcelWriter. When adding or auditing a kwarg, check the forwarding in every engine's `__init__`. Verify by reading `cell.number_format` with openpyxl.load_workbook, as in test_date_datetime_format.",
+        "deps": [
+          {
+            "path": "pandas/io/excel/_openpyxl.py",
+            "symbol": "OpenpyxlWriter.__init__",
+            "hash": "sha256:0d482300a9d5d9b01259f286",
+            "line": 41,
+            "missing": false,
+            "fanout": {
+              "files": 106,
+              "sites": 132,
+              "refs": 197
+            }
+          },
+          {
+            "path": "pandas/tests/io/excel/test_openpyxl.py",
+            "symbol": "test_date_datetime_format",
+            "hash": "sha256:dc67885d3ba63aad5138d0a4",
+            "line": 44,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70404",
+    "pr": 70404,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 12028,
+    "elapsedMs": 22724,
+    "proposed": [
+      {
+        "title": "Parallel read_csv: a failed chunk must fall back to serial, never raise its own error",
+        "kind": "rule",
+        "answers": [
+          "read_csv raises ValueError on a valid CSV with a quoted multi-line field",
+          "parallel read_csv EOF inside string at chunk boundary",
+          "why does parallel read_csv give a different error message or row position than serial",
+          "dtype= or converters fail on a large file with embedded newlines in quotes"
+        ],
+        "body": "Symptom: a valid CSV whose quoted field contains a newline could raise ValueError from read_csv with dtype= or a raising converter. Only the parallel path did this. With two bad values, the error was also nondeterministic, and its row positions were counted from the start of the chunk.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks splits at raw \\n bytes. A boundary inside a quoted newline leaves the chunk before it at EOF inside a string, and the chunk after it starts mid-quote, so its misaligned first line fails to convert. Whichever worker failed first had its exception propagated.\nFix pattern: each worker wraps `reader._engine.read()` in `except Exception` and sets a shared `threading.Event` (`chunk_failed`). The other workers stop through `while not chunk_failed.is_set()`. After the pool joins, _read_csv_chunks returns None, and _read reruns serially, which raises the real error if the file is actually bad.\nConstraints: chunk errors are always possible artifacts of the split, so never surface them. Only exceptions from outside the chunk reads (e.g. _concatenate_chunks, the gather step) propagate. _read still catches ParserError/UnicodeDecodeError/OverflowError from the column-name sample read. Workers hold memoryview slices of the mmap, so they must be closed before it on every failure path.",
+        "applies": "pandas/io/parsers/readers.py parallel read_csv path (_read, _read_csv_parallel, _read_csv_chunks)",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_chunks"
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_parallel"
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read"
+          }
+        ],
+        "tags": [
+          "read_csv",
+          "parallel",
+          "fallback",
+          "error-handling",
+          "threading"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Parallel read_csv returns None to mean 'read serially'; errors must match serial",
+        "kind": "rule",
+        "answers": [
+          "when does parallel read_csv fall back to serial",
+          "what does _read_csv_parallel returning None mean",
+          "parallel read_csv error differs from serial"
+        ],
+        "body": "Contract: _read_csv_parallel / _read_csv_chunks in pandas/io/parsers/readers.py return None when the parallel result cannot be guaranteed to match serial. Cases: the data cannot be split, the engine falls back to python, the name sample has no columns, usecols differ across chunks, per-chunk dtype inference disagrees, or any chunk fails to parse. _read then runs the ordinary serial read.\nInvariant: every result and every error from the parallel path must be identical to serial, including which error comes first and its row position. When in doubt, return None instead of raising.\nBefore this fix, a chunk of huge ints with dtype_backend='pyarrow' raised from a worker (the 'raised' outcome). It now declines ('declined'), the same as other per-chunk disagreements.\nIf you add a new ineligibility, return None from inside the parallel code. Do not widen the except tuple in _read: exceptions that reach it from outside the chunk reads are meant to expose parallel-path bugs.",
+        "applies": "Any change to eligibility, gathering or error handling in the parallel CSV reader",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_parallel"
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read"
+          }
+        ],
+        "tags": [
+          "read_csv",
+          "parallel",
+          "invariant",
+          "serial-parity"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing the parallel read_csv path: force it, place chunk boundaries, assert it was used",
+        "kind": "howto",
+        "answers": [
+          "how to test parallel read_csv on a small file",
+          "how to put a chunk boundary at a specific byte in a test",
+          "test passes but parallel path silently fell back to serial"
+        ],
+        "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- To force the parallel path, monkeypatch `pandas.io.parsers.readers._PARALLEL_READ_MIN_BYTES` to 1 and use `pd.option_context(\"mode.max_threads\", N)` with N>=2. Get the serial expectation with max_threads=1 (or engine=\"python\").\n- `_read_forced_parallel` / the TestReadCsvParallel helper now call `pytest.fail` (not skip) when the parallel read returns None. A silent fallback is a test failure.\n- `_track_parallel(monkeypatch)` records outcomes: \"used\", \"declined\" (fell back to serial) or \"raised\". Assert `outcomes == [\"used\"]` so that a parity test cannot pass just by falling back.\n- To place a boundary: `_find_data_start_offset(path, 0, 0)`, then `_find_chunk_byte_offsets(path, n_chunks, data_start, n_workers=...)` to get the offset and overwrite bytes there. `_spy_on_chunk_offsets` plus `_assert_chunk_starts_at` confirm where the split happened.\n- Mark tests that rely on spies or worker behaviour `@pytest.mark.skipif(WASM, ...)`, because WASM always reads serially.",
+        "applies": "Tests in pandas/tests/io/parser/test_parallel_read.py",
+        "deps": [
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "_track_parallel"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "_read_forced_parallel"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_quoted_newline_at_chunk_boundary_converts_like_serial"
+          }
+        ],
+        "tags": [
+          "testing",
+          "read_csv",
+          "parallel",
+          "pytest"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "parallel-read-csv-a-failed-chunk-must-fall-back-to-serial-ne",
+        "title": "Parallel read_csv: a failed chunk must fall back to serial, never raise its own error",
+        "kind": "rule",
+        "body": "Symptom: a valid CSV whose quoted field contains a newline could raise ValueError from read_csv with dtype= or a raising converter. Only the parallel path did this. With two bad values, the error was also nondeterministic, and its row positions were counted from the start of the chunk.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks splits at raw \\n bytes. A boundary inside a quoted newline leaves the chunk before it at EOF inside a string, and the chunk after it starts mid-quote, so its misaligned first line fails to convert. Whichever worker failed first had its exception propagated.\nFix pattern: each worker wraps `reader._engine.read()` in `except Exception` and sets a shared `threading.Event` (`chunk_failed`). The other workers stop through `while not chunk_failed.is_set()`. After the pool joins, _read_csv_chunks returns None, and _read reruns serially, which raises the real error if the file is actually bad.\nConstraints: chunk errors are always possible artifacts of the split, so never surface them. Only exceptions from outside the chunk reads (e.g. _concatenate_chunks, the gather step) propagate. _read still catches ParserError/UnicodeDecodeError/OverflowError from the column-name sample read. Workers hold memoryview slices of the mmap, so they must be closed before it on every failure path.",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_chunks",
+            "hash": "sha256:486a30748c334a57cb0c7578",
+            "line": 828,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_parallel",
+            "hash": "sha256:aaf530b0d33c4596895c3c55",
+            "line": 776,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 15,
+              "refs": 26
+            }
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read",
+            "hash": "sha256:318fb6cbaef72af479e0bbe4",
+            "line": 352,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 6,
+              "refs": 6
+            }
+          }
+        ]
+      },
+      {
+        "id": "parallel-read-csv-returns-none-to-mean-read-serially-errors",
+        "title": "Parallel read_csv returns None to mean 'read serially'; errors must match serial",
+        "kind": "rule",
+        "body": "Contract: _read_csv_parallel / _read_csv_chunks in pandas/io/parsers/readers.py return None when the parallel result cannot be guaranteed to match serial. Cases: the data cannot be split, the engine falls back to python, the name sample has no columns, usecols differ across chunks, per-chunk dtype inference disagrees, or any chunk fails to parse. _read then runs the ordinary serial read.\nInvariant: every result and every error from the parallel path must be identical to serial, including which error comes first and its row position. When in doubt, return None instead of raising.\nBefore this fix, a chunk of huge ints with dtype_backend='pyarrow' raised from a worker (the 'raised' outcome). It now declines ('declined'), the same as other per-chunk disagreements.\nIf you add a new ineligibility, return None from inside the parallel code. Do not widen the except tuple in _read: exceptions that reach it from outside the chunk reads are meant to expose parallel-path bugs.",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_parallel",
+            "hash": "sha256:aaf530b0d33c4596895c3c55",
+            "line": 776,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 15,
+              "refs": 26
+            }
+          },
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read",
+            "hash": "sha256:318fb6cbaef72af479e0bbe4",
+            "line": 352,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 6,
+              "refs": 6
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-the-parallel-read-csv-path-force-it-place-chunk-boun",
+        "title": "Testing the parallel read_csv path: force it, place chunk boundaries, assert it was used",
+        "kind": "howto",
+        "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- To force the parallel path, monkeypatch `pandas.io.parsers.readers._PARALLEL_READ_MIN_BYTES` to 1 and use `pd.option_context(\"mode.max_threads\", N)` with N>=2. Get the serial expectation with max_threads=1 (or engine=\"python\").\n- `_read_forced_parallel` / the TestReadCsvParallel helper now call `pytest.fail` (not skip) when the parallel read returns None. A silent fallback is a test failure.\n- `_track_parallel(monkeypatch)` records outcomes: \"used\", \"declined\" (fell back to serial) or \"raised\". Assert `outcomes == [\"used\"]` so that a parity test cannot pass just by falling back.\n- To place a boundary: `_find_data_start_offset(path, 0, 0)`, then `_find_chunk_byte_offsets(path, n_chunks, data_start, n_workers=...)` to get the offset and overwrite bytes there. `_spy_on_chunk_offsets` plus `_assert_chunk_starts_at` confirm where the split happened.\n- Mark tests that rely on spies or worker behaviour `@pytest.mark.skipif(WASM, ...)`, because WASM always reads serially.",
+        "deps": [
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "_track_parallel",
+            "hash": "sha256:f85d82876a5161ed104ffa85",
+            "line": 1842,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 17,
+              "refs": 17
+            }
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "_read_forced_parallel",
+            "hash": "sha256:46f34868cf5d830bab3f10bd",
+            "line": 974,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 39,
+              "refs": 44
+            }
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_quoted_newline_at_chunk_boundary_converts_like_serial",
+            "hash": "sha256:f81aa6d7a479bd9482e9b0e7",
+            "line": 1704,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70515",
+    "pr": 70515,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4724,
+    "elapsedMs": 7989,
+    "proposed": [
+      {
+        "title": "algorithms.mode: every return path must go through _reconstruct_data (masked/dropna=False path included)",
+        "kind": "rule",
+        "answers": [
+          "Series.mode(dropna=False) raises TypeError on boolean dtype",
+          "mode with NA on nullable boolean Series fails",
+          "why does DataFrame.mode(dropna=False) break for 'boolean' columns",
+          "mode returns wrong dtype for masked arrays"
+        ],
+        "body": "Symptom: `Series.mode(dropna=False)` / `DataFrame.mode(dropna=False)` on a nullable \"boolean\" Series raises TypeError instead of returning the modes (including NA).\nRoot cause: pandas/core/algorithms.py:mode returned early on the masked branch (`res_mask` not None) with the raw numeric counting result `npresult`. It skipped the `_reconstruct_data` step that the normal path uses, so the BooleanArray was then built from non-bool values.\nFix pattern: on every early return in `mode`, convert the values back with `_reconstruct_data(npresult, original.dtype, original)` before returning, as the non-masked path already does.\nConstraints: this applies to any new branch or early return added to `algorithms.mode` (or similar hashtable-backed algorithms) that hands values to an ExtensionArray constructor. Values from the hashtable are in the computation dtype, not the original one. Tests for this live in pandas/tests/series/test_reductions.py next to `test_mode_nullable_dtype_edge_case`. Cover ties, a single winner, NA as the most frequent value, and all-NA input.",
+        "applies": "pandas/core/algorithms.py mode() and masked/nullable-dtype mode reductions",
+        "deps": [
+          {
+            "path": "pandas/core/algorithms.py",
+            "symbol": "mode"
+          },
+          {
+            "path": "pandas/core/algorithms.py",
+            "symbol": "_reconstruct_data"
+          },
+          {
+            "path": "pandas/tests/series/test_reductions.py",
+            "symbol": "test_mode_boolean_dropna_false"
+          }
+        ],
+        "tags": [
+          "mode",
+          "masked-arrays",
+          "boolean-dtype",
+          "dropna",
+          "dtype-reconstruction"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "algorithms-mode-every-return-path-must-go-through-reconstruc",
+        "title": "algorithms.mode: every return path must go through _reconstruct_data (masked/dropna=False path included)",
+        "kind": "rule",
+        "body": "Symptom: `Series.mode(dropna=False)` / `DataFrame.mode(dropna=False)` on a nullable \"boolean\" Series raises TypeError instead of returning the modes (including NA).\nRoot cause: pandas/core/algorithms.py:mode returned early on the masked branch (`res_mask` not None) with the raw numeric counting result `npresult`. It skipped the `_reconstruct_data` step that the normal path uses, so the BooleanArray was then built from non-bool values.\nFix pattern: on every early return in `mode`, convert the values back with `_reconstruct_data(npresult, original.dtype, original)` before returning, as the non-masked path already does.\nConstraints: this applies to any new branch or early return added to `algorithms.mode` (or similar hashtable-backed algorithms) that hands values to an ExtensionArray constructor. Values from the hashtable are in the computation dtype, not the original one. Tests for this live in pandas/tests/series/test_reductions.py next to `test_mode_nullable_dtype_edge_case`. Cover ties, a single winner, NA as the most frequent value, and all-NA input.",
+        "deps": [
+          {
+            "path": "pandas/core/algorithms.py",
+            "symbol": "mode",
+            "hash": "sha256:376ec0787f5a8f545ba49783",
+            "line": 1183,
+            "missing": false,
+            "fanout": {
+              "files": 129,
+              "sites": 116,
+              "refs": 816
+            }
+          },
+          {
+            "path": "pandas/core/algorithms.py",
+            "symbol": "_reconstruct_data",
+            "hash": "sha256:d15c947446eb930769f9f301",
+            "line": 193,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 7,
+              "refs": 8
+            }
+          },
+          {
+            "path": "pandas/tests/series/test_reductions.py",
+            "symbol": "test_mode_boolean_dropna_false",
+            "hash": "sha256:8f9bb57fda94a0351a17e2f4",
+            "line": 87,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70493",
+    "pr": 70493,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4936,
+    "elapsedMs": 9073,
+    "proposed": [
+      {
+        "title": "Mixed-type object hashing fallback must not run bytes through numpy astype(str)",
+        "kind": "rule",
+        "answers": [
+          "hash_pandas_object raises UnicodeDecodeError on a column with mixed types and bytes",
+          "hash_array fails on object array containing non-ASCII bytes and ints",
+          "why does b'a\\x00' hash the same as b'a' in a mixed column",
+          "mixed-type values hash differently from non-mixed ones"
+        ],
+        "body": "Symptom: pd.util.hash_pandas_object / hash_array on an object column mixing types (e.g. ints, None and non-ASCII bytes like b\"\\xff1\") raised UnicodeDecodeError whatever `encoding` was passed. Also, b\"a\\x00\" hashed the same as b\"a\", and ASCII bytes changed hash under encodings such as cp500.\nRoot cause: pandas/core/util/hashing.py:_hash_ndarray. When hash_object_array raises TypeError (mixed types), the fallback ran `vals.astype(str)`. numpy can only decode bytes as ASCII there, and it drops trailing NULs.\nFix pattern: in the mixed-type fallback, build a bool mask of `isinstance(val, bytes)`, copy vals, and apply astype(str) only to the non-bytes elements. bytes elements go to hash_object_array unchanged, so they hash exactly as they do in a non-mixed array.\nConstraints: this changes hash values only for bytes that astype(str) used to alter. Hashes of all other inputs that already worked must stay the same, because hashes are a stable public output. Any future change to this fallback must keep \"a value hashes the same in a mixed array as in a non-mixed one\". Tests: pandas/tests/util/test_hashing.py:test_hash_array_mixed_bytes compares the mixed array against a non-mixed equivalent with categorize True/False and several encodings.",
+        "applies": "pandas/core/util/hashing.py object-dtype hashing path (hash_array, hash_pandas_object, _hash_ndarray)",
+        "deps": [
+          {
+            "path": "pandas/core/util/hashing.py",
+            "symbol": "_hash_ndarray"
+          },
+          {
+            "path": "pandas/tests/util/test_hashing.py",
+            "symbol": "test_hash_array_mixed_bytes"
+          }
+        ],
+        "tags": [
+          "hashing",
+          "bytes",
+          "unicode",
+          "object-dtype",
+          "hash_pandas_object"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "mixed-type-object-hashing-fallback-must-not-run-bytes-throug",
+        "title": "Mixed-type object hashing fallback must not run bytes through numpy astype(str)",
+        "kind": "rule",
+        "body": "Symptom: pd.util.hash_pandas_object / hash_array on an object column mixing types (e.g. ints, None and non-ASCII bytes like b\"\\xff1\") raised UnicodeDecodeError whatever `encoding` was passed. Also, b\"a\\x00\" hashed the same as b\"a\", and ASCII bytes changed hash under encodings such as cp500.\nRoot cause: pandas/core/util/hashing.py:_hash_ndarray. When hash_object_array raises TypeError (mixed types), the fallback ran `vals.astype(str)`. numpy can only decode bytes as ASCII there, and it drops trailing NULs.\nFix pattern: in the mixed-type fallback, build a bool mask of `isinstance(val, bytes)`, copy vals, and apply astype(str) only to the non-bytes elements. bytes elements go to hash_object_array unchanged, so they hash exactly as they do in a non-mixed array.\nConstraints: this changes hash values only for bytes that astype(str) used to alter. Hashes of all other inputs that already worked must stay the same, because hashes are a stable public output. Any future change to this fallback must keep \"a value hashes the same in a mixed array as in a non-mixed one\". Tests: pandas/tests/util/test_hashing.py:test_hash_array_mixed_bytes compares the mixed array against a non-mixed equivalent with categorize True/False and several encodings.",
+        "deps": [
+          {
+            "path": "pandas/core/util/hashing.py",
+            "symbol": "_hash_ndarray",
+            "hash": "sha256:d62c3eb8421437ee959d4e4e",
+            "line": 365,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 3,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pandas/tests/util/test_hashing.py",
+            "symbol": "test_hash_array_mixed_bytes",
+            "hash": "sha256:e3441bade8a196e91b6d445d",
+            "line": 97,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-69445",
+    "pr": 69445,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 7688,
+    "elapsedMs": 14184,
+    "proposed": [
+      {
+        "title": "Index union/concat loses non-inferable freq (CustomBusinessDay) depending on input order; restore by validating once on the final index",
+        "kind": "rule",
+        "answers": [
+          "pd.concat of series with CustomBusinessDay index loses freq",
+          "DataFrame from dict of Series has freq=None depending on column order",
+          "why does union of DatetimeIndex drop freq",
+          "concat result freq depends on order of inputs"
+        ],
+        "body": "Symptom: pd.concat([s1, s3, s2], axis=1) or pd.DataFrame({dict of Series}) gives an index with freq=None, but the same inputs in another order keep the freq. Shows up with offsets that can't be inferred from the values, e.g. CustomBusinessDay(holidays=...).\nRoot cause: pandas/core/indexes/api.py:union_indexes unions the indexes two at a time. When an intermediate union isn't contiguous, DatetimeIndex._union falls back to the generic set path and calls _with_freq(\"infer\"). Inference can't recover a custom offset, so freq becomes None and stays None.\nFix pattern: don't try to keep freq at each pairwise step. Validate once, on the final combined index, with pandas/core/indexes/api.py:_maybe_restore_freq. It is called in the union_indexes \"special\" branch and after safe_sort_index in _get_combined_index. It runs type(result._data)._validate_frequency(result, freq) and re-attaches freq only if the final values conform. Nothing is inferred.\nConstraints: it only acts when the result is a DatetimeIndex or TimedeltaIndex with freq None, the result is monotonic increasing, and every input has the same non-None freq. Results that aren't monotonic (sort=False) or have a real gap (e.g. a tz DST case such as America/Santiago) correctly keep freq=None. If you add a new place where a combined index becomes final, call this helper there too.",
+        "applies": "pandas/core/indexes/api.py index combining used by concat, the DataFrame constructor and align",
+        "deps": [
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "_maybe_restore_freq"
+          },
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "union_indexes"
+          },
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "_get_combined_index"
+          }
+        ],
+        "tags": [
+          "concat",
+          "freq",
+          "DatetimeIndex",
+          "TimedeltaIndex",
+          "union",
+          "CustomBusinessDay"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "tm.assert_index_equal does not compare freq; assert it explicitly in tests",
+        "kind": "rule",
+        "answers": [
+          "test passes but freq is wrong",
+          "how to test that the DatetimeIndex freq is preserved",
+          "does assert_index_equal check freq"
+        ],
+        "body": "Convention: tm.assert_index_equal does not check the .freq of a DatetimeIndex or TimedeltaIndex. Tests that care about freq add a separate `assert result.freq == expected.freq`, with the comment \"# Not checked by assert_index_equal\".\nExamples: pandas/tests/reshape/concat/test_datetimes.py:TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent and pandas/tests/frame/test_constructors.py:TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq.\nTo build an expected index that must have freq=None (e.g. a non-monotonic append), use idx._with_freq(None).\nWhen the concat test omits sort and all inputs are DatetimeIndex, wrap the call in tm.assert_produces_warning(Pandas4Warning, match=\"Sorting by default when concatenating all DatetimeIndex\"). TimedeltaIndex inputs do not raise this warning.",
+        "applies": "pandas tests asserting DatetimeIndex/TimedeltaIndex results",
+        "deps": [
+          {
+            "path": "pandas/tests/reshape/concat/test_datetimes.py",
+            "symbol": "TestDatetimeConcat"
+          },
+          {
+            "path": "pandas/tests/frame/test_constructors.py",
+            "symbol": "TestDataFrameConstructors"
+          }
+        ],
+        "tags": [
+          "testing",
+          "freq",
+          "assert_index_equal",
+          "Pandas4Warning"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "index-union-concat-loses-non-inferable-freq-custombusinessda",
+        "title": "Index union/concat loses non-inferable freq (CustomBusinessDay) depending on input order; restore by validating once on the final index",
+        "kind": "rule",
+        "body": "Symptom: pd.concat([s1, s3, s2], axis=1) or pd.DataFrame({dict of Series}) gives an index with freq=None, but the same inputs in another order keep the freq. Shows up with offsets that can't be inferred from the values, e.g. CustomBusinessDay(holidays=...).\nRoot cause: pandas/core/indexes/api.py:union_indexes unions the indexes two at a time. When an intermediate union isn't contiguous, DatetimeIndex._union falls back to the generic set path and calls _with_freq(\"infer\"). Inference can't recover a custom offset, so freq becomes None and stays None.\nFix pattern: don't try to keep freq at each pairwise step. Validate once, on the final combined index, with pandas/core/indexes/api.py:_maybe_restore_freq. It is called in the union_indexes \"special\" branch and after safe_sort_index in _get_combined_index. It runs type(result._data)._validate_frequency(result, freq) and re-attaches freq only if the final values conform. Nothing is inferred.\nConstraints: it only acts when the result is a DatetimeIndex or TimedeltaIndex with freq None, the result is monotonic increasing, and every input has the same non-None freq. Results that aren't monotonic (sort=False) or have a real gap (e.g. a tz DST case such as America/Santiago) correctly keep freq=None. If you add a new place where a combined index becomes final, call this helper there too.",
+        "deps": [
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "_maybe_restore_freq",
+            "hash": "sha256:8819240ba586a058d82c2476",
+            "line": 312,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "union_indexes",
+            "hash": "sha256:253cac1a9969780747a568e9",
+            "line": 203,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 5,
+              "refs": 9
+            }
+          },
+          {
+            "path": "pandas/core/indexes/api.py",
+            "symbol": "_get_combined_index",
+            "hash": "sha256:861485905d0fdf1e4a35a884",
+            "line": 116,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 3
+            }
+          }
+        ]
+      },
+      {
+        "id": "tm-assert-index-equal-does-not-compare-freq-assert-it-explic",
+        "title": "tm.assert_index_equal does not compare freq; assert it explicitly in tests",
+        "kind": "rule",
+        "body": "Convention: tm.assert_index_equal does not check the .freq of a DatetimeIndex or TimedeltaIndex. Tests that care about freq add a separate `assert result.freq == expected.freq`, with the comment \"# Not checked by assert_index_equal\".\nExamples: pandas/tests/reshape/concat/test_datetimes.py:TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent and pandas/tests/frame/test_constructors.py:TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq.\nTo build an expected index that must have freq=None (e.g. a non-monotonic append), use idx._with_freq(None).\nWhen the concat test omits sort and all inputs are DatetimeIndex, wrap the call in tm.assert_produces_warning(Pandas4Warning, match=\"Sorting by default when concatenating all DatetimeIndex\"). TimedeltaIndex inputs do not raise this warning.",
+        "deps": [
+          {
+            "path": "pandas/tests/reshape/concat/test_datetimes.py",
+            "symbol": "TestDatetimeConcat",
+            "hash": "sha256:31a2fdc8a6c01e5aa797348a",
+            "line": 14,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/frame/test_constructors.py",
+            "symbol": "TestDataFrameConstructors",
+            "hash": "sha256:c26a0c92fe067cc39c9b9a97",
+            "line": 66,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/reshape/concat/test_datetimes.py",
+            "symbol": "TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent",
+            "hash": "sha256:d6567c6e72acadde9210bb88",
+            "line": 132,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/frame/test_constructors.py",
+            "symbol": "TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq",
+            "hash": "sha256:3ce26368a7bea29d011a78b7",
+            "line": 533,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70403",
+    "pr": 70403,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5753,
+    "elapsedMs": 22278,
+    "proposed": [
+      {
+        "title": "Parallel read_csv must fall back to serial when byte-level line finding can disagree with the C tokenizer (bare \\r)",
+        "kind": "rule",
+        "answers": [
+          "read_csv on a large file drops the first data row or adds a junk row",
+          "parallel read_csv wrong result with old Mac CR line endings in header",
+          "when does _read_csv_parallel return None / fall back to serial",
+          "read_csv parallel first chunk starts at wrong offset"
+        ],
+        "body": "Symptom: a large local CSV read with default settings (the parallel path, new in 3.1) silently loses its first data row, or gains an extra junk first row, when the header, a skipped row or the first data line contains a bare `\\r`.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks finds data_start and the first data line by counting `\\n`-terminated lines (fd.readline / _find_data_start_offset). The C tokenizer also ends a line at a bare `\\r`, so the two can disagree about where data starts. The row-count sanity check misses this when the next line is blank or completes a header that a quoted newline split.\nFix pattern: when the byte-level boundary logic can't be trusted, return None from the parallel path so read_csv does a serial read. Here the check is `b\"\\r\" in (preamble + first_line).replace(b\"\\r\\n\", b\"\")`.\nConstraints: CRLF must stay on the parallel path, so only a `\\r` not followed by `\\n` triggers the fallback. The check covers only the preamble and the first data line. Any new boundary logic in the parallel path has to match how the tokenizer splits lines (\\n, \\r\\n, bare \\r, quoted newlines). If it can't, fall back to serial: the row-count check alone is not enough.",
+        "applies": "pandas/io/parsers/readers.py parallel read_csv chunking (_read_csv_chunks / _read_csv_parallel)",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_chunks"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_bare_cr_before_data_matches_serial"
+          }
+        ],
+        "tags": [
+          "read_csv",
+          "parallel",
+          "line-endings",
+          "carriage-return",
+          "fallback",
+          "tokenizer"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing the parallel read_csv path: force parallel and compare to serial, or assert fallback returns None",
+        "kind": "howto",
+        "answers": [
+          "how to test parallel read_csv against serial",
+          "how to force the parallel csv reader in tests",
+          "how to assert read_csv falls back to serial"
+        ],
+        "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- Equivalence: write the raw bytes to tmp_path. Get `result = _read_forced_parallel(path, monkeypatch, **kwargs)` and `expected = pd.read_csv(io.BytesIO(raw), **kwargs)`, then `tm.assert_frame_equal`. A BytesIO input is not a local file path, so it gets the serial reader. Assert on specific rows too (e.g. `result.iloc[0]`), because a dropped row can still produce a frame that looks valid.\n- Fallback: in TestReadCsvParallel, build `kwds = self._base_kwds(path)` and assert `_read_csv_parallel(str(path), kwds, 4) is None` for inputs that must go serial. Also assert `is not None` for a near-miss input that should stay parallel (e.g. CRLF).\n- Bodies use a few hundred to 5_000 generated rows so the file is big enough to split into chunks.",
+        "applies": "tests for the parallel read_csv path in pandas/tests/io/parser/test_parallel_read.py",
+        "deps": [
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "TestReadCsvParallel.test_bare_cr_before_data_returns_none"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_bare_cr_before_data_matches_serial"
+          }
+        ],
+        "tags": [
+          "testing",
+          "read_csv",
+          "parallel",
+          "pytest"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l",
+        "title": "Parallel read_csv must fall back to serial when byte-level line finding can disagree with the C tokenizer (bare \\r)",
+        "kind": "rule",
+        "body": "Symptom: a large local CSV read with default settings (the parallel path, new in 3.1) silently loses its first data row, or gains an extra junk first row, when the header, a skipped row or the first data line contains a bare `\\r`.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks finds data_start and the first data line by counting `\\n`-terminated lines (fd.readline / _find_data_start_offset). The C tokenizer also ends a line at a bare `\\r`, so the two can disagree about where data starts. The row-count sanity check misses this when the next line is blank or completes a header that a quoted newline split.\nFix pattern: when the byte-level boundary logic can't be trusted, return None from the parallel path so read_csv does a serial read. Here the check is `b\"\\r\" in (preamble + first_line).replace(b\"\\r\\n\", b\"\")`.\nConstraints: CRLF must stay on the parallel path, so only a `\\r` not followed by `\\n` triggers the fallback. The check covers only the preamble and the first data line. Any new boundary logic in the parallel path has to match how the tokenizer splits lines (\\n, \\r\\n, bare \\r, quoted newlines). If it can't, fall back to serial: the row-count check alone is not enough.",
+        "deps": [
+          {
+            "path": "pandas/io/parsers/readers.py",
+            "symbol": "_read_csv_chunks",
+            "hash": "sha256:486a30748c334a57cb0c7578",
+            "line": 828,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_bare_cr_before_data_matches_serial",
+            "hash": "sha256:3c01f488ddc9ffb366d7677f",
+            "line": 1069,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-the-parallel-read-csv-path-force-parallel-and-compar",
+        "title": "Testing the parallel read_csv path: force parallel and compare to serial, or assert fallback returns None",
+        "kind": "howto",
+        "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- Equivalence: write the raw bytes to tmp_path. Get `result = _read_forced_parallel(path, monkeypatch, **kwargs)` and `expected = pd.read_csv(io.BytesIO(raw), **kwargs)`, then `tm.assert_frame_equal`. A BytesIO input is not a local file path, so it gets the serial reader. Assert on specific rows too (e.g. `result.iloc[0]`), because a dropped row can still produce a frame that looks valid.\n- Fallback: in TestReadCsvParallel, build `kwds = self._base_kwds(path)` and assert `_read_csv_parallel(str(path), kwds, 4) is None` for inputs that must go serial. Also assert `is not None` for a near-miss input that should stay parallel (e.g. CRLF).\n- Bodies use a few hundred to 5_000 generated rows so the file is big enough to split into chunks.",
+        "deps": [
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "TestReadCsvParallel.test_bare_cr_before_data_returns_none",
+            "hash": "sha256:d04175efd696d0714a7e0ed1",
+            "line": 688,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/io/parser/test_parallel_read.py",
+            "symbol": "test_parallel_bare_cr_before_data_matches_serial",
+            "hash": "sha256:3c01f488ddc9ffb366d7677f",
+            "line": 1069,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70228",
+    "pr": 70228,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 7044,
+    "elapsedMs": 15435,
+    "proposed": [
+      {
+        "title": "Date axis locators/converters must be installed before _adorn_subplots (bar subplots showing date labels on every subplot)",
+        "kind": "rule",
+        "answers": [
+          "df.plot(kind='bar', subplots=True) with a DatetimeIndex shows date tick labels on every subplot, not just the bottom one",
+          "where should BarPlot call format_dateaxis",
+          "why are sharex tick labels reappearing on the upper subplots",
+          "order of _make_plot, _adorn_subplots and _post_plot_logic in pandas plotting"
+        ],
+        "body": "Symptom: bar subplots (kind='bar', subplots=True) on a regular-frequency DatetimeIndex/PeriodIndex drew minor date tick labels on the upper subplots too. Line plots hid them as expected.\nRoot cause: BarPlot._post_plot_logic called format_dateaxis. MPLPlot runs _make_plot, then _adorn_subplots (which hides the shared-x labels of non-bottom axes and maps user xticks through the axis converter), then _post_plot_logic. Locators installed in that last step redrew the labels that had been hidden.\nFix pattern: install the axis freq, the period converter and the date locators in pandas/plotting/_matplotlib/core.py:BarPlot._setup_date_axis, which is called from _make_plot. LinePlot calls format_dateaxis at the same point. Convert the index with maybe_convert_index first, and pass anchor=int(self.tick_pos[0]) so the locator grid lands on the bar ordinals.\nConstraints: anything that changes the x-axis converter, locators or formatters must run before _adorn_subplots. Only work that has to come after it belongs in _post_plot_logic: set_xlim, user xticks, and re-applying rot/fontsize.",
+        "applies": "pandas/plotting/_matplotlib core.py plot classes that set up date/period x-axes (BarPlot, LinePlot)",
+        "deps": [
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._setup_date_axis"
+          },
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._post_plot_logic"
+          },
+          {
+            "path": "pandas/tests/plotting/test_datetimelike.py",
+            "symbol": "TestTSPlot.test_bar_plot_date_axis_subplots_sharex"
+          }
+        ],
+        "tags": [
+          "plotting",
+          "matplotlib",
+          "bar-plot",
+          "datetime-axis",
+          "subplots",
+          "sharex",
+          "ordering"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "BarPlot must re-apply rot/fontsize after set_xlim on dynamic date axes",
+        "kind": "rule",
+        "answers": [
+          "bar plot rot or fontsize not applied to some date tick labels",
+          "minor tick labels unrotated with narrow xlim on a date bar plot",
+          "why does BarPlot._post_plot_logic call _apply_axis_properties again"
+        ],
+        "body": "Invariant: in pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic, when _use_dynamic_dateaxis is set, type(self)._apply_axis_properties(ax.xaxis, rot=self.rot, fontsize=self.fontsize) has to run after ax.set_xlim(...).\nWhy: _post_plot_logic_common applies rot and fontsize earlier. If a narrow user xlim left the view with no minor ticks, set_xlim later creates new minor ticks, and those carry most of the date labels. Without the second call they keep the default rotation and size.\nDo not remove this call as redundant, even though the locators are now installed earlier in _setup_date_axis.\nTest: TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks, parametrized with xlim=None and a narrow xlim. It draws the canvas and checks every visible major and minor label.",
+        "applies": "BarPlot date-axis handling in pandas/plotting/_matplotlib/core.py",
+        "deps": [
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._post_plot_logic"
+          },
+          {
+            "path": "pandas/tests/plotting/test_datetimelike.py",
+            "symbol": "TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks"
+          }
+        ],
+        "tags": [
+          "plotting",
+          "matplotlib",
+          "bar-plot",
+          "datetime-axis",
+          "rot",
+          "fontsize",
+          "minor-ticks"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "date-axis-locators-converters-must-be-installed-before-adorn",
+        "title": "Date axis locators/converters must be installed before _adorn_subplots (bar subplots showing date labels on every subplot)",
+        "kind": "rule",
+        "body": "Symptom: bar subplots (kind='bar', subplots=True) on a regular-frequency DatetimeIndex/PeriodIndex drew minor date tick labels on the upper subplots too. Line plots hid them as expected.\nRoot cause: BarPlot._post_plot_logic called format_dateaxis. MPLPlot runs _make_plot, then _adorn_subplots (which hides the shared-x labels of non-bottom axes and maps user xticks through the axis converter), then _post_plot_logic. Locators installed in that last step redrew the labels that had been hidden.\nFix pattern: install the axis freq, the period converter and the date locators in pandas/plotting/_matplotlib/core.py:BarPlot._setup_date_axis, which is called from _make_plot. LinePlot calls format_dateaxis at the same point. Convert the index with maybe_convert_index first, and pass anchor=int(self.tick_pos[0]) so the locator grid lands on the bar ordinals.\nConstraints: anything that changes the x-axis converter, locators or formatters must run before _adorn_subplots. Only work that has to come after it belongs in _post_plot_logic: set_xlim, user xticks, and re-applying rot/fontsize.",
+        "deps": [
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._setup_date_axis",
+            "hash": "sha256:454a625ce6be37c9d292e40b",
+            "line": 2206,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._post_plot_logic",
+            "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+            "line": 2237,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pandas/tests/plotting/test_datetimelike.py",
+            "symbol": "TestTSPlot.test_bar_plot_date_axis_subplots_sharex",
+            "hash": "sha256:f14191936b7c464c12357d5d",
+            "line": 2098,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "barplot-must-re-apply-rot-fontsize-after-set-xlim-on-dynamic",
+        "title": "BarPlot must re-apply rot/fontsize after set_xlim on dynamic date axes",
+        "kind": "rule",
+        "body": "Invariant: in pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic, when _use_dynamic_dateaxis is set, type(self)._apply_axis_properties(ax.xaxis, rot=self.rot, fontsize=self.fontsize) has to run after ax.set_xlim(...).\nWhy: _post_plot_logic_common applies rot and fontsize earlier. If a narrow user xlim left the view with no minor ticks, set_xlim later creates new minor ticks, and those carry most of the date labels. Without the second call they keep the default rotation and size.\nDo not remove this call as redundant, even though the locators are now installed earlier in _setup_date_axis.\nTest: TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks, parametrized with xlim=None and a narrow xlim. It draws the canvas and checks every visible major and minor label.",
+        "deps": [
+          {
+            "path": "pandas/plotting/_matplotlib/core.py",
+            "symbol": "BarPlot._post_plot_logic",
+            "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+            "line": 2237,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 5
+            }
+          },
+          {
+            "path": "pandas/tests/plotting/test_datetimelike.py",
+            "symbol": "TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks",
+            "hash": "sha256:e36fae555ff5d5b65d624a8d",
+            "line": 2081,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-69026",
+    "pr": 69026,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 8248,
+    "elapsedMs": 16588,
+    "proposed": [
+      {
+        "title": "Compiled re.Pattern in replace was silently ignored on ArrowDtype strings because the Block regex gate used a literal dtype allowlist",
+        "kind": "rule",
+        "answers": [
+          "Series.replace(re.compile(...)) does nothing on ArrowDtype string column",
+          "replace with compiled regex silently no-op on pyarrow string / large_string",
+          "why does regex replace work with a string pattern but not with re.compile",
+          "replace compiled regex on Categorical of arrow strings has no effect"
+        ],
+        "body": "Symptom: `ser.replace(re.compile(\"^a\"), \"z\")` returned the data unchanged on `pd.ArrowDtype(pa.string())` / `large_string` (and on a Categorical of them), while object, str, string[python] and string[pyarrow] substituted, and the plain-string spelling `\"^a\"` with regex=True worked.\nRoot cause: pandas/core/internals/blocks.py:Block._replace_regex short-circuited compiled patterns (`is_re(to_replace)`) unless `_regex_target_dtype(self.dtype)` was literally in `[object, \"string\"]`; ArrowDtype matched neither. String patterns skip that guard (`is_re(\"^a\")` is False), so only the compiled spelling was dropped.\nFix pattern: replace literal dtype allowlists with a predicate: `regex_can_match = is_string_dtype(target_dtype) and target_dtype.kind != \"S\"`, still applied to `_regex_target_dtype` (which resolves a Categorical to its categories' dtype, GH-68928).\nConstraints: keep the `kind != \"S\"` half. `is_string_dtype` counts numpy bytes, but a regex can never match them; without it a `|S2` Series upcasts to object on what is still a no-op. Non-string arrow columns (e.g. int64) must stay dtype-preserving no-ops. Still not handled: dictionary-encoded arrow strings (rejected by is_string_dtype) and `pa.string_view()` (silently discarded on the direct path; the `regex=` dict path raises NotImplementedError from ArrowDtype.type, so adding it to is_string_dtype alone won't fix it).",
+        "applies": "Series/DataFrame.replace with regex or compiled patterns, dtype gating in Block._replace_regex",
+        "deps": [
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "Block._replace_regex"
+          },
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "_regex_target_dtype"
+          }
+        ],
+        "tags": [
+          "replace",
+          "regex",
+          "ArrowDtype",
+          "pyarrow",
+          "strings",
+          "categorical",
+          "bytes"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "replace: compiled and string regex spellings must take the same path and be tested together",
+        "kind": "rule",
+        "answers": [
+          "replace regex=True vs re.compile behave differently",
+          "what tests to add when changing regex replace for arrow strings",
+          "replace with regex upcasts arrow string column to object",
+          "Categorical replace regex new category raises TypeError"
+        ],
+        "body": "Any spelling of the same pattern must behave the same: `regex={pat: v}`, `to_replace=pat, regex=True`, `to_replace=[re.compile(pat)], value=[v], regex=True`, and bare `to_replace=re.compile(pat)`. This covers the upcast to object when an arrow string column can't hold the replacement (GH-70458). The compiled list/dict forms go through replace_list and reach the same Block._replace_regex guard.\nTests parametrize over all four spellings: pandas/tests/series/methods/test_replace.py (test_replace_compiled_regex_arrow_dtype, test_replace_regex_non_string_arrow_dtype with `compile_pattern`) and pandas/tests/arrays/categorical/test_replace.py (…_arrow_strings variants). For a Categorical, a replacement that matches an existing category works, and a new category raises `TypeError: Cannot setitem on a Categorical with a new category`.\nWhen a test checks that the original was not mutated, compare against a copy explicitly. Asserting the result alone passes even after mutation, because `^a` no longer matches substituted values. Also cover inplace=True with a view (`ser[:]`), which now reaches ArrowExtensionArray.__setitem__.\nKnown open inconsistency: non-regex `ser.replace(\"a\", 1)` on arrow strings still raises instead of upcasting.",
+        "applies": "Changes to replace/regex handling for string, arrow and categorical dtypes and their tests",
+        "deps": [
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "Block._replace_regex"
+          },
+          {
+            "path": "pandas/tests/series/methods/test_replace.py",
+            "symbol": "test_replace_compiled_regex_arrow_dtype"
+          },
+          {
+            "path": "pandas/tests/arrays/categorical/test_replace.py",
+            "symbol": "test_replace_regex_existing_category_arrow_strings"
+          }
+        ],
+        "tags": [
+          "replace",
+          "regex",
+          "testing",
+          "ArrowDtype",
+          "categorical"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "compiled-re-pattern-in-replace-was-silently-ignored-on-arrow",
+        "title": "Compiled re.Pattern in replace was silently ignored on ArrowDtype strings because the Block regex gate used a literal dtype allowlist",
+        "kind": "rule",
+        "body": "Symptom: `ser.replace(re.compile(\"^a\"), \"z\")` returned the data unchanged on `pd.ArrowDtype(pa.string())` / `large_string` (and on a Categorical of them), while object, str, string[python] and string[pyarrow] substituted, and the plain-string spelling `\"^a\"` with regex=True worked.\nRoot cause: pandas/core/internals/blocks.py:Block._replace_regex short-circuited compiled patterns (`is_re(to_replace)`) unless `_regex_target_dtype(self.dtype)` was literally in `[object, \"string\"]`; ArrowDtype matched neither. String patterns skip that guard (`is_re(\"^a\")` is False), so only the compiled spelling was dropped.\nFix pattern: replace literal dtype allowlists with a predicate: `regex_can_match = is_string_dtype(target_dtype) and target_dtype.kind != \"S\"`, still applied to `_regex_target_dtype` (which resolves a Categorical to its categories' dtype, GH-68928).\nConstraints: keep the `kind != \"S\"` half. `is_string_dtype` counts numpy bytes, but a regex can never match them; without it a `|S2` Series upcasts to object on what is still a no-op. Non-string arrow columns (e.g. int64) must stay dtype-preserving no-ops. Still not handled: dictionary-encoded arrow strings (rejected by is_string_dtype) and `pa.string_view()` (silently discarded on the direct path; the `regex=` dict path raises NotImplementedError from ArrowDtype.type, so adding it to is_string_dtype alone won't fix it).",
+        "deps": [
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "Block._replace_regex",
+            "hash": "sha256:9ed600351b63040f2cf39aa1",
+            "line": 763,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "_regex_target_dtype",
+            "hash": "sha256:34e7bbd576693d22183534e4",
+            "line": 2428,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 2,
+              "refs": 3
+            }
+          }
+        ]
+      },
+      {
+        "id": "replace-compiled-and-string-regex-spellings-must-take-the-sa",
+        "title": "replace: compiled and string regex spellings must take the same path and be tested together",
+        "kind": "rule",
+        "body": "Any spelling of the same pattern must behave the same: `regex={pat: v}`, `to_replace=pat, regex=True`, `to_replace=[re.compile(pat)], value=[v], regex=True`, and bare `to_replace=re.compile(pat)`. This covers the upcast to object when an arrow string column can't hold the replacement (GH-70458). The compiled list/dict forms go through replace_list and reach the same Block._replace_regex guard.\nTests parametrize over all four spellings: pandas/tests/series/methods/test_replace.py (test_replace_compiled_regex_arrow_dtype, test_replace_regex_non_string_arrow_dtype with `compile_pattern`) and pandas/tests/arrays/categorical/test_replace.py (…_arrow_strings variants). For a Categorical, a replacement that matches an existing category works, and a new category raises `TypeError: Cannot setitem on a Categorical with a new category`.\nWhen a test checks that the original was not mutated, compare against a copy explicitly. Asserting the result alone passes even after mutation, because `^a` no longer matches substituted values. Also cover inplace=True with a view (`ser[:]`), which now reaches ArrowExtensionArray.__setitem__.\nKnown open inconsistency: non-regex `ser.replace(\"a\", 1)` on arrow strings still raises instead of upcasting.",
+        "deps": [
+          {
+            "path": "pandas/core/internals/blocks.py",
+            "symbol": "Block._replace_regex",
+            "hash": "sha256:9ed600351b63040f2cf39aa1",
+            "line": 763,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pandas/tests/series/methods/test_replace.py",
+            "symbol": "test_replace_compiled_regex_arrow_dtype",
+            "hash": "sha256:32d879fd5fcaedbc9ba87d90",
+            "line": 792,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/arrays/categorical/test_replace.py",
+            "symbol": "test_replace_regex_existing_category_arrow_strings",
+            "hash": "sha256:f2e0628b1853e7b0c3310bfa",
+            "line": 101,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-68929",
+    "pr": 68929,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 7345,
+    "elapsedMs": 17068,
+    "proposed": [
+      {
+        "title": "DataFrame.clip with extension-dtype array/Index bound went to object dtype or wrote wrong values in place",
+        "kind": "rule",
+        "answers": [
+          "df.clip(lower=pd.array([...], dtype='Int64')) returns object columns",
+          "clip inplace=True with Int64 bound raises TypeError Invalid value for dtype int64",
+          "clip with pandas Index bound raises ValueError Must specify axis=0 or 1",
+          "clip inplace gives different values than non-inplace clip"
+        ],
+        "body": "Symptom: `df.clip(lower=pd.array([...], dtype=\"Int64\"), axis=1)` returned object columns; with `inplace=True` it raised `TypeError: Invalid value '[[15]]'` or, on 3.0, wrote values along the wrong axis; leaving out `axis` raised `ValueError: Must specify axis=0 or 1`. A NumPy-dtype bound was not affected.\nRoot cause: pandas/core/generic.py:NDFrame._clip_with_one_bound sends a non-Series list-like bound through `DataFrame._align_for_op(threshold, axis, flex=None)`. That called `_maybe_align_series_as_frame`, which turns an extension-dtype Series into a 2-D frame with EA columns. `DataFrame.where` only has an EA-aware column-wise path for a 1-D `other`, so a 2-D EA `other` gets interleaved to an object ndarray.\nFix pattern: in pandas/core/frame.py:DataFrame._align_for_op, broadcast only when `flex is not None`, so clip gets back a 1-D Series. Then in `_clip_with_one_bound`, set `axis = 1` when the returned threshold is an ABCSeries and `axis is None`. The bound was already aligned on `self.columns`, and `DataFrame.align(Series, axis=None)` raises.\nConstraints: a SparseArray bound on an int frame still raises AttributeError in `np_can_hold_element` (tracked separately as GH-68457). The regression tests are in pandas/tests/frame/methods/test_clip.py:test_clip_extension_dtype_bound. They run pd.array and pd.Index bounds against every combination of axis (None/0/1) and inplace.",
+        "applies": "DataFrame.clip/_clip_with_one_bound with list-like, array or Index bounds, especially extension dtypes",
+        "deps": [
+          {
+            "path": "pandas/core/generic.py",
+            "symbol": "NDFrame._clip_with_one_bound"
+          },
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._align_for_op"
+          },
+          {
+            "path": "pandas/tests/frame/methods/test_clip.py",
+            "symbol": "TestDataFrameClip.test_clip_extension_dtype_bound"
+          }
+        ],
+        "tags": [
+          "clip",
+          "extension-dtype",
+          "where",
+          "alignment",
+          "inplace",
+          "regression"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "_align_for_op flex=None is clip-only and must leave a Series operand 1-D (no broadcast to frame)",
+        "kind": "rule",
+        "answers": [
+          "what does flex=None mean in DataFrame._align_for_op",
+          "when does _maybe_align_series_as_frame broadcast a Series",
+          "why does where with a 2-D EA other produce object dtype",
+          "changing _maybe_align_series_as_frame breaks clip"
+        ],
+        "body": "In pandas/core/frame.py:DataFrame._align_for_op, `flex` has three meanings. `flex=True` means a flex op, which reindexes. `flex=False` is the default arithmetic/comparison path. `flex=None` is used only by clip (NDFrame._clip_with_one_bound). With None the method skips the alignment check for a DataFrame `other`, and it does not call `_maybe_align_series_as_frame` on a Series `other`, so the operand stays 1-D.\nWhy this matters: clip passes the aligned bound to `DataFrame.where`. `where` keeps extension dtypes column by column only when `other` is 1-D. A 2-D frame with EA columns (which `_maybe_align_series_as_frame` now returns for EA Series, since GH-61828) gets interleaved to object.\nIf you change `_maybe_align_series_as_frame`, or add new `flex=None` callers, keep that 1-D guarantee for clip. Otherwise clip with Int64 or other EA bounds degrades to object and inplace clip breaks.\nCallers that get a Series back with axis=None must give the axis explicitly (clip uses axis=1, the columns), because `DataFrame.align(Series, axis=None)` raises.",
+        "applies": "pandas/core/frame.py DataFrame._align_for_op / _maybe_align_series_as_frame and their callers",
+        "deps": [
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._align_for_op"
+          },
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._maybe_align_series_as_frame"
+          },
+          {
+            "path": "pandas/core/generic.py",
+            "symbol": "NDFrame._clip_with_one_bound"
+          }
+        ],
+        "tags": [
+          "alignment",
+          "ops",
+          "clip",
+          "where",
+          "extension-dtype",
+          "invariant"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "dataframe-clip-with-extension-dtype-array-index-bound-went-t",
+        "title": "DataFrame.clip with extension-dtype array/Index bound went to object dtype or wrote wrong values in place",
+        "kind": "rule",
+        "body": "Symptom: `df.clip(lower=pd.array([...], dtype=\"Int64\"), axis=1)` returned object columns; with `inplace=True` it raised `TypeError: Invalid value '[[15]]'` or, on 3.0, wrote values along the wrong axis; leaving out `axis` raised `ValueError: Must specify axis=0 or 1`. A NumPy-dtype bound was not affected.\nRoot cause: pandas/core/generic.py:NDFrame._clip_with_one_bound sends a non-Series list-like bound through `DataFrame._align_for_op(threshold, axis, flex=None)`. That called `_maybe_align_series_as_frame`, which turns an extension-dtype Series into a 2-D frame with EA columns. `DataFrame.where` only has an EA-aware column-wise path for a 1-D `other`, so a 2-D EA `other` gets interleaved to an object ndarray.\nFix pattern: in pandas/core/frame.py:DataFrame._align_for_op, broadcast only when `flex is not None`, so clip gets back a 1-D Series. Then in `_clip_with_one_bound`, set `axis = 1` when the returned threshold is an ABCSeries and `axis is None`. The bound was already aligned on `self.columns`, and `DataFrame.align(Series, axis=None)` raises.\nConstraints: a SparseArray bound on an int frame still raises AttributeError in `np_can_hold_element` (tracked separately as GH-68457). The regression tests are in pandas/tests/frame/methods/test_clip.py:test_clip_extension_dtype_bound. They run pd.array and pd.Index bounds against every combination of axis (None/0/1) and inplace.",
+        "deps": [
+          {
+            "path": "pandas/core/generic.py",
+            "symbol": "NDFrame._clip_with_one_bound",
+            "hash": "sha256:034ccae315879cd76ee1d42e",
+            "line": 8910,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._align_for_op",
+            "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+            "line": 10327,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 13
+            }
+          },
+          {
+            "path": "pandas/tests/frame/methods/test_clip.py",
+            "symbol": "TestDataFrameClip.test_clip_extension_dtype_bound",
+            "hash": "sha256:fd098d814b4a02f1c576a0f9",
+            "line": 217,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/frame/methods/test_clip.py",
+            "symbol": "test_clip_extension_dtype_bound",
+            "hash": "sha256:fd098d814b4a02f1c576a0f9",
+            "line": 217,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "align-for-op-flex-none-is-clip-only-and-must-leave-a-series",
+        "title": "_align_for_op flex=None is clip-only and must leave a Series operand 1-D (no broadcast to frame)",
+        "kind": "rule",
+        "body": "In pandas/core/frame.py:DataFrame._align_for_op, `flex` has three meanings. `flex=True` means a flex op, which reindexes. `flex=False` is the default arithmetic/comparison path. `flex=None` is used only by clip (NDFrame._clip_with_one_bound). With None the method skips the alignment check for a DataFrame `other`, and it does not call `_maybe_align_series_as_frame` on a Series `other`, so the operand stays 1-D.\nWhy this matters: clip passes the aligned bound to `DataFrame.where`. `where` keeps extension dtypes column by column only when `other` is 1-D. A 2-D frame with EA columns (which `_maybe_align_series_as_frame` now returns for EA Series, since GH-61828) gets interleaved to object.\nIf you change `_maybe_align_series_as_frame`, or add new `flex=None` callers, keep that 1-D guarantee for clip. Otherwise clip with Int64 or other EA bounds degrades to object and inplace clip breaks.\nCallers that get a Series back with axis=None must give the axis explicitly (clip uses axis=1, the columns), because `DataFrame.align(Series, axis=None)` raises.",
+        "deps": [
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._align_for_op",
+            "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+            "line": 10327,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 13
+            }
+          },
+          {
+            "path": "pandas/core/frame.py",
+            "symbol": "DataFrame._maybe_align_series_as_frame",
+            "hash": "sha256:8c6dfa13ac2237b3a9e06c45",
+            "line": 10482,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pandas/core/generic.py",
+            "symbol": "NDFrame._clip_with_one_bound",
+            "hash": "sha256:034ccae315879cd76ee1d42e",
+            "line": 8910,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70405",
+    "pr": 70405,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6205,
+    "elapsedMs": 14341,
+    "proposed": [
+      {
+        "title": "get_handle wrappers must apply encoding_errors when converting text buffers to bytes",
+        "kind": "rule",
+        "answers": [
+          "read_csv encoding_errors='replace' ignored for StringIO",
+          "UnicodeEncodeError from read_csv on a StringIO with surrogate characters",
+          "why does pyarrow/C engine raise UnicodeEncodeError on text buffer",
+          "_BytesIOWrapper errors parameter"
+        ],
+        "body": "Symptom: `pd.read_csv(StringIO(\"a\\nx\\udcef\\n\"), encoding_errors=\"replace\")` raised UnicodeEncodeError on the C and pyarrow engines instead of returning 'x?' (or 'x' with 'ignore').\nRoot cause: pandas/io/common.py:_BytesIOWrapper.read called `str.encode(self.encoding)` with no errors handler, and get_handle built the wrapper without passing its `errors` argument. Since the C engine opens UTF-8 input in binary mode (GH-64766), every text buffer passed to it goes through this wrapper. The pyarrow engine already did.\nFix pattern: pass get_handle's `errors` into `_BytesIOWrapper(handle, encoding=..., errors=errors)` and use `encode(self.encoding, self.errors)`. The default stays 'strict'.\nConstraints: any new text<->bytes wrapper or re-encoding step in get_handle must receive and apply `errors`, or users silently lose encoding_errors. The python engine reads text buffers directly without encoding, so it is not affected.",
+        "applies": "pandas/io/common.py get_handle and its buffer wrappers used by read_csv engines",
+        "deps": [
+          {
+            "path": "pandas/io/common.py",
+            "symbol": "_BytesIOWrapper"
+          },
+          {
+            "path": "pandas/io/common.py",
+            "symbol": "get_handle"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_encoding.py",
+            "symbol": "test_text_buffer_encoding_errors"
+          }
+        ],
+        "tags": [
+          "read_csv",
+          "encoding_errors",
+          "io",
+          "pyarrow",
+          "c-engine",
+          "unicode"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Whatsnew policy: no entry for regressions that never shipped in a final release",
+        "kind": "rule",
+        "answers": [
+          "do I need a whatsnew entry for fixing a regression on main",
+          "which whatsnew file for read_csv bug fix",
+          "how to note a pyarrow read_csv fix in release notes"
+        ],
+        "body": "If a bug fix only repairs a regression introduced on main or in an unreleased rc (e.g. a 3.1.0rc0-only regression), it gets no whatsnew entry. Behaviour that was already broken in the last final release (e.g. 3.0.6) does get one, in the upcoming release's file under the I/O section, e.g. doc/source/whatsnew/v3.1.0.rst.\nOne PR can do both: here the C-engine part had no entry and the pyarrow part got an entry.\nEntry style: `:func:`read_csv` with ``engine=\"pyarrow\"`` now ... instead of ... (:issue:`NNNN`)`.\nParser tests that should hold across engines go in pandas/tests/io/parser/ and use the `all_parsers` fixture. Skip engines that don't apply with `pytest.skip` and give a reason.",
+        "applies": "Release notes and parser tests for pandas read_csv bug fixes",
+        "deps": [
+          {
+            "path": "doc/source/whatsnew/v3.1.0.rst"
+          },
+          {
+            "path": "pandas/tests/io/parser/test_encoding.py",
+            "symbol": "test_text_buffer_encoding_errors"
+          }
+        ],
+        "tags": [
+          "whatsnew",
+          "release-notes",
+          "convention",
+          "tests",
+          "read_csv"
+        ],
+        "confidence": 0.6
+      }
+    ],
+    "saved": [
+      {
+        "id": "get-handle-wrappers-must-apply-encoding-errors-when-converti",
+        "title": "get_handle wrappers must apply encoding_errors when converting text buffers to bytes",
+        "kind": "rule",
+        "body": "Symptom: `pd.read_csv(StringIO(\"a\\nx\\udcef\\n\"), encoding_errors=\"replace\")` raised UnicodeEncodeError on the C and pyarrow engines instead of returning 'x?' (or 'x' with 'ignore').\nRoot cause: pandas/io/common.py:_BytesIOWrapper.read called `str.encode(self.encoding)` with no errors handler, and get_handle built the wrapper without passing its `errors` argument. Since the C engine opens UTF-8 input in binary mode (GH-64766), every text buffer passed to it goes through this wrapper. The pyarrow engine already did.\nFix pattern: pass get_handle's `errors` into `_BytesIOWrapper(handle, encoding=..., errors=errors)` and use `encode(self.encoding, self.errors)`. The default stays 'strict'.\nConstraints: any new text<->bytes wrapper or re-encoding step in get_handle must receive and apply `errors`, or users silently lose encoding_errors. The python engine reads text buffers directly without encoding, so it is not affected.",
+        "deps": [
+          {
+            "path": "pandas/io/common.py",
+            "symbol": "_BytesIOWrapper",
+            "hash": "sha256:58b62dc96cc11b38edccbc93",
+            "line": 1177,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "pandas/io/common.py",
+            "symbol": "get_handle",
+            "hash": "sha256:e6360a8f1a2a2743ac674b9a",
+            "line": 706,
+            "missing": false,
+            "fanout": {
+              "files": 25,
+              "sites": 41,
+              "refs": 80
+            }
+          },
+          {
+            "path": "pandas/tests/io/parser/test_encoding.py",
+            "symbol": "test_text_buffer_encoding_errors",
+            "hash": "sha256:898fb0916395b5657a4c15b9",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/io/common.py",
+            "symbol": "_BytesIOWrapper.read",
+            "hash": "sha256:dff0cc5740f0e444f17efbea",
+            "line": 1198,
+            "missing": false
+          }
+        ]
+      },
+      {
+        "id": "whatsnew-policy-no-entry-for-regressions-that-never-shipped",
+        "title": "Whatsnew policy: no entry for regressions that never shipped in a final release",
+        "kind": "rule",
+        "body": "If a bug fix only repairs a regression introduced on main or in an unreleased rc (e.g. a 3.1.0rc0-only regression), it gets no whatsnew entry. Behaviour that was already broken in the last final release (e.g. 3.0.6) does get one, in the upcoming release's file under the I/O section, e.g. doc/source/whatsnew/v3.1.0.rst.\nOne PR can do both: here the C-engine part had no entry and the pyarrow part got an entry.\nEntry style: `:func:`read_csv` with ``engine=\"pyarrow\"`` now ... instead of ... (:issue:`NNNN`)`.\nParser tests that should hold across engines go in pandas/tests/io/parser/ and use the `all_parsers` fixture. Skip engines that don't apply with `pytest.skip` and give a reason.",
+        "deps": [
+          {
+            "path": "doc/source/whatsnew/v3.1.0.rst",
+            "hash": "sha256:411a59fddf6781110249459a",
+            "missing": false
+          },
+          {
+            "path": "pandas/tests/io/parser/test_encoding.py",
+            "symbol": "test_text_buffer_encoding_errors",
+            "hash": "sha256:898fb0916395b5657a4c15b9",
+            "line": 42,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-68637",
+    "pr": 68637,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4341,
+    "elapsedMs": 8256,
+    "proposed": [
+      {
+        "title": "Check hashability before calling len() on list-like `other` in array comparison ops, because iterators are hashable",
+        "kind": "rule",
+        "answers": [
+          "Categorical == iter(...) raises TypeError: object of type ... has no len()",
+          "comparing a Categorical with a generator or iterator fails",
+          "why is a tuple treated as a scalar in Categorical comparisons",
+          "Lengths must match check in _cat_compare_op"
+        ],
+        "body": "Symptom: `cat == iter([...])` (or `!=`) raised `TypeError: object of type '...' has no len()` instead of returning a boolean array.\nRoot cause: pandas/core/arrays/categorical.py:_cat_compare_op (inner `func`) called `len(other)` whenever `is_list_like(other)` was true and only checked `not hashable` afterwards. Iterators count as list-like and as hashable, but they have no `__len__`.\nFix pattern: check `not hashable` first, so `len()` only runs on non-hashable list-likes. A hashable `other` (a tuple, which may itself be a category, or an iterator) goes down the scalar-like path, so `cat == iter(['a','b'])` gives all False and `!=` gives all True.\nConstraints: the order of the checks matters in any comparison guard of the form `is_list_like(x) and len(x) ...`. Per the PR description, other arrays (for example IntervalArray and IntegerArray `==` an iterator) still treat an iterator as list-like, so they emit the GH-62423 deprecation warning. They switch to scalar-like only when that deprecation is enforced in 4.0. Don't change them separately before then.\nTests: pandas/tests/arrays/categorical/test_operators.py:TestCategoricalOps.test_comparison_with_iterator.",
+        "applies": "Comparison operators on pandas extension arrays, especially Categorical, when `other` is a tuple, iterator or other hashable list-like",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/categorical.py",
+            "symbol": "_cat_compare_op"
+          },
+          {
+            "path": "pandas/tests/arrays/categorical/test_operators.py",
+            "symbol": "TestCategoricalOps"
+          }
+        ],
+        "tags": [
+          "categorical",
+          "comparison",
+          "iterator",
+          "hashable",
+          "is_list_like",
+          "GH31646",
+          "GH62423"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "check-hashability-before-calling-len-on-list-like-other-in-a",
+        "title": "Check hashability before calling len() on list-like `other` in array comparison ops, because iterators are hashable",
+        "kind": "rule",
+        "body": "Symptom: `cat == iter([...])` (or `!=`) raised `TypeError: object of type '...' has no len()` instead of returning a boolean array.\nRoot cause: pandas/core/arrays/categorical.py:_cat_compare_op (inner `func`) called `len(other)` whenever `is_list_like(other)` was true and only checked `not hashable` afterwards. Iterators count as list-like and as hashable, but they have no `__len__`.\nFix pattern: check `not hashable` first, so `len()` only runs on non-hashable list-likes. A hashable `other` (a tuple, which may itself be a category, or an iterator) goes down the scalar-like path, so `cat == iter(['a','b'])` gives all False and `!=` gives all True.\nConstraints: the order of the checks matters in any comparison guard of the form `is_list_like(x) and len(x) ...`. Per the PR description, other arrays (for example IntervalArray and IntegerArray `==` an iterator) still treat an iterator as list-like, so they emit the GH-62423 deprecation warning. They switch to scalar-like only when that deprecation is enforced in 4.0. Don't change them separately before then.\nTests: pandas/tests/arrays/categorical/test_operators.py:TestCategoricalOps.test_comparison_with_iterator.",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/categorical.py",
+            "symbol": "_cat_compare_op",
+            "hash": "sha256:fc2f8619c31ddcd9e19734df",
+            "line": 130,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 6,
+              "refs": 6
+            }
+          },
+          {
+            "path": "pandas/tests/arrays/categorical/test_operators.py",
+            "symbol": "TestCategoricalOps",
+            "hash": "sha256:e2784c72a0e8d2aae0af3f8e",
+            "line": 127,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pandas/tests/arrays/categorical/test_operators.py",
+            "symbol": "TestCategoricalOps.test_comparison_with_iterator",
+            "hash": "sha256:c9178833b4653957ae708b7f",
+            "line": 209,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "pandas-70300",
+    "pr": 70300,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6227,
+    "elapsedMs": 13872,
+    "proposed": [
+      {
+        "title": "ArrowExtensionArray.isin must fall back when pyarrow cannot box/cast `values`",
+        "kind": "rule",
+        "answers": [
+          "isin on int64[pyarrow] Series raises OverflowError / ArrowTypeError / ArrowInvalid",
+          "Series.isin([1, 'a']) fails for pyarrow dtype",
+          "isin with mixed-type or huge ints on ArrowDtype",
+          "why does pc.is_in raise in pandas isin"
+        ],
+        "body": "Symptom: `Series/Index/DataFrame.isin` on a pyarrow-backed dtype raises when `values` mixes types pyarrow can't combine, e.g. `[1, 2**63]` (OverflowError), `[1, \"a\"]` (ArrowTypeError), object Index `[2**53+1, 1.5]` (ArrowInvalid).\nRoot cause: pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin called `self._box_pa(values)` + `pc.is_in` unguarded; boxing/casting to the array's pa type fails for such lists.\nFix pattern: wrap `_box_pa` + `pc.is_in` in `try/except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError)` and fall back to `algos.isin` on the non-null entries (`self[~mask].to_numpy()`, so numeric types aren't cast to object) against `np.asarray(values, dtype=object)` minus its missing values.\nConstraints: the fast pyarrow path stays primary; the fallback must preserve pc.is_in null semantics (see the related note). Any change that makes `_box_pa` stricter (e.g. GH-70217) relies on this fallback to avoid new raises.",
+        "applies": "pandas/core/arrays/arrow/array.py ArrowExtensionArray.isin and any isin on ArrowDtype data",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/arrow/array.py",
+            "symbol": "ArrowExtensionArray.isin"
+          },
+          {
+            "path": "pandas/tests/series/methods/test_isin.py",
+            "symbol": "test_isin_arrow_values_pyarrow_cannot_box"
+          }
+        ],
+        "tags": [
+          "isin",
+          "pyarrow",
+          "ArrowExtensionArray",
+          "overflow",
+          "mixed-types"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Arrow isin null semantics: missing values in `values` (NaN included) match only nulls",
+        "kind": "rule",
+        "answers": [
+          "does NaN in isin values match NaN in a float64[pyarrow] column",
+          "isin None/NaN behavior for pyarrow dtypes",
+          "why isin([np.nan]) returns False for NaN in arrow float"
+        ],
+        "body": "Invariant: for ArrowExtensionArray.isin, any missing value in `values` (None, NaN, pd.NA) matches only null entries of the array; a non-null float NaN in the array is NOT matched by NaN in `values`. This mirrors `pc.is_in` behavior.\nEnforced in pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin — the fallback path sets `res[mask] = values_mask.any()` and compares non-null entries only against `values[~values_mask]`.\nWhat breaks if skipped: the pyarrow path and the numpy fallback would disagree, so results would depend on whether pyarrow could box `values` (e.g. `[np.nan]` vs `[np.nan, \"a\"]`). Tested by test_isin_arrow_nan_matches_only_null.",
+        "applies": "Any isin implementation/fallback for pyarrow-backed arrays",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/arrow/array.py",
+            "symbol": "ArrowExtensionArray.isin"
+          },
+          {
+            "path": "pandas/tests/series/methods/test_isin.py",
+            "symbol": "test_isin_arrow_nan_matches_only_null"
+          }
+        ],
+        "tags": [
+          "isin",
+          "pyarrow",
+          "nan",
+          "null-semantics"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "arrowextensionarray-isin-must-fall-back-when-pyarrow-cannot",
+        "title": "ArrowExtensionArray.isin must fall back when pyarrow cannot box/cast `values`",
+        "kind": "rule",
+        "body": "Symptom: `Series/Index/DataFrame.isin` on a pyarrow-backed dtype raises when `values` mixes types pyarrow can't combine, e.g. `[1, 2**63]` (OverflowError), `[1, \"a\"]` (ArrowTypeError), object Index `[2**53+1, 1.5]` (ArrowInvalid).\nRoot cause: pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin called `self._box_pa(values)` + `pc.is_in` unguarded; boxing/casting to the array's pa type fails for such lists.\nFix pattern: wrap `_box_pa` + `pc.is_in` in `try/except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError)` and fall back to `algos.isin` on the non-null entries (`self[~mask].to_numpy()`, so numeric types aren't cast to object) against `np.asarray(values, dtype=object)` minus its missing values.\nConstraints: the fast pyarrow path stays primary; the fallback must preserve pc.is_in null semantics (see the related note). Any change that makes `_box_pa` stricter (e.g. GH-70217) relies on this fallback to avoid new raises.",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/arrow/array.py",
+            "symbol": "ArrowExtensionArray.isin",
+            "hash": "sha256:adce499d277b46378e6f092f",
+            "line": 1969,
+            "missing": false,
+            "fanout": {
+              "files": 57,
+              "sites": 344,
+              "refs": 414
+            }
+          },
+          {
+            "path": "pandas/tests/series/methods/test_isin.py",
+            "symbol": "test_isin_arrow_values_pyarrow_cannot_box",
+            "hash": "sha256:eba156d0cee0d7110b599fde",
+            "line": 340,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "arrow-isin-null-semantics-missing-values-in-values-nan-inclu",
+        "title": "Arrow isin null semantics: missing values in `values` (NaN included) match only nulls",
+        "kind": "rule",
+        "body": "Invariant: for ArrowExtensionArray.isin, any missing value in `values` (None, NaN, pd.NA) matches only null entries of the array; a non-null float NaN in the array is NOT matched by NaN in `values`. This mirrors `pc.is_in` behavior.\nEnforced in pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin — the fallback path sets `res[mask] = values_mask.any()` and compares non-null entries only against `values[~values_mask]`.\nWhat breaks if skipped: the pyarrow path and the numpy fallback would disagree, so results would depend on whether pyarrow could box `values` (e.g. `[np.nan]` vs `[np.nan, \"a\"]`). Tested by test_isin_arrow_nan_matches_only_null.",
+        "deps": [
+          {
+            "path": "pandas/core/arrays/arrow/array.py",
+            "symbol": "ArrowExtensionArray.isin",
+            "hash": "sha256:adce499d277b46378e6f092f",
+            "line": 1969,
+            "missing": false,
+            "fanout": {
+              "files": 57,
+              "sites": 344,
+              "refs": 414
+            }
+          },
+          {
+            "path": "pandas/tests/series/methods/test_isin.py",
+            "symbol": "test_isin_arrow_nan_matches_only_null",
+            "hash": "sha256:a6aeefcdc01bfad38c438ef8",
+            "line": 348,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

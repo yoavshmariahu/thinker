@@ -1,0 +1,85 @@
+{
+  "id": "exercise-races-with-fresh-shared-state-and-synchronized-work",
+  "title": "Exercise races with fresh shared state and synchronized workers",
+  "kind": "howto",
+  "answers": [
+    "How do I test concurrent TypeAdapter or model creation?",
+    "How do I reproduce a model rebuild race?",
+    "Why are the free-threading tests skipped?"
+  ],
+  "body": "Use tests/test_freethreaded.py:run_concurrently(setup, target, *, rounds=100, threads=8) for concurrency regressions.\nsetup() creates fresh shared state each round; target(ctx, index) receives that state and a worker index, allowing one worker to rebuild while others instantiate or create subclasses.\nA threading.Barrier releases all workers together, and future.result() propagates worker failures to the test.\nThe module skips tests on Emscripten and when tests/conftest.py:is_free_threaded is false; detection uses not sys._is_gil_enabled(), falling back to false when that API is absent.\nFor first-annotation-access races, setup must recreate the class each round so annotation caches from earlier rounds do not remove the triggering condition.",
+  "applies": "Regression tests for shared-class races on Python runtimes running with the GIL disabled.",
+  "tags": [
+    "testing",
+    "free-threading",
+    "race-conditions"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "run_concurrently",
+      "hash": "sha256:a608de55d4345750177b38bf",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "pytestmark",
+      "hash": "sha256:0dcdd24f1d5bd30d5b536e7e",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "test_model_rebuild_concurrent_subclass_creation",
+      "hash": "sha256:fd34ae59a12cc93596a1a7df",
+      "line": 114,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "is_free_threaded",
+      "hash": "sha256:d6690dd30a256333901aa1a9",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "setup",
+      "hash": "sha256:ad9e57e70c1bc352f3b8939d",
+      "line": 39,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:41:43.203Z",
+  "verified": "2026-10-07T00:41:43.203Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

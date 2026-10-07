@@ -1,0 +1,58 @@
+{
+  "id": "excel-engine-writers-must-forward-date-format-datetime-forma",
+  "title": "Excel engine writers must forward date_format/datetime_format to ExcelWriter.__init__",
+  "kind": "rule",
+  "answers": [
+    "to_excel with openpyxl ignores date_format / datetime_format",
+    "ExcelWriter date format not applied, cells still show YYYY-MM-DD",
+    "custom datetime number_format missing in xlsx written by pandas",
+    "adding a new kwarg to ExcelWriter engine subclass"
+  ],
+  "body": "Symptom: `ExcelWriter(path, engine=\"openpyxl\", date_format=..., datetime_format=...)` writes date/datetime cells with the default number_format (`YYYY-MM-DD` / `YYYY-MM-DD HH:MM:SS`) instead of the requested format, in both mode=\"w\" and mode=\"a\".\nRoot cause: pandas/io/excel/_openpyxl.py:OpenpyxlWriter.__init__ accepted date_format/datetime_format but did not pass them to `super().__init__`, so the base ExcelWriter kept its defaults.\nFix pattern: each engine subclass's `__init__` must forward every common ExcelWriter kwarg (date_format, datetime_format, mode, storage_options, if_sheet_exists, ...) to `super().__init__`; accepting a kwarg in the signature is not enough.\nConstraints: applies to any engine subclass of ExcelWriter. When adding or auditing a kwarg, check the forwarding in every engine's `__init__`. Verify by reading `cell.number_format` with openpyxl.load_workbook, as in test_date_datetime_format.",
+  "applies": "pandas/io/excel engine writer subclasses (OpenpyxlWriter and siblings) and their __init__ kwargs",
+  "tags": [
+    "excel",
+    "openpyxl",
+    "excelwriter",
+    "date_format",
+    "datetime_format",
+    "io"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/excel/_openpyxl.py",
+      "symbol": "OpenpyxlWriter.__init__",
+      "hash": "sha256:0d482300a9d5d9b01259f286",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 106,
+        "sites": 132,
+        "refs": 197
+      }
+    },
+    {
+      "path": "pandas/tests/io/excel/test_openpyxl.py",
+      "symbol": "test_date_datetime_format",
+      "hash": "sha256:dc67885d3ba63aad5138d0a4",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69961"
+  },
+  "created": "2026-10-07T00:22:46.747Z",
+  "verified": "2026-10-07T00:22:46.747Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

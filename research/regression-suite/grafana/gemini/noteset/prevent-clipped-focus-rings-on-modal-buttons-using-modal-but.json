@@ -1,0 +1,43 @@
+{
+  "id": "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but",
+  "title": "Prevent clipped focus rings on modal buttons using Modal.ButtonRow",
+  "kind": "rule",
+  "answers": [
+    "Why is the focus ring cut off on buttons in a modal?",
+    "How to prevent button focus rings from being clipped in modals?",
+    "How should button rows be structured in Grafana modal dialogs?"
+  ],
+  "body": "Symptom: Focus ring around modal buttons is cut off or clipped.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent rendered buttons inside a custom container and Stack lacking focus ring clearance.\nFix pattern: Wrap modal buttons in Modal.ButtonRow instead of custom containers or layout stacks.\nConstraints: Applies to button rows inside modals; does not apply to non-modal button groups.",
+  "applies": "Modal button rows in packages/grafana-ui",
+  "tags": [
+    "grafana-ui",
+    "modal",
+    "button",
+    "focus-ring"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-10-07T00:04:05.149Z",
+  "verified": "2026-10-07T00:04:05.149Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

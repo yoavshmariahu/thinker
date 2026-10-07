@@ -1,0 +1,4 @@
+**/cache/
+**/traces/
+**/*.tmp
+__pycache__/

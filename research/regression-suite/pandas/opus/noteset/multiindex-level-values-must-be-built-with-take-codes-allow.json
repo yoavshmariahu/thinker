@@ -1,0 +1,46 @@
+{
+  "id": "multiindex-level-values-must-be-built-with-take-codes-allow",
+  "title": "MultiIndex level values must be built with take(codes, allow_fill=True): NaN labels have code -1",
+  "kind": "rule",
+  "answers": [
+    "to_excel writes the wrong column header for NaN in MultiIndex columns",
+    "NaN bin from pd.cut shows up as the last interval in the Excel header",
+    "why does a missing MultiIndex label turn into the last level value",
+    "levels.take(codes) wraps around for -1"
+  ],
+  "body": "Symptom: with MultiIndex columns, DataFrame.to_excel wrote a NaN column label as the last value of that level (e.g. the NaN bin from pd.cut appeared as `(0.0, inf]`) instead of an empty cell.\nRoot cause: pandas/io/formats/excel.py:ExcelFormatter._format_header_mi called `levels.take(level_codes)` without allow_fill. A MultiIndex stores a NaN label as code -1, and plain take treats -1 as a negative index, so it returns the last level element.\nFix pattern: when you turn MultiIndex levels and codes into values, use `levels.take(codes, allow_fill=True)` so -1 becomes NaN. The writer then emits it as `na_rep` (an empty cell), the same way NaN row-index labels are written. The row-index path already used allow_fill=True.\nConstraints: this applies to any code that turns `MultiIndex.levels`/`codes` back into values. It does not apply when the codes are known to contain no -1. Check both the header (column) path and the index (row) path for the same mistake.",
+  "applies": "pandas/io/formats/excel.py ExcelFormatter MultiIndex header/index formatting, and any levels+codes materialization",
+  "tags": [
+    "excel",
+    "multiindex",
+    "nan",
+    "take",
+    "allow_fill",
+    "to_excel"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/excel.py",
+      "symbol": "ExcelFormatter._format_header_mi",
+      "hash": "sha256:6e1b1fc89743277243a66814",
+      "line": 614,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69446"
+  },
+  "created": "2026-10-07T00:22:37.670Z",
+  "verified": "2026-10-07T00:22:37.670Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

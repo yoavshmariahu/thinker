@@ -1,0 +1,52 @@
+{
+  "id": "array-api-mixed-inputs-move-y-sample-weight-onto-x-s-namespa",
+  "title": "Array API mixed inputs: move y/sample_weight onto X's namespace/device BEFORE dtype-coupled validation",
+  "kind": "rule",
+  "answers": [
+    "TypeError: 'dtype' must be a dtype, not torch.dtype when fitting with numpy y and torch X",
+    "estimator fails when y and X come from different array libraries or devices",
+    "where should move_to be called in fit/score for array API support",
+    "check_array_api_mixed_inputs fails for my estimator"
+  ],
+  "body": "Symptom: fit/score raises `TypeError: 'dtype' must be a dtype, not torch.dtype` (or similar) when `y`/`sample_weight` come from a different array API namespace or device than `X` (e.g. numpy y with torch-GPU X).\nRoot cause: sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit/score called `move_to` only after `check_array(y, dtype=X.dtype)` and `_check_sample_weight(sample_weight, X, dtype=...)`; those pass X's dtype (from X's namespace) into a validator running on y's namespace.\nFix pattern: right after validating X and getting `xp, _, device = get_namespace_and_device(X)`, call `y, sample_weight = move_to(y, sample_weight, xp=xp, device=device)`, then do any validation that uses X's dtype. `move_to` is a no-op when namespaces already match.\nConstraints: applies to any estimator method whose y/sample_weight validation is dtype-coupled to X (fit, score, partial_fit). Do it in every such method; score in GLM needed its own move since it validates separately.",
+  "applies": "Array API support in sklearn estimators accepting y/sample_weight alongside X",
+  "tags": [
+    "array-api",
+    "move_to",
+    "input-validation",
+    "sample_weight",
+    "glm"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.fit",
+      "hash": "sha256:c732dc5b49af2b191b492668",
+      "line": 250,
+      "missing": false
+    },
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.score",
+      "hash": "sha256:7ba6daa0dacb924c04ea008c",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 249,
+        "sites": 461,
+        "refs": 1951
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34480"
+  },
+  "created": "2026-10-07T00:30:29.226Z",
+  "verified": "2026-10-07T00:30:29.226Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,67 @@
+{
+  "id": "preserve-native-dataframe-types-through-indexable-and-cross",
+  "title": "Preserve native dataframe types through indexable and cross-validation",
+  "kind": "rule",
+  "answers": [
+    "Why does cross-validation pass a Narwhals dataframe to my estimator?",
+    "Must indexable preserve the input dataframe type?",
+    "Where should dataframe type preservation be tested?"
+  ],
+  "body": "Symptom: Cross-validation passes Narwhals-wrapped dataframes or targets to estimators expecting the original native container types.\nRoot cause: sklearn/utils/validation.py:_make_indexable converted dataframe inputs with nw.from_native instead of returning them unchanged.\nFix pattern: Preserve native dataframe containers when making inputs indexable so downstream estimators receive their original types.\nConstraints: Type preservation is not universal: sklearn/utils/tests/test_validation.py:test_indexable_return_type explicitly expects sparse_csc_array inputs to become csr_array.\nRegression coverage: sklearn/utils/tests/test_validation.py:test_indexable_return_type checks container types; sklearn/model_selection/tests/test_validation.py:test_cross_val_and_permutation_test_on_dataframe requires estimators to receive native dataframe and target types without unwrapping.",
+  "applies": "Changes to indexable container handling or dataframe and target propagation through cross-validation.",
+  "tags": [
+    "validation",
+    "indexable",
+    "dataframes",
+    "cross-validation"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "_make_indexable",
+      "hash": "sha256:984c2cc6247c836044196ad1",
+      "line": 461,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_validation.py",
+      "symbol": "test_indexable_return_type",
+      "hash": "sha256:c07c1f8d60a2c8a16d700cd8",
+      "line": 2552,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/model_selection/tests/test_validation.py",
+      "symbol": "test_cross_val_and_permutation_test_on_dataframe",
+      "hash": "sha256:698708b6e467c50676c36150",
+      "line": 650,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34605"
+  },
+  "created": "2026-10-07T00:35:10.396Z",
+  "verified": "2026-10-07T00:35:10.396Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

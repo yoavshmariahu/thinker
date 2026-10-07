@@ -1,0 +1,381 @@
+{
+  "repo": "pytest-dev/pytest",
+  "base": "59200df778adf8079df6125d60662908ac0a0646",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "pytest-15058",
+      "pr": 15058,
+      "sha": "59200df778adf8079df6125d60662908ac0a0646",
+      "parent": "2950bc2392f521fc0fd5e889a6a9857bc9d3ffe8",
+      "subject": "Fix fixture discovery for bound methods in custom collectors (#15058)",
+      "codeLines": 1,
+      "totalLines": 49,
+      "files": [
+        "AUTHORS",
+        "changelog/6750.bugfix.rst",
+        "src/_pytest/compat.py",
+        "testing/python/fixtures.py"
+      ],
+      "production": [
+        "src/_pytest/compat.py"
+      ]
+    },
+    {
+      "id": "pytest-14670",
+      "pr": 14670,
+      "sha": "b4a8bc6b823c78951f781a900ec0a533e154693b",
+      "parent": "e84e063e7d35e7e198536d05099395be7a92a9a1",
+      "subject": "Bugfix 14412 subtests timing (#14670)",
+      "codeLines": 22,
+      "totalLines": 166,
+      "files": [
+        "AUTHORS",
+        "changelog/14412.bugfix.rst",
+        "src/_pytest/terminal.py",
+        "testing/test_terminal.py"
+      ],
+      "production": [
+        "src/_pytest/terminal.py"
+      ]
+    },
+    {
+      "id": "pytest-14931",
+      "pr": 14931,
+      "sha": "980445e88fae083d9ff91649bd22913a8abbaf18",
+      "parent": "f5240bef4d8b31232d570fb80ea4f7c50b087d1b",
+      "subject": "fix: stop reusing shared PytestWarning instances whose tracebacks grow under -W error (#14931)",
+      "codeLines": 85,
+      "totalLines": 122,
+      "files": [
+        "changelog/14912.bugfix.rst",
+        "src/_pytest/config/__init__.py",
+        "src/_pytest/deprecated.py",
+        "src/_pytest/fixtures.py",
+        "src/_pytest/monkeypatch.py",
+        "src/_pytest/pastebin.py",
+        "src/_pytest/python.py",
+        "testing/deprecated_test.py"
+      ],
+      "production": [
+        "src/_pytest/config/__init__.py",
+        "src/_pytest/deprecated.py",
+        "src/_pytest/fixtures.py",
+        "src/_pytest/monkeypatch.py",
+        "src/_pytest/pastebin.py",
+        "src/_pytest/python.py"
+      ]
+    },
+    {
+      "id": "pytest-15033",
+      "pr": 15033,
+      "sha": "f9554ee56d264da285f3951ebfdf6f1d59ba4077",
+      "parent": "6a9ba0f02f827a54cff6ab4da0dddecd65444ff6",
+      "subject": "Fix doctest option flags leaking between docstrings (#15033)",
+      "codeLines": 11,
+      "totalLines": 94,
+      "files": [
+        "changelog/9924.bugfix.rst",
+        "src/_pytest/doctest.py",
+        "testing/test_doctest.py"
+      ],
+      "production": [
+        "src/_pytest/doctest.py"
+      ]
+    },
+    {
+      "id": "pytest-14934",
+      "pr": 14934,
+      "sha": "b0de7356b509ed01777a485662e05a9dc8e23c67",
+      "parent": "75e6815c55ac66dacf033ababa40c2a91b82e99c",
+      "subject": "fix: raise on any nested container in approx, not only same-type (#14934)",
+      "codeLines": 15,
+      "totalLines": 51,
+      "files": [
+        "AUTHORS",
+        "changelog/10210.bugfix.rst",
+        "src/_pytest/approx.py",
+        "testing/python/approx.py"
+      ],
+      "production": [
+        "src/_pytest/approx.py"
+      ]
+    },
+    {
+      "id": "pytest-14829",
+      "pr": 14829,
+      "sha": "e739014f38d284f1ce57745cdd4e13392fb56165",
+      "parent": "604e2d0390c3850ded48788bdc9e4a5fb7013744",
+      "subject": "Fix duplicated exception chain output when an exception group has a cause (#14829)",
+      "codeLines": 4,
+      "totalLines": 83,
+      "files": [
+        "changelog/14828.bugfix.rst",
+        "src/_pytest/_code/code.py",
+        "testing/code/test_excinfo.py",
+        "testing/test_unittest.py"
+      ],
+      "production": [
+        "src/_pytest/_code/code.py"
+      ]
+    },
+    {
+      "id": "pytest-14748",
+      "pr": 14748,
+      "sha": "36704f9b54c40b3de715f5d5d28666faf566b843",
+      "parent": "344c23787cdb3431dcc441b8b63ee9950f04b921",
+      "subject": "Fix elision of long collections in assertion messages with -vv (#14748)",
+      "codeLines": 2,
+      "totalLines": 25,
+      "files": [
+        "changelog/12307.bugfix.rst",
+        "src/_pytest/assertion/rewrite.py",
+        "testing/test_assertrewrite.py"
+      ],
+      "production": [
+        "src/_pytest/assertion/rewrite.py"
+      ]
+    },
+    {
+      "id": "pytest-14730",
+      "pr": 14730,
+      "sha": "6f1b078537cf4ab14d0a7b29972c4e73f23a9011",
+      "parent": "85003621822f9c10063940068ccacc9c12b8c73f",
+      "subject": "fix: keep pytest_terminal_summary under --no-summary (#14730)",
+      "codeLines": 28,
+      "totalLines": 48,
+      "files": [
+        "AUTHORS",
+        "changelog/14724.improvement.rst",
+        "src/_pytest/terminal.py",
+        "testing/test_terminal.py"
+      ],
+      "production": [
+        "src/_pytest/terminal.py"
+      ]
+    },
+    {
+      "id": "pytest-14747",
+      "pr": 14747,
+      "sha": "1c36631c68427619646d9f12904cc513e48d472b",
+      "parent": "198eff1604e7b649e3fdcf306306517070d19235",
+      "subject": "Fix pytest.warns re-emitting warnings with module=\"warnings\" (#14747)",
+      "codeLines": 1,
+      "totalLines": 28,
+      "files": [
+        "changelog/11933.bugfix.rst",
+        "src/_pytest/recwarn.py",
+        "testing/test_recwarn.py"
+      ],
+      "production": [
+        "src/_pytest/recwarn.py"
+      ]
+    },
+    {
+      "id": "pytest-14744",
+      "pr": 14744,
+      "sha": "34b6a4e5354dbd0e169de7cd22425bc34038dbf6",
+      "parent": "e7355d70771b5f34f78d7012f73bdc8eb79574d6",
+      "subject": "Fix missing traceback source for code with cwd-relative filenames (#14744)",
+      "codeLines": 16,
+      "totalLines": 49,
+      "files": [
+        "changelog/1139.bugfix.rst",
+        "src/_pytest/_code/source.py",
+        "testing/code/test_source.py"
+      ],
+      "production": [
+        "src/_pytest/_code/source.py"
+      ]
+    },
+    {
+      "id": "pytest-14639",
+      "pr": 14639,
+      "sha": "3fa8d9b15b733aadb8a043cca3e98447804e1f28",
+      "parent": "e6d8374449d0862093295f131b21a0eb2ca9526b",
+      "subject": "Fix off-by-one in trailing assertion diff skipping (#14637) (#14639)",
+      "codeLines": 2,
+      "totalLines": 12,
+      "files": [
+        "AUTHORS",
+        "changelog/14637.bugfix.rst",
+        "src/_pytest/assertion/compare_text.py",
+        "testing/test_assertion.py"
+      ],
+      "production": [
+        "src/_pytest/assertion/compare_text.py"
+      ]
+    },
+    {
+      "id": "pytest-14339",
+      "pr": 14339,
+      "sha": "3e27786ce7d8e484d3011e0eea09dcca5b07a97c",
+      "parent": "fc54e3523bcc828d3746befa1551103ff92191b2",
+      "subject": "Make FixtureFuction type alias instead of TypeVar (#14339)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "src/_pytest/fixtures.py"
+      ],
+      "production": [
+        "src/_pytest/fixtures.py"
+      ]
+    },
+    {
+      "id": "pytest-14213",
+      "pr": 14213,
+      "sha": "6b700f49fb59fc6cec43b9a550cf558954d83332",
+      "parent": "f081bfbdec7d01c71dd3e60525806755d36606ff",
+      "subject": "subtests: avoid double `saferepr()` (#14213)",
+      "codeLines": 2,
+      "totalLines": 18,
+      "files": [
+        "src/_pytest/subtests.py",
+        "testing/test_subtests.py"
+      ],
+      "production": [
+        "src/_pytest/subtests.py"
+      ]
+    },
+    {
+      "id": "pytest-13640",
+      "pr": 13640,
+      "sha": "03db745771b5304b45512bf41667adfab1fe8f7a",
+      "parent": "5989efe3efec31a9d14f550d89903b6311dfc828",
+      "subject": "add missing colon (#13640)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "src/_pytest/raises.py"
+      ],
+      "production": [
+        "src/_pytest/raises.py"
+      ]
+    },
+    {
+      "id": "pytest-13153",
+      "pr": 13153,
+      "sha": "2f1c143b17edab8e1525d553e0757a5fc27bb068",
+      "parent": "4a6a512443e5e1aaed0b5bb0cc82adb2c09d4b66",
+      "subject": "Fix internal mypy error on Windows (#13153)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "src/_pytest/_py/error.py"
+      ],
+      "production": [
+        "src/_pytest/_py/error.py"
+      ]
+    },
+    {
+      "id": "pytest-13152",
+      "pr": 13152,
+      "sha": "4a6a512443e5e1aaed0b5bb0cc82adb2c09d4b66",
+      "parent": "d6ab675a08c89606bfdc172eb410a4cdb56a5e60",
+      "subject": "Fix example in pytest_collection_modifyitems (#13152)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "src/_pytest/hookspec.py"
+      ],
+      "production": [
+        "src/_pytest/hookspec.py"
+      ]
+    },
+    {
+      "id": "pytest-12210",
+      "pr": 12210,
+      "sha": "6fb474a3eb3ba2b5d971735134d8fcfe9d3dc657",
+      "parent": "ff806b239e6fb542ef1c9a5feb7cfad229a433df",
+      "subject": "Refactor insert_missing_modules function (#12210)",
+      "codeLines": 47,
+      "totalLines": 47,
+      "files": [
+        "src/_pytest/pathlib.py"
+      ],
+      "production": [
+        "src/_pytest/pathlib.py"
+      ]
+    },
+    {
+      "id": "pytest-11158",
+      "pr": 11158,
+      "sha": "b73ec8e5d117a244b696ff4f9d2dfb74df078b2f",
+      "parent": "d790e96765de04a79dcde7c97e405f7c3a1c7034",
+      "subject": "doc: fix EncodingWarnings in examples (#11158)",
+      "codeLines": 2,
+      "totalLines": 14,
+      "files": [
+        "doc/en/example/nonpython/conftest.py",
+        "doc/en/example/simple.rst",
+        "doc/en/how-to/fixtures.rst",
+        "doc/en/how-to/tmp_path.rst",
+        "doc/en/how-to/unittest.rst"
+      ],
+      "production": [
+        "doc/en/example/nonpython/conftest.py"
+      ]
+    },
+    {
+      "id": "pytest-9373",
+      "pr": 9373,
+      "sha": "3a479db126d081532e76a5a4018bcfb6ad11f5e9",
+      "parent": "70d3d0f3907788769cbe7cae14680f6bd29b0ba7",
+      "subject": "Fix hook param name in nonpython example (#9373)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "doc/en/example/nonpython/conftest.py"
+      ],
+      "production": [
+        "doc/en/example/nonpython/conftest.py"
+      ]
+    },
+    {
+      "id": "pytest-8069",
+      "pr": 8069,
+      "sha": "d27806295a3a7249839491e82d0b87bdfbf37383",
+      "parent": "d59a4996ae7d32498b2bd4c2f2a36eda4599a2e1",
+      "subject": "fix typo (#8069)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "src/_pytest/_argcomplete.py"
+      ],
+      "production": [
+        "src/_pytest/_argcomplete.py"
+      ]
+    },
+    {
+      "id": "pytest-7014",
+      "pr": 7014,
+      "sha": "ce806001b0bc93d37faa3b255e907fb3d0a9bef6",
+      "parent": "259e5d0610202453f9beace6cab336b11d4353a9",
+      "subject": "Fix doc for `numbered` arg with `TempPathFactory.mktemp` (#7014)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "src/_pytest/tmpdir.py"
+      ],
+      "production": [
+        "src/_pytest/tmpdir.py"
+      ]
+    },
+    {
+      "id": "pytest-5668",
+      "pr": 5668,
+      "sha": "cff58457ddea873701fd21d110f5fe70bee5746d",
+      "parent": "cb15e7c70058a5249ac407079e32d698b72914a8",
+      "subject": "Fix the confusing different names of `fulltrace` (#5668)",
+      "codeLines": 2,
+      "totalLines": 4,
+      "files": [
+        "src/_pytest/terminal.py",
+        "testing/test_terminal.py"
+      ],
+      "production": [
+        "src/_pytest/terminal.py"
+      ]
+    }
+  ]
+}

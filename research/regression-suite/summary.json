@@ -1,0 +1,387 @@
+{
+  "plannedNewCases": 75,
+  "plannedSevenRepoCases": 100,
+  "invalidPairs": [
+    {
+      "id": "posthog-104706",
+      "repo": "posthog",
+      "cohort": "gemini",
+      "reason": "INVALID PAIR: Gemini baseline failed all three same-model attempts (malformed or empty output); excluded from paired detection rates. The valid cached arm identifies quiet zero-row runs falsely flagged as stalled when staleness uses last_synced_at instead of latest execution time. Retain this unpaired hit separately, not as a paired gain.",
+      "arms": {
+        "baseline": {
+          "valid": false,
+          "hit": null,
+          "tokens": null,
+          "elapsedMs": 143709
+        },
+        "cached": {
+          "valid": true,
+          "hit": true,
+          "tokens": 51740,
+          "elapsedMs": 91805
+        }
+      }
+    }
+  ],
+  "invalidAttempts": {
+    "count": 8,
+    "unknownTokenAttempts": 4,
+    "providerReportedTokens": 417242,
+    "elapsedMs": 22475075
+  },
+  "newByRepo": {
+    "grafana": {
+      "cases": 15,
+      "baseline": {
+        "hits": 9,
+        "tokens": 287850,
+        "elapsedMs": 368193,
+        "findings": 15
+      },
+      "cached": {
+        "hits": 12,
+        "tokens": 350135,
+        "elapsedMs": 437867,
+        "findings": 15
+      },
+      "wins": 4,
+      "losses": 1
+    },
+    "posthog": {
+      "cases": 14,
+      "baseline": {
+        "hits": 8,
+        "tokens": 350818,
+        "elapsedMs": 473185,
+        "findings": 15
+      },
+      "cached": {
+        "hits": 12,
+        "tokens": 368006,
+        "elapsedMs": 503060,
+        "findings": 19
+      },
+      "wins": 5,
+      "losses": 1
+    },
+    "pandas": {
+      "cases": 15,
+      "baseline": {
+        "hits": 12,
+        "tokens": 373115,
+        "elapsedMs": 539698,
+        "findings": 15
+      },
+      "cached": {
+        "hits": 15,
+        "tokens": 328129,
+        "elapsedMs": 402919,
+        "findings": 20
+      },
+      "wins": 3,
+      "losses": 0
+    },
+    "sklearn": {
+      "cases": 15,
+      "baseline": {
+        "hits": 10,
+        "tokens": 337304,
+        "elapsedMs": 466987,
+        "findings": 13
+      },
+      "cached": {
+        "hits": 13,
+        "tokens": 307782,
+        "elapsedMs": 374586,
+        "findings": 16
+      },
+      "wins": 3,
+      "losses": 0
+    },
+    "pydantic": {
+      "cases": 15,
+      "baseline": {
+        "hits": 14,
+        "tokens": 335510,
+        "elapsedMs": 505094,
+        "findings": 35
+      },
+      "cached": {
+        "hits": 14,
+        "tokens": 315701,
+        "elapsedMs": 427483,
+        "findings": 26
+      },
+      "wins": 1,
+      "losses": 1
+    }
+  },
+  "newByModel": {
+    "opus": {
+      "cases": 25,
+      "baseline": {
+        "hits": 18,
+        "tokens": 171009,
+        "elapsedMs": 358380,
+        "findings": 38
+      },
+      "cached": {
+        "hits": 23,
+        "tokens": 313604,
+        "elapsedMs": 469058,
+        "findings": 35
+      },
+      "wins": 6,
+      "losses": 1
+    },
+    "sol": {
+      "cases": 25,
+      "baseline": {
+        "hits": 18,
+        "tokens": 467448,
+        "elapsedMs": 390531,
+        "findings": 28
+      },
+      "cached": {
+        "hits": 24,
+        "tokens": 523854,
+        "elapsedMs": 657116,
+        "findings": 38
+      },
+      "wins": 6,
+      "losses": 0
+    },
+    "gemini": {
+      "cases": 24,
+      "baseline": {
+        "hits": 17,
+        "tokens": 1046140,
+        "elapsedMs": 1604246,
+        "findings": 27
+      },
+      "cached": {
+        "hits": 19,
+        "tokens": 832295,
+        "elapsedMs": 1019741,
+        "findings": 23
+      },
+      "wins": 4,
+      "losses": 2
+    }
+  },
+  "newDescriptiveMixture": {
+    "cases": 74,
+    "baseline": {
+      "hits": 53,
+      "tokens": 1684597,
+      "elapsedMs": 2353157,
+      "findings": 93
+    },
+    "cached": {
+      "hits": 66,
+      "tokens": 1669753,
+      "elapsedMs": 2145915,
+      "findings": 96
+    },
+    "wins": 16,
+    "losses": 3
+  },
+  "historicalByRepo": {
+    "autoscaler": {
+      "cases": 10,
+      "baseline": {
+        "hits": 6,
+        "tokens": 184927,
+        "elapsedMs": 139517,
+        "findings": 8
+      },
+      "cached": {
+        "hits": 9,
+        "tokens": 191053,
+        "elapsedMs": 178643,
+        "findings": 11
+      },
+      "wins": 4,
+      "losses": 1
+    },
+    "mitmproxy": {
+      "cases": 15,
+      "baseline": {
+        "hits": 8,
+        "tokens": 251938,
+        "elapsedMs": 130485,
+        "findings": 8
+      },
+      "cached": {
+        "hits": 15,
+        "tokens": 268789,
+        "elapsedMs": 200452,
+        "findings": 15
+      },
+      "wins": 7,
+      "losses": 0
+    }
+  },
+  "sevenRepoDescriptiveMixture": {
+    "cases": 99,
+    "baseline": {
+      "hits": 67,
+      "tokens": 2121462,
+      "elapsedMs": 2623159,
+      "findings": 109
+    },
+    "cached": {
+      "hits": 90,
+      "tokens": 2129595,
+      "elapsedMs": 2525010,
+      "findings": 122
+    },
+    "wins": 27,
+    "losses": 4
+  },
+  "mining": [
+    {
+      "repo": "grafana",
+      "cohort": "opus",
+      "calls": 15,
+      "tokens": 109440,
+      "elapsedMs": 266925,
+      "saved": 27,
+      "skipped": 0
+    },
+    {
+      "repo": "grafana",
+      "cohort": "sol",
+      "calls": 15,
+      "tokens": 276946,
+      "elapsedMs": 276918,
+      "saved": 19,
+      "skipped": 0
+    },
+    {
+      "repo": "grafana",
+      "cohort": "gemini",
+      "calls": 15,
+      "tokens": 367632,
+      "elapsedMs": 417617,
+      "saved": 18,
+      "skipped": 0
+    },
+    {
+      "repo": "posthog",
+      "cohort": "opus",
+      "calls": 15,
+      "tokens": 139486,
+      "elapsedMs": 404023,
+      "saved": 31,
+      "skipped": 1
+    },
+    {
+      "repo": "posthog",
+      "cohort": "sol",
+      "calls": 15,
+      "tokens": 297939,
+      "elapsedMs": 484078,
+      "saved": 30,
+      "skipped": 0
+    },
+    {
+      "repo": "posthog",
+      "cohort": "gemini",
+      "calls": 15,
+      "tokens": 419468,
+      "elapsedMs": 581288,
+      "saved": 23,
+      "skipped": 0
+    },
+    {
+      "repo": "pandas",
+      "cohort": "opus",
+      "calls": 15,
+      "tokens": 96952,
+      "elapsedMs": 207694,
+      "saved": 26,
+      "skipped": 0
+    },
+    {
+      "repo": "pandas",
+      "cohort": "sol",
+      "calls": 15,
+      "tokens": 272745,
+      "elapsedMs": 315432,
+      "saved": 23,
+      "skipped": 0
+    },
+    {
+      "repo": "pandas",
+      "cohort": "gemini",
+      "calls": 15,
+      "tokens": 334212,
+      "elapsedMs": 347375,
+      "saved": 15,
+      "skipped": 0
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "opus",
+      "calls": 15,
+      "tokens": 82611,
+      "elapsedMs": 183021,
+      "saved": 23,
+      "skipped": 0
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "sol",
+      "calls": 15,
+      "tokens": 262292,
+      "elapsedMs": 244489,
+      "saved": 19,
+      "skipped": 0
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "gemini",
+      "calls": 15,
+      "tokens": 334472,
+      "elapsedMs": 311943,
+      "saved": 16,
+      "skipped": 0
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "opus",
+      "calls": 15,
+      "tokens": 88889,
+      "elapsedMs": 192968,
+      "saved": 22,
+      "skipped": 0
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "sol",
+      "calls": 15,
+      "tokens": 266352,
+      "elapsedMs": 264573,
+      "saved": 20,
+      "skipped": 0
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "gemini",
+      "calls": 15,
+      "tokens": 351901,
+      "elapsedMs": 354871,
+      "saved": 16,
+      "skipped": 0
+    }
+  ],
+  "limitations": [
+    "Historical-fix recall, not prospective bug prediction",
+    "No clean controls; false-positive rate unknown",
+    "Different cases across model cohorts: no model ranking",
+    "Historical runs use earlier Thinker revisions",
+    "Single sample per arm",
+    "Gemini/Codex identity pinned by invocation; provider does not consistently echo it"
+  ]
+}

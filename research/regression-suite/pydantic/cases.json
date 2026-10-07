@@ -1,0 +1,338 @@
+{
+  "repo": "pydantic/pydantic",
+  "base": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "pydantic-13912",
+      "pr": 13912,
+      "sha": "e5b02608847e59c4cdbeb6355d49374a800a9c91",
+      "parent": "e2ac21dcd66fc682f8a50f6e179dbd95fa4b44ac",
+      "subject": "Handle OS errors during `ZoneInfo` validation (#13912)",
+      "codeLines": 2,
+      "totalLines": 131,
+      "files": [
+        "pydantic/_internal/_validators.py",
+        "tests/test_types_zoneinfo.py",
+        "tests/types/test_zoneinfo.py"
+      ],
+      "production": [
+        "pydantic/_internal/_validators.py"
+      ],
+      "target": "Handle OS errors during `ZoneInfo` validation (#13912)",
+      "assignmentKey": "c5821e094f64898631eecf3f9722cc9bec86977f80f59373b7925d1c27a62c2f",
+      "cohort": "gemini",
+      "caseIndex": 0
+    },
+    {
+      "id": "pydantic-13892",
+      "pr": 13892,
+      "sha": "ee4c062be800adb418b7f34ce3e06bc9aad93d74",
+      "parent": "b0cd9d347dc4159043620fde554cbd63d08e3ad5",
+      "subject": "Don't apply `ser_json_timedelta` to all datetime types in serialization inference (#13892)",
+      "codeLines": 69,
+      "totalLines": 124,
+      "files": [
+        "pydantic-core/src/serializers/config.rs",
+        "pydantic-core/src/serializers/infer.rs",
+        "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+        "tests/test_datetime.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/config.rs",
+        "pydantic-core/src/serializers/infer.rs",
+        "pydantic-core/src/serializers/type_serializers/timedelta.rs"
+      ],
+      "target": "Don't apply `ser_json_timedelta` to all datetime types in serialization inference (#13892)",
+      "assignmentKey": "98e07efc0b41668bf4a7182cd4cb2aeb7bd583d6a7703e0f01da8aaeeda0ef4f",
+      "cohort": "gemini",
+      "caseIndex": 1
+    },
+    {
+      "id": "pydantic-13825",
+      "pr": 13825,
+      "sha": "dae3788547fa8c7c3c78d28d284d3f669ad8c1d3",
+      "parent": "0384c970e37a59b344e75161eb106ea9996378ba",
+      "subject": "Do not mutate `model_config` attribute (#13825)",
+      "codeLines": 106,
+      "totalLines": 222,
+      "files": [
+        "pydantic/_internal/_config.py",
+        "pydantic/_internal/_dataclasses.py",
+        "pydantic/_internal/_model_construction.py",
+        "pydantic/_internal/_signature.py",
+        "pydantic/config.py",
+        "pydantic/deprecated/decorator.py",
+        "tests/test_config.py",
+        "tests/test_deprecated_validate_arguments.py",
+        "tests/test_model_signature.py"
+      ],
+      "production": [
+        "pydantic/_internal/_config.py",
+        "pydantic/_internal/_dataclasses.py",
+        "pydantic/_internal/_model_construction.py",
+        "pydantic/_internal/_signature.py",
+        "pydantic/config.py",
+        "pydantic/deprecated/decorator.py"
+      ],
+      "target": "Do not mutate `model_config` attribute (#13825)",
+      "assignmentKey": "587689976dabda8b0971c89efb6a376e2bc692cb39694a1d46ea7d2de1944727",
+      "cohort": "sol",
+      "caseIndex": 2
+    },
+    {
+      "id": "pydantic-13850",
+      "pr": 13850,
+      "sha": "0384c970e37a59b344e75161eb106ea9996378ba",
+      "parent": "915896d163835a57fd7987180087409a3229bd71",
+      "subject": "Catch `OverflowError` during `ByteSize` validation (#13850)",
+      "codeLines": 7,
+      "totalLines": 10,
+      "files": [
+        "pydantic/types.py",
+        "tests/test_types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ],
+      "target": "Catch `OverflowError` during `ByteSize` validation (#13850)",
+      "assignmentKey": "bed99914dbabda486fdaec57fca3ea696145a7f4b441a35a8a0fbab82abda771",
+      "cohort": "opus",
+      "caseIndex": 3
+    },
+    {
+      "id": "pydantic-13785",
+      "pr": 13785,
+      "sha": "831893ed0411d45c20aacae88e067c9c33a89501",
+      "parent": "e2683e14d3c449cc74cde3efc94bf19f4ee9d95f",
+      "subject": "Fix race conditions in freethreaded build (#13785)",
+      "codeLines": 31,
+      "totalLines": 198,
+      "files": [
+        "pydantic/_internal/_decorators.py",
+        "pydantic/_internal/_namespace_utils.py",
+        "pydantic/main.py",
+        "tests/conftest.py",
+        "tests/test_freethreaded.py"
+      ],
+      "production": [
+        "pydantic/_internal/_decorators.py",
+        "pydantic/_internal/_namespace_utils.py",
+        "pydantic/main.py"
+      ],
+      "target": "Fix race conditions in freethreaded build (#13785)",
+      "assignmentKey": "c52a9452ac0664a59eb6488debd15fd7cfffa75e78d8e3f8ce79f40b1685d4a4",
+      "cohort": "sol",
+      "caseIndex": 4
+    },
+    {
+      "id": "pydantic-13767",
+      "pr": 13767,
+      "sha": "6208022f515f48a35642838caf48d62d1d82e398",
+      "parent": "0e802642a6bb4c9e42f5b6ef01d510f22be1e606",
+      "subject": "Fix Mypy plugin crash with import cycle (#13767)",
+      "codeLines": 16,
+      "totalLines": 66,
+      "files": [
+        "pydantic/mypy.py",
+        "pyproject.toml",
+        "tests/mypy/modules/import_cycle.py",
+        "tests/mypy/modules/import_cycle_base.py",
+        "tests/mypy/outputs/mypy-plugin_ini/import_cycle.py",
+        "tests/mypy/test_mypy.py"
+      ],
+      "production": [
+        "pydantic/mypy.py"
+      ],
+      "target": "Fix Mypy plugin crash with import cycle (#13767)",
+      "assignmentKey": "0ade71a21f172faaf09867f318980344b425ab682c278f3ad5e9ab400003bab8",
+      "cohort": "sol",
+      "caseIndex": 5
+    },
+    {
+      "id": "pydantic-13711",
+      "pr": 13711,
+      "sha": "d6e2021f761fc6bd53bd955a9cc3916cc5d0bfe6",
+      "parent": "952c239fadf1f64e5d29cbf15d1696548d8ac53c",
+      "subject": "Don't apply serialization temporal formats to validation JSON schemas (#13711)",
+      "codeLines": 2,
+      "totalLines": 3,
+      "files": [
+        "pydantic/json_schema.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ],
+      "target": "Don't apply serialization temporal formats to validation JSON schemas (#13711)",
+      "assignmentKey": "f23d8ed35c5d927e9e04ad7f8a6e8bfd3e1a2b49c8a0824e7562a11813a9c282",
+      "cohort": "sol",
+      "caseIndex": 6
+    },
+    {
+      "id": "pydantic-13702",
+      "pr": 13702,
+      "sha": "55084b74b3abfdfeee61105b9840e968a0739800",
+      "parent": "3c356318f0dafc149a018d0f9867651741b6c967",
+      "subject": "Do not drop include/exclude if serializer wasn't called (#13702)",
+      "codeLines": 34,
+      "totalLines": 59,
+      "files": [
+        "pydantic-core/src/serializers/extra.rs",
+        "pydantic-core/src/serializers/type_serializers/function.rs",
+        "tests/test_serialize.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/extra.rs",
+        "pydantic-core/src/serializers/type_serializers/function.rs"
+      ],
+      "target": "Do not drop include/exclude if serializer wasn't called (#13702)",
+      "assignmentKey": "4903c90115bd991e635c16b2dc8bc36a53e469333533a6da7ce0e1e5b8eb7217",
+      "cohort": "opus",
+      "caseIndex": 7
+    },
+    {
+      "id": "pydantic-13629",
+      "pr": 13629,
+      "sha": "52fbbfa1dc14a9b1fc40a1e246a3cbf2ce4987d1",
+      "parent": "8affe9bacade6713774fccbff11cb5264c3b1c7b",
+      "subject": "Fix missing GC traversal in `pydantic-core` for `GeneralFieldsSerializer` (#13629)",
+      "codeLines": 11,
+      "totalLines": 11,
+      "files": [
+        "pydantic-core/src/serializers/fields.rs"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/fields.rs"
+      ],
+      "target": "Fix missing GC traversal in `pydantic-core` for `GeneralFieldsSerializer` (#13629)",
+      "assignmentKey": "7cf63c2ed29f0662271d7bc2e16612e4c52d37554ae20c6120caa717c2ee3d62",
+      "cohort": "opus",
+      "caseIndex": 8
+    },
+    {
+      "id": "pydantic-13604",
+      "pr": 13604,
+      "sha": "9b4d952c59d64b940a0a2559299aff81243e1ded",
+      "parent": "5922459fcf33d9a8767fd0fd25a982bbf0d7668d",
+      "subject": "Fix support for callable discriminators with PEP 695 type aliases (#13604)",
+      "codeLines": 39,
+      "totalLines": 60,
+      "files": [
+        "pydantic/_internal/_discriminated_union.py",
+        "pydantic/types.py",
+        "tests/types/unions/test_discriminated_union.py"
+      ],
+      "production": [
+        "pydantic/_internal/_discriminated_union.py",
+        "pydantic/types.py"
+      ],
+      "target": "Fix support for callable discriminators with PEP 695 type aliases (#13604)",
+      "assignmentKey": "e1a80e4c0233bcf6c7747ec22632b59173216b41ccf495173b4400fe37b6f171",
+      "cohort": "opus",
+      "caseIndex": 9
+    },
+    {
+      "id": "pydantic-13552",
+      "pr": 13552,
+      "sha": "79e15fab237a2fbf6a2cd2e5db984b503269940c",
+      "parent": "17e2ddaffe41a619aaf9c4dc67c0995aa8016af2",
+      "subject": "Avoid double-wrapping polymorphism trampoline for model serializers (#13552)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "pydantic-core/src/serializers/shared.rs"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/shared.rs"
+      ],
+      "target": "Avoid double-wrapping polymorphism trampoline for model serializers (#13552)",
+      "assignmentKey": "f9b94b81c751f3b5c8f9560e65a2469d48d52f4dd5b7c122941d6f028d888b8d",
+      "cohort": "gemini",
+      "caseIndex": 10
+    },
+    {
+      "id": "pydantic-13537",
+      "pr": 13537,
+      "sha": "35b8d94c1435a3e78fc919cfdb439a1ef85a8d6f",
+      "parent": "a54529f06204ecb8f940d2506ff66dd1521917c8",
+      "subject": "Fix `SecretStr` equality comparison raising `TypeError` on non-ASCII values (#13537)",
+      "codeLines": 6,
+      "totalLines": 9,
+      "files": [
+        "pydantic/types.py",
+        "tests/test_types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ],
+      "target": "Fix `SecretStr` equality comparison raising `TypeError` on non-ASCII values (#13537)",
+      "assignmentKey": "77cf336b136d56bb24fd6b5756c47ffa151436cc9ac09ae3ce66af9a0a257e17",
+      "cohort": "gemini",
+      "caseIndex": 11
+    },
+    {
+      "id": "pydantic-13515",
+      "pr": 13515,
+      "sha": "a54529f06204ecb8f940d2506ff66dd1521917c8",
+      "parent": "60d4c4873e44d587c8d70d7a1c731f7361fe55eb",
+      "subject": "Don't error on unhashable generic arguments on generic Pydantic models (#13515)",
+      "codeLines": 30,
+      "totalLines": 44,
+      "files": [
+        "pydantic/_internal/_generics.py",
+        "tests/test_generics.py"
+      ],
+      "production": [
+        "pydantic/_internal/_generics.py"
+      ],
+      "target": "Don't error on unhashable generic arguments on generic Pydantic models (#13515)",
+      "assignmentKey": "2d54c9e61e4cb2b1f5222d8aa2f6bbc93bf672e99bb725bdcb8c7c5bdd0521a7",
+      "cohort": "gemini",
+      "caseIndex": 12
+    },
+    {
+      "id": "pydantic-13452",
+      "pr": 13452,
+      "sha": "3ce9b13630b42813ab9ddf5c58fce110541e83a8",
+      "parent": "ea09770482bc019d981d4ffb14214286e3c26f13",
+      "subject": "Fix `Interval` zero bounds silently dropped in pipeline API (#13452)",
+      "codeLines": 8,
+      "totalLines": 15,
+      "files": [
+        "pydantic/experimental/pipeline.py",
+        "tests/test_pipeline.py"
+      ],
+      "production": [
+        "pydantic/experimental/pipeline.py"
+      ],
+      "target": "Fix `Interval` zero bounds silently dropped in pipeline API (#13452)",
+      "assignmentKey": "0a67d0fc8b08e595fd712913f32a0930369a45350526fcdb7f0b63dda7f402ec",
+      "cohort": "opus",
+      "caseIndex": 13
+    },
+    {
+      "id": "pydantic-13436",
+      "pr": 13436,
+      "sha": "03785440e976d89ccc549d0a3c8b7769ed394c2f",
+      "parent": "b281d5aed7f8b43377c40cdfd8a87e2b612f148f",
+      "subject": "Do not ignore timezone offset when using `'seconds'/'milliseconds'` `temporal_mode` (#13436)",
+      "codeLines": 4,
+      "totalLines": 61,
+      "files": [
+        "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+        "pydantic-core/tests/serializers/test_datetime.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/type_serializers/datetime_etc.rs"
+      ],
+      "target": "Do not ignore timezone offset when using `'seconds'/'milliseconds'` `temporal_mode` (#13436)",
+      "assignmentKey": "8b81d258e8dbdf092e1597afadc88c432b8be57994418d9d093a578c9e8793e3",
+      "cohort": "sol",
+      "caseIndex": 14
+    }
+  ],
+  "frozenAt": "2026-10-06",
+  "assignment": "Sort SHA256(regression-suite-2026-10-06:<slug>:<fix-sha>), then cycle opus/sol/gemini; five per model, frozen before scored outputs.",
+  "excludedBeforeFreeze": "Documentation, examples, typing-only changes, warning-only cleanup, performance-only hash collision cleanup and unrelated feature work. Selection is compact reversible historical fixes, not representative random sampling."
+}

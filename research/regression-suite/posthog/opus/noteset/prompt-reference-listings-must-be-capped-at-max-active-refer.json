@@ -1,0 +1,81 @@
+{
+  "id": "prompt-reference-listings-must-be-capped-at-max-active-refer",
+  "title": "Prompt reference listings must be capped at MAX_ACTIVE_REFERENCE_RESULTS and ordered in SQL before slicing",
+  "kind": "rule",
+  "answers": [
+    "label move/delete error message lists thousands of prompt names",
+    "why is the referencing prompts list truncated to 100",
+    "how to add a new prompt reference listing helper",
+    "huge error body when deleting a label on a widely used partial"
+  ],
+  "body": "Symptom: moving or deleting a prompt label used by a partial that thousands of prompts reference returned an enormous error message listing every parent prompt name.\nRoot cause: products/ai_observability/backend/prompt_references.py:get_active_parents_referencing_label was the only reference listing with no result cap, and its names are joined into label-move/label-delete error messages and dialogs.\nFix pattern: every reference listing in prompt_references.py ends with `.order_by(<name field>)[:MAX_ACTIVE_REFERENCE_RESULTS]` (100 entries), the same as its sibling helpers such as get_active_references_to. Ordering happens in SQL before the slice, so the capped subset is deterministic (the first N by name) and not an arbitrary set of rows.\nConstraints: callers may treat a non-empty result only as \"is referenced\". That stays correct past the cap. Do not use len() of these lists as the true reference count. If you need an exact count, write a separate count query. Covered by posthog/api/test/test_llm_prompt.py:TestLLMPromptDependenciesAPI.test_label_parent_listing_is_capped, which creates cap+1 parents.",
+  "applies": "Any helper in products/ai_observability/backend/prompt_references.py that lists referencing prompts for error messages/UI",
+  "tags": [
+    "llm-prompts",
+    "prompt-references",
+    "labels",
+    "result-cap",
+    "error-messages"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "get_active_parents_referencing_label",
+      "hash": "sha256:ab09a02c9197c91d36c61ec4",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "MAX_ACTIVE_REFERENCE_RESULTS",
+      "hash": "sha256:73d4eed130b477f7bc358a6a",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "get_active_references_to",
+      "hash": "sha256:b46e9d184f962e5107a6efd2",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "posthog/api/test/test_llm_prompt.py",
+      "symbol": "TestLLMPromptDependenciesAPI.test_label_parent_listing_is_capped",
+      "hash": "sha256:f172d454ce0829abdd9b9d05",
+      "line": 2423,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105660"
+  },
+  "created": "2026-10-07T00:14:17.772Z",
+  "verified": "2026-10-07T00:14:17.772Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

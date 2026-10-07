@@ -1,0 +1,42 @@
+{
+  "id": "preserve-timezone-offsets-when-serializing-datetime-to-epoch",
+  "title": "Preserve timezone offsets when serializing DateTime to epoch seconds or milliseconds",
+  "kind": "rule",
+  "answers": [
+    "Why is timezone offset ignored when serializing datetime with ser_json_temporal set to seconds or milliseconds?",
+    "How to convert DateTime to epoch timestamp with timezone in pydantic-core datetime serializers?",
+    "Why does datetime serialization to seconds or milliseconds produce incorrect timestamps for timezone-aware datetimes?"
+  ],
+  "body": "Symptom: Timezone offset is ignored when serializing timezone-aware datetime instances with ser_json_temporal set to 'seconds' or 'milliseconds'.\nRoot cause: pydantic-core/src/serializers/type_serializers/datetime_etc.rs:datetime_to_seconds and datetime_to_milliseconds calculated epoch seconds from dt.date without accounting for dt's timezone offset.\nFix pattern: Call dt.timestamp_tz() to get timezone-adjusted epoch seconds and add fractional subseconds from dt.time.microsecond.\nConstraints: Applies when converting DateTime to numeric timestamps in seconds or milliseconds; does not apply to naive Date objects or string temporal modes.",
+  "applies": "Serializing DateTime values to numeric seconds or milliseconds in pydantic-core",
+  "tags": [
+    "datetime",
+    "serialization",
+    "timezone",
+    "temporal_mode",
+    "pydantic-core"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "hash": "sha256:978374440561fa0a1b9e752b",
+      "missing": false
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+      "hash": "sha256:978374440561fa0a1b9e752b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13436"
+  },
+  "created": "2026-10-07T00:54:48.133Z",
+  "verified": "2026-10-07T00:54:48.133Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

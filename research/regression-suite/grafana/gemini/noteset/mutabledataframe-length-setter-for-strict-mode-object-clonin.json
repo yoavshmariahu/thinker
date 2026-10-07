@@ -1,0 +1,54 @@
+{
+  "id": "mutabledataframe-length-setter-for-strict-mode-object-clonin",
+  "title": "MutableDataFrame length setter for strict mode object cloning",
+  "kind": "rule",
+  "answers": [
+    "Why does Explore raw Prometheus view throw TypeError: Cannot set property length of which has only a getter?",
+    "How to fix TypeError Cannot set property length of which has only a getter when cloning MutableDataFrame",
+    "Why does lodash cloneDeep fail on MutableDataFrame in Rspack ESM builds?",
+    "How to make DataFrame classes compatible with lodash cloneDeep in strict mode"
+  ],
+  "body": "Symptom: In Explore, viewing the raw Prometheus view fails with \"TypeError: Cannot set property length of #<d> which has only a getter\" when running two or more instant queries.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame.length only had a getter for derived length, causing strict-mode lodash cloneDeep (used on merged queries in public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer) to fail when reassigning keys.\nFix pattern: Add a no-op setter (`set length(_value: number) {}`) to classes whose derived properties are read and written back by generic object cloners, and remove unnecessary cloneDeep calls on read-only data.\nConstraints: Applies to class properties with getters that generic cloners reassign in strict ESM environments; does not apply if writing to the property should actually update internal collection state.",
+  "applies": "Grafana frontend data frame classes and Explore views handling cloned data under strict ESM / Rspack builds",
+  "tags": [
+    "grafana-data",
+    "explore",
+    "prometheus",
+    "dataframe",
+    "strict-mode",
+    "rspack",
+    "clonedeep"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+      "symbol": "MutableDataFrame.length",
+      "hash": "sha256:43ad0430d0b0e4f460c6fd75",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+      "symbol": "RawListContainer",
+      "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-07T00:06:58.425Z",
+  "verified": "2026-10-07T00:06:58.425Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

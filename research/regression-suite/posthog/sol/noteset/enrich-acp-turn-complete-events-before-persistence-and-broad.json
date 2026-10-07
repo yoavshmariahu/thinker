@@ -1,0 +1,57 @@
+{
+  "id": "enrich-acp-turn-complete-events-before-persistence-and-broad",
+  "title": "Enrich ACP turn-complete events before persistence and broadcast",
+  "kind": "rule",
+  "answers": [
+    "A reloaded agent thread loses the turn's trace ID",
+    "Where should missing ACP turn trace IDs be filled in?",
+    "How do stored and streamed turn-complete events stay consistent?"
+  ],
+  "body": "Invariant: In products/desktop/packages/agent/src/adapters/acp-connection.ts:installWireTaps, apply trace enrichment before appendNotification and pass the same enriched message and event ID to onWireMessage.\nReason: Thread reloads read the stored notification; enriching only the broadcast copy leaves reloads without the trace ID needed to open the turn.\nGuard: products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId fills only turn-complete notifications with object params, a supplied fallback, and no existing string traceId.\nConstraints: Preserve adapter-reported string trace IDs, leave other notification kinds unchanged, and supply no fallback when gateway headers did not stamp a trace.",
+  "applies": "ACP wire notification enrichment shared by session logs and live agent event consumers.",
+  "tags": [
+    "acp",
+    "session-log",
+    "turn-complete",
+    "ai-observability"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+      "symbol": "installWireTaps",
+      "hash": "sha256:8a11f7d669709986e34f0e5f",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:13:23.705Z",
+  "verified": "2026-10-07T00:13:23.705Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-ratings-must-use-the-trace-id-actually-stamped-on-gate"
+  ]
+}

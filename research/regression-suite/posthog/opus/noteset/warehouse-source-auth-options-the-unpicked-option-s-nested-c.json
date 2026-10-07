@@ -1,0 +1,71 @@
+{
+  "id": "warehouse-source-auth-options-the-unpicked-option-s-nested-c",
+  "title": "Warehouse source auth options: the unpicked option's nested config must not block the save, and auth_type can arrive in two shapes",
+  "kind": "rule",
+  "answers": [
+    "BigQuery source setup fails with Required field 'private_key' is missing",
+    "new source wizard error lists JSON key fields I never typed",
+    "service account selected but validation complains about key file",
+    "auth_type is a string instead of a dict in job_inputs"
+  ],
+  "body": "Symptom: a BigQuery source using a Google Cloud service account is rejected at the end of the wizard with \"Required field '<key file field>' is missing\" errors. Also, a key file that isn't a service account key shows the same raw field list.\nRoot cause: the wizard sends the credential fields of both auth options. The shared walker common/config.py:validate_config checks the nested BigQueryAuthTypeConfigKeyFileConfig and reports every field as missing, even when that option wasn't picked.\nFix pattern: in bigquery/source.py:BigQuerySource.validate_config, drop the errors built with missing_field_error(...) for every key-file dataclass field and recompute is_valid. Then check only the selected option yourself. key_file needs every field present and non-empty, because the shared check only tests presence. service_account needs google_cloud_service_account_integration_id. Return product-language messages, never internal field names.\nInvariant: auth_type can be a dict ({selection, key_file, ...}) or a bare string naming the option, with the credential fields at the top level of job_inputs. Handle both shapes. If you return early on the string shape, sources save with no credential.\nConstraints: the per-option credential fields are optional on the form, so this source-level check is the only thing stopping a credential-less source. The fix stays in the source on purpose. Changing the shared walker to skip unpicked options would affect every source.",
+  "applies": "Warehouse sources with a select-container auth field (BigQuery and similar) in products/warehouse_sources/backend/temporal/data_imports/sources/",
+  "tags": [
+    "bigquery",
+    "validation",
+    "source-config",
+    "auth",
+    "wizard"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "BigQuerySource.validate_config",
+      "hash": "sha256:1cfd7e7633d1da5064fa0b32",
+      "line": 405,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 28,
+        "refs": 57
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+      "symbol": "validate_config",
+      "hash": "sha256:5ba5ab62cc9552c03ea74786",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 28,
+        "refs": 57
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/tests/test_source.py",
+      "symbol": "test_bigquery_validate_config_reads_a_bare_selection_from_the_flat_payload",
+      "hash": "sha256:1fbedf96be3c12fd4d67530f",
+      "line": 2460,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105736"
+  },
+  "created": "2026-10-07T00:12:17.088Z",
+  "verified": "2026-10-07T00:12:17.088Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "use-missing-field-error-to-match-or-replace-generic-required"
+  ]
+}

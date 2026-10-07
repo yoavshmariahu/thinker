@@ -1,0 +1,402 @@
+[
+  {
+    "file": "1791331304448-codex.jsonl",
+    "sha256": "849a3b82e9642464cab1cbafbc55dbf5256eba029567a290983da9601f8d625d",
+    "bytes": 2380,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 17141,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 491,
+        "reasoning_output_tokens": 154
+      }
+    ]
+  },
+  {
+    "file": "1791331321717-codex.jsonl",
+    "sha256": "fab963858c4e28ff0cffe87e00227eae4216290dbb6568017ee116c31250c44a",
+    "bytes": 2211,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18175,
+        "cached_input_tokens": 14336,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 434,
+        "reasoning_output_tokens": 132
+      }
+    ]
+  },
+  {
+    "file": "1791331344154-codex.jsonl",
+    "sha256": "ef44ecc914a48c629ddafba5ba2d532384009561dd76470fa8fa1d3b3e7e9d16",
+    "bytes": 2371,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 17997,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 737,
+        "reasoning_output_tokens": 380
+      }
+    ]
+  },
+  {
+    "file": "1791331359756-codex.jsonl",
+    "sha256": "090f8b5e13f03095d49ba85c81d2533c28177f7731c722deea0185803d1ed3d8",
+    "bytes": 2381,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16556,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 491,
+        "reasoning_output_tokens": 162
+      }
+    ]
+  },
+  {
+    "file": "1791331374047-codex.jsonl",
+    "sha256": "8a69d32c38f70857b583d3dac6a7da306d8b973d611940ad5eba7706be0927c9",
+    "bytes": 1835,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16285,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 439,
+        "reasoning_output_tokens": 201
+      }
+    ]
+  },
+  {
+    "file": "1791331393122-codex.jsonl",
+    "sha256": "f8f4b443cbf3b0eb2310fa0daca06881d6e36d3f890bc1e622df5a5a89a9d23f",
+    "bytes": 3619,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18035,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 773,
+        "reasoning_output_tokens": 166
+      }
+    ]
+  },
+  {
+    "file": "1791331413040-codex.jsonl",
+    "sha256": "9d3cf7ac9685e25a40ddf48747d3efca3a1db3acadc3733b9e5f74db9686c978",
+    "bytes": 3383,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18624,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 706,
+        "reasoning_output_tokens": 178
+      }
+    ]
+  },
+  {
+    "file": "1791331427670-codex.jsonl",
+    "sha256": "9822b345e38011975cfc1b2fe80ec9dbfe716321feb9fb5d829a917751864f04",
+    "bytes": 1898,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16052,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 433,
+        "reasoning_output_tokens": 176
+      }
+    ]
+  },
+  {
+    "file": "1791331440327-codex.jsonl",
+    "sha256": "a09f2c6929aefc87de365f313e9a44eff324914bac168c073bf676c0d4ad2680",
+    "bytes": 1985,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16277,
+        "cached_input_tokens": 14336,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 400,
+        "reasoning_output_tokens": 125
+      }
+    ]
+  },
+  {
+    "file": "1791331458566-codex.jsonl",
+    "sha256": "d2dfe390699843f073f14c4ed2a8558727956f2ae0bcf10416138e442960dba7",
+    "bytes": 2247,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 17103,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 574,
+        "reasoning_output_tokens": 273
+      }
+    ]
+  },
+  {
+    "file": "1791331476797-codex.jsonl",
+    "sha256": "07e0a48a711510f26cc4111a5d00da7e77eb22cc44f4f53c8f9ecfaa14846a3e",
+    "bytes": 2591,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18205,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 700,
+        "reasoning_output_tokens": 285
+      }
+    ]
+  },
+  {
+    "file": "1791331502991-codex.jsonl",
+    "sha256": "77f7ba3c429590161e2dab548c1a448631f455bdef91dbce5374a8f1c11e5cbb",
+    "bytes": 2549,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16698,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 836,
+        "reasoning_output_tokens": 443
+      }
+    ]
+  },
+  {
+    "file": "1791331522646-codex.jsonl",
+    "sha256": "f7d0a612b8ebe3c75dc7bc103087f861285abc57a09f18743593a6d91bb90b1b",
+    "bytes": 3672,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16982,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 792,
+        "reasoning_output_tokens": 175
+      }
+    ]
+  },
+  {
+    "file": "1791331550890-codex.jsonl",
+    "sha256": "83255773ea5afde9844835505197c79b8a8664639d1dd1583a34322d2e6c79e7",
+    "bytes": 4801,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 19873,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1164,
+        "reasoning_output_tokens": 341
+      }
+    ]
+  },
+  {
+    "file": "1791331566887-codex.jsonl",
+    "sha256": "e1be617eba10fa46b5e63e65a8f6ad5cf20e01477a51884b7b2165bf3984084b",
+    "bytes": 2419,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 23434,
+        "cached_input_tokens": 14336,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 539,
+        "reasoning_output_tokens": 183
+      }
+    ]
+  },
+  {
+    "file": "1791331585511-codex.jsonl",
+    "sha256": "bfb9bca5922030b97d98af6b36075cfeb3456c3d32719eba42d920300a00e5f8",
+    "bytes": 2065,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18702,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 635,
+        "reasoning_output_tokens": 294
+      }
+    ]
+  },
+  {
+    "file": "1791331602331-codex.jsonl",
+    "sha256": "4b160cd05500af66fa374ec4340447897afcc6cf7673d1c21267574740902276",
+    "bytes": 1822,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18798,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 460,
+        "reasoning_output_tokens": 209
+      }
+    ]
+  },
+  {
+    "file": "1791331621406-codex.jsonl",
+    "sha256": "329b073aba4f8c8bf96af3bdcffc643b917514e65f374ca3d7970b826282f25e",
+    "bytes": 1691,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18389,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 704,
+        "reasoning_output_tokens": 474
+      }
+    ]
+  },
+  {
+    "file": "1791331642964-codex.jsonl",
+    "sha256": "f801f407f46a459d9a57953895e0ed08d2f1a0f50a7c5d0000e6f8e84abd6859",
+    "bytes": 3263,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 20695,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1101,
+        "reasoning_output_tokens": 476
+      }
+    ]
+  },
+  {
+    "file": "1791331660607-codex.jsonl",
+    "sha256": "9e816a7b50884b7d06ff3a00fde5652b4694137262b492adc9badef7283a60e5",
+    "bytes": 2308,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18451,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 737,
+        "reasoning_output_tokens": 346
+      }
+    ]
+  },
+  {
+    "file": "1791331675357-codex.jsonl",
+    "sha256": "0754115682916028e9a41fd595ceb6db1248c1cdfe24d5acbcef72a3d07ba6fd",
+    "bytes": 1520,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 17118,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 488,
+        "reasoning_output_tokens": 301
+      }
+    ]
+  },
+  {
+    "file": "1791331706811-codex.jsonl",
+    "sha256": "5c5a0afb4c3ab52a9745e0624116e8ec27d14fe73ae176427800ad4c7921cb27",
+    "bytes": 2476,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 23749,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1239,
+        "reasoning_output_tokens": 862
+      }
+    ]
+  },
+  {
+    "file": "1791331714618-codex.jsonl",
+    "sha256": "d0412e25a22a70e1c7b8309f8e84df4bbd7cdbab94dafbbb3de6480ffe1518af",
+    "bytes": 839,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 21297,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 165,
+        "reasoning_output_tokens": 123
+      }
+    ]
+  },
+  {
+    "file": "1791331721798-codex.jsonl",
+    "sha256": "1ec0593090bf1b5809379dd2f4cf56321d40ff93b9b70a22ea49d984504eafc4",
+    "bytes": 808,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 16564,
+        "cached_input_tokens": 12288,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 95,
+        "reasoning_output_tokens": 60
+      }
+    ]
+  },
+  {
+    "file": "1791331745532-codex.jsonl",
+    "sha256": "ada7f064eb4ae76a7cd46f821e7b8f141cd6cc9d9a93d9f7f0cef20319743be2",
+    "bytes": 3073,
+    "reportedModels": [],
+    "completedTurns": 1,
+    "usage": [
+      {
+        "input_tokens": 18430,
+        "cached_input_tokens": 14336,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1023,
+        "reasoning_output_tokens": 451
+      }
+    ]
+  }
+]

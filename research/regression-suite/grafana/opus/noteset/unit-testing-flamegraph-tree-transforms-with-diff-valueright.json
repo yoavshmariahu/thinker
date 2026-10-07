@@ -1,0 +1,93 @@
+{
+  "id": "unit-testing-flamegraph-tree-transforms-with-diff-valueright",
+  "title": "Unit-testing flamegraph tree transforms with diff (valueRight) data",
+  "kind": "howto",
+  "answers": [
+    "how to test mergeSubtrees with diff profiles",
+    "test treeTransforms valueRight",
+    "how to run grafana-flamegraph jest tests"
+  ],
+  "body": "textToDataContainer (testHelpers) builds trees from ASCII art but only covers `value`; for diff cases construct `LevelItem` objects (type from ./dataTransform) directly with `valueRight`, `itemIndexes`, `children`, `level`, and `parents` for parent-chain tests.\nmergeSubtrees / mergeParentSubtrees only need a data stub exposing `getLabel`: `const diffData = { getLabel: (i: number) => String(i) }`.\nResult is levels (`merged[level][index]`); assert with `toMatchObject({ value, valueRight })`, and assert `valueRight` is undefined for non-diff input.\nTooltip regression tests live in FlameGraphTooltip.test.tsx using `setupDiffData()` with getDiffTooltipData.\nRun: `yarn jest packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx`.\nManual repro: Explore → TestData → Flame Graph scenario → Diff profile → right-click node → Sandwich view → hover.",
+  "applies": "tests under packages/grafana-flamegraph/src/FlameGraph",
+  "tags": [
+    "flamegraph",
+    "testing",
+    "jest",
+    "diff-profile"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+      "symbol": "diffData",
+      "hash": "sha256:1edea900da60a2a95b51da4d",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 17
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+      "symbol": "merged",
+      "hash": "sha256:02dbe6f0f28edfa13a1db345",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 105,
+        "sites": 1,
+        "refs": 248
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+      "symbol": "setupDiffData",
+      "hash": "sha256:45bc16aee5530f63903d31b4",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "mergeParentSubtrees",
+      "hash": "sha256:d4e74d7ab0ce154d6bdd2177",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+      "symbol": "setupDiffData",
+      "hash": "sha256:45bc16aee5530f63903d31b4",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132572"
+  },
+  "created": "2026-10-07T00:04:36.299Z",
+  "verified": "2026-10-07T00:04:36.299Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "flamegraph-tree-transforms-must-carry-valueright-diff-side-o"
+  ]
+}

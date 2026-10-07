@@ -1,0 +1,56 @@
+{
+  "id": "propagate-encoding-errors-to-bytesiowrapper-for-text-buffers",
+  "title": "Propagate encoding_errors to _BytesIOWrapper for text buffers in read_csv",
+  "kind": "rule",
+  "answers": [
+    "Why does pd.read_csv ignore encoding_errors when reading a StringIO with engine='c' or engine='pyarrow'?",
+    "How to fix UnicodeEncodeError in read_csv with text buffers and custom encoding_errors?",
+    "Where does pandas wrap text buffers to binary streams for C and pyarrow CSV parsers?"
+  ],
+  "body": "Symptom: pd.read_csv on a text buffer (such as StringIO) raises UnicodeEncodeError instead of respecting encoding_errors under the C or pyarrow engines.\nRoot cause: pandas/io/common.py:_BytesIOWrapper encoded text without an errors handler, and pandas/io/common.py:get_handle omitted errors when initializing the wrapper.\nFix pattern: Propagate the errors parameter from get_handle into _BytesIOWrapper and pass it to str.encode in _BytesIOWrapper.read.\nConstraints: Applies when engines requiring binary input (C, pyarrow) read text-mode buffers via _BytesIOWrapper; does not apply to python engine which reads text directly.",
+  "applies": "pandas/io/common.py when wrapping text buffers for binary CSV parsers",
+  "tags": [
+    "io",
+    "read_csv",
+    "encoding",
+    "pyarrow",
+    "c-engine"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "get_handle",
+      "hash": "sha256:e6360a8f1a2a2743ac674b9a",
+      "line": 706,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 41,
+        "refs": 80
+      }
+    },
+    {
+      "path": "pandas/io/common.py",
+      "symbol": "_BytesIOWrapper",
+      "hash": "sha256:58b62dc96cc11b38edccbc93",
+      "line": 1177,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70405"
+  },
+  "created": "2026-10-07T00:41:04.195Z",
+  "verified": "2026-10-07T00:41:04.195Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

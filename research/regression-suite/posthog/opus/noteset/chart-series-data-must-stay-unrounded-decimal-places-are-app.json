@@ -1,0 +1,118 @@
+{
+  "id": "chart-series-data-must-stay-unrounded-decimal-places-are-app",
+  "title": "Chart series data must stay unrounded; decimal places are applied only at display time",
+  "kind": "rule",
+  "answers": [
+    "metric card total or average is wrong with decimal places set",
+    "pie chart total sums rounded values",
+    "breakdown bucket sums 0.49+0.49 to 0 or 1",
+    "where should decimal places rounding happen for charts"
+  ],
+  "body": "Invariant: the yData selector in dataVisualizationLogic.ts and parseBreakdownSeriesValue in Components/seriesBreakdownLogic.ts return raw numbers (only the percent x100 multiplier is applied). They must not round to formatting.decimalPlaces.\nWhy: the metric card total/average/change badge, pie totals and unaggregated breakdown buckets sum these values; rounding first makes totals wrong (two 0.49 rows must sum to 0.98).\nWhere rounding lives: tooltips, axis ticks, value labels, pie labels and the metric headline round via Components/Charts/sqlLineGraphAdapter.ts:formatSqlSeriesValue (explicit decimalPlaces, else 3 for unstyled), which delegates to formatDataWithSettings.\nAlso: yData maps unparseable values (e.g. 'NaN' string) to null, or 0 when showNullsAsZero is on, never NaN.\nIf parsers move (PR #105535 planned to move them into seriesValues.ts with the old rounding), drop the rounding there. Tests: dataVisualizationLogic.test.ts ([42.195,null,'NaN'] -> [42.195,0,0]) and seriesBreakdownLogic.test.ts guard this.",
+  "applies": "SQL insight chart series parsing (y-axis and breakdown) in DataVisualization",
+  "tags": [
+    "data-visualization",
+    "charts",
+    "rounding",
+    "breakdown",
+    "metric-card",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "decimalPlaces",
+      "hash": "sha256:f6a919a940afd16b753a11c5",
+      "line": 168,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 124
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "showNullsAsZero",
+      "hash": "sha256:13d78d01233ce2fa76c4996d",
+      "line": 1505,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 0,
+        "refs": 25
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+      "symbol": "parseBreakdownSeriesValue",
+      "hash": "sha256:abd161cca27e8442ccdf6dca",
+      "line": 78,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "symbol": "formatSqlSeriesValue",
+      "hash": "sha256:0a05e3abdf21780416131363",
+      "line": 242,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 14,
+        "refs": 24
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.test.ts",
+      "hash": "sha256:ad48c29eaffc40fbceced12e",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.test.ts",
+      "hash": "sha256:1ee02d2a791f6eb7924a8551",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:17:24.349Z",
+  "verified": "2026-10-07T00:17:24.349Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "decimal-places-0-is-a-real-value-compare-formatting-decimalp"
+  ]
+}

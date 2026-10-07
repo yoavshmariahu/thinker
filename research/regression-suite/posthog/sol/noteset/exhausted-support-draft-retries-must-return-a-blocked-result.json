@@ -1,0 +1,70 @@
+{
+  "id": "exhausted-support-draft-retries-must-return-a-blocked-result",
+  "title": "Exhausted support draft retries must return a blocked result",
+  "kind": "rule",
+  "answers": [
+    "Why is a support ticket stuck on Processing?",
+    "How should a failed support draft finish?",
+    "What must stay in sync when changing draft retries?"
+  ],
+  "body": "Symptom: A support ticket stays on Processing when the draft agent returns no usable draft or crashes.\nRoot cause: Raising on the final activity attempt prevents the workflow from recording a result, leaving the ticket in_progress; products/conversations/backend/temporal/ai_reply/activities/draft.py:_give_up handles this boundary.\nFix pattern: Raise DraftNotProducedError while retries remain; on the final attempt return an empty reply with confidence 0 and verdict blocked_on_knowledge so the workflow can finish without auto-sending.\nConstraints: Applies to missing or failed draft production; successful drafts retain their normal result. The current attempt limit is 2.\nInvariant: _give_up and products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow must use products/conversations/backend/temporal/ai_reply/constants.py:DRAFT_ACTIVITY_MAX_ATTEMPTS together; otherwise fallback timing can disagree with Temporal retry exhaustion.",
+  "applies": "Support reply draft activity failures and changes to their Temporal retry policy.",
+  "tags": [
+    "conversations",
+    "support-drafts",
+    "temporal",
+    "retries"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_give_up",
+      "hash": "sha256:5388549d8664286bf2331279",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+      "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS",
+      "hash": "sha256:10f54ff9fa5690967ecbfc31",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/pipeline.py",
+      "symbol": "SupportReplyWorkflow",
+      "hash": "sha256:037234a7bf27b8099f55c5e4",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 1,
+        "refs": 47
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:19:25.232Z",
+  "verified": "2026-10-07T00:19:25.232Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "recover-missing-draft-json-and-select-the-last-valid-draft",
+    "keep-support-draft-recovery-local-and-omit-task-output-schem"
+  ]
+}

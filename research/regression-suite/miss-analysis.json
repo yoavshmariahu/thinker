@@ -1,0 +1,86 @@
+[
+  {
+    "id": "grafana-132940",
+    "cohort": "opus",
+    "classification": "product postprocessing suppresses correct model findings when the same note is partly outdated",
+    "rawTrace": "grafana/opus/traces/1791331607660-claude.json",
+    "rawFindings": [
+      {
+        "severity": "error",
+        "file": "public/app/features/dashboard/api/v2.ts",
+        "line": 160,
+        "message": "resourceVersion is now deleted only on the update path. When metadata.name is unset, the create path (client.create / POST) sends any incoming resourceVersion, e.g. k8s: { resourceVersion: '0' } from an import or copy, and saving a new dashboard fails. This brings the bug back; the deletion must run before the branch, as in v1.ts.",
+        "evidence": "-    // remove resource version when updating\n-    delete obj.metadata.resourceVersion;\n-\n     if (obj.metadata.name) {\n+      // remove resource version when updating\n+      delete obj.metadata.resourceVersion;\n       delete obj.metadata.labels?.[DeprecatedInternalId];\n       return this.client.update(obj)...\n     }\n ...\n     return await this.client.create(obj)...",
+        "confidence": 0.93,
+        "note": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot"
+      },
+      {
+        "severity": "warning",
+        "file": "public/app/features/dashboard/api/v2.test.ts",
+        "line": 324,
+        "message": "Deletes the regression test that checks the create path (POST) sends no resourceVersion and does not call PUT. Without it, nothing catches the bug brought back in v2.ts.",
+        "evidence": "-    it('does not send resourceVersion when creating a dashboard', async () => {\n-      ...\n-        k8s: { resourceVersion: '0' },\n-      ...\n-      expect(mockPost.mock.calls[0][1].metadata).not.toHaveProperty('resourceVersion');\n-    });",
+        "confidence": 0.85,
+        "note": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot"
+      }
+    ],
+    "outdated": [
+      {
+        "id": "v2-dashboard-save-must-strip-metadata-resourceversion-on-bot",
+        "reason": "Only one detail is wrong: the note says the DeprecatedInternalId label is removed only on the update path. The code shown also removes it before client.create (\"clear the deprecated id label so the backend generates a new unique id\"), and the diff does not touch that line, so this was true before the change. The main rule still holds and this change breaks it. Corrected body: Delete obj.metadata.resourceVersion unconditionally, before branching between update (name set -> client.update / PUT) and create (no name -> client.create / POST), matching v1.ts. The DeprecatedInternalId label is deleted on both paths: on update before PUT, and on create so the backend generates a new unique id. Tests in v2.test.ts assert that mockPost.mock.calls[0][1].metadata has no resourceVersion and that mockPut is not called."
+      }
+    ],
+    "code": "src/review.js:680 filters findings whose note id also appears in outdated",
+    "assessment": "Opus returned the correct actionable regression AND a correction to a secondary inaccurate note detail. Thinker dropped both findings solely because their note id was listed as outdated. Final report is empty, so this remains a miss under the frozen end-to-end criterion. No product change or rerun is made in this experiment."
+  },
+  {
+    "id": "grafana-132082",
+    "cohort": "sol",
+    "classification": "review treats reverted implementation as justification for retiring the historical constraint",
+    "outdated": [
+      {
+        "id": "keep-derived-auto-grid-row-sizing-consistent-across-creation",
+        "reason": "The current implementation consistently excludes minimum height from row-track sizing. getAutoRowsTemplate accepts only rowHeight, fillScreen and hasFitContent; creation, updateAutoRows and deserialization all use that signature. Corrected body: Grid autoRows derives from configured row height, fill-screen mode and fit-content presence. Minimum height is applied to fit panels through getFitMinHeightInPixels in AutoGridItemRenderer, so changing it does not require recomputing autoRows. Deserialization still enables fit growth only when auto-height panels are enabled and the layout or a child opts into fit content.",
+        "correction": ""
+      },
+      {
+        "id": "auto-fit-row-tracks-must-shrink-with-panels-while-preserving",
+        "reason": "The implemented sizing policy contradicts the cached shrinking-track rule: getAutoRowsTemplate explicitly states 'Row tracks always floor at the configured row height' and returns `minmax(${rowHeightPixels}px, ${maxRowHeightValue})`. The updated deserialization assertion expects 'minmax(320px, max-content)' for a custom 100px panel minimum. Corrected body: Auto-grid row tracks retain the configured row-height floor, including fit-content rows. Fit panels receive their own minimum through the panel chrome. Matched non-fit cells rely on the shared track floor; unmatched non-fit cells receive an explicit row height. Fit-panel minimums do not lower the shared track floor.",
+        "correction": ""
+      }
+    ],
+    "verdicts": [
+      {
+        "id": "holistic",
+        "verdict": "holistic",
+        "reason": "The two auto-grid notes are outdated relative to the consistently implemented row-height-floor policy. The other six notes are unrelated to this change. The supplied code does not establish an independent bug."
+      }
+    ],
+    "assessment": "Relevant bug notes were retrieved. The review accepted the reverted code as the current policy and marked the protective notes outdated. This is a semantic review miss, not failed retrieval. Both baseline and cached final reports contain no findings."
+  },
+  {
+    "id": "grafana-133023",
+    "cohort": "gemini",
+    "classification": "review treats reverted implementation as justification for retiring the historical constraint",
+    "outdated": [
+      {
+        "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+        "reason": "The note claims that pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve provides raw SQL migrations altering missing_series_evals_to_resolve to BIGINT across MySQL and PostgreSQL. However, ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and missing_series_evals_to_resolve is configured as DB_SmallInt in AddAlertRuleMissingSeriesEvalsToResolve.",
+        "correction": ""
+      },
+      {
+        "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+        "reason": "The note claims that database migrations are defined in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve and registered in migrations.go:OSSMigrations.AddMigration and testdata/migration_ids.txt. ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and neither migrations.go nor testdata/migration_ids.txt registers it.",
+        "correction": ""
+      }
+    ],
+    "verdicts": [
+      {
+        "id": "holistic",
+        "verdict": "holistic",
+        "reason": "The code change cleanly reverts ExpandAlertRuleMissingSeriesEvalsToResolve by removing the migration definition, its registration in OSSMigrations.AddMigration, its entries in migration_ids.txt, and its test in TestIntegrationUpdateAlertRules. No syntax errors, dangling references, or invariant violations are present in the changed code shown. Notes 'widen-database-column-to-bigint-when-int64-alert-rule-fields' and 'registering-new-sql-migrations-in-ossmigrations-and-migratio' are outdated because they claim ExpandAlertRuleMissingSeriesEvalsToResolve exists. Note 'alert-rule-schema-changes-must-mirror-between-alert-rule-and' remains consistent with the change. The remaining notes are unrelated."
+      }
+    ],
+    "assessment": "Relevant bug notes were retrieved. The review accepted the reverted code as the current policy and marked the protective notes outdated. This is a semantic review miss, not failed retrieval. Both baseline and cached final reports contain no findings."
+  }
+]

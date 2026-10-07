@@ -1,0 +1,170 @@
+{
+  "checks": [
+    {
+      "repo": "grafana",
+      "cohort": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "sourceNotes": 27,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "provider modelUsage"
+    },
+    {
+      "repo": "grafana",
+      "cohort": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "sourceNotes": 19,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "grafana",
+      "cohort": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "sourceNotes": 18,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "posthog",
+      "cohort": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "sourceNotes": 31,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "provider modelUsage"
+    },
+    {
+      "repo": "posthog",
+      "cohort": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "sourceNotes": 30,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "posthog",
+      "cohort": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "sourceNotes": 23,
+      "traces": 27,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "pandas",
+      "cohort": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "sourceNotes": 26,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "provider modelUsage"
+    },
+    {
+      "repo": "pandas",
+      "cohort": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "sourceNotes": 23,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "pandas",
+      "cohort": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "sourceNotes": 15,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "sourceNotes": 23,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "provider modelUsage"
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "sourceNotes": 19,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "sklearn",
+      "cohort": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "sourceNotes": 16,
+      "traces": 26,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "sourceNotes": 22,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "provider modelUsage"
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "sourceNotes": 20,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    },
+    {
+      "repo": "pydantic",
+      "cohort": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "sourceNotes": 16,
+      "traces": 25,
+      "manifestUnchanged": true,
+      "sourceNotesUnchanged": true,
+      "identityEvidence": "explicit invocation; no consistent provider echo"
+    }
+  ],
+  "allPassed": true
+}

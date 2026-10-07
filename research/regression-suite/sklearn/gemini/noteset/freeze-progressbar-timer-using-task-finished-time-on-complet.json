@@ -1,0 +1,38 @@
+{
+  "id": "freeze-progressbar-timer-using-task-finished-time-on-complet",
+  "title": "Freeze ProgressBar timer using task.finished_time on completion",
+  "kind": "rule",
+  "answers": [
+    "Why does the timer on a finished ProgressBar keep running in meta-estimators?",
+    "How to stop ProgressBar timers from ticking after a task completes?",
+    "Why does task.elapsed keep increasing for finished tasks in ProgressBar?"
+  ],
+  "body": "Symptom: When using ProgressBar with max_propagation_depth > 0 in meta-estimators, timers on finished progress bars continue running while subsequent bars are filling up.\nRoot cause: sklearn/callback/_progressbar.py:render used task.elapsed instead of task.finished_time for finished tasks.\nFix pattern: Use task.finished_time rather than task.elapsed to freeze elapsed timers on completed tasks.\nConstraints: Applies when task.finished and elapsed_when_finished are True; does not apply to active tasks or time_remaining displays.",
+  "applies": "sklearn/callback/_progressbar.py rendering finished task timers",
+  "tags": [
+    "progressbar",
+    "callback",
+    "meta-estimators",
+    "timer"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/_progressbar.py",
+      "symbol": "render",
+      "hash": "sha256:ca341a0079b1a5779996ecc5",
+      "line": 125,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34746"
+  },
+  "created": "2026-10-07T00:42:02.660Z",
+  "verified": "2026-10-07T00:42:02.660Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

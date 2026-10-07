@@ -1,0 +1,4020 @@
+[
+  {
+    "id": "grafana-133093",
+    "pr": 133093,
+    "source": "https://github.com/grafana/grafana/pull/133093",
+    "sha": "39afd1bcd157b23d1b13c3d04ddf1d78da02df46",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "public/app/features/dashboard-scene/scene/export/exporters.test.ts": [
+        12,
+        22,
+        23,
+        30,
+        711
+      ],
+      "public/app/features/dashboard-scene/scene/export/exporters.ts": [
+        24,
+        485
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 169
+        },
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 6
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "public/app/features/dashboard-scene/scene/export/exporters.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change removes the early return guard for SHARED_DASHBOARD_QUERY in makeExportableV2 along with its test coverage, violating note 'preserve-dashboard-datasource-reference-in-v2-dashboard-expo' by causing '-- Dashboard --' datasource references to be stripped during export."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "line": 486,
+          "message": "Removing the early return check for SHARED_DASHBOARD_QUERY in makeExportableV2 causes queries referencing the '-- Dashboard --' datasource to have export labels attached and datasource set to undefined. This strips the shared dashboard query reference during external export, breaking panels that reuse another panel's query results upon reimport.",
+          "evidence": "-    // Dashboard queries reference another panel, so their shared UID must survive export without remapping.\n-    if (datasourceUid === SHARED_DASHBOARD_QUERY) {\n-      return;\n-    }",
+          "confidence": 0.95,
+          "note": "preserve-dashboard-datasource-reference-in-v2-dashboard-expo",
+          "inChange": false,
+          "notes": [
+            "preserve-dashboard-datasource-reference-in-v2-dashboard-expo"
+          ],
+          "id": "f-47904f19447e9a4da1b78253"
+        }
+      ],
+      "cost": 0,
+      "tokens": 32172,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-f32c23d6fb3950dd1b02",
+            "file": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(panel.spec.data.spec.queries[0].spec.query).toEqual({\n      expect(getPanelDataSource(panel)).toEqual({ type: 'datasource', uid: '-- Dashboard --' });\n      expect(panelQueryKindToSceneQuery(panel.spec.data.spec.queries[0])).toEqual({\n    expect(exportedPanel.spec.data.spec.queries.map(({ spec }) => spec.query)).toEqual([\n    expect(getPanelDataSource(exportedPanel)).toEqual({ type: 'mixed', uid: '-- Mixed --' });\n    expect(panel.kind).toBe('Panel');\n    expect(panel.spec.id).toBe(123);\n    expect(panel.spec.data.spec.queries[0].spec.query).toMatchObject({\n    expect(panel.spec.data.spec.queries[0].spec.query.labels).toBeUndefined();\n    expect(getPanelDataSource(panel)).toEqual({ type: 'datasource', uid: '-- Dashboard --' });",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+          "changed": [],
+          "removed": [
+            "DataQueryKind",
+            "Spec"
+          ]
+        },
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "changed": [
+            "processDataQueryKind"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "preserve-dashboard-datasource-reference-in-v2-dashboard-expo",
+          "title": "Preserve Dashboard datasource reference in v2 dashboard exports",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133093"
+          },
+          "why": "rests on public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2; 5 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "preserve-queryvariable-refresh-setting-on-v2-dashboard-impor",
+          "title": "Preserve QueryVariable refresh setting on v2 dashboard import",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "prevent-applyfieldoverrides-from-mutating-shared-field-confi",
+          "title": "Prevent applyFieldOverrides from mutating shared field configs in nested frames",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132418"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+          "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "mutabledataframe-length-setter-for-strict-mode-object-clonin",
+          "title": "MutableDataFrame length setter for strict mode object cloning",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132648"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "strip-resourceversion-before-creating-or-updating-v2-dashboa",
+          "title": "Strip resourceVersion before creating or updating v2 dashboards",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132940"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "auto-grid-row-height-sizing-for-auto-fit-panels-with-lower-m",
+          "title": "Auto-grid row height sizing for auto-fit panels with lower min height",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132082"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "34598d10-2735-4c8a-902b-5b0759c165f7",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "93b638f0-b770-40e6-9476-796ef2e30a7e",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "34598d10-2735-4c8a-902b-5b0759c165f7",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 19527,
+              "output_tokens": 12645,
+              "thinking_tokens": 12397,
+              "cache_read_tokens": 0,
+              "total_tokens": 32172
+            },
+            "tokens": {
+              "inputTokens": 19527,
+              "outputTokens": 12645,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 32172
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:09:02.703Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "34598d10-2735-4c8a-902b-5b0759c165f7",
+            "startedAt": "2026-10-07T00:08:29.549Z",
+            "completedAt": "2026-10-07T00:09:02.705Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 32172,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+                "line": 486,
+                "message": "Removing the early return check for SHARED_DASHBOARD_QUERY in makeExportableV2 causes queries referencing the '-- Dashboard --' datasource to have export labels attached and datasource set to undefined. This strips the shared dashboard query reference during external export, breaking panels that reuse another panel's query results upon reimport.",
+                "evidence": "-    // Dashboard queries reference another panel, so their shared UID must survive export without remapping.\n-    if (datasourceUid === SHARED_DASHBOARD_QUERY) {\n-      return;\n-    }",
+                "confidence": 0.95,
+                "note": "preserve-dashboard-datasource-reference-in-v2-dashboard-expo",
+                "inChange": false,
+                "notes": [
+                  "preserve-dashboard-datasource-reference-in-v2-dashboard-expo"
+                ],
+                "id": "f-47904f19447e9a4da1b78253"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "public/app/features/dashboard-scene/scene/export/exporters.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "cf51c541-491a-4955-9efb-bf855581f4bc",
+            "t": "2026-10-07T00:09:02.705Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 33160,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 169
+        },
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "status": "M",
+          "added": 0,
+          "removed": 6
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "public/app/features/dashboard-scene/scene/export/exporters.test.ts"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes the check for SHARED_DASHBOARD_QUERY in processDataQueryKind, causing dashboard queries referencing other panels to erroneously have export labels attached and their datasource cleared during export."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "line": 484,
+          "message": "Dropping the check for SHARED_DASHBOARD_QUERY violates the invariant that dashboard queries referencing another panel must survive export without remapping. As a result, shared dashboard queries will fall through to attach export labels and have dataQueryKind.datasource set to undefined.",
+          "evidence": "-    // Dashboard queries reference another panel, so their shared UID must survive export without remapping.\n-    if (datasourceUid === SHARED_DASHBOARD_QUERY) {\n-      return;\n-    }",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-df8560f120771efaac76750c"
+        }
+      ],
+      "cost": 0,
+      "tokens": 31913,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-f32c23d6fb3950dd1b02",
+            "file": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "      expect(panel.spec.data.spec.queries[0].spec.query).toEqual({\n      expect(getPanelDataSource(panel)).toEqual({ type: 'datasource', uid: '-- Dashboard --' });\n      expect(panelQueryKindToSceneQuery(panel.spec.data.spec.queries[0])).toEqual({\n    expect(exportedPanel.spec.data.spec.queries.map(({ spec }) => spec.query)).toEqual([\n    expect(getPanelDataSource(exportedPanel)).toEqual({ type: 'mixed', uid: '-- Mixed --' });\n    expect(panel.kind).toBe('Panel');\n    expect(panel.spec.id).toBe(123);\n    expect(panel.spec.data.spec.queries[0].spec.query).toMatchObject({\n    expect(panel.spec.data.spec.queries[0].spec.query.labels).toBeUndefined();\n    expect(getPanelDataSource(panel)).toEqual({ type: 'datasource', uid: '-- Dashboard --' });",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+          "changed": [],
+          "removed": [
+            "DataQueryKind",
+            "Spec"
+          ]
+        },
+        {
+          "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+          "changed": [
+            "processDataQueryKind"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "cf774adf-55ca-479d-bcd7-aae983037638",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "09e7b267-1e18-4e7a-aab0-6e0c908e2436",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "cf774adf-55ca-479d-bcd7-aae983037638",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16947,
+              "output_tokens": 14966,
+              "thinking_tokens": 14771,
+              "cache_read_tokens": 0,
+              "total_tokens": 31913
+            },
+            "tokens": {
+              "inputTokens": 16947,
+              "outputTokens": 14966,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 31913
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:09:45.329Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "cf774adf-55ca-479d-bcd7-aae983037638",
+            "startedAt": "2026-10-07T00:09:02.711Z",
+            "completedAt": "2026-10-07T00:09:45.330Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 31913,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+                "line": 484,
+                "message": "Dropping the check for SHARED_DASHBOARD_QUERY violates the invariant that dashboard queries referencing another panel must survive export without remapping. As a result, shared dashboard queries will fall through to attach export labels and have dataQueryKind.datasource set to undefined.",
+                "evidence": "-    // Dashboard queries reference another panel, so their shared UID must survive export without remapping.\n-    if (datasourceUid === SHARED_DASHBOARD_QUERY) {\n-      return;\n-    }",
+                "confidence": 0.95,
+                "inChange": false,
+                "notes": [],
+                "id": "f-df8560f120771efaac76750c"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "public/app/features/dashboard-scene/scene/export/exporters.test.ts"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "20100a66-41cb-4497-8236-fafb0644ce9c",
+            "t": "2026-10-07T00:09:45.330Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 42624,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-133023",
+    "pr": 133023,
+    "source": "https://github.com/grafana/grafana/pull/133023",
+    "sha": "24a0b5be4da0ca1e1ff2ff0e073bd74b656307a6",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "pkg/services/ngalert/store/alert_rule_test.go": [
+        215
+      ],
+      "pkg/services/sqlstore/migrations/migrations.go": [
+        193
+      ],
+      "pkg/services/sqlstore/migrations/testdata/migration_ids.txt": [
+        741
+      ],
+      "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go": [
+        17
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/services/ngalert/store/alert_rule_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 29
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/migrations.go",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+          "status": "M",
+          "added": 0,
+          "removed": 10
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 3,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change cleanly removes the ExpandAlertRuleMissingSeriesEvalsToResolve migration across all relevant files: the migration definition in ualert, its registration in migrations.go, its recorded IDs in migration_ids.txt, and the corresponding integration test in alert_rule_test.go. No broken references, dangling callers, or invariant violations are present in the code shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 28051,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/services/ngalert/store/alert_rule_test.go",
+          "changed": [
+            "TestIntegrationUpdateAlertRules"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/migrations.go",
+          "changed": [
+            "AddMigration"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+          "changed": [],
+          "removed": [
+            "ExpandAlertRuleMissingSeriesEvalsToResolve"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "0f5c5d80-68ce-4230-9975-4ffb1e783d49",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "5d10a30a-116e-482b-b833-f3686ed901bc",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "0f5c5d80-68ce-4230-9975-4ffb1e783d49",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16960,
+              "output_tokens": 11091,
+              "thinking_tokens": 11009,
+              "cache_read_tokens": 0,
+              "total_tokens": 28051
+            },
+            "tokens": {
+              "inputTokens": 16960,
+              "outputTokens": 11091,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 28051
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:10:14.809Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "0f5c5d80-68ce-4230-9975-4ffb1e783d49",
+            "startedAt": "2026-10-07T00:09:45.650Z",
+            "completedAt": "2026-10-07T00:10:14.810Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 28051,
+            "findings": [],
+            "notes": {
+              "consulted": 0,
+              "direct": 3,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "ab8cadb9-324b-47ff-835f-ff722732b997",
+            "t": "2026-10-07T00:10:14.810Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 29164,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/services/ngalert/store/alert_rule_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 29
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/migrations.go",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+          "status": "M",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+          "status": "M",
+          "added": 0,
+          "removed": 10
+        }
+      ],
+      "notes": {
+        "consulted": 6,
+        "direct": 3,
+        "related": 3,
+        "assessed": 6,
+        "staleBefore": [],
+        "outdated": [
+          {
+            "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+            "reason": "The note claims that pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve provides raw SQL migrations altering missing_series_evals_to_resolve to BIGINT across MySQL and PostgreSQL. However, ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and missing_series_evals_to_resolve is configured as DB_SmallInt in AddAlertRuleMissingSeriesEvalsToResolve.",
+            "correction": ""
+          },
+          {
+            "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+            "reason": "The note claims that database migrations are defined in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve and registered in migrations.go:OSSMigrations.AddMigration and testdata/migration_ids.txt. ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and neither migrations.go nor testdata/migration_ids.txt registers it.",
+            "correction": ""
+          }
+        ],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The code change cleanly reverts ExpandAlertRuleMissingSeriesEvalsToResolve by removing the migration definition, its registration in OSSMigrations.AddMigration, its entries in migration_ids.txt, and its test in TestIntegrationUpdateAlertRules. No syntax errors, dangling references, or invariant violations are present in the changed code shown. Notes 'widen-database-column-to-bigint-when-int64-alert-rule-fields' and 'registering-new-sql-migrations-in-ossmigrations-and-migratio' are outdated because they claim ExpandAlertRuleMissingSeriesEvalsToResolve exists. Note 'alert-rule-schema-changes-must-mirror-between-alert-rule-and' remains consistent with the change. The remaining notes are unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 54286,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/services/ngalert/store/alert_rule_test.go",
+          "changed": [
+            "TestIntegrationUpdateAlertRules"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/migrations.go",
+          "changed": [
+            "AddMigration"
+          ],
+          "removed": []
+        },
+        {
+          "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+          "changed": [],
+          "removed": [
+            "ExpandAlertRuleMissingSeriesEvalsToResolve"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "alert-rule-schema-changes-must-mirror-between-alert-rule-and",
+          "title": "Alert rule schema changes must mirror between alert_rule and alert_rule_version",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "rests on pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules, pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve; 39 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+          "title": "Widen database column to BIGINT when int64 alert rule fields exceed SMALLINT limit",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "rests on pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve, pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules; 39 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+          "title": "Registering new SQL migrations in OSSMigrations and migration_ids.txt",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "rests on pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve, pkg/services/sqlstore/migrations/testdata/migration_ids.txt; 10 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+          "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "ignore-wildcard-identity-namespace-when-building-openfeature",
+          "title": "Ignore wildcard identity namespace when building OpenFeature evaluation context",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133033"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "xorm-mustcols-with-in-clause-generates-unsatisfiable-zero-va",
+          "title": "XORM MustCols with In clause generates unsatisfiable zero-value predicate on Delete",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "5af0e193-a38d-46f3-981f-73790aec47dd",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "302e0b7a-1619-4e74-9366-e4a15ae3e9ff",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "5af0e193-a38d-46f3-981f-73790aec47dd",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 19296,
+              "output_tokens": 34990,
+              "thinking_tokens": 34547,
+              "cache_read_tokens": 0,
+              "total_tokens": 54286
+            },
+            "tokens": {
+              "inputTokens": 19296,
+              "outputTokens": 34990,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 54286
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:11:30.025Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "5af0e193-a38d-46f3-981f-73790aec47dd",
+            "startedAt": "2026-10-07T00:10:14.828Z",
+            "completedAt": "2026-10-07T00:11:30.027Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 54286,
+            "findings": [],
+            "notes": {
+              "consulted": 6,
+              "direct": 3,
+              "related": 3,
+              "assessed": 6,
+              "staleBefore": [],
+              "outdated": [
+                {
+                  "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+                  "reason": "The note claims that pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve provides raw SQL migrations altering missing_series_evals_to_resolve to BIGINT across MySQL and PostgreSQL. However, ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and missing_series_evals_to_resolve is configured as DB_SmallInt in AddAlertRuleMissingSeriesEvalsToResolve.",
+                  "correction": ""
+                },
+                {
+                  "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+                  "reason": "The note claims that database migrations are defined in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve and registered in migrations.go:OSSMigrations.AddMigration and testdata/migration_ids.txt. ExpandAlertRuleMissingSeriesEvalsToResolve does not exist in the codebase, and neither migrations.go nor testdata/migration_ids.txt registers it.",
+                  "correction": ""
+                }
+              ],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "4def760e-7431-40ae-aeec-2ab3f29c472d",
+            "t": "2026-10-07T00:11:30.027Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 75215,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-132979",
+    "pr": 132979,
+    "source": "https://github.com/grafana/grafana/pull/132979",
+    "sha": "f085524b1c939cb040779223dfb27c367ac3500c",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx": [
+        127,
+        128,
+        129,
+        130,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        163,
+        164,
+        165,
+        15
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+          "status": "M",
+          "added": 23,
+          "removed": 19
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change replaces Modal.ButtonRow with a Stack component inside a styled buttons container in ConfirmContent.tsx, supporting configurable button alignment via justifyButtons and adding wrap handling. The unused Modal import is removed, and the styling for buttonsContainer is properly defined in getStyles. No bugs or broken invariants are visible in the code shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 26061,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+          "changed": [
+            "getStyles"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "646051b2-3598-4ddd-a65d-ea1930cee9ce",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "46ff6807-01da-4119-987a-9caae9368010",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "646051b2-3598-4ddd-a65d-ea1930cee9ce",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 14739,
+              "output_tokens": 11322,
+              "thinking_tokens": 11250,
+              "cache_read_tokens": 0,
+              "total_tokens": 26061
+            },
+            "tokens": {
+              "inputTokens": 14739,
+              "outputTokens": 11322,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 26061
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:12:03.394Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "646051b2-3598-4ddd-a65d-ea1930cee9ce",
+            "startedAt": "2026-10-07T00:11:30.696Z",
+            "completedAt": "2026-10-07T00:12:03.395Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 26061,
+            "findings": [],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "cea3ae57-afeb-4632-af27-9c13820cc841",
+            "t": "2026-10-07T00:12:03.395Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 32702,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+          "status": "M",
+          "added": 23,
+          "removed": 19
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change in ConfirmContent.tsx removes Modal.ButtonRow and replaces it with a custom container and Stack layout, violating the rule to wrap modal buttons in Modal.ButtonRow to prevent clipped focus rings."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+          "line": 127,
+          "message": "Modal buttons should be wrapped in Modal.ButtonRow rather than custom containers or layout stacks to prevent clipped focus rings.",
+          "evidence": "<div className={styles.buttonsContainer}>\n        <Stack justifyContent={justifyButtons} gap={2} wrap=\"wrap\">",
+          "confidence": 0.95,
+          "note": "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but",
+          "inChange": true,
+          "notes": [
+            "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but"
+          ],
+          "id": "f-6f178fb7dcbb7c4d03907ee8"
+        }
+      ],
+      "cost": 0,
+      "tokens": 24641,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+          "changed": [
+            "getStyles"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but",
+          "title": "Prevent clipped focus rings on modal buttons using Modal.ButtonRow",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132979"
+          },
+          "why": "rests on packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent; 38 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "mutabledataframe-length-setter-for-strict-mode-object-clonin",
+          "title": "MutableDataFrame length setter for strict mode object cloning",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132648"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "auto-grid-row-height-sizing-for-auto-fit-panels-with-lower-m",
+          "title": "Auto-grid row height sizing for auto-fit panels with lower min height",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132082"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-datasource-type-and-uid-in-explore-trace-link-queri",
+          "title": "Preserve datasource type and uid in Explore trace link queries",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#130358"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+          "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "prevent-applyfieldoverrides-from-mutating-shared-field-confi",
+          "title": "Prevent applyFieldOverrides from mutating shared field configs in nested frames",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132418"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati",
+          "title": "Prevent excessive re-renders in useComboboxFloat from floating-ui autoUpdate and size measurements",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132877"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "40a84789-e993-4dd1-8d88-1588dbe057c2",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "11af2506-b973-40c3-8931-630e2dd664b4",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "40a84789-e993-4dd1-8d88-1588dbe057c2",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 17164,
+              "output_tokens": 7477,
+              "thinking_tokens": 7310,
+              "cache_read_tokens": 0,
+              "total_tokens": 24641
+            },
+            "tokens": {
+              "inputTokens": 17164,
+              "outputTokens": 7477,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 24641
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:12:24.576Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "40a84789-e993-4dd1-8d88-1588dbe057c2",
+            "startedAt": "2026-10-07T00:12:03.406Z",
+            "completedAt": "2026-10-07T00:12:24.577Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 24641,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+                "line": 127,
+                "message": "Modal buttons should be wrapped in Modal.ButtonRow rather than custom containers or layout stacks to prevent clipped focus rings.",
+                "evidence": "<div className={styles.buttonsContainer}>\n        <Stack justifyContent={justifyButtons} gap={2} wrap=\"wrap\">",
+                "confidence": 0.95,
+                "note": "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but",
+                "inChange": true,
+                "notes": [
+                  "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but"
+                ],
+                "id": "f-6f178fb7dcbb7c4d03907ee8"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "e822a77f-f931-4505-ba8e-787cc7fb3e4d",
+            "t": "2026-10-07T00:12:24.577Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 21180,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-132877",
+    "pr": 132877,
+    "source": "https://github.com/grafana/grafana/pull/132877",
+    "sha": "339c8161461b7d3aeefe1fea9d0a32b2d6806dea",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx": [
+        0,
+        13,
+        55,
+        62
+      ],
+      "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx": [
+        54
+      ],
+      "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts": [
+        0
+      ],
+      "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts": [
+        2,
+        80,
+        86,
+        55,
+        74,
+        88
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "status": "M",
+          "added": 0,
+          "removed": 64
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+          "status": "D",
+          "added": 0,
+          "removed": 35
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+          "status": "M",
+          "added": 3,
+          "removed": 20
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change violates note prevent-excessive-re-renders-in-usecomboboxfloat-from-floati by reverting the fix that avoided continuous re-renders in useComboboxFloat: it sets whileElementsMounted: autoUpdate unconditionally in useFloating, removes popoverMaxSizeRef dimension caching, and deletes the corresponding regression tests. Additionally, MultiCombobox.test.tsx introduces an unawaited user.click call."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+          "line": 86,
+          "message": "Reintroduces unconditional autoUpdate via whileElementsMounted in useFloating (and removes popoverMaxSizeRef caching before setPopoverMaxSize), violating the rule to run autoUpdate in a useEffect only when isOpen is true and cache popoverMaxSize to prevent excessive re-renders when elements are hidden via CSS.",
+          "evidence": "whileElementsMounted: autoUpdate,",
+          "confidence": 0.95,
+          "note": "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati",
+          "inChange": true,
+          "notes": [
+            "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati"
+          ],
+          "id": "f-fb6a8a7ef23034cb6dd64faa"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+          "line": 54,
+          "message": "user.click(input) returns a Promise in @testing-library/user-event and must be awaited; omitting await leaves an unhandled promise and can cause race conditions or test instability.",
+          "evidence": "user.click(input);",
+          "confidence": 0.9,
+          "inChange": true,
+          "notes": [],
+          "id": "f-0e4d89ed4e4e8e8453be0ef4"
+        }
+      ],
+      "cost": 0,
+      "tokens": 45211,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-1b17492f0ae4adcf3cfb",
+            "file": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    expect(mockAutoUpdate).not.toHaveBeenCalled();\n      expect(mockAutoUpdate).toHaveBeenCalledTimes(1);\n    expect(screen.getByRole('combobox', { name: 'Options', hidden: true })).toBeInTheDocument();\n    expect(removeAttribute).not.toHaveBeenCalledWith('name');",
+            "after": "",
+            "resolution": "needs-review"
+          },
+          {
+            "id": "gate-65fd94316c7fbc66f5a2",
+            "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+            "line": 0,
+            "rule": "test-removed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "A test file was removed. Confirm replacement coverage.",
+            "before": "import { act, renderHook } from '@testing-library/react';\n\nimport { useComboboxFloat } from './useComboboxFloat';\n\nlet mockSizeApply: ((args: { availableWidth: number; availableHeight: number }) => void) | undefined;\n\njest.mock('@floating-ui/react', () => ({\n  autoPlacement: jest.fn(),\n  autoUpdate: jest.fn(),\n  size: jest.fn(({ apply }) => {\n    mockSizeApply = apply;\n  }),\n  useFloating: jest.fn(() => ({ floatingStyles: {} })),\n}));\n\ndescribe('useComboboxFloat', () => {\n  it('does not rerender",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "changed": [],
+          "removed": [
+            "mockSizeApply",
+            "renderCombobox"
+          ]
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+          "changed": [],
+          "removed": [
+            "mockSizeApply"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati",
+          "title": "Prevent excessive re-renders in useComboboxFloat from floating-ui autoUpdate and size measurements",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132877"
+          },
+          "why": "rests on packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat; 21 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "preserve-datasource-type-and-uid-in-explore-trace-link-queri",
+          "title": "Preserve datasource type and uid in Explore trace link queries",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#130358"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-queryvariable-refresh-setting-on-v2-dashboard-impor",
+          "title": "Preserve QueryVariable refresh setting on v2 dashboard import",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "mutabledataframe-length-setter-for-strict-mode-object-clonin",
+          "title": "MutableDataFrame length setter for strict mode object cloning",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132648"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+          "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but",
+          "title": "Prevent clipped focus rings on modal buttons using Modal.ButtonRow",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132979"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+          "title": "Registering new SQL migrations in OSSMigrations and migration_ids.txt",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "781126ed-7b56-408c-aeb3-6856ca83e52c",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "82a4c582-2a89-4497-8d39-b5997f4c417d",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "781126ed-7b56-408c-aeb3-6856ca83e52c",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 19014,
+              "output_tokens": 26197,
+              "thinking_tokens": 25872,
+              "cache_read_tokens": 0,
+              "total_tokens": 45211
+            },
+            "tokens": {
+              "inputTokens": 19014,
+              "outputTokens": 26197,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 45211
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:13:26.443Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "781126ed-7b56-408c-aeb3-6856ca83e52c",
+            "startedAt": "2026-10-07T00:12:24.735Z",
+            "completedAt": "2026-10-07T00:13:26.474Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 45211,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+                "line": 86,
+                "message": "Reintroduces unconditional autoUpdate via whileElementsMounted in useFloating (and removes popoverMaxSizeRef caching before setPopoverMaxSize), violating the rule to run autoUpdate in a useEffect only when isOpen is true and cache popoverMaxSize to prevent excessive re-renders when elements are hidden via CSS.",
+                "evidence": "whileElementsMounted: autoUpdate,",
+                "confidence": 0.95,
+                "note": "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati",
+                "inChange": true,
+                "notes": [
+                  "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati"
+                ],
+                "id": "f-fb6a8a7ef23034cb6dd64faa"
+              },
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+                "line": 54,
+                "message": "user.click(input) returns a Promise in @testing-library/user-event and must be awaited; omitting await leaves an unhandled promise and can cause race conditions or test instability.",
+                "evidence": "user.click(input);",
+                "confidence": 0.9,
+                "inChange": true,
+                "notes": [],
+                "id": "f-0e4d89ed4e4e8e8453be0ef4"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+                "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "cfca2dcd-9a55-4e50-a8af-0508411f2c18",
+            "t": "2026-10-07T00:13:26.474Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 61743,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "status": "M",
+          "added": 0,
+          "removed": 64
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+          "status": "D",
+          "added": 0,
+          "removed": 35
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+          "status": "M",
+          "added": 3,
+          "removed": 20
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "Identified two bugs in the change: (1) dropping the size equality check before setPopoverMaxSize in useComboboxFloat.ts causes unconditional re-renders on measurement cycles due to new object reference creation, and (2) removing await from user.click(input) in MultiCombobox.test.tsx leaves an unhandled Promise racing with test assertions."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+          "line": 54,
+          "message": "user.click(input) is an asynchronous operation returning a Promise, but await was removed. Leaving the promise unawaited causes the click event dispatch to race against subsequent assertions and can trigger unhandled act() warnings or flaky test failures.",
+          "evidence": "-    await user.click(input);\n+    user.click(input);",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-37d3b29fc3417400e5b4fbdd"
+        },
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+          "line": 75,
+          "message": "The guard comparing calculated dimensions against the previous size was dropped before calling setPopoverMaxSize. Because a new { width, height } object is passed to setPopoverMaxSize on every measurement inside size().apply, React triggers a re-render even when measurements are unchanged, causing redundant re-renders or infinite update loops.",
+          "evidence": "-        if (popoverMaxSizeRef.current.width === width && popoverMaxSizeRef.current.height === height) {\n-          return;\n-        }\n-\n-        popoverMaxSizeRef.current = { width, height };\n         setPopoverMaxSize({ width, height });",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-62ae0d5c086c9df469fe01fd"
+        }
+      ],
+      "cost": 0,
+      "tokens": 39169,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-1b17492f0ae4adcf3cfb",
+            "file": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    expect(mockAutoUpdate).not.toHaveBeenCalled();\n      expect(mockAutoUpdate).toHaveBeenCalledTimes(1);\n    expect(screen.getByRole('combobox', { name: 'Options', hidden: true })).toBeInTheDocument();\n    expect(removeAttribute).not.toHaveBeenCalledWith('name');",
+            "after": "",
+            "resolution": "needs-review"
+          },
+          {
+            "id": "gate-65fd94316c7fbc66f5a2",
+            "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+            "line": 0,
+            "rule": "test-removed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "A test file was removed. Confirm replacement coverage.",
+            "before": "import { act, renderHook } from '@testing-library/react';\n\nimport { useComboboxFloat } from './useComboboxFloat';\n\nlet mockSizeApply: ((args: { availableWidth: number; availableHeight: number }) => void) | undefined;\n\njest.mock('@floating-ui/react', () => ({\n  autoPlacement: jest.fn(),\n  autoUpdate: jest.fn(),\n  size: jest.fn(({ apply }) => {\n    mockSizeApply = apply;\n  }),\n  useFloating: jest.fn(() => ({ floatingStyles: {} })),\n}));\n\ndescribe('useComboboxFloat', () => {\n  it('does not rerender",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+          "changed": [],
+          "removed": [
+            "mockSizeApply",
+            "renderCombobox"
+          ]
+        },
+        {
+          "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+          "changed": [],
+          "removed": [
+            "mockSizeApply"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 2,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "aa4c57b9-b215-4ce0-b6f6-686224b5c893",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "6f7b41a6-73f0-448b-9e07-3bf5f4cf5bfd",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "aa4c57b9-b215-4ce0-b6f6-686224b5c893",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16272,
+              "output_tokens": 22897,
+              "thinking_tokens": 22527,
+              "cache_read_tokens": 0,
+              "total_tokens": 39169
+            },
+            "tokens": {
+              "inputTokens": 16272,
+              "outputTokens": 22897,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 39169
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:14:34.480Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "aa4c57b9-b215-4ce0-b6f6-686224b5c893",
+            "startedAt": "2026-10-07T00:13:26.492Z",
+            "completedAt": "2026-10-07T00:14:34.481Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 39169,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+                "line": 54,
+                "message": "user.click(input) is an asynchronous operation returning a Promise, but await was removed. Leaving the promise unawaited causes the click event dispatch to race against subsequent assertions and can trigger unhandled act() warnings or flaky test failures.",
+                "evidence": "-    await user.click(input);\n+    user.click(input);",
+                "confidence": 0.95,
+                "inChange": true,
+                "notes": [],
+                "id": "f-37d3b29fc3417400e5b4fbdd"
+              },
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+                "line": 75,
+                "message": "The guard comparing calculated dimensions against the previous size was dropped before calling setPopoverMaxSize. Because a new { width, height } object is passed to setPopoverMaxSize on every measurement inside size().apply, React triggers a re-render even when measurements are unchanged, causing redundant re-renders or infinite update loops.",
+                "evidence": "-        if (popoverMaxSizeRef.current.width === width && popoverMaxSizeRef.current.height === height) {\n-          return;\n-        }\n-\n-        popoverMaxSizeRef.current = { width, height };\n         setPopoverMaxSize({ width, height });",
+                "confidence": 0.95,
+                "inChange": false,
+                "notes": [],
+                "id": "f-62ae0d5c086c9df469fe01fd"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+                "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "bd8a3523-ed06-437d-bec0-c0937b485372",
+            "t": "2026-10-07T00:14:34.481Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 68004,
+      "validModel": true
+    }
+  },
+  {
+    "id": "grafana-132966",
+    "pr": 132966,
+    "source": "https://github.com/grafana/grafana/pull/132966",
+    "sha": "3bdabb21d49f27cdb62a3ff97c560ca695b5a706",
+    "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "pkg/router/aggregate_discovery.go": [
+        17,
+        13,
+        20,
+        28,
+        37,
+        44
+      ],
+      "pkg/router/aggregate_discovery_test.go": [
+        11,
+        49
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/router/aggregate_discovery.go",
+          "status": "M",
+          "added": 1,
+          "removed": 54
+        },
+        {
+          "path": "pkg/router/aggregate_discovery_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 30
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "pkg/router/aggregate_discovery_test.go"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change removes aggregated discovery negotiation from discoverGroups. This breaks an invariant visible in aggregateBackend for baas_apiserver targets, where CRD-backed groups are only exposed via aggregated discovery and will no longer be discovered."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "pkg/router/aggregate_discovery.go",
+          "line": 29,
+          "message": "Removing the Accept header requesting aggregated discovery breaks discovery for baas_apiserver aggregate targets. The plain /apis response on standalone apiextensions apiservers only returns apiextensions.k8s.io and omits CRD-backed groups, which are only served in the aggregated discovery format. Without requesting this format, discoverGroups silently fails to discover CRD groups on baas_apiserver.",
+          "evidence": "-\treq.Header.Set(\"Accept\", aggregatedDiscoveryJSON+\", application/json\")\n \tresp, err := client.Do(req)",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-842ecae7c63c2d373ca54d9b"
+        }
+      ],
+      "cost": 0,
+      "tokens": 41487,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/router/aggregate_discovery.go",
+          "changed": [
+            "discoverGroups"
+          ],
+          "removed": [
+            "decodeDiscoveryResponse",
+            "apiGroupDiscoveryListToGroups"
+          ]
+        },
+        {
+          "path": "pkg/router/aggregate_discovery_test.go",
+          "changed": [],
+          "removed": [
+            "TestDiscoverGroups_AggregatedFormat"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "48cac71f-5148-48cd-bd77-8b6d85a077cc",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "a1ab7a67-5c75-4222-87eb-36e27b09407b",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "48cac71f-5148-48cd-bd77-8b6d85a077cc",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16398,
+              "output_tokens": 25089,
+              "thinking_tokens": 24880,
+              "cache_read_tokens": 0,
+              "total_tokens": 41487
+            },
+            "tokens": {
+              "inputTokens": 16398,
+              "outputTokens": 25089,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 41487
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:15:37.654Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "48cac71f-5148-48cd-bd77-8b6d85a077cc",
+            "startedAt": "2026-10-07T00:14:34.645Z",
+            "completedAt": "2026-10-07T00:15:37.656Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 41487,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "pkg/router/aggregate_discovery.go",
+                "line": 29,
+                "message": "Removing the Accept header requesting aggregated discovery breaks discovery for baas_apiserver aggregate targets. The plain /apis response on standalone apiextensions apiservers only returns apiextensions.k8s.io and omits CRD-backed groups, which are only served in the aggregated discovery format. Without requesting this format, discoverGroups silently fails to discover CRD groups on baas_apiserver.",
+                "evidence": "-\treq.Header.Set(\"Accept\", aggregatedDiscoveryJSON+\", application/json\")\n \tresp, err := client.Do(req)",
+                "confidence": 0.95,
+                "inChange": false,
+                "notes": [],
+                "id": "f-842ecae7c63c2d373ca54d9b"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "pkg/router/aggregate_discovery_test.go"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "e71b51b0-70f4-4b58-88ab-58710abf4969",
+            "t": "2026-10-07T00:15:37.656Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 63015,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "pkg/router/aggregate_discovery.go",
+          "status": "M",
+          "added": 1,
+          "removed": 54
+        },
+        {
+          "path": "pkg/router/aggregate_discovery_test.go",
+          "status": "M",
+          "added": 0,
+          "removed": 30
+        }
+      ],
+      "notes": {
+        "consulted": 5,
+        "direct": 1,
+        "related": 4,
+        "assessed": 5,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "pkg/router/aggregate_discovery_test.go"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change reverts aggregated discovery support in pkg/router/aggregate_discovery.go and deletes its pinning unit test in pkg/router/aggregate_discovery_test.go. This is a violation of note aggregate-apiserver-introspection-requires-aggregated-discov, which documents that standalone aggregate apiextensions apiservers require the apidiscovery.k8s.io Accept header to expose dynamic CRD groups under /apis. The remaining notes in the cache are unrelated to the router package."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "pkg/router/aggregate_discovery.go",
+          "line": 29,
+          "message": "discoverGroups removes the aggregated discovery Accept header and the decoding of APIGroupDiscoveryList via decodeDiscoveryResponse, decoding responses solely into metav1.APIGroupList. This violates the invariant that aggregate apiserver introspection requires aggregated discovery format for dynamic CRD groups, causing targets like baas_apiserver to omit dynamic CRDs from /apis. The regression test TestDiscoverGroups_AggregatedFormat was also deleted.",
+          "evidence": "-\treq.Header.Set(\"Accept\", aggregatedDiscoveryJSON+\", application/json\")\n \tresp, err := client.Do(req)",
+          "confidence": 0.95,
+          "note": "aggregate-apiserver-introspection-requires-aggregated-discov",
+          "inChange": false,
+          "notes": [
+            "aggregate-apiserver-introspection-requires-aggregated-discov"
+          ],
+          "id": "f-3de64c8297693afd2d2cf41c"
+        }
+      ],
+      "cost": 0,
+      "tokens": 38162,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "pkg/router/aggregate_discovery.go",
+          "changed": [
+            "discoverGroups"
+          ],
+          "removed": [
+            "decodeDiscoveryResponse",
+            "apiGroupDiscoveryListToGroups"
+          ]
+        },
+        {
+          "path": "pkg/router/aggregate_discovery_test.go",
+          "changed": [],
+          "removed": [
+            "TestDiscoverGroups_AggregatedFormat"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "aggregate-apiserver-introspection-requires-aggregated-discov",
+          "title": "Aggregate apiserver introspection requires aggregated discovery format for CRD groups",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#132966"
+          },
+          "why": "rests on pkg/router/aggregate_discovery.go:discoverGroups, pkg/router/aggregate_discovery.go:decodeDiscoveryResponse, pkg/router/aggregate_discovery.go:apiGroupDiscoveryListToGroups; 53 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "denormalized-annotation-tags-must-stay-in-sync-with-annotati",
+          "title": "Denormalized annotation.tags must stay in sync with annotation_tag join table",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#131464"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+          "title": "Registering new SQL migrations in OSSMigrations and migration_ids.txt",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "alert-rule-schema-changes-must-mirror-between-alert-rule-and",
+          "title": "Alert rule schema changes must mirror between alert_rule and alert_rule_version",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+          "title": "Widen database column to BIGINT when int64 alert rule fields exceed SMALLINT limit",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "grafana/grafana#133023"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "4b047af6-0a22-4da4-b352-ee0a8981fee2",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "4e0c3fb4-21f6-4122-b8f0-d4088492b00f",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "4b047af6-0a22-4da4-b352-ee0a8981fee2",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 18836,
+              "output_tokens": 19326,
+              "thinking_tokens": 19042,
+              "cache_read_tokens": 0,
+              "total_tokens": 38162
+            },
+            "tokens": {
+              "inputTokens": 18836,
+              "outputTokens": 19326,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 38162
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:16:26.516Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "4b047af6-0a22-4da4-b352-ee0a8981fee2",
+            "startedAt": "2026-10-07T00:15:37.669Z",
+            "completedAt": "2026-10-07T00:16:26.518Z",
+            "head": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+            "branch": null,
+            "scope": {
+              "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 38162,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "pkg/router/aggregate_discovery.go",
+                "line": 29,
+                "message": "discoverGroups removes the aggregated discovery Accept header and the decoding of APIGroupDiscoveryList via decodeDiscoveryResponse, decoding responses solely into metav1.APIGroupList. This violates the invariant that aggregate apiserver introspection requires aggregated discovery format for dynamic CRD groups, causing targets like baas_apiserver to omit dynamic CRDs from /apis. The regression test TestDiscoverGroups_AggregatedFormat was also deleted.",
+                "evidence": "-\treq.Header.Set(\"Accept\", aggregatedDiscoveryJSON+\", application/json\")\n \tresp, err := client.Do(req)",
+                "confidence": 0.95,
+                "note": "aggregate-apiserver-introspection-requires-aggregated-discov",
+                "inChange": false,
+                "notes": [
+                  "aggregate-apiserver-introspection-requires-aggregated-discov"
+                ],
+                "id": "f-3de64c8297693afd2d2cf41c"
+              }
+            ],
+            "notes": {
+              "consulted": 5,
+              "direct": 1,
+              "related": 4,
+              "assessed": 5,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "pkg/router/aggregate_discovery_test.go"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "75ce71fb-61b9-4b91-9000-d68ea13f989b",
+            "t": "2026-10-07T00:16:26.518Z",
+            "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/grafana-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 48855,
+      "validModel": true
+    }
+  }
+]

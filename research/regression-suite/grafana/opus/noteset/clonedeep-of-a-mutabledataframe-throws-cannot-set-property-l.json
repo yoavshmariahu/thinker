@@ -1,0 +1,62 @@
+{
+  "id": "clonedeep-of-a-mutabledataframe-throws-cannot-set-property-l",
+  "title": "cloneDeep of a MutableDataFrame throws 'Cannot set property length ... which has only a getter' in Rspack/ESM builds",
+  "kind": "rule",
+  "answers": [
+    "TypeError: Cannot set property length of #<d> which has only a getter",
+    "Explore raw Prometheus list view crashes with two or more instant queries",
+    "cloneDeep on data frame fails in Rspack build",
+    "plugin cloneDeep(props.data) throws in strict mode"
+  ],
+  "body": "Symptom: In Rspack builds, Explore's raw Prometheus view crashed with `TypeError: Cannot set property length of #<d> which has only a getter`. You need two or more instant queries to trigger it, because the merge transformation then returns a MutableDataFrame.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame derives `length` from the first field and only had a getter. lodash `cloneDeep` builds the clone from the prototype and then assigns every own enumerable key, including `length`. Rspack outputs ES modules, which always run in strict mode, so the bundled lodash throws on that assignment. Before, the write failed silently.\nFix pattern: add a setter that does nothing (`set length(_value: number) {}`) next to the derived getter, so generic copiers can write back the value they just read. Also don't deep-clone frames you only read: public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer now uses `props.tableResult` directly.\nConstraints: this applies to any class with getter-only accessors that core or plugins might pass to cloneDeep or a similar copier. Grafana shares its lodash copy with plugins, so a plugin calling `cloneDeep(props.data)` hits the same fault. MutableDataFrame is deprecated, but it still comes out of transformations like merge.",
+  "applies": "Getter-only properties on data frame classes and any code that deep-clones panel/query data under Rspack/ESM builds",
+  "tags": [
+    "rspack",
+    "esm",
+    "strict-mode",
+    "lodash",
+    "clonedeep",
+    "dataframe",
+    "explore",
+    "prometheus"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+      "symbol": "MutableDataFrame",
+      "hash": "sha256:19519b57c185c00e5c8c9cec",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 40,
+        "sites": 94,
+        "refs": 142
+      }
+    },
+    {
+      "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+      "symbol": "RawListContainer",
+      "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-07T00:04:52.162Z",
+  "verified": "2026-10-07T00:04:52.162Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "jest-cannot-reproduce-strict-mode-lodash-crashes-test-the-pr"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "id": "remove-processed-timestamp-series-when-partition-ownership-e",
+  "title": "Remove processed-timestamp series when partition ownership ends",
+  "kind": "rule",
+  "answers": [
+    "Why does IngestionAnalyticsSinglePartitionDelayed page for a partition that is not behind?",
+    "Why does an ingestion pod still report a partition after a rebalance?",
+    "How should processed-timestamp metrics handle revoked partitions?"
+  ],
+  "body": "Symptom: IngestionAnalyticsSinglePartitionDelayed can page for a partition that is not behind after a rebalance.\nRoot cause: nodejs/src/ingestion/ingestion-consumer.ts:latestOffsetTimestampGauge retains the former owner's latest_processed_timestamp_ms series; its stale timestamp ages while an idle new owner may export no series.\nFix pattern: Register partition cleanup through KafkaConsumerInterface.connect; nodejs/src/ingestion/ingestion-consumer.ts:IngestionConsumer.onPartitionsRevoked removes each revoked series using topic, partition and groupId, preserving retained partitions' series.\nConstraints: Applies to this analytics processed-timestamp gauge. Remove series rather than resetting the whole gauge. A new owner stalled before processing has no series, so this single-partition alert cannot detect that case; all-partitions and stopped-consuming alerts still cover a stalled lane.",
+  "applies": "Analytics ingestion partition ownership changes and latest_processed_timestamp_ms metric lifecycle.",
+  "tags": [
+    "ingestion",
+    "kafka",
+    "metrics",
+    "partition-revocation"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "latestOffsetTimestampGauge",
+      "hash": "sha256:e700a654886808abf4be83c4",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "IngestionConsumer.onPartitionsRevoked",
+      "hash": "sha256:3afbcb0228cc859807bd3043",
+      "line": 469,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 6,
+        "refs": 25
+      }
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/index.ts",
+      "symbol": "KafkaConsumerInterface.connect",
+      "hash": "sha256:90c6a6dd1f9c0f6883486adc",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 931,
+        "sites": 821,
+        "refs": 1979
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105133"
+  },
+  "created": "2026-10-07T00:16:33.140Z",
+  "verified": "2026-10-07T00:16:33.140Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "the-v1-partition-revoke-hook-does-not-block-unassignment"
+  ]
+}

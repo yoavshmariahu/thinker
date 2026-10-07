@@ -1,0 +1,60 @@
+{
+  "id": "barplot-must-re-apply-rot-fontsize-after-set-xlim-on-dynamic",
+  "title": "BarPlot must re-apply rot/fontsize after set_xlim on dynamic date axes",
+  "kind": "rule",
+  "answers": [
+    "bar plot rot or fontsize not applied to some date tick labels",
+    "minor tick labels unrotated with narrow xlim on a date bar plot",
+    "why does BarPlot._post_plot_logic call _apply_axis_properties again"
+  ],
+  "body": "Invariant: in pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic, when _use_dynamic_dateaxis is set, type(self)._apply_axis_properties(ax.xaxis, rot=self.rot, fontsize=self.fontsize) has to run after ax.set_xlim(...).\nWhy: _post_plot_logic_common applies rot and fontsize earlier. If a narrow user xlim left the view with no minor ticks, set_xlim later creates new minor ticks, and those carry most of the date labels. Without the second call they keep the default rotation and size.\nDo not remove this call as redundant, even though the locators are now installed earlier in _setup_date_axis.\nTest: TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks, parametrized with xlim=None and a narrow xlim. It draws the canvas and checks every visible major and minor label.",
+  "applies": "BarPlot date-axis handling in pandas/plotting/_matplotlib/core.py",
+  "tags": [
+    "plotting",
+    "matplotlib",
+    "bar-plot",
+    "datetime-axis",
+    "rot",
+    "fontsize",
+    "minor-ticks"
+  ],
+  "deps": [
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._post_plot_logic",
+      "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+      "line": 2237,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/plotting/test_datetimelike.py",
+      "symbol": "TestTSPlot.test_bar_plot_date_axis_rot_applies_to_minor_ticks",
+      "hash": "sha256:e36fae555ff5d5b65d624a8d",
+      "line": 2081,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70228"
+  },
+  "created": "2026-10-07T00:24:18.436Z",
+  "verified": "2026-10-07T00:24:18.436Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "date-axis-locators-converters-must-be-installed-before-adorn"
+  ]
+}

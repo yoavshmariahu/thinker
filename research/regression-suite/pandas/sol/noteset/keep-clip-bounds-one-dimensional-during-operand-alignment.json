@@ -1,0 +1,57 @@
+{
+  "id": "keep-clip-bounds-one-dimensional-during-operand-alignment",
+  "title": "Keep clip bounds one-dimensional during operand alignment",
+  "kind": "rule",
+  "answers": [
+    "Why does DataFrame.clip turn integer columns into object dtype with nullable integer bounds?",
+    "Why does inplace clipping fail with an extension-dtype array or Index bound?",
+    "What does flex=None mean in DataFrame._align_for_op?"
+  ],
+  "body": "Symptom: DataFrame.clip with an extension-dtype array or Index bound degrades integer columns to object dtype or raises TypeError with inplace=True.\nRoot cause: pandas/core/frame.py:DataFrame._align_for_op broadcast the aligned Series bound through _maybe_align_series_as_frame; the resulting EA-columned frame bypassed where's working one-dimensional EA path.\nFix pattern: Preserve the aligned Series operand when flex=None so clipping passes a one-dimensional bound to where.\nConstraints: flex=None skips DataFrame alignment checks and Series-to-frame broadcasting; keep broadcasting for flex values other than None. This guard is enforced in pandas/core/frame.py:DataFrame._align_for_op.",
+  "applies": "DataFrame operand alignment used to pass list-like clipping bounds to where, especially extension-dtype arrays and Index objects.",
+  "tags": [
+    "clip",
+    "extension-dtypes",
+    "alignment",
+    "dtype-preservation"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._align_for_op",
+      "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+      "line": 10327,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._maybe_align_series_as_frame",
+      "hash": "sha256:8c6dfa13ac2237b3a9e06c45",
+      "line": 10482,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68929"
+  },
+  "created": "2026-10-07T00:28:00.656Z",
+  "verified": "2026-10-07T00:28:00.656Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "carry-the-inferred-column-axis-into-clip-s-where-operation"
+  ]
+}

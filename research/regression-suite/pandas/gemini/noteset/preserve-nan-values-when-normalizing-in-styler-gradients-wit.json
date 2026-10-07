@@ -1,0 +1,69 @@
+{
+  "id": "preserve-nan-values-when-normalizing-in-styler-gradients-wit",
+  "title": "Preserve NaN values when normalizing in Styler gradients with equal min and max",
+  "kind": "rule",
+  "answers": [
+    "Why does Styler.background_gradient color NaN as the lowest value when all values are equal?",
+    "Why are missing values styled with the minimum colormap color in Styler.background_gradient or text_gradient?",
+    "How to prevent matplotlib Normalize from converting NaN to 0 when vmin == vmax in pandas Styler?",
+    "Why does Styler gradient ignore missing-value bad color when vmin equals vmax?"
+  ],
+  "body": "Symptom: Styler.background_gradient and Styler.text_gradient color missing/NaN cells with the lowest colormap color instead of the colormap's bad/missing color when all valid values in a slice are equal or vmin == vmax.\nRoot cause: In pandas/io/formats/style.py:_background_gradient, matplotlib.colors.Normalize maps NaN to 0 when vmin == vmax, so the colormap treats missing values as the minimum scalar instead of NaN.\nFix pattern: Re-mask NaNs on the normalized output using np.where(np.isnan(gmap), np.nan, norm(gmap)) before passing the values to the colormap.\nConstraints: Applies when passing arrays with NaNs to matplotlib.colors.Normalize where vmin == vmax can occur; unnecessary when inputs are guaranteed non-NaN or when normalizers preserve NaN.",
+  "applies": "pandas.io.formats.style._background_gradient and Styler gradient color normalization with matplotlib",
+  "tags": [
+    "styler",
+    "background_gradient",
+    "text_gradient",
+    "matplotlib",
+    "nan"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "_background_gradient",
+      "hash": "sha256:ddcbb4b02b5690b35f7806f8",
+      "line": 4271,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "Styler.background_gradient",
+      "hash": "sha256:97a6bc16e4453f494a207dde",
+      "line": 3127,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 21,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pandas/io/formats/style.py",
+      "symbol": "Styler.text_gradient",
+      "hash": "sha256:ef661dbf673844c14a804b56",
+      "line": 3285,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70526"
+  },
+  "created": "2026-10-07T00:36:08.707Z",
+  "verified": "2026-10-07T00:36:08.707Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

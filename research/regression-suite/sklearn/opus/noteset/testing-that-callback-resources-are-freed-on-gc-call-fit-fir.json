@@ -1,0 +1,55 @@
+{
+  "id": "testing-that-callback-resources-are-freed-on-gc-call-fit-fir",
+  "title": "Testing that callback resources are freed on GC: call fit first, then gc.collect",
+  "kind": "howto",
+  "answers": [
+    "how to test that a callback's listener is closed when garbage collected",
+    "test_scoring_monitor_listener_closed_on_gc passes but leak still exists",
+    "check _listeners and _message_consumers cleanup in tests"
+  ],
+  "body": "When a test checks that a callback releases its resources on deletion, run the callback through a real fit first, e.g. `MaxIterEstimator().set_callbacks(callback).fit()`. Hook-signature caching and the other code paths that can hold references only run during fit. Without fit, the test passes even when there is a leak.\nThen do `del callback; gc.collect()` before asserting that the listener address is gone from sklearn/callback/_transport `_listeners` and `_message_consumers`.\nThe reference test is sklearn/callback/tests/test_scoring_monitor.py:test_scoring_monitor_listener_closed_on_gc. The test estimators live in sklearn/callback/tests/_common/estimators.py (MaxIterEstimator, MetaEstimator).",
+  "applies": "Tests in sklearn/callback/tests asserting cleanup of callback-owned resources",
+  "tags": [
+    "callbacks",
+    "testing",
+    "gc",
+    "scoringmonitor"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/callback/tests/test_scoring_monitor.py",
+      "symbol": "test_scoring_monitor_listener_closed_on_gc",
+      "hash": "sha256:dee5ef7b0d6a297bfecb961a",
+      "line": 412,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/callback/tests/_common/estimators.py",
+      "symbol": "MaxIterEstimator",
+      "hash": "sha256:3c7b45a4972d50f5457d931c",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 57,
+        "refs": 85
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34837"
+  },
+  "created": "2026-10-07T00:29:25.409Z",
+  "verified": "2026-10-07T00:29:25.409Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

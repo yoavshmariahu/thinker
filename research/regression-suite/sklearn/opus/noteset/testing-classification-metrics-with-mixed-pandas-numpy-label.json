@@ -1,0 +1,55 @@
+{
+  "id": "testing-classification-metrics-with-mixed-pandas-numpy-label",
+  "title": "Testing classification metrics with mixed pandas/numpy labels and array API predictions",
+  "kind": "howto",
+  "answers": [
+    "how to test array API metric with pandas input",
+    "test mixed namespace inputs for classification metrics",
+    "where are array API classification metric tests"
+  ],
+  "body": "sklearn/metrics/tests/test_common.py has two tests for mixed inputs. test_array_api_mixed_pandas_integer_input checks a pandas int64 y_true against array_api_strict y_pred on device1. test_array_api_classification_mixed_string_numeric_input is parametrized by label_type 'string'/'categorical' and checks a numpy str or pandas category y_true against y_prob from any namespace.\nBoth tests parametrize over CLASSIFICATION_METRICS.keys() - (METRIC_UNDEFINED_BINARY | METRICS_NOT_SUPPORTING_ARRAY_API). They pass pos_label=1 for metrics in METRICS_WITH_POS_LABEL.\nPattern: compute the metric once under config_context(array_api_dispatch=True) with the mixed inputs. Compute it again with dispatch disabled, after move_to(y_pred, xp=np, device='cpu'). Compare the two results with _check_output.\nUse _array_api_for_tests('array_api_strict', 'device1', 'float64') to get a non-default device without a GPU. Use pytest.importorskip('pandas') to guard tests that need pandas.",
+  "applies": "array API tests for sklearn classification metrics",
+  "tags": [
+    "array-api",
+    "testing",
+    "metrics",
+    "pandas"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/metrics/tests/test_common.py",
+      "symbol": "test_array_api_mixed_pandas_integer_input",
+      "hash": "sha256:ec69df99775e9027805dd424",
+      "line": 2853,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/metrics/tests/test_common.py",
+      "symbol": "test_array_api_classification_mixed_string_numeric_input",
+      "hash": "sha256:490e15c4e1fb0966ab3d9c54",
+      "line": 2888,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34779"
+  },
+  "created": "2026-10-07T00:29:38.133Z",
+  "verified": "2026-10-07T00:29:38.133Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,55 @@
+{
+  "id": "use-indexed-stable-ordering-for-insight-lists-without-an-exp",
+  "title": "Use indexed, stable ordering for insight lists without an explicit order",
+  "kind": "rule",
+  "answers": [
+    "Why is listing insights without an order parameter slow?",
+    "What is the default order of the insights API?",
+    "How should insight list pagination handle identical modification timestamps?"
+  ],
+  "body": "Symptom: API clients listing insights without an order parameter wait tens of seconds per page, occupying a web worker throughout each request.\nRoot cause: products/product_analytics/backend/presentation/insight.py:InsightViewSet.order_queryset previously sorted on the vestigial, nullable, unindexed Insight.order column, forcing repeated project-wide scans and sorts during offset pagination.\nFix pattern: Default to descending last_modified_at, covered by dashboarditem_team_lmod_idx, and descending pk to break timestamp ties deterministically; populated legacy order values must not control this default.\nConstraints: Apply this default only when both order and search are absent. Search requests retain their existing queryset ordering, and explicit order parameters retain their own handling. Production index-seek performance was inferred from the index definition, not verified with EXPLAIN.",
+  "applies": "Insight API list default ordering and pagination in InsightViewSet.order_queryset.",
+  "tags": [
+    "insights",
+    "ordering",
+    "pagination",
+    "query-performance"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/presentation/insight.py",
+      "symbol": "InsightViewSet.order_queryset",
+      "hash": "sha256:71465ba4e801fef7c384bd6f",
+      "line": 1901,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/product_analytics/backend/tests/api/test_insight.py",
+      "symbol": "TestInsight.test_list_without_order_sorts_by_last_modified_at_descending",
+      "hash": "sha256:1babcc77e21a5801c8d365e9",
+      "line": 1013,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105670"
+  },
+  "created": "2026-10-07T00:16:55.418Z",
+  "verified": "2026-10-07T00:16:55.418Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

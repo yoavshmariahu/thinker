@@ -1,0 +1,63 @@
+{
+  "id": "per-partition-prometheus-gauges-must-drop-revoked-partitions",
+  "title": "Per-partition Prometheus gauges must drop revoked partitions' series, or alerts see stale values",
+  "kind": "rule",
+  "answers": [
+    "false IngestionAnalyticsSinglePartitionDelayed page for a partition that is not behind",
+    "latest_processed_timestamp_ms stale after kafka rebalance",
+    "pod keeps exporting metrics for partitions it no longer owns",
+    "how to clear gauge labels on partition revoke"
+  ],
+  "body": "Symptom: on-call gets an IngestionAnalyticsSinglePartitionDelayed page for a partition that is not behind, often an idle partition, after a rebalance.\nRoot cause: nodejs/src/ingestion/ingestion-consumer.ts:latestOffsetTimestampGauge kept the series of partitions the pod gave up in a rebalance. That frozen value kept getting older, and the alert's `max by (groupId, topic, partition)` picked it up whenever the new owner had no series yet.\nFix pattern: pass a revoke hook as the second argument of kafkaConsumer.connect. In IngestionConsumer.onPartitionsRevoked, call `gauge.remove({ topic, partition, groupId: this.groupId })` for each revoked partition, using the full label set. After this, only the current owner exports a partition.\nConstraints: this applies to any gauge labelled by partition that an alert aggregates with max or min. common_ingestion_latest_processed_timestamp_ms in the common ingestion consumer still has the same stale-series problem; it was left out of scope because the analytics alert does not read it. Trade-off: if a new owner stalls before it processes its first message, the partition has no series and this alert stays silent. The all-partitions and stopped-consuming alerts still catch a stalled lane.\nTest: ingestion-consumer.serial.test.ts gets the hook with `jest.mocked(ingester['kafkaConsumer'].connect).mock.calls[0][1]`, then checks `latestOffsetTimestampGauge.get()` values filtered by groupId. Call `.reset()` on the gauge first, because the registry is global.",
+  "applies": "nodejs ingestion consumers that export per-partition Prometheus metrics",
+  "tags": [
+    "kafka",
+    "rebalance",
+    "prometheus",
+    "metrics",
+    "alerting",
+    "ingestion"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "IngestionConsumer.onPartitionsRevoked",
+      "hash": "sha256:3afbcb0228cc859807bd3043",
+      "line": 469,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 6,
+        "refs": 25
+      }
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "latestOffsetTimestampGauge",
+      "hash": "sha256:e700a654886808abf4be83c4",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.serial.test.ts",
+      "hash": "sha256:6df822f491f36b628b4c2eef",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105133"
+  },
+  "created": "2026-10-07T00:15:37.665Z",
+  "verified": "2026-10-07T00:15:37.665Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

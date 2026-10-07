@@ -1,0 +1,43 @@
+{
+  "id": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+  "title": "Keep experimental estimators out of module __all__ to prevent wildcard import errors",
+  "kind": "rule",
+  "answers": [
+    "Why does 'from sklearn.model_selection import *' raise an ImportError?",
+    "How to support type checking for experimental estimators without breaking wildcard imports?",
+    "Should experimental estimators like HalvingGridSearchCV be included in __all__?"
+  ],
+  "body": "Symptom: from sklearn.model_selection import * fails with ImportError.\nRoot cause: sklearn/model_selection/__init__.py:__all__ included experimental estimators that raise ImportError prior to explicit enablement.\nFix pattern: Remove experimental estimators from __all__ while keeping them under if typing.TYPE_CHECKING: with # noqa: F401.\nConstraints: Applies to experimental estimators that require explicit enable_* imports; standard public estimators must remain in __all__.",
+  "applies": "Public scikit-learn subpackages with experimental estimators requiring activation imports.",
+  "tags": [
+    "model-selection",
+    "wildcard-import",
+    "type-checking",
+    "experimental-estimators"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/model_selection/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:c0a08e9337f20cbb33aa4816",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 130,
+        "sites": 0,
+        "refs": 182
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#35042"
+  },
+  "created": "2026-10-07T00:39:59.639Z",
+  "verified": "2026-10-07T00:39:59.639Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

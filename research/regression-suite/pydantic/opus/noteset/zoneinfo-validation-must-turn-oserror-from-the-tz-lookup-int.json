@@ -1,0 +1,57 @@
+{
+  "id": "zoneinfo-validation-must-turn-oserror-from-the-tz-lookup-int",
+  "title": "ZoneInfo validation must turn OSError from the tz lookup into a zoneinfo_str ValidationError",
+  "kind": "rule",
+  "answers": [
+    "ZoneInfo field raises IsADirectoryError instead of ValidationError",
+    "validating timezone 'America' crashes with OSError",
+    "long timezone string gives 'File name too long' error in pydantic",
+    "which exceptions does the zoneinfo validator catch"
+  ],
+  "body": "Symptom: validating a `ZoneInfo` field with a string such as 'America' (which names a tzdata directory) or a very long string (e.g. 300 chars) raised a raw OSError (IsADirectoryError / filename too long) instead of a pydantic ValidationError.\nRoot cause: pydantic/_internal/_validators.py:validate_str_is_valid_iana_tz calls `ZoneInfo(value)`, which looks the key up on the filesystem. The except clause only caught ZoneInfoNotFoundError, ValueError and TypeError, so filesystem errors escaped.\nFix pattern: add OSError to the caught exceptions and re-raise as `PydanticCustomError('zoneinfo_str', 'invalid timezone: {value}', {'value': value})`. Any validator that wraps a stdlib constructor doing I/O on user input should catch OSError as well as the documented lookup errors.\nConstraints: the error type ('zoneinfo_str'), message and ctx stay the same for all invalid inputs, and tests assert them exactly. ZoneInfo instances are passed through before the try block. Regression tests are in tests/types/test_zoneinfo.py:test_zoneinfo_os_error_is_validation_error.",
+  "applies": "Validation of zoneinfo.ZoneInfo fields in pydantic/_internal/_validators.py",
+  "tags": [
+    "zoneinfo",
+    "timezone",
+    "validation-error",
+    "oserror",
+    "validators"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_validators.py",
+      "symbol": "validate_str_is_valid_iana_tz",
+      "hash": "sha256:b14945ec48252c7c3f72fdbe",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/types/test_zoneinfo.py",
+      "symbol": "test_zoneinfo_os_error_is_validation_error",
+      "hash": "sha256:086fbee23ab710fe9ec2e5fc",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13912"
+  },
+  "created": "2026-10-07T00:34:40.402Z",
+  "verified": "2026-10-07T00:34:40.402Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

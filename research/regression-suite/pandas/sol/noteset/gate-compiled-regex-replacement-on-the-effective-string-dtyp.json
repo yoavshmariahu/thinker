@@ -1,0 +1,81 @@
+{
+  "id": "gate-compiled-regex-replacement-on-the-effective-string-dtyp",
+  "title": "Gate compiled regex replacement on the effective string dtype",
+  "kind": "rule",
+  "answers": [
+    "Why does replace ignore a compiled regex on Arrow-backed strings?",
+    "How should regex replacement decide which dtypes can match?",
+    "Why must regex replacement preserve NumPy bytes and non-string column dtypes?",
+    "Why does a compiled regex do nothing on categorical Arrow strings?"
+  ],
+  "body": "Symptom: Series.replace or DataFrame.replace silently leaves Arrow-backed strings unchanged when given a compiled regex, although the string spelling substitutes correctly.\nRoot cause: pandas/core/internals/blocks.py:Block._replace_regex used a literal object/string allowlist for compiled patterns, excluding Arrow string dtypes before replacement ran.\nFix pattern: In Block._replace_regex, obtain the effective dtype through _regex_target_dtype, then require is_string_dtype(target_dtype) and target_dtype.kind != \"S\". Resolving categorical inputs to their categories' dtype lets compiled patterns reach the same replacement path as string patterns.\nConstraints: Applies to Arrow string and large_string, including categorical variants. NumPy bytes and non-string Arrow columns must remain dtype-preserving no-ops. Supported Arrow string columns follow the existing object-upcast path for incompatible regex replacements. Dictionary-encoded Arrow strings, string_view, and incompatible non-regex replacements remain separate defects.",
+  "applies": "Compiled regex eligibility in Series/DataFrame replacement, including categorical and mixed-dtype inputs.",
+  "tags": [
+    "replace",
+    "regex",
+    "arrowdtype",
+    "categorical",
+    "dtype-preservation"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "Block._replace_regex",
+      "hash": "sha256:9ed600351b63040f2cf39aa1",
+      "line": 763,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/internals/blocks.py",
+      "symbol": "_regex_target_dtype",
+      "hash": "sha256:34e7bbd576693d22183534e4",
+      "line": 2428,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pandas/tests/series/methods/test_replace.py",
+      "symbol": "test_replace_compiled_regex_bytes_dtype",
+      "hash": "sha256:1d3db95f97e8c3ac8e0c15f1",
+      "line": 817,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/series/methods/test_replace.py",
+      "symbol": "test_replace_regex_non_string_arrow_dtype",
+      "hash": "sha256:8a5f85fa189ac242815e3a0c",
+      "line": 895,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69026"
+  },
+  "created": "2026-10-07T00:27:38.995Z",
+  "verified": "2026-10-07T00:27:38.995Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,80 @@
+{
+  "id": "ai-detector-failure-messages-must-describe-the-outcome",
+  "title": "AI detector failure messages must describe the outcome",
+  "kind": "rule",
+  "answers": [
+    "Why does an AI detector failure say the model provider is unreachable?",
+    "What should owners see when an AI detector cannot complete a check?",
+    "Should detector failure notifications recommend reviewing alert settings?"
+  ],
+  "body": "Symptom: An alert owner sees a provider failure and reassurance that their settings are correct even though neither was established.\nRoot cause: products/alerts/backend/judge/contract.py:LLM_DETECTOR_UNAVAILABLE_MESSAGE represents rollout lookup failures, busy model-call slots, transport failures, and unreadable model replies with one error code.\nFix pattern: Describe the incomplete check without asserting a cause or settings validity; keep posthog/tasks/alerts/utils.py:send_notifications_for_errors and posthog/temporal/alerts/activities.py:dispatch_alert_error_in_app_notifications aligned with that contract.\nConstraints: Apply this wording and omission of settings-review advice to LLM_DETECTOR_UNAVAILABLE_ERROR_CODE; other evaluation errors retain their separate settings-review behavior.",
+  "applies": "Owner-facing check history, email, and in-app messaging for unavailable AI detector checks.",
+  "tags": [
+    "alerts",
+    "ai-detector",
+    "error-messaging"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "symbol": "LLM_DETECTOR_UNAVAILABLE_MESSAGE",
+      "hash": "sha256:72c6fd13fd22f2270421c100",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "symbol": "LLM_DETECTOR_UNAVAILABLE_ERROR_CODE",
+      "hash": "sha256:7966bfdf6f00a0985193d567",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "posthog/tasks/alerts/utils.py",
+      "symbol": "send_notifications_for_errors",
+      "hash": "sha256:52d1216670faa42f13e4739f",
+      "line": 300,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 3,
+        "refs": 21
+      }
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "dispatch_alert_error_in_app_notifications",
+      "hash": "sha256:ac4c6ea72d29e126ef1bf825",
+      "line": 671,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:17:48.536Z",
+  "verified": "2026-10-07T00:17:48.536Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "count-detector-unavailability-only-after-recording-the-faile"
+  ]
+}

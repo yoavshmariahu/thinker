@@ -1,0 +1,84 @@
+{
+  "id": "dataframe-clip-with-extension-dtype-array-index-bound-went-t",
+  "title": "DataFrame.clip with extension-dtype array/Index bound went to object dtype or wrote wrong values in place",
+  "kind": "rule",
+  "answers": [
+    "df.clip(lower=pd.array([...], dtype='Int64')) returns object columns",
+    "clip inplace=True with Int64 bound raises TypeError Invalid value for dtype int64",
+    "clip with pandas Index bound raises ValueError Must specify axis=0 or 1",
+    "clip inplace gives different values than non-inplace clip"
+  ],
+  "body": "Symptom: `df.clip(lower=pd.array([...], dtype=\"Int64\"), axis=1)` returned object columns; with `inplace=True` it raised `TypeError: Invalid value '[[15]]'` or, on 3.0, wrote values along the wrong axis; leaving out `axis` raised `ValueError: Must specify axis=0 or 1`. A NumPy-dtype bound was not affected.\nRoot cause: pandas/core/generic.py:NDFrame._clip_with_one_bound sends a non-Series list-like bound through `DataFrame._align_for_op(threshold, axis, flex=None)`. That called `_maybe_align_series_as_frame`, which turns an extension-dtype Series into a 2-D frame with EA columns. `DataFrame.where` only has an EA-aware column-wise path for a 1-D `other`, so a 2-D EA `other` gets interleaved to an object ndarray.\nFix pattern: in pandas/core/frame.py:DataFrame._align_for_op, broadcast only when `flex is not None`, so clip gets back a 1-D Series. Then in `_clip_with_one_bound`, set `axis = 1` when the returned threshold is an ABCSeries and `axis is None`. The bound was already aligned on `self.columns`, and `DataFrame.align(Series, axis=None)` raises.\nConstraints: a SparseArray bound on an int frame still raises AttributeError in `np_can_hold_element` (tracked separately as GH-68457). The regression tests are in pandas/tests/frame/methods/test_clip.py:test_clip_extension_dtype_bound. They run pd.array and pd.Index bounds against every combination of axis (None/0/1) and inplace.",
+  "applies": "DataFrame.clip/_clip_with_one_bound with list-like, array or Index bounds, especially extension dtypes",
+  "tags": [
+    "clip",
+    "extension-dtype",
+    "where",
+    "alignment",
+    "inplace",
+    "regression"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/generic.py",
+      "symbol": "NDFrame._clip_with_one_bound",
+      "hash": "sha256:034ccae315879cd76ee1d42e",
+      "line": 8910,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._align_for_op",
+      "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+      "line": 10327,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pandas/tests/frame/methods/test_clip.py",
+      "symbol": "TestDataFrameClip.test_clip_extension_dtype_bound",
+      "hash": "sha256:fd098d814b4a02f1c576a0f9",
+      "line": 217,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/frame/methods/test_clip.py",
+      "symbol": "test_clip_extension_dtype_bound",
+      "hash": "sha256:fd098d814b4a02f1c576a0f9",
+      "line": 217,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68929"
+  },
+  "created": "2026-10-07T00:24:51.969Z",
+  "verified": "2026-10-07T00:24:51.969Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "align-for-op-flex-none-is-clip-only-and-must-leave-a-series"
+  ]
+}

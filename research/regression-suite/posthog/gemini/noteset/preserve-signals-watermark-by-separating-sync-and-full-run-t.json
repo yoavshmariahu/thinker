@@ -1,0 +1,55 @@
+{
+  "id": "preserve-signals-watermark-by-separating-sync-and-full-run-t",
+  "title": "Preserve signals watermark by separating sync and full-run timestamps",
+  "kind": "rule",
+  "answers": [
+    "Why is last_synced_at not updated when a warehouse sync extracts zero rows?",
+    "How to check when an ExternalDataSchema last ran regardless of imported row count?",
+    "Why does the v3 pipeline only update last_full_run_at on quiet syncs?"
+  ],
+  "body": "Zero-batch extraction runs in pipeline v3 must only stamp `last_full_run_at` and leave `last_synced_at` untouched.\nEnforced at: `products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py:PipelineV3._stamp_full_run`.\nWhat breaks if skipped: `last_synced_at` serves as the signals watermark (`partition_field > last_synced_at`); advancing it on empty runs skips late-arriving data in future syncs.\nTo inspect sync freshness or liveness, read `products/warehouse_sources/backend/models/external_data_schema.py:ExternalDataSchema.last_run_at`, which takes the maximum of both stamps.",
+  "applies": "Updating sync timestamps or reading execution freshness on ExternalDataSchema.",
+  "tags": [
+    "warehouse-sources",
+    "pipeline-v3",
+    "signals",
+    "external-data-schema"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/pipeline_v3/pipeline.py",
+      "symbol": "PipelineV3._stamp_full_run",
+      "hash": "sha256:5a315cb50e8df9019aa5ffb9",
+      "line": 603,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_run_at",
+      "hash": "sha256:4c79452c1287ee30fbecabfb",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 135,
+        "sites": 0,
+        "refs": 431
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:19:04.007Z",
+  "verified": "2026-10-07T00:19:04.007Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

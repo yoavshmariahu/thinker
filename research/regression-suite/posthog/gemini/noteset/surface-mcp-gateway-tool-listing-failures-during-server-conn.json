@@ -1,0 +1,56 @@
+{
+  "id": "surface-mcp-gateway-tool-listing-failures-during-server-conn",
+  "title": "Surface MCP gateway tool listing failures during server connect or registration",
+  "kind": "rule",
+  "answers": [
+    "Why does a connected MCP server show no tools without any error?",
+    "How should tool discovery errors be handled when connecting or registering an MCP server on Desktop?",
+    "Why is an MCP server stuck at Connected with an empty tool list?"
+  ],
+  "body": "Symptom: Connecting or adding an MCP server shows \"Connected\" or \"Added\" but displays an empty tool list with no explanation.\nRoot cause: products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts:useGatewayServers and products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts:useRegisterGatewayServer silently caught discoverGatewayTools rejections and ignored skipped: \"no-server\".\nFix pattern: Catch discovery failures and check for skipped === \"no-server\" to display a warning toast with static recovery guidance, without failing the underlying server connection or registration.\nConstraints: Do not toast when skipped === \"no-connection\" because the server tag already shows pending OAuth setup. Never interpolate upstream error details into the toast to avoid leaking response fragments (CWE-209).",
+  "applies": "Desktop MCP gateway server connection and registration hooks in products/desktop/packages/ui/src/features/mcp-gateway/hooks/",
+  "tags": [
+    "mcp",
+    "desktop",
+    "mcp-gateway",
+    "toast",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useGatewayServers.ts",
+      "symbol": "useGatewayServers",
+      "hash": "sha256:46a602e7d6b0a0a98fb0e5fe",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 7,
+        "refs": 17
+      }
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/mcp-gateway/hooks/useRegisterGatewayServer.ts",
+      "symbol": "useRegisterGatewayServer",
+      "hash": "sha256:d33a48156ae60b92028ee25a",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#103110"
+  },
+  "created": "2026-10-07T00:26:22.670Z",
+  "verified": "2026-10-07T00:26:22.670Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

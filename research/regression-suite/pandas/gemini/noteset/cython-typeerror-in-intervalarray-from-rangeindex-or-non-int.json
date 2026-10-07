@@ -1,0 +1,44 @@
+{
+  "id": "cython-typeerror-in-intervalarray-from-rangeindex-or-non-int",
+  "title": "Cython TypeError in IntervalArray from RangeIndex or non-interval ExtensionArray",
+  "kind": "rule",
+  "answers": [
+    "Why does IntervalIndex raise TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray) for RangeIndex?",
+    "Why does Series.astype('interval') fail on non-interval ExtensionArray inputs?",
+    "How to handle RangeIndex and ExtensionArray inputs in IntervalArray constructors?"
+  ],
+  "body": "Symptom: IntervalIndex constructor, astype(\"interval\"), or IntervalIndex set operations with empty RangeIndex raise TypeError: Argument 'intervals' has incorrect type (expected numpy.ndarray).\nRoot cause: pandas/core/arrays/interval.py:IntervalArray.__new__ passed RangeIndex and non-interval ExtensionArray instances directly to Cython intervals_to_interval_bounds, which requires a numpy ndarray.\nFix pattern: Extract RangeIndex via extract_array(..., extract_range=True) and convert remaining non-interval ExtensionArrays to ndarray using np.asarray before invoking Cython functions.\nConstraints: Applies to constructors coercing array-like input for Cython bounds extraction; do not coerce ExtensionArrays in shared helpers like _maybe_convert_platform_interval that from_breaks relies on to preserve EA breaks.",
+  "applies": "pandas/core/arrays/interval.py constructors converting RangeIndex and ExtensionArray inputs for Cython helpers",
+  "tags": [
+    "pandas",
+    "interval",
+    "extensionarray",
+    "rangeindex",
+    "cython"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/interval.py",
+      "symbol": "IntervalArray.__new__",
+      "hash": "sha256:3562f9ab2ec92b922a82420e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 32,
+        "refs": 62
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:36:25.173Z",
+  "verified": "2026-10-07T00:36:25.173Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

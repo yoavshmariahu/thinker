@@ -1,0 +1,70 @@
+{
+  "id": "index-union-concat-loses-non-inferable-freq-custombusinessda",
+  "title": "Index union/concat loses non-inferable freq (CustomBusinessDay) depending on input order; restore by validating once on the final index",
+  "kind": "rule",
+  "answers": [
+    "pd.concat of series with CustomBusinessDay index loses freq",
+    "DataFrame from dict of Series has freq=None depending on column order",
+    "why does union of DatetimeIndex drop freq",
+    "concat result freq depends on order of inputs"
+  ],
+  "body": "Symptom: pd.concat([s1, s3, s2], axis=1) or pd.DataFrame({dict of Series}) gives an index with freq=None, but the same inputs in another order keep the freq. Shows up with offsets that can't be inferred from the values, e.g. CustomBusinessDay(holidays=...).\nRoot cause: pandas/core/indexes/api.py:union_indexes unions the indexes two at a time. When an intermediate union isn't contiguous, DatetimeIndex._union falls back to the generic set path and calls _with_freq(\"infer\"). Inference can't recover a custom offset, so freq becomes None and stays None.\nFix pattern: don't try to keep freq at each pairwise step. Validate once, on the final combined index, with pandas/core/indexes/api.py:_maybe_restore_freq. It is called in the union_indexes \"special\" branch and after safe_sort_index in _get_combined_index. It runs type(result._data)._validate_frequency(result, freq) and re-attaches freq only if the final values conform. Nothing is inferred.\nConstraints: it only acts when the result is a DatetimeIndex or TimedeltaIndex with freq None, the result is monotonic increasing, and every input has the same non-None freq. Results that aren't monotonic (sort=False) or have a real gap (e.g. a tz DST case such as America/Santiago) correctly keep freq=None. If you add a new place where a combined index becomes final, call this helper there too.",
+  "applies": "pandas/core/indexes/api.py index combining used by concat, the DataFrame constructor and align",
+  "tags": [
+    "concat",
+    "freq",
+    "datetimeindex",
+    "timedeltaindex",
+    "union",
+    "custombusinessday"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_maybe_restore_freq",
+      "hash": "sha256:8819240ba586a058d82c2476",
+      "line": 312,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "union_indexes",
+      "hash": "sha256:253cac1a9969780747a568e9",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_get_combined_index",
+      "hash": "sha256:861485905d0fdf1e4a35a884",
+      "line": 116,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69445"
+  },
+  "created": "2026-10-07T00:23:40.494Z",
+  "verified": "2026-10-07T00:23:40.494Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

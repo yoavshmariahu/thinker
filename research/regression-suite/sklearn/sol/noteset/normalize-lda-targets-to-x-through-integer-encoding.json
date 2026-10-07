@@ -1,0 +1,40 @@
+{
+  "id": "normalize-lda-targets-to-x-through-integer-encoding",
+  "title": "Normalize LDA targets to X through integer encoding",
+  "kind": "rule",
+  "answers": [
+    "LDA fit fails when X and y use different devices",
+    "Can LinearDiscriminantAnalysis accept string labels with array API features?",
+    "How should LDA handle targets from another array namespace?"
+  ],
+  "body": "Symptom: LinearDiscriminantAnalysis.fit raises when labels use a different namespace or device from the features, including string labels.\nRoot cause: sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit performed X-namespace target operations without first normalizing y; raw strings cannot be represented by array API namespaces.\nFix pattern: Derive classes_ from the original y, encode y against those classes, then move the integer codes to X's namespace and device before estimating priors and invoking solvers.\nConstraints: This normalization applies to computational target codes; it does not require transferring original labels. Preserve the original-label classes_ mapping, and do not attempt to transfer raw string labels into an array API namespace.",
+  "applies": "Target preparation in LinearDiscriminantAnalysis.fit, especially mixed namespace/device inputs and string labels.",
+  "tags": [
+    "linear-discriminant-analysis",
+    "array-api",
+    "device",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis.fit",
+      "hash": "sha256:7e99491781076cb52c11e871",
+      "line": 651,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:34:57.473Z",
+  "verified": "2026-10-07T00:34:57.473Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lda-helpers-share-one-positional-class-encoding"
+  ]
+}

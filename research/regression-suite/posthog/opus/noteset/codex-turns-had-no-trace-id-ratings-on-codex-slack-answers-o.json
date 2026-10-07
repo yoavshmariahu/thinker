@@ -1,0 +1,84 @@
+{
+  "id": "codex-turns-had-no-trace-id-ratings-on-codex-slack-answers-o",
+  "title": "Codex turns had no trace id: ratings on Codex Slack answers opened nothing",
+  "kind": "rule",
+  "answers": [
+    "Slack rating on a codex run points at no trace",
+    "codex generations each appear in their own trace of one in AI observability",
+    "why is $ai_trace_id different for every codex request",
+    "turn-complete traceId missing for codex adapter"
+  ],
+  "body": "Symptom: A rating on a PostHog Slack answer from a Codex run resolves to nothing. In AI observability, each of the run's generations sits alone in a trace of one. Claude runs group correctly.\nRoot cause: Codex sends no trace header, so the gateway stamps a fresh `$ai_trace_id` per request. Claude's CLI mints a per-turn `traceparent`, which the gateway reads (ai-gateway#496). The Codex adapter also mints its own turn-complete notification without `traceId`, and `AgentServer.turnTraceId` (formerly `promptResultTraceId`) only read `PromptResponse._meta.traceId`.\nFix pattern: In products/desktop/packages/agent/src/server/agent-server.ts:configureEnvironment, set `openaiCustomHeaders[\"X-PostHog-Trace-Id\"] = taskRunId` for codex only. Then record that header value as `stampedRunTraceId` and use it as the fallback trace id: in `AgentServer.turnTraceId` for command results and relays, and through acp-extensions.ts:withTurnTraceId for wire turn-complete notifications.\nConstraints: The run is the finest granularity available because Codex takes gateway headers only at process spawn (`model_providers.posthog.http_headers`), so there is no per-turn hook like Claude's `traceparent-hook`. An adapter-reported traceId always wins over the fallback.",
+  "applies": "products/desktop/packages/agent server: gateway trace ids for codex runs and turn-complete/rating plumbing",
+  "tags": [
+    "codex",
+    "tracing",
+    "ai-gateway",
+    "slack-rating",
+    "ai-observability"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.turnTraceId",
+      "hash": "sha256:c06c7476a4328f6677e69c62",
+      "line": 1573,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:12:50.541Z",
+  "verified": "2026-10-07T00:12:50.541Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "x-posthog-trace-id-is-codex-only-and-the-fallback-trace-id-m",
+    "where-a-turn-s-trace-id-reaches-ratings-three-agent-server-p"
+  ]
+}

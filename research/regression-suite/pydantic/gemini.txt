@@ -1,0 +1,29 @@
+pydantic/gemini: mined pydantic-13912: 1 notes
+pydantic/gemini: mined pydantic-13892: 1 notes
+pydantic/gemini: mined pydantic-13825: 1 notes
+pydantic/gemini: mined pydantic-13850: 1 notes
+pydantic/gemini: mined pydantic-13785: 2 notes
+pydantic/gemini: mined pydantic-13767: 1 notes
+pydantic/gemini: mined pydantic-13711: 1 notes
+pydantic/gemini: mined pydantic-13702: 1 notes
+pydantic/gemini: mined pydantic-13629: 1 notes
+pydantic/gemini: mined pydantic-13604: 1 notes
+pydantic/gemini: mined pydantic-13552: 1 notes
+pydantic/gemini: mined pydantic-13537: 1 notes
+pydantic/gemini: mined pydantic-13515: 1 notes
+pydantic/gemini: mined pydantic-13452: 1 notes
+pydantic/gemini: mined pydantic-13436: 1 notes
+pydantic/gemini: reviewed pydantic-13912: 1/1 findings
+pydantic/gemini: reviewed pydantic-13892: 2/1 findings
+pydantic/gemini: reviewed pydantic-13552: 0/1 findings
+file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:69
+    if(process.env.THINKER_EVAL_CONTINUE_ERRORS!=='1')throw Error(`${c.id} ${arm} invalid model/error: ${JSON.stringify({models:report.models,errors:report.errors})}`);
+                                                            ^
+
+Error: pydantic-13537 cached invalid model/error: {"models":{},"errors":[{"id":"holistic","error":"agy timed out"}]}
+    at file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:69:61
+
+Node.js v24.15.0
+pydantic/gemini: reviewed pydantic-13537: 1/1 findings
+pydantic/gemini: reviewed pydantic-13515: 2/0 findings
+pydantic/gemini: COMPLETE

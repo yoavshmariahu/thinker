@@ -1,0 +1,84 @@
+{
+  "id": "router-aggregate-discovery-must-request-aggregated-discovery",
+  "title": "Router aggregate discovery must request aggregated discovery format, or CRD groups on apiextensions targets are never seen",
+  "kind": "rule",
+  "answers": [
+    "CRD groups served by baas_apiserver not showing up under router /apis",
+    "router aggregate target discovery misses apiextensions CRDs",
+    "why does discoverGroups only see apiextensions.k8s.io",
+    "how does the router decode aggregated discovery (apidiscovery.k8s.io/v2) responses"
+  ],
+  "body": "Symptom: when a standalone apiextensions-apiserver (baas_apiserver) is configured as an aggregate target of the router, none of its CRD-backed groups can be introspected or routed. Only apiextensions.k8s.io shows up.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups sent GET /apis with no Accept header. That server's plain /apis response comes from a static map that is filled once at startup, for apiextensions.k8s.io only. CRD groups are pushed only into the aggregated-discovery manager.\nFix pattern: set `Accept: aggregatedDiscoveryJSON + \", application/json\"`. Then decodeDiscoveryResponse picks the decoder from the response Content-Type, not from what was requested: if it contains \"apidiscovery.k8s.io\", it decodes apidiscoveryv2.APIGroupDiscoveryList; otherwise it decodes the classic metav1.APIGroupList. apiGroupDiscoveryListToGroups converts the aggregated list into []metav1.APIGroup, which is what matchesAnyPattern and newAggregateBackend consume.\nConstraints: keep the classic fallback, because older or non-k8s targets may ignore Accept. Versions keep the upstream priority order, and Versions[0] becomes PreferredVersion. Any new discovery format must also be converted into metav1.APIGroup, not passed downstream as-is. Regression test: aggregate_discovery_test.go:TestDiscoverGroups_AggregatedFormat.",
+  "applies": "pkg/router aggregate-target discovery (baas_apiserver, cloud_app_platform_apiserver)",
+  "tags": [
+    "router",
+    "discovery",
+    "apiextensions",
+    "aggregation",
+    "k8s",
+    "crd"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "discoverGroups",
+      "hash": "sha256:76d0e2520fc7ce49bba2e288",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "decodeDiscoveryResponse",
+      "hash": "sha256:541f271a0f43d870ea86a531",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "apiGroupDiscoveryListToGroups",
+      "hash": "sha256:d381faa3e3dd42a191e4f431",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery_test.go",
+      "symbol": "TestDiscoverGroups_AggregatedFormat",
+      "hash": "sha256:ce75bd7f3c034a4daa18b6a4",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-07T00:03:35.738Z",
+  "verified": "2026-10-07T00:03:35.738Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "how-the-router-learns-which-api-groups-each-backend-serves-a"
+  ]
+}

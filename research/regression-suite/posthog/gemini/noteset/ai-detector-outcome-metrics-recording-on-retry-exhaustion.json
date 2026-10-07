@@ -1,0 +1,57 @@
+{
+  "id": "ai-detector-outcome-metrics-recording-on-retry-exhaustion",
+  "title": "AI detector outcome metrics recording on retry exhaustion",
+  "kind": "rule",
+  "answers": [
+    "Why does posthog_insight_alerts_ai_detector_checks_total report more unavailable failures than scheduled checks?",
+    "Where should outcome metrics be recorded in retried Temporal alert activities?",
+    "Why does an AI detector alert check show both failure and success metric counts?"
+  ],
+  "body": "Symptom: The AI detector unavailable metric (posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"}) overcounts failures by incrementing on every retry attempt rather than once per scheduled check.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert called record_ai_detector_check_outcome(\"unavailable\") directly within the retryable activity attempt.\nFix pattern: Move outcome metric recording to the terminal failure activity (record_failed_evaluation), incrementing only when an errored check is recorded after retries are exhausted.\nConstraints: Applies to terminal check outcome metrics in Temporal activities configured with retry policies; does not apply to per-attempt execution or latency metrics.",
+  "applies": "Temporal alert evaluation activities and outcome metric tracking",
+  "tags": [
+    "alerts",
+    "temporal",
+    "metrics",
+    "ai-detector"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "record_failed_evaluation",
+      "hash": "sha256:8aa482e903ec6c76c7ddc618",
+      "line": 569,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:23:54.019Z",
+  "verified": "2026-10-07T00:23:54.019Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "queue-routing-mismatch-guard-in-alert-evaluation-activity"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "strip-resourceversion-before-creating-or-updating-v2-dashboa",
+  "title": "Strip resourceVersion before creating or updating v2 dashboards",
+  "kind": "rule",
+  "answers": [
+    "Why does creating or saving a new dashboard fail when resourceVersion is set?",
+    "How should resourceVersion metadata be handled when saving dashboards in v2 API?",
+    "Where is resourceVersion stripped during dashboard save in v2?"
+  ],
+  "body": "Symptom: Creating a new dashboard in v2 fails when metadata has resourceVersion set.\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard only deleted metadata.resourceVersion on update requests, leaving it present on create requests.\nFix pattern: Strip metadata.resourceVersion unconditionally before branching on create vs update.\nConstraints: Applies to dashboard saves in K8sDashboardV2API; resourceVersion must not be sent when creating or updating dashboards.",
+  "applies": "Dashboard save operations in the v2 K8s dashboard API",
+  "tags": [
+    "dashboards",
+    "v2-api",
+    "k8s",
+    "resource-version"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard/api/v2.ts",
+      "symbol": "K8sDashboardV2API.saveDashboard",
+      "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+      "line": 118,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 108,
+        "refs": 144
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132940"
+  },
+  "created": "2026-10-07T00:05:12.390Z",
+  "verified": "2026-10-07T00:05:12.390Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

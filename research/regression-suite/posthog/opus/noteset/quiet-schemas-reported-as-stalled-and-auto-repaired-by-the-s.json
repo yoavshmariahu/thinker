@@ -1,0 +1,71 @@
+{
+  "id": "quiet-schemas-reported-as-stalled-and-auto-repaired-by-the-s",
+  "title": "Quiet schemas reported as stalled and auto-repaired by the stalled-schedule sweep",
+  "kind": "rule",
+  "answers": [
+    "customer told their sync stopped but scheduled syncs run fine",
+    "REPAIRED_SCHEMA_ERROR written on a schema that never stalled",
+    "stalled schedule sweep false positive for sources with no new data",
+    "repair_stalled_schema rewrote a healthy schedule"
+  ],
+  "body": "Symptom: a schema on a regular schedule (for example every 6h) whose source has no new rows was reported as stalled. Repair then rewrote its schedule and wrote `REPAIRED_SCHEMA_ERROR`, which tells the customer PostHog restarted a sync that had never stopped.\nRoot cause: `products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset` measured silence only from `last_synced_at`. That stamp does not move on v3 zero-row runs, so a quiet schema drifted past `missed_intervals x sync_frequency_interval`.\nFix pattern: annotate `latest_run_at = Greatest(last_synced_at, <guarded cast of sync_type_config.last_full_run_at>)` and use it for three things: the `stalled_after` window, the `order_by` in `find_stalled_schemas`, and `StalledSchema.stalled_for`. Postgres GREATEST skips NULLs, so a missing or unusable run stamp falls back to `last_synced_at`.\nConstraints: a schema whose run stamp is also old must still be reported. `test_a_schema_whose_runs_also_stopped_is_still_stalled` checks this. Keep the order key and `stalled_for` on the same stamp as the predicate.",
+  "applies": "stalled_schedules.py sweep and the repair_stalled_schema management command",
+  "tags": [
+    "data-warehouse",
+    "stalled-schedules",
+    "temporal",
+    "false-positive",
+    "repair"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "stalled_schema_queryset",
+      "hash": "sha256:8f4f05a5e49dc0f59109876f",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "find_stalled_schemas",
+      "hash": "sha256:dc4ff701ce54c519b946909c",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 23
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/tests/test_stalled_schedules.py",
+      "symbol": "TestStalledSchedules",
+      "hash": "sha256:866ce9df5f1f0de6fa0f3f70",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:13:37.115Z",
+  "verified": "2026-10-07T00:13:37.115Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "filter-on-json-timestamps-in-sql-before-limit-and-regex-guar"
+  ]
+}

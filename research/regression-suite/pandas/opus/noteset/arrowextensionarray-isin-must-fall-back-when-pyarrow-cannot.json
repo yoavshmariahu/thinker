@@ -1,0 +1,59 @@
+{
+  "id": "arrowextensionarray-isin-must-fall-back-when-pyarrow-cannot",
+  "title": "ArrowExtensionArray.isin must fall back when pyarrow cannot box/cast `values`",
+  "kind": "rule",
+  "answers": [
+    "isin on int64[pyarrow] Series raises OverflowError / ArrowTypeError / ArrowInvalid",
+    "Series.isin([1, 'a']) fails for pyarrow dtype",
+    "isin with mixed-type or huge ints on ArrowDtype",
+    "why does pc.is_in raise in pandas isin"
+  ],
+  "body": "Symptom: `Series/Index/DataFrame.isin` on a pyarrow-backed dtype raises when `values` mixes types pyarrow can't combine, e.g. `[1, 2**63]` (OverflowError), `[1, \"a\"]` (ArrowTypeError), object Index `[2**53+1, 1.5]` (ArrowInvalid).\nRoot cause: pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin called `self._box_pa(values)` + `pc.is_in` unguarded; boxing/casting to the array's pa type fails for such lists.\nFix pattern: wrap `_box_pa` + `pc.is_in` in `try/except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError)` and fall back to `algos.isin` on the non-null entries (`self[~mask].to_numpy()`, so numeric types aren't cast to object) against `np.asarray(values, dtype=object)` minus its missing values.\nConstraints: the fast pyarrow path stays primary; the fallback must preserve pc.is_in null semantics (see the related note). Any change that makes `_box_pa` stricter (e.g. GH-70217) relies on this fallback to avoid new raises.",
+  "applies": "pandas/core/arrays/arrow/array.py ArrowExtensionArray.isin and any isin on ArrowDtype data",
+  "tags": [
+    "isin",
+    "pyarrow",
+    "arrowextensionarray",
+    "overflow",
+    "mixed-types"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/arrow/array.py",
+      "symbol": "ArrowExtensionArray.isin",
+      "hash": "sha256:adce499d277b46378e6f092f",
+      "line": 1969,
+      "missing": false,
+      "fanout": {
+        "files": 57,
+        "sites": 344,
+        "refs": 414
+      }
+    },
+    {
+      "path": "pandas/tests/series/methods/test_isin.py",
+      "symbol": "test_isin_arrow_values_pyarrow_cannot_box",
+      "hash": "sha256:eba156d0cee0d7110b599fde",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70300"
+  },
+  "created": "2026-10-07T00:25:28.379Z",
+  "verified": "2026-10-07T00:25:28.379Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "arrow-isin-null-semantics-missing-values-in-values-nan-inclu"
+  ]
+}

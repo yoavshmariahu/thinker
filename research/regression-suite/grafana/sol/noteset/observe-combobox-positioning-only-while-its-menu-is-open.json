@@ -1,0 +1,45 @@
+{
+  "id": "observe-combobox-positioning-only-while-its-menu-is-open",
+  "title": "Observe Combobox positioning only while its menu is open",
+  "kind": "rule",
+  "answers": [
+    "Why does a Combobox inside collapsed details keep updating?",
+    "How should Combobox floating observers follow menu visibility?",
+    "Why does the hidden Feature Control Combobox cause repeated input DOM updates?"
+  ],
+  "body": "Symptom: A Combobox inside collapsed details receives continual size measurements and repeatedly updates its input DOM.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat registered autoUpdate through whileElementsMounted, so CSS-hidden elements remained observed.\nFix pattern: Start autoUpdate in an effect guarded by isOpen and the presence of both input and floating refs; return its cleanup function.\nConstraints: Observe while the menu is open and both elements exist; mounted elements alone do not establish visibility when CSS or collapsed details can hide them.",
+  "applies": "Combobox positioning and sizing observation in useComboboxFloat, including CSS-hidden containers.",
+  "tags": [
+    "combobox",
+    "floating-ui",
+    "visibility",
+    "effect-cleanup"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "useComboboxFloat",
+      "hash": "sha256:28df1c52551d1b3bfff3f362",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-07T00:03:14.490Z",
+  "verified": "2026-10-07T00:03:14.490Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "skip-unchanged-computed-combobox-size-updates"
+  ]
+}

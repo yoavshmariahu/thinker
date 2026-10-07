@@ -1,0 +1,43 @@
+{
+  "id": "per-type-tests-are-in-tests-types-and-use-typeadapter-rather",
+  "title": "Per-type tests are in tests/types/ and use TypeAdapter rather than BaseModel",
+  "kind": "rule",
+  "answers": [
+    "where do ZoneInfo tests live",
+    "where should I add tests for a pydantic type",
+    "tests/test_types_zoneinfo.py missing"
+  ],
+  "body": "In this PR, tests/test_types_zoneinfo.py was deleted and its tests moved to tests/types/test_zoneinfo.py. The rewritten tests build `TypeAdapter(ZoneInfo)` instead of wrapping the type in a BaseModel. They call `ta.validate_python`, `ta.dump_json` and `ta.json_schema()`, and compare `exc_info.value.errors(include_url=False)`. Because there is no model, error `loc` is `()`. The tests are fully type-annotated (`-> None`).\nWhen you add or change tests for a single type, put them under tests/types/test_<type>.py in the same style. Do not recreate a top-level tests/test_types_*.py file.",
+  "applies": "Writing tests for individual pydantic types",
+  "tags": [
+    "tests",
+    "convention",
+    "typeadapter",
+    "test-layout"
+  ],
+  "deps": [
+    {
+      "path": "tests/types/test_zoneinfo.py",
+      "symbol": "test_zoneinfo_parsing_fails_for_invalid_iana_tz_strs",
+      "hash": "sha256:7f2a8c56bfc4c001979ca824",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13912"
+  },
+  "created": "2026-10-07T00:34:40.510Z",
+  "verified": "2026-10-07T00:34:40.510Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

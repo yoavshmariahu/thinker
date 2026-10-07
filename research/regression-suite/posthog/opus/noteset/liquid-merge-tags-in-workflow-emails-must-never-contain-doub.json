@@ -1,0 +1,77 @@
+{
+  "id": "liquid-merge-tags-in-workflow-emails-must-never-contain-doub",
+  "title": "Liquid merge tags in workflow emails must never contain double quotes; use dot access or single-quoted brackets",
+  "kind": "rule",
+  "answers": [
+    "workflow email link href breaks after inserting a person property merge tag",
+    "Liquid error expected \"|\" before filter in email template",
+    "merge tag renders blank / empty value in sent email",
+    "how should person property merge tags be quoted"
+  ],
+  "body": "Symptom: a person property inserted from the email editor's merge-tag menu breaks a link (`href` cut short, Liquid parse error `expected \"|\" before filter`) or silently sends an empty value.\nRoot cause: the menu built `{{person.properties[\"name\"]}}` in frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx; a double quote ends a double-quoted HTML attribute, and when it reaches the renderer entity-encoded (`&#34;`) the decoder in nodejs/src/cdp/utils/liquid.ts does not decode it, so the tag resolves to ''.\nFix pattern: generate tags through `buildPersonPropertyMergeValue`: dot access for names matching `/^[A-Za-z_][A-Za-z0-9_]*$/`, otherwise `['...']` with backslashes and `'` escaped. This matches `buildDelayExpression` in products/workflows stepDelayLogic.\nConstraints: applies to any code that emits Liquid/merge-tag strings that may end up in HTML attributes. The liquid.ts decoder gap (`&#34;`, `%22`) is still open, so do not count on the renderer to decode double quotes. Tests in emailTemplaterLogic.test.ts cover `$`-prefixed, spaced, dotted and apostrophe names.",
+  "applies": "Email templater merge tags and any other generated Liquid expressions for messaging/workflows",
+  "tags": [
+    "messaging",
+    "workflows",
+    "liquid",
+    "merge-tags",
+    "email",
+    "html-escaping"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+      "symbol": "buildPersonPropertyMergeValue",
+      "hash": "sha256:f1286badff44d1b55ee077a9",
+      "line": 174,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.tsx",
+      "symbol": "emailTemplaterLogic",
+      "hash": "sha256:719140ab26c34e94282c850d",
+      "line": 394,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 54
+      }
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/email-templater/emailTemplaterLogic.test.ts",
+      "symbol": "emailTemplaterLogic",
+      "hash": "sha256:2eb1403dac7b811a8f2aaf5b",
+      "line": 126,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 54
+      }
+    },
+    {
+      "path": "nodejs/src/cdp/utils/liquid.ts",
+      "hash": "sha256:af08d620fb9bcea0f4006a44",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#91352"
+  },
+  "created": "2026-10-07T00:14:00.368Z",
+  "verified": "2026-10-07T00:14:00.368Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "frontend-src-must-not-import-from-products-duplicate-small-p"
+  ]
+}

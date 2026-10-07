@@ -1,0 +1,46 @@
+{
+  "id": "validate-flat-and-nested-auth-type-payloads-in-bigquerysourc",
+  "title": "Validate flat and nested auth_type payloads in BigQuerySource",
+  "kind": "rule",
+  "answers": [
+    "Why does BigQuerySource.validate_config check if auth_type is a string or a dict?",
+    "How does BigQuery source credential validation handle flat vs nested payload shapes?",
+    "What happens if BigQuery source validation ignores bare string auth_type inputs?"
+  ],
+  "body": "BigQuery source credentials can arrive either nested under an auth_type dictionary or flattened at the top level of job_inputs with auth_type as a bare string.\nEnforced in products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py:BigQuerySource.validate_config by checking isinstance(auth_type, str) and extracting credentials from job_inputs.\nSkipping the bare string check allows sources submitted with top-level credentials to bypass credential validation entirely and save with invalid or missing credentials.",
+  "applies": "Payload credential validation in BigQuerySource.validate_config",
+  "tags": [
+    "bigquery",
+    "data-warehouse",
+    "sources",
+    "validation",
+    "payload-shape"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "BigQuerySource.validate_config",
+      "hash": "sha256:1cfd7e7633d1da5064fa0b32",
+      "line": 405,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 28,
+        "refs": 57
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105736"
+  },
+  "created": "2026-10-07T00:17:22.077Z",
+  "verified": "2026-10-07T00:17:22.077Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "suppress-unselected-credential-errors-in-bigquery-source-set"
+  ]
+}

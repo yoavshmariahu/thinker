@@ -1,0 +1,44 @@
+{
+  "id": "allow-64-bit-sparse-array-indices-in-spectralembedding-with",
+  "title": "Allow 64-bit sparse array indices in SpectralEmbedding with ARPACK solver",
+  "kind": "rule",
+  "answers": [
+    "Why does SpectralEmbedding raise ValueError about 64-bit sparse indices under sparse_interface sparray?",
+    "How to fix 64-bit sparse array index errors in SpectralClustering with arpack solver?",
+    "When can accept_large_sparse=False be dropped from check_array in scikit-learn?"
+  ],
+  "body": "Symptom: Fitting SpectralEmbedding or SpectralClustering under config_context(sparse_interface=\"sparray\") with eigen_solver=\"arpack\" raises a ValueError about 64-bit sparse indices.\nRoot cause: sklearn/manifold/_spectral_embedding.py:_spectral_embedding passed accept_large_sparse=False to check_array, rejecting int64 indices from SciPy csr_array even though scipy.sparse.linalg.eigsh supports them.\nFix pattern: Remove accept_large_sparse=False from check_array so it defaults to True when downstream solvers support 64-bit indices.\nConstraints: Only apply when downstream routines accept int64 indices (like eigsh); keep accept_large_sparse=False when passing data to Cython/C code requiring 32-bit index buffers.",
+  "applies": "Validating sparse matrices or arrays in SpectralEmbedding and SpectralClustering with ARPACK solver.",
+  "tags": [
+    "manifold",
+    "spectral-embedding",
+    "spectral-clustering",
+    "sparse-array",
+    "arpack"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/manifold/_spectral_embedding.py",
+      "symbol": "_spectral_embedding",
+      "hash": "sha256:f922633f9c12853bdf78bd9d",
+      "line": 287,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34965"
+  },
+  "created": "2026-10-07T00:40:21.716Z",
+  "verified": "2026-10-07T00:40:21.716Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

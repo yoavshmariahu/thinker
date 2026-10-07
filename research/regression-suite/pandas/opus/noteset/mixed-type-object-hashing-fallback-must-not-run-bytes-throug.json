@@ -1,0 +1,57 @@
+{
+  "id": "mixed-type-object-hashing-fallback-must-not-run-bytes-throug",
+  "title": "Mixed-type object hashing fallback must not run bytes through numpy astype(str)",
+  "kind": "rule",
+  "answers": [
+    "hash_pandas_object raises UnicodeDecodeError on a column with mixed types and bytes",
+    "hash_array fails on object array containing non-ASCII bytes and ints",
+    "why does b'a\\x00' hash the same as b'a' in a mixed column",
+    "mixed-type values hash differently from non-mixed ones"
+  ],
+  "body": "Symptom: pd.util.hash_pandas_object / hash_array on an object column mixing types (e.g. ints, None and non-ASCII bytes like b\"\\xff1\") raised UnicodeDecodeError whatever `encoding` was passed. Also, b\"a\\x00\" hashed the same as b\"a\", and ASCII bytes changed hash under encodings such as cp500.\nRoot cause: pandas/core/util/hashing.py:_hash_ndarray. When hash_object_array raises TypeError (mixed types), the fallback ran `vals.astype(str)`. numpy can only decode bytes as ASCII there, and it drops trailing NULs.\nFix pattern: in the mixed-type fallback, build a bool mask of `isinstance(val, bytes)`, copy vals, and apply astype(str) only to the non-bytes elements. bytes elements go to hash_object_array unchanged, so they hash exactly as they do in a non-mixed array.\nConstraints: this changes hash values only for bytes that astype(str) used to alter. Hashes of all other inputs that already worked must stay the same, because hashes are a stable public output. Any future change to this fallback must keep \"a value hashes the same in a mixed array as in a non-mixed one\". Tests: pandas/tests/util/test_hashing.py:test_hash_array_mixed_bytes compares the mixed array against a non-mixed equivalent with categorize True/False and several encodings.",
+  "applies": "pandas/core/util/hashing.py object-dtype hashing path (hash_array, hash_pandas_object, _hash_ndarray)",
+  "tags": [
+    "hashing",
+    "bytes",
+    "unicode",
+    "object-dtype",
+    "hash_pandas_object"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/util/hashing.py",
+      "symbol": "_hash_ndarray",
+      "hash": "sha256:d62c3eb8421437ee959d4e4e",
+      "line": 365,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/util/test_hashing.py",
+      "symbol": "test_hash_array_mixed_bytes",
+      "hash": "sha256:e3441bade8a196e91b6d445d",
+      "line": 97,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70493"
+  },
+  "created": "2026-10-07T00:23:26.536Z",
+  "verified": "2026-10-07T00:23:26.536Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

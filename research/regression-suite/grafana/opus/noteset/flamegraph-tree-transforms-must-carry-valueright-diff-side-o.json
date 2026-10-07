@@ -1,0 +1,71 @@
+{
+  "id": "flamegraph-tree-transforms-must-carry-valueright-diff-side-o",
+  "title": "Flamegraph tree transforms must carry valueRight (diff side) on every LevelItem they create",
+  "kind": "rule",
+  "answers": [
+    "diff flame graph tooltip shows NaN% or NaNundefined",
+    "sandwich view in diff flamegraph shows undefined baseline/comparison",
+    "why is valueRight undefined on merged nodes",
+    "adding a new tree transform to grafana-flamegraph"
+  ],
+  "body": "Symptom: In a Diff flame graph, switching to Sandwich view (Callers/Callees) and hovering a node shows `NaN%`, `NaNundefined` or `undefined` for Baseline/Comparison/Diff.\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and getParentSubtrees built new LevelItems recomputing only `.value`, so `valueRight` was undefined; FlameGraphTooltip.tsx:getDiffTooltipData used `item.valueRight!` in arithmetic and unit formatting.\nFix pattern: whenever a transform builds or rebases a LevelItem, handle `valueRight` alongside `value`: sum it when merging (only if some input has `valueRight !== undefined`, else leave undefined so non-diff profiles stay non-diff), copy it when rebasing a node onto its child's value. Consumers should default a missing `valueRight` to 0 (`item.valueRight ?? 0`) rather than non-null assert.\nConstraints: `valueRight` presence is how diff mode is detected per item, so don't set it to 0 for non-diff profiles. `getDiffTooltipData` still asserts `levels[0][0].valueRight!` for the root total; that relies on the root of diff data always having it.",
+  "applies": "packages/grafana-flamegraph tree transforms (sandwich/merge) and diff tooltip code",
+  "tags": [
+    "flamegraph",
+    "diff-profile",
+    "sandwich-view",
+    "tooltip",
+    "nan"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "mergeSubtrees",
+      "hash": "sha256:efdd86920cd35d6545517800",
+      "line": 66,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "getParentSubtrees",
+      "hash": "sha256:22720615ee8b45fe356070d7",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+      "symbol": "getDiffTooltipData",
+      "hash": "sha256:9759bf64a11ff7b7d7391239",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132572"
+  },
+  "created": "2026-10-07T00:04:34.352Z",
+  "verified": "2026-10-07T00:04:34.352Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unit-testing-flamegraph-tree-transforms-with-diff-valueright"
+  ]
+}

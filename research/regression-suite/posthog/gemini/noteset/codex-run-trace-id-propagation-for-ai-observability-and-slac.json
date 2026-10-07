@@ -1,0 +1,71 @@
+{
+  "id": "codex-run-trace-id-propagation-for-ai-observability-and-slac",
+  "title": "Codex run trace ID propagation for AI observability and Slack ratings",
+  "kind": "rule",
+  "answers": [
+    "Why does a rating on a Codex Slack response point to an empty trace?",
+    "Why do Codex generations appear as single-request traces in AI observability?",
+    "How are trace IDs passed to the AI gateway for Codex vs Claude runs?",
+    "Why is X-PostHog-Trace-Id set only for Codex and not Claude?"
+  ],
+  "body": "Symptom: Rating a PostHog Slack answer on a Codex run points to an empty trace, and generations appear as isolated single-request traces in AI observability.\nRoot cause: products/desktop/packages/agent/src/server/agent-server.ts:AgentServer.configureEnvironment does not set X-PostHog-Trace-Id for Codex, so the gateway mints a fresh ID per request while the Codex adapter reports no trace ID.\nFix pattern: Stamp X-PostHog-Trace-Id with taskRunId on openaiCustomHeaders at process spawn, and inject it into turn-complete notifications via products/desktop/packages/agent/src/acp-extensions.ts:withTurnTraceId.\nConstraints: Only set X-PostHog-Trace-Id for Codex; Claude CLI mints per-turn traceparent headers, and X-PostHog-Trace-Id outranks traceparent at the gateway, which would collapse Claude's per-turn traces into one run-level trace.",
+  "applies": "PostHog desktop agent server gateway configuration and trace ID assignment for Codex and Claude runs.",
+  "tags": [
+    "codex",
+    "claude",
+    "tracing",
+    "ai-observability",
+    "agent-server"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.turnTraceId",
+      "hash": "sha256:c06c7476a4328f6677e69c62",
+      "line": 1573,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:18:20.120Z",
+  "verified": "2026-10-07T00:18:20.120Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "enriching-acp-wire-notifications-before-session-log-persiste"
+  ]
+}

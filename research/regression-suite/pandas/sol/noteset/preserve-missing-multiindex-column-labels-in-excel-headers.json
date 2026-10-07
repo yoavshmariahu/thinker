@@ -1,0 +1,42 @@
+{
+  "id": "preserve-missing-multiindex-column-labels-in-excel-headers",
+  "title": "Preserve missing MultiIndex column labels in Excel headers",
+  "kind": "rule",
+  "answers": [
+    "Why does to_excel replace a NaN column label with the last label?",
+    "Why did the missing pd.cut bin become (0.0, inf] in Excel?",
+    "How should Excel formatting resolve missing MultiIndex column labels?"
+  ],
+  "body": "Symptom: DataFrame.to_excel writes a NaN MultiIndex column label as the last value of its level.\nRoot cause: pandas/io/formats/excel.py:ExcelFormatter._format_header_mi resolves missing-label code -1 with positional take, which selects the last level value.\nFix pattern: Resolve MultiIndex label codes with levels.take(level_codes, allow_fill=True), preserving missing labels for rendering through na_rep.\nConstraints: Applies when decoding MultiIndex column-label codes containing the missing sentinel -1; it does not call for replacing valid level values. With default na_rep, missing labels produce empty cells.",
+  "applies": "Excel serialization of MultiIndex column headers containing missing labels.",
+  "tags": [
+    "excel",
+    "multiindex",
+    "missing-labels"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/formats/excel.py",
+      "symbol": "ExcelFormatter._format_header_mi",
+      "hash": "sha256:6e1b1fc89743277243a66814",
+      "line": 614,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69446"
+  },
+  "created": "2026-10-07T00:24:48.026Z",
+  "verified": "2026-10-07T00:24:48.026Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

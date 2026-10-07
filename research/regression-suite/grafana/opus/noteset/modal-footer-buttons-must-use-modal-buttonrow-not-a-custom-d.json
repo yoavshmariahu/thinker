@@ -1,0 +1,58 @@
+{
+  "id": "modal-footer-buttons-must-use-modal-buttonrow-not-a-custom-d",
+  "title": "Modal footer buttons must use Modal.ButtonRow, not a custom div/Stack, or focus rings get clipped",
+  "kind": "rule",
+  "answers": [
+    "focus ring cut off on buttons in modal",
+    "ConfirmModal button outline clipped at bottom",
+    "how to lay out buttons in a grafana-ui Modal footer",
+    "Modal.ButtonRow vs Stack for modal actions"
+  ],
+  "body": "Symptom: when you tab to a button in a modal (e.g. ConfirmModal's Cancel/Delete), its keyboard focus ring is cut off at the edge.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent put its buttons in its own wrapper (a `buttonsContainer` div with paddingTop plus a `Stack`) instead of the modal's footer component.\nFix pattern: render action buttons as direct children of `Modal.ButtonRow` (imported from '../Modal/Modal'). Remove the custom spacing wrapper, because ButtonRow already handles footer spacing and layout.\nConstraints: use this for any modal-style content in grafana-ui and in app code. After this change the `justifyButtons` prop of ConfirmContent is no longer passed to the button row (the Stack that used it is gone). Check that before you rely on that prop for alignment.",
+  "applies": "Button footers in grafana-ui Modal/ConfirmModal and any custom modal content",
+  "tags": [
+    "grafana-ui",
+    "modal",
+    "focus-ring",
+    "accessibility",
+    "confirmmodal",
+    "css"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+      "symbol": "Modal",
+      "hash": "sha256:7779e1d4696b38669ad4fdb5",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 131,
+        "sites": 0,
+        "refs": 552
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-10-07T00:02:57.061Z",
+  "verified": "2026-10-07T00:02:57.061Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

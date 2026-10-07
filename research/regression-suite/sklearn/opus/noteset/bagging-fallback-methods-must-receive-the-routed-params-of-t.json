@@ -1,0 +1,57 @@
+{
+  "id": "bagging-fallback-methods-must-receive-the-routed-params-of-t",
+  "title": "Bagging fallback methods must receive the routed params of the method actually called",
+  "kind": "rule",
+  "answers": [
+    "BaggingClassifier.predict_proba ignores or misroutes metadata to sub-estimator",
+    "metadata routing wrong when estimator has no predict_proba and voting is used",
+    "predict_proba params sent to predict in bagging",
+    "set_predict_proba_request not honored in BaggingClassifier"
+  ],
+  "body": "Symptom: With metadata routing enabled, BaggingClassifier.predict_proba passes metadata requested for `predict` to the sub-estimator's `predict_proba` (and vice versa when the estimator lacks predict_proba and bagging falls back to voting), so request settings appear ignored or the wrong kwargs reach the estimator.\nRoot cause: sklearn/ensemble/_bagging.py:_parallel_predict_proba receives both `predict_params` and `predict_proba_params` but used them crossed: the `hasattr(estimator, \"predict_proba\")` branch got predict_params and the voting branch got predict_proba_params.\nFix pattern: when the consuming method is selected dynamically (hasattr-based fallback), route each call with the params bundle for the method actually invoked: `estimator.predict_proba(..., **(predict_proba_params or {}))`, `estimator.predict(..., **(predict_params or {}))`.\nConstraints: applies to any meta-estimator helper that branches between consumer methods (predict_proba/predict, decision_function/predict_log_proba fallbacks in the same file); check that routed_params.estimator.<method> matches the call site in every branch.",
+  "applies": "Metadata routing in sklearn/ensemble/_bagging.py parallel prediction helpers and similar fallback-based meta-estimators",
+  "tags": [
+    "metadata-routing",
+    "bagging",
+    "ensemble",
+    "predict_proba",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "_parallel_predict_proba",
+      "hash": "sha256:6fa979c6e4cbf263f1a5292d",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "BaggingClassifier.predict_proba",
+      "hash": "sha256:0c5401cb2b3976f802ed8b00",
+      "line": 968,
+      "missing": false,
+      "fanout": {
+        "files": 143,
+        "sites": 379,
+        "refs": 990
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34188"
+  },
+  "created": "2026-10-07T00:30:51.181Z",
+  "verified": "2026-10-07T00:30:51.181Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

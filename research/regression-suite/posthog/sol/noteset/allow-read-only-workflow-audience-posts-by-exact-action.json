@@ -1,0 +1,55 @@
+{
+  "id": "allow-read-only-workflow-audience-posts-by-exact-action",
+  "title": "Allow read-only workflow audience POSTs by exact action",
+  "kind": "rule",
+  "answers": [
+    "Why does the workflow audience count never load during read-only impersonation?",
+    "Why does audience sizing return 403 impersonation_read_only?",
+    "How should a read-only POST bypass impersonation middleware?"
+  ],
+  "body": "Symptom: Support staff impersonating in read-only mode cannot load a workflow audience count; sizing returns 403 impersonation_read_only.\nRoot cause: posthog/middleware.py:ImpersonationReadOnlyMiddleware rejects non-idempotent requests before endpoint permissions run; audience sizing uses POST because its filters are too large for a query string.\nFix pattern: Add a method-and-exact-action exception in posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS after establishing that the action only reads; the workflow audience regex accepts projects/environments, numeric IDs/@current, and an optional trailing slash.\nConstraints: Never allow the whole hog_flows/ prefix: it also contains writing actions. Audience sizing may return a confirmation token, but run and batch_jobs must remain blocked so read-only impersonation cannot dispatch a send.",
+  "applies": "Read-only impersonation failures for workflow audience sizing and narrowly scoped exceptions for read-only POST actions.",
+  "tags": [
+    "impersonation",
+    "workflows",
+    "permissions",
+    "audience-sizing"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-10-07T00:15:58.280Z",
+  "verified": "2026-10-07T00:15:58.280Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

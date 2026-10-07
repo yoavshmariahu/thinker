@@ -1,0 +1,70 @@
+{
+  "id": "insight-editor-auto-saves-patch-on-chart-type-change-scene-i",
+  "title": "Insight editor auto-saves (PATCH) on chart-type change: scene-instance guard must use insightId/dashboardId, not insightLogicRef",
+  "kind": "rule",
+  "answers": [
+    "why does the insight save itself when I change chart type",
+    "insight editor exits edit mode and shows 'Insight updated' without clicking Save",
+    "how does persistDisplayOptions decide whether to PATCH the insight",
+    "isInsightSceneInstance returns wrong value right after opening editor"
+  ],
+  "body": "Symptom: In the insight editor, picking a new chart type saves the insight without the user clicking Save. The editor leaves edit mode and shows \"Insight updated\" within about a second. It is an intermittent race that is hard to reproduce.\nRoot cause: frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance compared the props key against insightSceneLogic's `insightLogicRef`. A separate listener sets that ref by rebuilding and mounting a new logic, so it can still be stale right after the scene mounts. persistDisplayOptions then treated the editor's instance as a non-scene instance and sent a PATCH.\nFix pattern: Compare against the reducers `insightSceneLogic.values.insightId` and `dashboardId`, which the URL-matching action sets synchronously. Match `insightId === props.dashboardItemId`, and match `dashboardId` with null and undefined treated as equal (`?? null`). Keep the check that `sceneLogic.values.activeSceneId === Scene.Insight`.\nConstraints: In kea scene logics, a `*LogicRef` that a listener builds is not a reliable source for synchronous guards. Use the reducer values that drive it. To regression-test, mock `insightSceneLogic.findMounted` so it returns `{ values: { insightId, dashboardId, insightLogicRef: null } }`. Then assert that the PATCH spy is not called after `persistDisplayOptions` (see the `persistDisplayOptions` describe block in insightDataLogic.test.ts).",
+  "applies": "Frontend insight editor save/persist guards in insightDataLogic and anything that reads state from insightSceneLogic",
+  "tags": [
+    "insights",
+    "kea",
+    "race-condition",
+    "autosave",
+    "insightscenelogic",
+    "persistdisplayoptions"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+      "symbol": "isInsightSceneInstance",
+      "hash": "sha256:ec87ebf6698de5e490f8791d",
+      "line": 104,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.test.ts",
+      "symbol": "insightDataLogic",
+      "hash": "sha256:9c1e1f8e7f295bbe088a81b1",
+      "line": 192,
+      "missing": false,
+      "fanout": {
+        "files": 62,
+        "sites": 93,
+        "refs": 213
+      }
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.test.ts",
+      "symbol": "insightId",
+      "hash": "sha256:eafa0b3acc7ff835a92b4e4e",
+      "line": 587,
+      "missing": false,
+      "fanout": {
+        "files": 78,
+        "sites": 2,
+        "refs": 465
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105737"
+  },
+  "created": "2026-10-07T00:16:16.716Z",
+  "verified": "2026-10-07T00:16:16.716Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

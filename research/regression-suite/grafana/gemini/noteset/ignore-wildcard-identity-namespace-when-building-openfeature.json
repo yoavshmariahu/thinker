@@ -1,0 +1,44 @@
+{
+  "id": "ignore-wildcard-identity-namespace-when-building-openfeature",
+  "title": "Ignore wildcard identity namespace when building OpenFeature evaluation context",
+  "kind": "rule",
+  "answers": [
+    "Why are feature flag evaluations rejected with a namespace mismatch when using a cluster-wide service token?",
+    "How does ContextHandler resolve the namespace for the OpenFeature evaluation context?",
+    "Why does a wildcard '*' identity namespace break OpenFeature flag evaluation?"
+  ],
+  "body": "Symptom: Feature flag evaluation requests fail with a namespace mismatch error when callers authenticate using wildcard identity namespaces such as cluster-wide service tokens.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext set the OpenFeature evaluation context namespace directly from the caller identity without filtering out wildcard '*' or empty strings, overriding instance-level scoping.\nFix pattern: Check that caller identity namespace is non-empty and not '*' before adopting it, otherwise fall back to stack configuration ('stacks-' + StackID) or 'default' to ensure evaluation context remains concrete.\nConstraints: Applies when constructing OpenFeature evaluation contexts from incoming authentication identities; concrete non-wildcard caller namespaces must still take precedence over instance stack ID.",
+  "applies": "Request context initialization when configuring OpenFeature evaluation context from caller identity.",
+  "tags": [
+    "openfeature",
+    "feature-flags",
+    "contexthandler",
+    "authentication",
+    "namespaces"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "ContextHandler",
+      "hash": "sha256:7e2bafbef478109aa6de31ad",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-10-07T00:03:32.552Z",
+  "verified": "2026-10-07T00:03:32.552Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

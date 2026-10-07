@@ -1,0 +1,73 @@
+{
+  "id": "filter-on-json-timestamps-in-sql-before-limit-and-regex-guar",
+  "title": "Filter on JSON timestamps in SQL before LIMIT, and regex-guard the cast",
+  "kind": "rule",
+  "answers": [
+    "how to compare sync_type_config.last_full_run_at in a queryset",
+    "Postgres error casting JSON string to timestamp",
+    "why not filter stalled schemas in Python after the query",
+    "naive timestamp read in session timezone"
+  ],
+  "body": "Convention seen in `products/warehouse_sources/backend/stalled_schedules.py:stalled_schema_queryset`: `sync_type_config.last_full_run_at` is free-form JSON. Before casting it, check it with `When(sync_type_config__last_full_run_at__regex=_AWARE_ISO_TIMESTAMP, then=Cast(KeyTextTransform(...), DateTimeField()))` and default to NULL. Without that guard, Postgres raises on a string it cannot parse and reads a naive stamp in the session zone, which invents freshness. The SQL guard mirrors the Python rule in `ExternalDataSchema.last_full_run`: accept only ISO stamps with an offset or Z.\nDo the filtering in SQL so the sweep and repair command can keep their `LIMIT`. Filtering in Python after the LIMIT let excluded rows fill every slot. Filtering in Python before it loaded every candidate on each hourly sweep.\nTests: `test_an_unusable_run_stamp_falls_back_to_the_sync_stamp` (unparseable and naive cases) and `find_stalled_schemas(limit=1)` with the excluded row sorted first.",
+  "applies": "Django querysets in warehouse_sources that compare timestamps stored inside the sync_type_config JSON",
+  "tags": [
+    "django-orm",
+    "postgres",
+    "jsonfield",
+    "timestamp-cast",
+    "limit",
+    "data-warehouse"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "_AWARE_ISO_TIMESTAMP",
+      "hash": "sha256:481e0ead69370fb8f42106ac",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "symbol": "stalled_schema_queryset",
+      "hash": "sha256:8f4f05a5e49dc0f59109876f",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.last_full_run",
+      "hash": "sha256:f38a5ecc269bef3b7ae2f362",
+      "line": 506,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#104706"
+  },
+  "created": "2026-10-07T00:13:41.626Z",
+  "verified": "2026-10-07T00:13:41.626Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "freshness-checks-must-read-externaldataschema-last-run-at-ne",
+    "quiet-schemas-reported-as-stalled-and-auto-repaired-by-the-s"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "model-rebuild-force-true-must-put-mocks-back-not-delattr-the",
+  "title": "model_rebuild(force=True) must put mocks back, not delattr the validator/serializer/core schema",
+  "kind": "rule",
+  "answers": [
+    "model instantiation fails while another thread calls model_rebuild(force=True)",
+    "concurrent Model(...) during force rebuild uses the parent class validator",
+    "why does model_rebuild set mocks instead of deleting __pydantic_validator__",
+    "thread-safe model rebuild"
+  ],
+  "body": "Invariant: Code reads `__pydantic_core_schema__`, `__pydantic_validator__` and `__pydantic_serializer__` without holding the rebuild lock (for example when a model is instantiated). If you delete them from `cls.__dict__`, a concurrent read falls back through the MRO and can pick up the parent class's validator/serializer.\nEnforced in: pydantic/main.py:BaseModel.model_rebuild. When the model is `already_complete` (force=True), it calls `_mock_val_ser.set_model_mocks(cls)` instead of `delattr`. This also keeps pydantic-core and schema generation from reusing the stale validator/serializer/schema.\nIf skipped: threads that instantiate the model during a forced rebuild intermittently validate with the wrong schema or fail. tests/test_freethreaded.py:test_model_force_rebuild_concurrent_instantiation covers this.\nConstraints: Any future code that invalidates these class attributes should replace them with mock objects (MockValSer/MockCoreSchema via set_model_mocks) rather than delete them.",
+  "applies": "pydantic/main.py model_rebuild and any code that invalidates model validator/serializer/core schema",
+  "tags": [
+    "free-threading",
+    "model_rebuild",
+    "mocks",
+    "thread-safety"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/main.py",
+      "symbol": "BaseModel.model_rebuild",
+      "hash": "sha256:cc75016c0fdc60ff9225b72a",
+      "line": 677,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 99,
+        "refs": 103
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "test_model_force_rebuild_concurrent_instantiation",
+      "hash": "sha256:d17bd9677b39e44e3d2e3a4a",
+      "line": 146,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic/_internal/_mock_val_ser.py",
+      "symbol": "set_model_mocks",
+      "hash": "sha256:c7be176edd10b3418a91ef27",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:35:49.861Z",
+  "verified": "2026-10-07T00:35:49.861Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

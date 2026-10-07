@@ -1,0 +1,79 @@
+{
+  "id": "do-not-mutate-user-declared-model-config-in-configwrapper",
+  "title": "Do not mutate user-declared model_config in ConfigWrapper",
+  "kind": "rule",
+  "answers": [
+    "Why is Model.model_config mutated or populated with validate_by_name?",
+    "Why does child model inherit validate_by_name even when setting populate_by_name=False?",
+    "How does ConfigWrapper handle deprecated and default config without mutating model_config?"
+  ],
+  "body": "Symptom: Inspecting Model.model_config reveals unexpected keys like validate_by_name, or child models fail to override populate_by_name when inheriting from a parent model.\nRoot cause: pydantic/_internal/_config.py:ConfigWrapper.core_config mutated the input config_dict in place when filling backwards-compatibility defaults.\nFix pattern: Copy user config in pydantic/_internal/_config.py:prepare_config and compute resolved settings into a separate effective_config via pydantic/_internal/_config.py:_build_effective_config.\nConstraints: Applies to configuration dictionary resolution in BaseModel and dataclasses; config consumers must read effective_config while config_dict remains unmodified for inheritance.",
+  "applies": "Model and dataclass configuration resolution and inheritance in pydantic/_internal/_config.py",
+  "tags": [
+    "config",
+    "model-config",
+    "inheritance",
+    "immutability"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper",
+      "hash": "sha256:261e55a6ac2fc90e1b06ad73",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 18,
+        "refs": 56
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "_build_effective_config",
+      "hash": "sha256:f65e03c4519e724974fe4eed",
+      "line": 314,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "prepare_config",
+      "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+      "line": 335,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:49:56.970Z",
+  "verified": "2026-10-07T00:49:56.970Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

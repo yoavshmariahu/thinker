@@ -1,0 +1,45 @@
+{
+  "id": "keep-annotation-tag-deletes-scoped-without-forcing-a-zero-ta",
+  "title": "Keep annotation tag deletes scoped without forcing a zero tag ID",
+  "kind": "rule",
+  "answers": [
+    "Removed annotation tags still appear in tag filtering",
+    "Why does ensureTags fail to unlink replaced tags?",
+    "How should MustCols be used when deleting annotation tag links?"
+  ],
+  "body": "Symptom: Tags removed from an annotation still appear in annotation tag filtering.\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags forced the delete bean's zero TagID into the WHERE clause, adding tag_id = 0 alongside tag_id IN (...).\nFix pattern: Force only annotation_id with MustCols; let In(\"tag_id\", tagsDelete) supply the tag predicate.\nConstraints: Applies to link deletion in ensureTags, shared by Add, update and AddMany. Keep annotation_id forced even when zero, or the delete can affect other annotations; this does not repair existing stale links or the separate AddMany write-back defect.",
+  "applies": "Changes to annotation tag link deletion in xormRepositoryImpl.ensureTags.",
+  "tags": [
+    "annotations",
+    "tags",
+    "xorm",
+    "deletion"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "ensureTags",
+      "hash": "sha256:72bb4b9142f3bc4223046c53",
+      "line": 230,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131464"
+  },
+  "created": "2026-10-07T00:05:24.085Z",
+  "verified": "2026-10-07T00:05:24.085Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "verify-annotation-tag-updates-against-the-join-table"
+  ]
+}

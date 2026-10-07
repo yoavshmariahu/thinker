@@ -1,0 +1,45 @@
+{
+  "id": "validate-posthog-uuidt-invocation-ids-by-shape-rather-than-r",
+  "title": "Validate PostHog UUIDT invocation IDs by shape rather than RFC UUID version",
+  "kind": "rule",
+  "answers": [
+    "Why does cancelling a workflow run fail with a validation error?",
+    "How to validate PostHog invocation IDs or UUIDTs in Zod schemas?",
+    "Workflow row Cancel action fails with validation error and run keeps going",
+    "Why does z.string().uuid() reject PostHog invocation_ids?"
+  ],
+  "body": "Symptom: Cancelling a running workflow via the row Cancel action or direct API call fails with a validation error, and the run keeps going.\nRoot cause: nodejs/src/cdp/cdp-api.ts:CdpApi used version-aware z.string().uuid() on invocation_ids, which rejects PostHog UUIDTs because their version nibbles do not conform to RFC UUID versions.\nFix pattern: Validate UUID string shape (8-4-4-4-12) using UUID.validateString(id, false) via z.string().refine() to accept UUIDTs while rejecting malformed inputs before Postgres ::uuid[] binds.\nConstraints: Applies to route validation for PostHog UUIDT identifiers destined for Postgres UUID columns; does not apply when external contracts strictly require RFC-versioned UUIDs.",
+  "applies": "PostHog CDP API route schema validation for workflow invocation IDs and UUIDTs.",
+  "tags": [
+    "workflows",
+    "cdp",
+    "validation",
+    "uuidt",
+    "hog-flows"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/cdp/cdp-api.ts",
+      "symbol": "CdpApi",
+      "hash": "sha256:fe0e27f04f380d7f19512765",
+      "line": 131,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 8,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#96235"
+  },
+  "created": "2026-10-07T00:25:07.756Z",
+  "verified": "2026-10-07T00:25:07.756Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

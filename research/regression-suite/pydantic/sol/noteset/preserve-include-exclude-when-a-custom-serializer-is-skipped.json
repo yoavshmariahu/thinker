@@ -1,0 +1,128 @@
+{
+  "id": "preserve-include-exclude-when-a-custom-serializer-is-skipped",
+  "title": "Preserve include/exclude when a custom serializer is skipped",
+  "kind": "rule",
+  "answers": [
+    "Why does model_dump ignore include or exclude with a JSON-only model serializer?",
+    "How should fallback serialization handle include/exclude?",
+    "When should function serializers clear filtering state?"
+  ],
+  "body": "Symptom: model_dump() ignores include/exclude when a plain or wrap model serializer is configured with when_used='json' and skipped in Python mode.\nRoot cause: pydantic-core/src/serializers/type_serializers/function.rs:function_type_serializer cleared filtering state before fallback serialization even when self.call reported that the function was not invoked.\nFix pattern: Preserve current filters via pydantic-core/src/serializers/extra.rs:SerializationState::include_exclude for the fallback serializer; use empty filters for the return serializer when the function was invoked. Keep this branching consistent across to_python, json_key, and serde_serialize in function_type_serializer.\nConstraints: Preserve filters only for the skipped-function fallback branch. When the function runs, filtering is treated as handled by that function, so include/exclude must not be reapplied to its returned value.",
+  "applies": "Function serializer dispatch, including plain and wrap model serializers whose when_used condition can skip invocation.",
+  "tags": [
+    "serialization",
+    "include-exclude",
+    "model-serializer",
+    "fallback",
+    "when-used"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+      "symbol": "when_used",
+      "hash": "sha256:5b85076a6c7f9bbcf3b8a7cf",
+      "line": 122,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+      "symbol": "to_python",
+      "hash": "sha256:5046dfef7b1c71a4ae880cdf",
+      "line": 214,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 30,
+        "refs": 30
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+      "symbol": "json_key",
+      "hash": "sha256:3fb078bde59317ab95d13e93",
+      "line": 233,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 20,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/type_serializers/function.rs",
+      "symbol": "serde_serialize",
+      "hash": "sha256:33c7a67c10f8973569ef925d",
+      "line": 254,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 9,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/extra.rs",
+      "symbol": "SerializationState",
+      "hash": "sha256:aac2697e768ed81ac2f48b90",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 47,
+        "sites": 0,
+        "refs": 274
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/extra.rs",
+      "symbol": "include_exclude",
+      "hash": "sha256:c071807dc083c2fbf0eb2628",
+      "line": 149,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 16
+      }
+    },
+    {
+      "path": "tests/test_serialize.py",
+      "symbol": "test_model_serializer_when_used_fallback_respects_include_exclude",
+      "hash": "sha256:ba44b4e700e0bbc3726f7b42",
+      "line": 1445,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/extra.rs",
+      "symbol": "SerializationState",
+      "hash": "sha256:aac2697e768ed81ac2f48b90",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 47,
+        "sites": 0,
+        "refs": 274
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13702"
+  },
+  "created": "2026-10-07T00:42:33.173Z",
+  "verified": "2026-10-07T00:42:33.173Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

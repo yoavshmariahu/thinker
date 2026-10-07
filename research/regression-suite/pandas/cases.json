@@ -1,0 +1,327 @@
+{
+  "repo": "pandas-dev/pandas",
+  "base": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "pandas-70526",
+      "pr": 70526,
+      "sha": "62371617c7b1e805fa2936b2062e7f362795a18d",
+      "parent": "b4b8b2232152476d07ee615935b114e33d45c8b0",
+      "subject": "BUG: Styler.background_gradient colors NaN as the lowest value when vmin == vmax (GH#47695) (#70526)",
+      "codeLines": 6,
+      "totalLines": 17,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/formats/style.py",
+        "pandas/tests/io/formats/style/test_matplotlib.py"
+      ],
+      "production": [
+        "pandas/io/formats/style.py"
+      ],
+      "target": "BUG: Styler.background_gradient colors NaN as the lowest value when vmin == vmax (GH#47695) (#70526)",
+      "assignmentKey": "1b93303386e5afc2b88f7361b65de1ef8c330e0288cfb7f2076389cb03528a5d",
+      "cohort": "gemini",
+      "caseIndex": 0
+    },
+    {
+      "id": "pandas-70631",
+      "pr": 70631,
+      "sha": "b4b8b2232152476d07ee615935b114e33d45c8b0",
+      "parent": "d0db79675452e9e0e8750eb184aeb7d61ad54bb6",
+      "subject": "BUG: IntervalIndex raising Cython TypeError for RangeIndex and non-interval EA input (GH#68343) (#70631)",
+      "codeLines": 5,
+      "totalLines": 63,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/arrays/interval.py",
+        "pandas/tests/indexes/interval/test_constructors.py",
+        "pandas/tests/indexes/interval/test_setops.py"
+      ],
+      "production": [
+        "pandas/core/arrays/interval.py"
+      ],
+      "target": "BUG: IntervalIndex raising Cython TypeError for RangeIndex and non-interval EA input (GH#68343) (#70631)",
+      "assignmentKey": "a9a1b5bc97b83ff08f1e7dc2f6271a5331ba0c6a80123c89e5e8a601d98b1f80",
+      "cohort": "opus",
+      "caseIndex": 1
+    },
+    {
+      "id": "pandas-69446",
+      "pr": 69446,
+      "sha": "d0db79675452e9e0e8750eb184aeb7d61ad54bb6",
+      "parent": "c76be9d0dd4bb51f928bb65a992c283d59934b09",
+      "subject": "BUG: to_excel wrote NaN MultiIndex column label as last level value (GH#62340) (#69446)",
+      "codeLines": 3,
+      "totalLines": 15,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/formats/excel.py",
+        "pandas/tests/io/excel/test_writers.py"
+      ],
+      "production": [
+        "pandas/io/formats/excel.py"
+      ],
+      "target": "BUG: to_excel wrote NaN MultiIndex column label as last level value (GH#62340) (#69446)",
+      "assignmentKey": "86714f891b25244b109908e3d775aa23f4c58b8c914ad42558883842caf5bd7e",
+      "cohort": "gemini",
+      "caseIndex": 2
+    },
+    {
+      "id": "pandas-69961",
+      "pr": 69961,
+      "sha": "c76be9d0dd4bb51f928bb65a992c283d59934b09",
+      "parent": "206d70b4b3d4bf7b20caf256f216c732f57f9cf5",
+      "subject": "BUG: honor date formats in OpenpyxlWriter (#69961)",
+      "codeLines": 2,
+      "totalLines": 41,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/excel/_openpyxl.py",
+        "pandas/tests/io/excel/test_openpyxl.py"
+      ],
+      "production": [
+        "pandas/io/excel/_openpyxl.py"
+      ],
+      "target": "BUG: honor date formats in OpenpyxlWriter (#69961)",
+      "assignmentKey": "8dcbc2b9d82bdf0f4fd5161202ad77818e170a164e46c4c6f6c73c19d42a0eb3",
+      "cohort": "gemini",
+      "caseIndex": 3
+    },
+    {
+      "id": "pandas-70404",
+      "pr": 70404,
+      "sha": "85986ab8167ae7eaf968737097562c766a603306",
+      "parent": "bcbcf6d44633c9eb194f399d725800ae6c892a46",
+      "subject": "BUG: parallel read_csv raised on a quoted newline at a chunk boundary (#70404)",
+      "codeLines": 48,
+      "totalLines": 160,
+      "files": [
+        "pandas/io/parsers/readers.py",
+        "pandas/tests/io/parser/test_parallel_read.py"
+      ],
+      "production": [
+        "pandas/io/parsers/readers.py"
+      ],
+      "target": "BUG: parallel read_csv raised on a quoted newline at a chunk boundary (#70404)",
+      "assignmentKey": "e207dd4611a0841394aad12f66b50b357637fe9fa602316aa8c3c885a2f44138",
+      "cohort": "sol",
+      "caseIndex": 4
+    },
+    {
+      "id": "pandas-70515",
+      "pr": 70515,
+      "sha": "bcbcf6d44633c9eb194f399d725800ae6c892a46",
+      "parent": "e4456d18532a5a6d2e9e5fe6899d691c76fea650",
+      "subject": "BUG: Series.mode(dropna=False) raising TypeError for boolean dtype (#70515)",
+      "codeLines": 2,
+      "totalLines": 19,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/algorithms.py",
+        "pandas/tests/series/test_reductions.py"
+      ],
+      "production": [
+        "pandas/core/algorithms.py"
+      ],
+      "target": "BUG: Series.mode(dropna=False) raising TypeError for boolean dtype (#70515)",
+      "assignmentKey": "b6545ddd2fd8e6fa32290651e5ae795b55621f46f158398f1ce3105a9e96d4b4",
+      "cohort": "sol",
+      "caseIndex": 5
+    },
+    {
+      "id": "pandas-70493",
+      "pr": 70493,
+      "sha": "8f05b64200e8801c2966929889c0bd860f575ce8",
+      "parent": "d82c8ccb44a44e1609a3cd3e8170b0083ff16c19",
+      "subject": "BUG: hash_pandas_object raised on mixed-type values with non-ASCII bytes (GH#27215) (#70493)",
+      "codeLines": 10,
+      "totalLines": 26,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/util/hashing.py",
+        "pandas/tests/util/test_hashing.py"
+      ],
+      "production": [
+        "pandas/core/util/hashing.py"
+      ],
+      "target": "BUG: hash_pandas_object raised on mixed-type values with non-ASCII bytes (GH#27215) (#70493)",
+      "assignmentKey": "432d12c36ba115d0710020532ce7aec9552ad2d0332c6d7d89067272198f379a",
+      "cohort": "opus",
+      "caseIndex": 6
+    },
+    {
+      "id": "pandas-69445",
+      "pr": 69445,
+      "sha": "d82c8ccb44a44e1609a3cd3e8170b0083ff16c19",
+      "parent": "4b412e59fb6ba97f87d72651dbf7f33c914a808a",
+      "subject": "BUG: retain DatetimeIndex freq in concat regardless of input order (GH#64253) (#69445)",
+      "codeLines": 34,
+      "totalLines": 96,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/indexes/api.py",
+        "pandas/tests/frame/test_constructors.py",
+        "pandas/tests/reshape/concat/test_datetimes.py"
+      ],
+      "production": [
+        "pandas/core/indexes/api.py"
+      ],
+      "target": "BUG: retain DatetimeIndex freq in concat regardless of input order (GH#64253) (#69445)",
+      "assignmentKey": "7e054cdbf92468b4cf1d6051fafd9d14e9f9dcb3fe3f1078802ea5731c3d30ba",
+      "cohort": "sol",
+      "caseIndex": 7
+    },
+    {
+      "id": "pandas-70403",
+      "pr": 70403,
+      "sha": "fc908e17ebf7087e6a36e866768d3bb35e96a760",
+      "parent": "255c2ac652912dc8177b18dff8728e8eee147481",
+      "subject": "BUG: parallel read_csv lost or added a row after a bare CR in the header (#70403)",
+      "codeLines": 4,
+      "totalLines": 39,
+      "files": [
+        "pandas/io/parsers/readers.py",
+        "pandas/tests/io/parser/test_parallel_read.py"
+      ],
+      "production": [
+        "pandas/io/parsers/readers.py"
+      ],
+      "target": "BUG: parallel read_csv lost or added a row after a bare CR in the header (#70403)",
+      "assignmentKey": "8c75d12aed460ea24230e061b15e3b440a8408daad14ec3ea3cc39316fbe4fc1",
+      "cohort": "sol",
+      "caseIndex": 8
+    },
+    {
+      "id": "pandas-70228",
+      "pr": 70228,
+      "sha": "255c2ac652912dc8177b18dff8728e8eee147481",
+      "parent": "f65e5170565bb5a2ee37b49d286c30c9f2764dbb",
+      "subject": "BUG: bar subplots draw date labels on inner shared-x axes (follow-up to GH#62992) (#70228)",
+      "codeLines": 34,
+      "totalLines": 61,
+      "files": [
+        "pandas/plotting/_matplotlib/core.py",
+        "pandas/tests/plotting/test_datetimelike.py"
+      ],
+      "production": [
+        "pandas/plotting/_matplotlib/core.py"
+      ],
+      "target": "BUG: bar subplots draw date labels on inner shared-x axes (follow-up to GH#62992) (#70228)",
+      "assignmentKey": "10ef12a55936a106e89d395f54e14f7eefeb0829501da26aeb2df39e76a7300f",
+      "cohort": "sol",
+      "caseIndex": 9
+    },
+    {
+      "id": "pandas-69026",
+      "pr": 69026,
+      "sha": "f7be3ffce1c09480b86448d2544e8a2293af6111",
+      "parent": "67b43b389914bc348b084f727b39033a7a3602ff",
+      "subject": "BUG: replace silently discards a compiled regex on ArrowDtype strings (#69026)",
+      "codeLines": 11,
+      "totalLines": 100,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/internals/blocks.py",
+        "pandas/tests/arrays/categorical/test_replace.py",
+        "pandas/tests/series/methods/test_replace.py"
+      ],
+      "production": [
+        "pandas/core/internals/blocks.py"
+      ],
+      "target": "BUG: replace silently discards a compiled regex on ArrowDtype strings (#69026)",
+      "assignmentKey": "86df292d5591ed82bb874a585151eaea026a4f9f802fc55a5b161e83d649e782",
+      "cohort": "opus",
+      "caseIndex": 10
+    },
+    {
+      "id": "pandas-68929",
+      "pr": 68929,
+      "sha": "67b43b389914bc348b084f727b39033a7a3602ff",
+      "parent": "a141df6527c881cef1c64deca72f5f5ee947af31",
+      "subject": "BUG: DataFrame.clip with an extension-dtype array/Index bound degrades to object (#68929)",
+      "codeLines": 15,
+      "totalLines": 38,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/frame.py",
+        "pandas/core/generic.py",
+        "pandas/tests/frame/methods/test_clip.py"
+      ],
+      "production": [
+        "pandas/core/frame.py",
+        "pandas/core/generic.py"
+      ],
+      "target": "BUG: DataFrame.clip with an extension-dtype array/Index bound degrades to object (#68929)",
+      "assignmentKey": "c000ef7e4df3a0ac4184ed2cfaa0840d2ccc1b97c62d8b507faaab1596e10e46",
+      "cohort": "gemini",
+      "caseIndex": 11
+    },
+    {
+      "id": "pandas-70405",
+      "pr": 70405,
+      "sha": "503fe2ec8fd3951d4fed15973fa74b22b16f5d30",
+      "parent": "83b5a9f23caef50e4f44201ed983283eddfb6b53",
+      "subject": "BUG: read_csv ignored encoding_errors for text buffers on the C and pyarrow engines (#70405)",
+      "codeLines": 11,
+      "totalLines": 27,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/common.py",
+        "pandas/tests/io/parser/test_encoding.py"
+      ],
+      "production": [
+        "pandas/io/common.py"
+      ],
+      "target": "BUG: read_csv ignored encoding_errors for text buffers on the C and pyarrow engines (#70405)",
+      "assignmentKey": "03d99cea1359ef287b65606cabd86709e6a8d010d9fe031083ed61ebb6b973f9",
+      "cohort": "opus",
+      "caseIndex": 12
+    },
+    {
+      "id": "pandas-68637",
+      "pr": 68637,
+      "sha": "f2cc18a4ea3b4b8f8b553d876d60e78952ceee03",
+      "parent": "51c9110b5022e972440f7416c3712a143fa1d3c8",
+      "subject": "BUG: treat an iterator as scalar-like in Categorical comparisons (GH#31646) (#68637)",
+      "codeLines": 5,
+      "totalLines": 17,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/arrays/categorical.py",
+        "pandas/tests/arrays/categorical/test_operators.py"
+      ],
+      "production": [
+        "pandas/core/arrays/categorical.py"
+      ],
+      "target": "BUG: treat an iterator as scalar-like in Categorical comparisons (GH#31646) (#68637)",
+      "assignmentKey": "f3785ece30ae03abea4838695f4a932fa35c4434048ce58e3c43295fe8d910bc",
+      "cohort": "gemini",
+      "caseIndex": 13
+    },
+    {
+      "id": "pandas-70300",
+      "pr": 70300,
+      "sha": "567f9a6e523f84b646b5022a854f392994932ddb",
+      "parent": "71e11934c88cebded4f633e845cd1a16d27bfbe6",
+      "subject": "BUG: isin on pyarrow dtypes raising for mixed values (#70300)",
+      "codeLines": 16,
+      "totalLines": 51,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/tests/series/methods/test_isin.py"
+      ],
+      "production": [
+        "pandas/core/arrays/arrow/array.py"
+      ],
+      "target": "BUG: isin on pyarrow dtypes raising for mixed values (#70300)",
+      "assignmentKey": "cec602a49fb3d7604ee6c5538433aab19b4e66e4fa334c1c2521517abf3417fb",
+      "cohort": "opus",
+      "caseIndex": 14
+    }
+  ],
+  "frozenAt": "2026-10-06",
+  "assignment": "Sort SHA256(regression-suite-2026-10-06:<slug>:<fix-sha>), then cycle opus/sol/gemini; five per model, frozen before scored outputs.",
+  "excludedBeforeFreeze": "Documentation, examples, typing-only changes, warning-only cleanup, performance-only hash collision cleanup and unrelated feature work. Selection is compact reversible historical fixes, not representative random sampling."
+}

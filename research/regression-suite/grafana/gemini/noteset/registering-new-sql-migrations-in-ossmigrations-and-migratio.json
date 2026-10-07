@@ -1,0 +1,63 @@
+{
+  "id": "registering-new-sql-migrations-in-ossmigrations-and-migratio",
+  "title": "Registering new SQL migrations in OSSMigrations and migration_ids.txt",
+  "kind": "rule",
+  "answers": [
+    "Where do I register a new database migration in Grafana?",
+    "Why is a newly added SQL migration failing migration tests in testdata/migration_ids.txt?",
+    "How to hook up a new ualert migration in sqlstore migrations?"
+  ],
+  "body": "Mechanism: SQL migration runner registration in OSSMigrations and migration ID tracking list.\nWhen defining new database migrations in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve, the migration function must be called in pkg/services/sqlstore/migrations/migrations.go:OSSMigrations.AddMigration.\nWhat breaks if skipped: Each migration ID must also be listed in pkg/services/sqlstore/migrations/testdata/migration_ids.txt; omitting either prevents migrations from running or fails migration regression tests.",
+  "applies": "Grafana sqlstore database migrations",
+  "tags": [
+    "sqlstore",
+    "migrations",
+    "database",
+    "migration-ids"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/migrations.go",
+      "symbol": "OSSMigrations",
+      "hash": "sha256:565725227f2f6891410fd77f",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+      "hash": "sha256:4b53fc6ce3b6938cea762e2f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:03:17.403Z",
+  "verified": "2026-10-07T00:03:17.403Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+    "alert-rule-schema-changes-must-mirror-between-alert-rule-and"
+  ]
+}

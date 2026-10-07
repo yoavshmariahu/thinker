@@ -1,0 +1,28 @@
+[
+  {
+    "id": "pandas-70228",
+    "arms": [
+      "baseline",
+      "cached"
+    ],
+    "category": "observed false-positive static broken-reference finding",
+    "finding": {
+      "severity": "warning",
+      "category": "broken-reference",
+      "file": "pandas/core/frame.py",
+      "line": 12997,
+      "message": "TestTSPlot.drawn was removed from pandas/tests/plotting/test_datetimelike.py and is no longer defined anywhere, but is still referenced at pandas/core/frame.py:12997, pandas/core/frame.py:12999, pandas/core/generic.py:9959, pandas/core/generic.py:9961, pandas/core/series.py:3623 (+35 more)",
+      "basis": "git grep by name; a method of the same name elsewhere would match too",
+      "id": "f-4e7cdbff6532b137e0d1a9ec"
+    },
+    "sourceEvidence": {
+      "file": "pandas/core/frame.py",
+      "lines": [
+        12997,
+        12999
+      ],
+      "text": "rows drawn alternately from self and other; columns drawn alternately from self and other"
+    },
+    "assessment": "The static git-grep-by-name heuristic matches the English word drawn in documentation, not references to the removed test helper. Excluded from target detection in both arms. One observed false positive does not estimate a false-positive rate without clean controls."
+  }
+]

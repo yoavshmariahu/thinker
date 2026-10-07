@@ -1,0 +1,70 @@
+{
+  "id": "xorm-mustcols-with-in-clause-generates-unsatisfiable-zero-va",
+  "title": "XORM MustCols with In clause generates unsatisfiable zero-value predicate on Delete",
+  "kind": "rule",
+  "answers": [
+    "Why does annotation tag filtering still return tags that were removed from an annotation?",
+    "Why does xorm Delete with In and MustCols match zero rows?",
+    "How to use MustCols with an In condition in xorm without generating an unsatisfiable WHERE clause?",
+    "Why are removed tags not unlinked in annotation_tag when updating annotations?"
+  ],
+  "body": "Symptom: Annotation tag filtering continues returning annotations for tags that were removed or replaced.\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:xormRepositoryImpl.ensureTags included \"tag_id\" in MustCols alongside .In(\"tag_id\", tagsDelete) on a bean with zero TagID, generating an unsatisfiable \"tag_id = 0\" WHERE clause.\nFix pattern: Omit columns with explicit .In(...) conditions from MustCols when executing xorm Delete with a struct bean.\nConstraints: Applies when an explicit condition already filters the column; do not omit struct bean columns from MustCols if their zero value must be matched to prevent widening the query.",
+  "applies": "xorm Delete calls combining MustCols with explicit In conditions",
+  "tags": [
+    "annotations",
+    "xorm",
+    "sql",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "xormRepositoryImpl",
+      "hash": "sha256:b0e32b22ab300b8d9faac7b1",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 21
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "tagsDelete",
+      "hash": "sha256:7cba9ede6358d35d89b062ee",
+      "line": 261,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+      "symbol": "Delete",
+      "hash": "sha256:a4c37bf2c9e7bb31004a1c7b",
+      "line": 530,
+      "missing": false,
+      "fanout": {
+        "files": 558,
+        "sites": 952,
+        "refs": 1731
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#131464"
+  },
+  "created": "2026-10-07T00:07:40.959Z",
+  "verified": "2026-10-07T00:07:40.959Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "denormalized-annotation-tags-must-stay-in-sync-with-annotati"
+  ]
+}

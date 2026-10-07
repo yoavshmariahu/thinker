@@ -1,0 +1,95 @@
+{
+  "id": "where-a-turn-s-trace-id-reaches-ratings-three-agent-server-p",
+  "title": "Where a turn's trace id reaches ratings: three agent-server paths plus the wire tap",
+  "kind": "map",
+  "answers": [
+    "which paths carry the turn trace id to slack ratings",
+    "where is turn-complete traceId added before the session log",
+    "how does agent-design stream get traceId for a turn"
+  ],
+  "body": "A rating can arrive by three paths, and each needs the turn trace id:\n- The command result the Slack relay reads, and the direct relay. Both go through `AgentServer.turnTraceId(result)` → `broadcastTurnComplete(stopReason, traceId)`, which appears at three prompt-handling call sites in agent-server.ts.\n- The turn-complete ACP notification read by the agent-design stream. adapters/acp-connection.ts:installWireTaps applies `withTurnTraceId(message, config.stampedRunTraceId)` to it.\nIn installWireTaps, the stamp is applied before `logWriter.appendNotification`, because a thread reload reads the stored copy rather than the broadcast one. Any new enrichment of wire messages must also happen before the log write.\n`withTurnTraceId` only touches `POSTHOG_NOTIFICATIONS.TURN_COMPLETE` messages that have object params and no string `traceId`. It returns the same object in every other case. `stampedRunTraceId` is passed to the connection through `AcpConnectionConfig.stampedRunTraceId`.",
+  "applies": "products/desktop/packages/agent turn-complete / trace id propagation",
+  "tags": [
+    "acp",
+    "turn-complete",
+    "session-log",
+    "tracing",
+    "slack-rating"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+      "symbol": "installWireTaps",
+      "hash": "sha256:8a11f7d669709986e34f0e5f",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+      "symbol": "AcpConnectionConfig",
+      "hash": "sha256:847346d4d5046e826bcd5f9b",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.broadcastTurnComplete",
+      "hash": "sha256:76cb628ad9062b31bb3411ed",
+      "line": 5631,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 18
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.turnTraceId",
+      "hash": "sha256:c06c7476a4328f6677e69c62",
+      "line": 1573,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:13:00.444Z",
+  "verified": "2026-10-07T00:13:00.444Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-turns-had-no-trace-id-ratings-on-codex-slack-answers-o",
+    "x-posthog-trace-id-is-codex-only-and-the-fallback-trace-id-m"
+  ]
+}

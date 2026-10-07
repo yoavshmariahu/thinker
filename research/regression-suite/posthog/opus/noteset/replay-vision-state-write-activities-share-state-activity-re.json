@@ -1,0 +1,92 @@
+{
+  "id": "replay-vision-state-write-activities-share-state-activity-re",
+  "title": "Replay Vision state-write activities share STATE_ACTIVITY_RETRY / STATE_ACTIVITY_SCHEDULE_TO_CLOSE from constants.py",
+  "kind": "rule",
+  "answers": [
+    "what retry policy should a replay vision state write activity use",
+    "how long do observation state writes retry",
+    "thumbnail workflow retry policy",
+    "where is the scan workflow retry policy defined"
+  ],
+  "body": "Short Postgres writes that move an observation or its media between states use products/replay_vision/backend/temporal/constants.py:STATE_ACTIVITY_RETRY (1s initial, 10s max interval, 5 attempts, about 15s of backoff) together with STATE_ACTIVITY_SCHEDULE_TO_CLOSE (3 min). Used in workflow.py:ApplyScannerWorkflow and media_workflow.py:ObservationMediaWorkflow.\nmaximum_attempts is what ends the chain. The 3-minute schedule_to_close is a ceiling, sized so the failure path fits inside APPLY_SCANNER_EXECUTION_TIMEOUT. It is not meant to ride out a multi-minute Postgres outage.\nConvention: import the shared constants. Don't define a private per-workflow policy for state writes. Activities with special error semantics keep their own policies (_CREATE_OBSERVATION_RETRY, _ENSURE_ASSET_RETRY, _THUMBNAIL_RETRY). evaluation_workflow.py still has its own policy (left out of scope).\nNothing retries a lost thumbnail later, because #105099 removed the backfill sweep. The media workflow's retries are the only chance.\nPer the PR, changing retry policies is Temporal-replay safe: they are not part of the determinism check, and activities already scheduled keep their old policy.",
+  "applies": "Temporal workflows in products/replay_vision/backend/temporal scheduling state-transition activities",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "retry-policy",
+    "constants"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_RETRY",
+      "hash": "sha256:3ce24d24e502eaa232f558e6",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_SCHEDULE_TO_CLOSE",
+      "hash": "sha256:12e576072f73358e589cdf36",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/media_workflow.py",
+      "symbol": "ObservationMediaWorkflow",
+      "hash": "sha256:024481da84006ed4d1f63c42",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/workflow.py",
+      "symbol": "ApplyScannerWorkflow",
+      "hash": "sha256:e51e92abc936c01cf3f57c2f",
+      "line": 258,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 9
+      }
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/evaluation_workflow.py",
+      "symbol": "maximum_attempts",
+      "hash": "sha256:ffdaa866d8e4656568a8835d",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 287,
+        "sites": 0,
+        "refs": 887
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:14:48.467Z",
+  "verified": "2026-10-07T00:14:48.467Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

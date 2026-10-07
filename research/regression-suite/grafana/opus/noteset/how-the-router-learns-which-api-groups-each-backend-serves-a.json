@@ -1,0 +1,62 @@
+{
+  "id": "how-the-router-learns-which-api-groups-each-backend-serves-a",
+  "title": "How the router learns which API groups each backend serves (aggregate vs forward)",
+  "kind": "map",
+  "answers": [
+    "where does the router discover groups for aggregate apiservers",
+    "difference between aggregateBackend and forwardBackend in pkg/router",
+    "how are aggregate backends built from /apis"
+  ],
+  "body": "Forward backends learn their group from their RouteBackend CR, so no active discovery call is needed.\nAggregate targets (baas_apiserver, cloud_app_platform_apiserver) have no CR. pkg/router/aggregate_discovery.go:discoverGroups actively polls <baseURL>/apis instead. It trims a trailing slash from the base URL so it never requests \"//apis\", and returns an error for non-200 responses.\nThe returned []metav1.APIGroup is filtered by matchesAnyPattern. newAggregateBackend then turns each group into an aggregateBackend, which proxies to the target's own host, in the same shape as forwardBackend.\nTests use an httptest server and live in pkg/router/aggregate_discovery_test.go (TestDiscoverGroups_*).",
+  "applies": "pkg/router backend/group discovery",
+  "tags": [
+    "router",
+    "discovery",
+    "aggregation",
+    "backends"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "discoverGroups",
+      "hash": "sha256:76d0e2520fc7ce49bba2e288",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "aggregateBackend",
+      "hash": "sha256:e475dbb6e4087be2114cb5c7",
+      "line": 98,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery_test.go",
+      "hash": "sha256:ff2795e57d5d823a19029106",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-07T00:03:36.422Z",
+  "verified": "2026-10-07T00:03:36.422Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "router-aggregate-discovery-must-request-aggregated-discovery"
+  ]
+}

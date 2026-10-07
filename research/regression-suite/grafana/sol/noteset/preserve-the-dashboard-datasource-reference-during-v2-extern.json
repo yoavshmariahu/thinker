@@ -1,0 +1,43 @@
+{
+  "id": "preserve-the-dashboard-datasource-reference-during-v2-extern",
+  "title": "Preserve the Dashboard datasource reference during v2 external export",
+  "kind": "rule",
+  "answers": [
+    "Why does a panel show Random Walk data after sharing and reimporting a dashboard?",
+    "How should v2 export handle the -- Dashboard -- datasource?",
+    "Preserve queries that reuse another panel’s results when sharing a dashboard"
+  ],
+  "body": "Symptom: After exporting with “Share dashboard with another instance” and reimporting, a panel that reuses another panel’s results displays generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 treated the stable -- Dashboard -- reference as an instance-specific datasource UID and removed it.\nFix pattern: Preserve datasource.name equal to SHARED_DASHBOARD_QUERY with an early return before generating datasource-remapping labels or removing the reference.\nConstraints: Applies to v2 external exports, including mixed queries and inlined library panels, with query group datasource or dashboard. Match the exact reference; ordinary datasource anonymization, other built-in datasources, migrations, and datasource resolution retain their existing behavior.",
+  "applies": "V2 dashboard exports shared with another instance that contain Dashboard datasource queries.",
+  "tags": [
+    "dashboard",
+    "datasource",
+    "v2-export",
+    "external-sharing"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-10-07T00:02:03.600Z",
+  "verified": "2026-10-07T00:02:03.600Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

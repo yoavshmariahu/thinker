@@ -1,0 +1,58 @@
+{
+  "id": "parallel-read-csv-returns-none-to-mean-read-serially-errors",
+  "title": "Parallel read_csv returns None to mean 'read serially'; errors must match serial",
+  "kind": "rule",
+  "answers": [
+    "when does parallel read_csv fall back to serial",
+    "what does _read_csv_parallel returning None mean",
+    "parallel read_csv error differs from serial"
+  ],
+  "body": "Contract: _read_csv_parallel / _read_csv_chunks in pandas/io/parsers/readers.py return None when the parallel result cannot be guaranteed to match serial. Cases: the data cannot be split, the engine falls back to python, the name sample has no columns, usecols differ across chunks, per-chunk dtype inference disagrees, or any chunk fails to parse. _read then runs the ordinary serial read.\nInvariant: every result and every error from the parallel path must be identical to serial, including which error comes first and its row position. When in doubt, return None instead of raising.\nBefore this fix, a chunk of huge ints with dtype_backend='pyarrow' raised from a worker (the 'raised' outcome). It now declines ('declined'), the same as other per-chunk disagreements.\nIf you add a new ineligibility, return None from inside the parallel code. Do not widen the except tuple in _read: exceptions that reach it from outside the chunk reads are meant to expose parallel-path bugs.",
+  "applies": "Any change to eligibility, gathering or error handling in the parallel CSV reader",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "invariant",
+    "serial-parity"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_parallel",
+      "hash": "sha256:aaf530b0d33c4596895c3c55",
+      "line": 776,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 15,
+        "refs": 26
+      }
+    },
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read",
+      "hash": "sha256:318fb6cbaef72af479e0bbe4",
+      "line": 352,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:23:09.306Z",
+  "verified": "2026-10-07T00:23:09.306Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-a-failed-chunk-must-fall-back-to-serial-ne",
+    "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l"
+  ]
+}

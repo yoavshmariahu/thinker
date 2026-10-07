@@ -1,0 +1,128 @@
+{
+  "id": "keep-legacy-timedelta-settings-isolated-during-inferred-seri",
+  "title": "Keep legacy timedelta settings isolated during inferred serialization",
+  "kind": "rule",
+  "answers": [
+    "Why does ser_json_timedelta='float' turn datetime values into numbers?",
+    "How should TypeAdapter(Any) serialize dates and durations?",
+    "Which mode controls inferred timedelta values and dictionary keys?"
+  ],
+  "body": "Symptom: Setting ser_json_timedelta='float' makes inferred datetime, date and time values serialize as numbers instead of ISO strings.\nRoot cause: pydantic-core/src/serializers/config.rs:SerializationConfig::from_config previously resolved one shared temporal mode using the timedelta setting.\nFix pattern: Maintain separate temporal_mode and timedelta_mode fields; use timedelta_mode for timedelta branches in pydantic-core/src/serializers/infer.rs:infer_to_python_known, infer_serialize_known and infer_json_key_known so JSON-compatible values, JSON output and dictionary keys agree.\nConstraints: The legacy ser_json_timedelta setting affects only timedeltas; ser_json_temporal affects all temporal types. This separation concerns JSON serialization by inference, including unknown types such as Any.",
+  "applies": "Changes to temporal configuration or inferred JSON serialization of datetime, date, time and timedelta values and keys.",
+  "tags": [
+    "serialization",
+    "temporal",
+    "type-inference"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "SerializationConfig",
+      "hash": "sha256:9c5a974183e39dffd98ae250",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "from_config",
+      "hash": "sha256:be1f18ed380cf423b4744d1d",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "temporal_mode",
+      "hash": "sha256:9b5b0cc62e4cb5ce5e0c6e85",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 33
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/config.rs",
+      "symbol": "timedelta_mode",
+      "hash": "sha256:5825d73c2a8455c1306b173f",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_to_python_known",
+      "hash": "sha256:74bbe75b017e4fe3f8963f09",
+      "line": 44,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_serialize_known",
+      "hash": "sha256:dc8c59f8916d850c984f193c",
+      "line": 326,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/infer.rs",
+      "symbol": "infer_json_key_known",
+      "hash": "sha256:307dcfd09025c084cc5f377a",
+      "line": 553,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13892"
+  },
+  "created": "2026-10-07T00:40:27.679Z",
+  "verified": "2026-10-07T00:40:27.679Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "preserve-the-two-timedelta-precedence-rules"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "known-unfixed-bytes-and-inf-nan-json-schemas-use-ser-json-co",
+  "title": "Known unfixed: bytes and inf/nan JSON schemas use ser_json_* config in the wrong mode",
+  "kind": "rule",
+  "answers": [
+    "validation schema for bytes says format base64url but model accepts utf-8",
+    "val_json_bytes='base64' schema still says format binary",
+    "ser_json_inf_nan='strings' schema still says type number",
+    "hex bytes not reflected in JSON schema"
+  ],
+  "body": "Symptom: with `val_json_bytes='base64'`, input must be base64 but the validation schema says `format: 'binary'`. With `ser_json_bytes='base64'`, input is still UTF-8 but the validation schema says `format: 'base64url'`. Neither side handles `'hex'`.\nRoot cause (per PR #13711 description): `pydantic/json_schema.py:GenerateJsonSchema.bytes_schema` reads `ser_json_bytes` in both modes. The validation side should read `val_json_bytes`.\nStatus: deliberately left unfixed. PR #12841 is rewriting these lines to use `contentMediaType`/`contentEncoding`, and #12104 is still deciding the base64/base64url labels. Check those PRs before changing `bytes_schema`.\nRelated: with `ser_json_inf_nan='strings'`, floats serialize to \"Infinity\" but the serialization schema still says `{'type': 'number'}`. This needs a maintainer decision, not just a patch.\nUse the same invariant as the temporal fix: serialization mode follows `ser_*`, validation mode follows `val_*`/what the validator accepts.",
+  "applies": "bytes and float JSON schema generation in pydantic/json_schema.py",
+  "tags": [
+    "json-schema",
+    "bytes",
+    "base64",
+    "inf-nan",
+    "known-issue"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/json_schema.py",
+      "symbol": "GenerateJsonSchema.bytes_schema",
+      "hash": "sha256:9de3525ad6069636fab27a26",
+      "line": 843,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 53,
+        "refs": 55
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13711"
+  },
+  "created": "2026-10-07T00:36:27.669Z",
+  "verified": "2026-10-07T00:36:27.669Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ser-json-config-must-only-affect-serialization-mode-json-sch"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "check-hashability-before-len-in-categorical-comparison-opera",
+  "title": "Check hashability before len in Categorical comparison operations",
+  "kind": "rule",
+  "answers": [
+    "Why does comparing a Categorical to an iterator raise TypeError object has no len?",
+    "How are iterators treated when compared to a Categorical?",
+    "Why check is_hashable before length matching in Categorical comparisons?"
+  ],
+  "body": "Symptom: Comparing a Categorical to an iterator raises TypeError: object of type '...' has no len().\nRoot cause: pandas/core/arrays/categorical.py:_cat_compare_op checked len(other) on list-like operands before checking not hashable, failing on hashable iterators.\nFix pattern: Check not hashable before calling len(other) on list-like operands so hashable objects take the scalar-like path.\nConstraints: Applies when operands can be hashable list-likes like iterators or category tuples; does not apply to unhashable sequence types.",
+  "applies": "Comparison operations between Categorical arrays and other objects",
+  "tags": [
+    "pandas",
+    "categorical",
+    "comparison",
+    "hashable",
+    "operators"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/categorical.py",
+      "symbol": "_cat_compare_op",
+      "hash": "sha256:fc2f8619c31ddcd9e19734df",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68637"
+  },
+  "created": "2026-10-07T00:41:23.784Z",
+  "verified": "2026-10-07T00:41:23.784Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

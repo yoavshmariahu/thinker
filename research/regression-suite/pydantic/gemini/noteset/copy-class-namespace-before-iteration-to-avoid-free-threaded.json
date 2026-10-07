@@ -1,0 +1,51 @@
+{
+  "id": "copy-class-namespace-before-iteration-to-avoid-free-threaded",
+  "title": "Copy class namespace before iteration to avoid free-threaded race conditions",
+  "kind": "rule",
+  "answers": [
+    "Why does TypeAdapter or model inspection raise RuntimeError: dictionary changed size during iteration in Python 3.14?",
+    "How do I safely iterate over class attributes or vars(typ) in free-threaded Python?",
+    "What causes concurrent annotation evaluation crashes in LazyLocalNamespace or decorator extraction?"
+  ],
+  "body": "Symptom: RuntimeError: dictionary changed size during iteration when building TypeAdapter instances or constructing models concurrently in free-threaded Python 3.14+.\nRoot cause: pydantic/_internal/_decorators.py:_decorator_infos_for_class and pydantic/_internal/_namespace_utils.py:LazyLocalNamespace.data iterate over vars(typ) or MappingProxyType namespaces while another thread evaluates annotations, mutating the class dictionary with attributes like __annotations_cache__.\nFix pattern: Snapshot the mapping via .copy() prior to iteration (e.g. vars(typ).copy().items() or ns.copy() if isinstance(ns, MappingProxyType) else ns).\nConstraints: Applies to class namespaces and types where concurrent annotation reads can mutate class attributes; unnecessary for thread-confined local dictionaries.",
+  "applies": "Class namespace inspection and attribute iteration in free-threaded Python environments.",
+  "tags": [
+    "threading",
+    "free-threaded",
+    "python-3.14",
+    "namespaces",
+    "decorators"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_decorators.py",
+      "symbol": "_decorator_infos_for_class",
+      "hash": "sha256:e62bd05cae2d685d91a19eba",
+      "line": 528,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_namespace_utils.py",
+      "symbol": "LazyLocalNamespace.data",
+      "hash": "sha256:2039319cb509640ecf0dbf1b",
+      "line": 90,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:50:30.011Z",
+  "verified": "2026-10-07T00:50:30.011Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

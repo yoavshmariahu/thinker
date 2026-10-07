@@ -1,0 +1,43 @@
+{
+  "id": "empty-rangeindex-set-operations-retain-feature-dependent-dty",
+  "title": "Empty RangeIndex set operations retain feature-dependent dtype behavior",
+  "kind": "rule",
+  "answers": [
+    "What dtype should IntervalIndex union with an empty RangeIndex return?",
+    "Why does symmetric_difference with an empty index return object dtype?",
+    "How does infer_string affect empty RangeIndex set operations?"
+  ],
+  "body": "For union and symmetric_difference between an IntervalIndex and an empty RangeIndex, the expected result is the original IntervalIndex when infer_string is enabled and index.astype(object) otherwise.\nPreserve this contract for both operand orders and across closure and sort settings; ignoring the empty RangeIndex for result dtype is conditional on infer_string.\nThe regression contract is enforced by pandas/tests/indexes/interval/test_setops.py:TestIntervalIndex.test_set_op_empty_rangeindex; unconditional dtype preservation would break the disabled-infer_string expectation.",
+  "applies": "IntervalIndex union and symmetric_difference involving an empty RangeIndex.",
+  "tags": [
+    "interval",
+    "set-operations",
+    "dtype",
+    "infer-string"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/indexes/interval/test_setops.py",
+      "symbol": "TestIntervalIndex.test_set_op_empty_rangeindex",
+      "hash": "sha256:3631917c9aacf37db930caf4",
+      "line": 207,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:24:25.225Z",
+  "verified": "2026-10-07T00:24:25.225Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

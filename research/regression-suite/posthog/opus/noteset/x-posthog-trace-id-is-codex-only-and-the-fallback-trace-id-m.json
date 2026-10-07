@@ -1,0 +1,120 @@
+{
+  "id": "x-posthog-trace-id-is-codex-only-and-the-fallback-trace-id-m",
+  "title": "X-PostHog-Trace-Id is codex-only, and the fallback trace id must come from the stamped header",
+  "kind": "rule",
+  "answers": [
+    "can I set X-PostHog-Trace-Id for claude runs",
+    "where should the turn trace id for a rating be resolved",
+    "why not infer trace id from runtime_adapter in forward_pending_message",
+    "stampedRunTraceId semantics"
+  ],
+  "body": "Invariant 1: Never send `X-PostHog-Trace-Id` on Claude gateway headers. The gateway ranks this header above `traceparent`, so Claude's per-turn trace ids would collapse into one id for the whole run. Enforced in agent-server.ts:configureEnvironment (`taskRunId && runtimeAdapter === \"codex\"`) and tested in agent-server.configure-environment.test.ts (\"names the run as X-PostHog-Trace-Id for codex only\").\nInvariant 2: `AgentServer.stampedRunTraceId` is read straight from `gatewayEnv.openaiCustomHeaders[\"X-PostHog-Trace-Id\"]`. It is never inferred from `runtime_adapter`, and it is reset unconditionally on every init so a re-init does not keep a stale run's id. A Codex run with no `AI_GATEWAY_TOKEN` falls back to the Python gateway and gets no stamp. Inferring the id would point a rating at a trace with no generations.\nConvention: Resolve the turn trace id in the agent-server, next to the stamp. Do not resolve it in the Temporal activity `forward_pending_message` under products/tasks/. That activity never sees the direct relay or the turn-complete event paths, and three reviewers rejected that approach.",
+  "applies": "Any change to gateway headers or turn trace id resolution in products/desktop/packages/agent/src/server/agent-server.ts",
+  "tags": [
+    "codex",
+    "claude",
+    "tracing",
+    "ai-gateway",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "runtimeAdapter",
+      "hash": "sha256:2ff9768a55b55f8f0dcd88d7",
+      "line": 1995,
+      "missing": false,
+      "fanout": {
+        "files": 40,
+        "sites": 0,
+        "refs": 208
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer",
+      "hash": "sha256:e88fcb2465755db6623064d5",
+      "line": 489,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 25,
+        "refs": 46
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "gatewayEnv",
+      "hash": "sha256:462dd51de48490aedc3c2fdb",
+      "line": 2004,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.configure-environment.test.ts",
+      "symbol": "configureEnvironment",
+      "hash": "sha256:4d77bd1547f5d3134f63f40e",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:12:56.078Z",
+  "verified": "2026-10-07T00:12:56.078Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-turns-had-no-trace-id-ratings-on-codex-slack-answers-o",
+    "where-a-turn-s-trace-id-reaches-ratings-three-agent-server-p"
+  ]
+}

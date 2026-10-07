@@ -1,0 +1,70 @@
+{
+  "id": "csv-warnings-must-survive-failures-without-duplication",
+  "title": "CSV warnings must survive failures without duplication",
+  "kind": "rule",
+  "answers": [
+    "Why does read_csv emit the converter and dtype warning twice?",
+    "Must parallel CSV warnings still appear when gathering raises?",
+    "Who emits warnings when a parallel CSV worker fails?"
+  ],
+  "body": "Invariant: When a chunk fails and serial parsing takes over, warnings must appear once; enforced by pandas/tests/io/parser/test_parallel_read.py:test_parallel_worker_exception_falls_back_to_serial.\nScope: The same requirement covers warnings from the Python layer during name inference, enforced by pandas/tests/io/parser/test_parallel_read.py:test_parallel_fallback_does_not_repeat_python_layer_warning.\nException path: A gather error that escapes without a serial read must still emit collected warnings once, enforced by pandas/tests/io/parser/test_parallel_read.py:test_parallel_gather_exception_still_warns.\nConsequence: Changing failure handling without preserving these paths can duplicate warnings or lose them when an exception escapes.",
+  "applies": "Warning handling during parallel read_csv fallback and escaping gather exceptions.",
+  "tags": [
+    "read_csv",
+    "warnings",
+    "parallel",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_worker_exception_falls_back_to_serial",
+      "hash": "sha256:6f65d4067a772261b62736a6",
+      "line": 1925,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_fallback_does_not_repeat_python_layer_warning",
+      "hash": "sha256:e2a8140b590a42d7b7248e4d",
+      "line": 2026,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_gather_exception_still_warns",
+      "hash": "sha256:d76fb4954ab4c7552ecb2edd",
+      "line": 1898,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:25:37.337Z",
+  "verified": "2026-10-07T00:25:37.337Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-csv-success-tests-must-prove-the-parallel-path-ran",
+    "reject-bare-cr-near-the-parallel-csv-data-boundary"
+  ]
+}

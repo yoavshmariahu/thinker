@@ -1,0 +1,79 @@
+{
+  "id": "defer-mypy-subclass-processing-until-tagged-model-bases-are",
+  "title": "Defer mypy subclass processing until tagged model bases are ready",
+  "kind": "rule",
+  "answers": [
+    "Why does the mypy plugin crash with circular model imports?",
+    "Why are inherited fields missing from a model's constructor signature?",
+    "How should the mypy plugin handle an unfinished base model?"
+  ],
+  "body": "Symptom: Mypy crashes with circular Pydantic model imports, and subclass constructor signatures can lose inherited fields.\nRoot cause: pydantic/mypy.py:PydanticModelTransformer.collect_fields_and_class_vars skips bases without completed METADATA_KEY metadata, even when their processing is pending because of unresolved forward references.\nFix pattern: pydantic/mypy.py:PydanticModelTransformer.transform tags models with METADATA_TAG_KEY before collecting fields; collection returns (None, None) for tagged, unfinished bases, and transform explicitly requests another pass with self._api.defer().\nConstraints: Defer only before self._api.final_iteration. Missing METADATA_KEY alone does not justify deferral: untagged bases are still skipped. Preserve inherited fields before generating subclass signatures.",
+  "applies": "Pydantic mypy plugin model transformation when inheritance and unresolved forward references require multiple semantic-analysis passes.",
+  "tags": [
+    "mypy",
+    "import-cycles",
+    "inheritance",
+    "forward-references"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.transform",
+      "hash": "sha256:9a6682e00c747eaae7016a3b",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 33,
+        "refs": 40
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.collect_fields_and_class_vars",
+      "hash": "sha256:504c7c127dbe565bfa23c9a6",
+      "line": 671,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "METADATA_TAG_KEY",
+      "hash": "sha256:555051296ccd16f7cb2e973d",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "METADATA_KEY",
+      "hash": "sha256:f7c3d574c365aaa7f3f8260d",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13767"
+  },
+  "created": "2026-10-07T00:42:05.863Z",
+  "verified": "2026-10-07T00:42:05.863Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

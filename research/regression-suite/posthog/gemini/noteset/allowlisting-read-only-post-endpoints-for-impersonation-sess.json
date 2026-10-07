@@ -1,0 +1,58 @@
+{
+  "id": "allowlisting-read-only-post-endpoints-for-impersonation-sess",
+  "title": "Allowlisting read-only POST endpoints for impersonation sessions",
+  "kind": "rule",
+  "answers": [
+    "Why does workflow audience count fail to load during read-only impersonation?",
+    "How to allow read-only POST endpoints during impersonation sessions?",
+    "Workflow audience size returns 403 impersonation_read_only",
+    "Why is POST user_blast_radius blocked for impersonated users?"
+  ],
+  "body": "Symptom: In workflow builder during read-only impersonation, audience size count fails to load with 403 impersonation_read_only.\nRoot cause: posthog/middleware.py:ImpersonationReadOnlyMiddleware blocks all non-idempotent HTTP methods before reaching viewsets, even for read-only actions that require POST for large payloads.\nFix pattern: Add an exact action path regex matching ^/api/(environments|projects)/([0-9]+|@current)/<prefix>/<action>/?$ to posthog/middleware.py:READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS.\nConstraints: Applies only to read-only POST endpoints that perform no state mutations; never allowlist an entire prefix because mutating sibling actions share the prefix.",
+  "applies": "Read-only POST endpoints blocked during impersonation in PostHog API",
+  "tags": [
+    "workflows",
+    "impersonation",
+    "middleware",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "posthog/middleware.py",
+      "symbol": "ImpersonationReadOnlyMiddleware",
+      "hash": "sha256:ccdd0eaadb0a2db2c25b82d4",
+      "line": 1975,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-10-07T00:21:20.404Z",
+  "verified": "2026-10-07T00:21:20.404Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "testing-read-only-impersonation-allowlist-entries-against-mu"
+  ]
+}

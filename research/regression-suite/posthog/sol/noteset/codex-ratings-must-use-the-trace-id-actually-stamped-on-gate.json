@@ -1,0 +1,82 @@
+{
+  "id": "codex-ratings-must-use-the-trace-id-actually-stamped-on-gate",
+  "title": "Codex ratings must use the trace ID actually stamped on gateway requests",
+  "kind": "rule",
+  "answers": [
+    "A Slack rating on a Codex answer points at nothing",
+    "Codex generations appear in separate traces",
+    "How should the agent-server resolve a turn's trace ID?",
+    "Can Claude use the run ID as its trace ID?"
+  ],
+  "body": "Symptom: A Slack rating on a Codex answer cannot open the turn, and each generation appears in a separate trace.\nRoot cause: Requests lacked a shared trace header and turn results lacked a matching fallback; these concerns are handled by products/desktop/packages/agent/src/server/agent-server.ts:AgentServer.configureEnvironment and AgentServer.turnTraceId.\nFix pattern: Stamp X-PostHog-Trace-Id with the Codex run ID, derive the fallback from the actual configured header, and propagate that same ID through rating-facing results and turn-complete events. Preserve an adapter-reported string trace ID.\nConstraints: Stamp only Codex runs with a taskRunId on the authenticated Go gateway path. Without AI_GATEWAY_TOKEN, the Python gateway fallback carries no stamp, so adapter type alone cannot justify a run-ID fallback. Reset the stored fallback on reinitialization. Never stamp Claude: this header outranks traceparent and would collapse its per-turn traces into one run trace.",
+  "applies": "Agent-server gateway configuration and trace IDs exposed to Slack ratings or turn-complete consumers.",
+  "tags": [
+    "codex",
+    "ai-observability",
+    "slack-ratings",
+    "gateway"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.configureEnvironment",
+      "hash": "sha256:e90e841c4ed221d8a372716f",
+      "line": 4675,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 46,
+        "refs": 50
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer.turnTraceId",
+      "hash": "sha256:c06c7476a4328f6677e69c62",
+      "line": 1573,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 12
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer",
+      "hash": "sha256:e88fcb2465755db6623064d5",
+      "line": 489,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 25,
+        "refs": 46
+      }
+    },
+    {
+      "path": "products/desktop/packages/agent/src/acp-extensions.ts",
+      "symbol": "withTurnTraceId",
+      "hash": "sha256:9e241da9ce47d4de1de99a74",
+      "line": 194,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105852"
+  },
+  "created": "2026-10-07T00:13:22.276Z",
+  "verified": "2026-10-07T00:13:22.276Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "enrich-acp-turn-complete-events-before-persistence-and-broad"
+  ]
+}

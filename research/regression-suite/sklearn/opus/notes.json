@@ -1,0 +1,1773 @@
+[
+  {
+    "id": "scikit-learn-35042",
+    "pr": 35042,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5857,
+    "elapsedMs": 14064,
+    "proposed": [
+      {
+        "title": "Experimental estimators gated by module __getattr__ must not be listed in __all__",
+        "kind": "rule",
+        "answers": [
+          "from sklearn.model_selection import * raises ImportError",
+          "star import of model_selection fails mentioning enable_halving_search_cv",
+          "should HalvingGridSearchCV be in __all__?",
+          "how to expose experimental estimator to type checkers without breaking import *"
+        ],
+        "body": "Symptom: `from sklearn.model_selection import *` raises ImportError asking to import `sklearn.experimental.enable_halving_search_cv`.\nRoot cause: sklearn/model_selection/__init__.py listed HalvingGridSearchCV/HalvingRandomSearchCV in `__all__`, but the module `__getattr__` raises ImportError for them until the experimental enabler is imported; `import *` resolves every name in `__all__`.\nFix pattern: keep experimental (enabler-gated) names OUT of `__all__`; for type checkers, import them only under `if typing.TYPE_CHECKING:` with `# noqa: F401` (the noqa is needed because the name is no longer referenced by `__all__`).\nConstraints: applies to any subpackage whose `__getattr__` guards experimental names (e.g. halving search, and similarly gated estimators); explicit access must still raise the guidance error, and the name must work after the `sklearn.experimental.enable_*` import. Remove the TYPE_CHECKING block only once the estimator leaves experimental.",
+        "applies": "sklearn public subpackage __init__.py files that expose experimental estimators via __getattr__",
+        "deps": [
+          {
+            "path": "sklearn/model_selection/__init__.py",
+            "symbol": "__all__"
+          },
+          {
+            "path": "sklearn/model_selection/__init__.py",
+            "symbol": "__getattr__"
+          }
+        ],
+        "tags": [
+          "experimental",
+          "__all__",
+          "star-import",
+          "model_selection",
+          "halving",
+          "type-checking"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Import-surface tests in test_common.py must run in a subprocess to avoid enable_* side effects",
+        "kind": "howto",
+        "answers": [
+          "why didn't test_import_all_consistency catch the import * failure",
+          "how to test wildcard import of sklearn modules",
+          "run python snippet in fresh interpreter in sklearn tests",
+          "test hidden by experimental enabler imported in test module"
+        ],
+        "body": "sklearn/tests/test_common.py imports `sklearn.experimental.enable_halving_search_cv` at module level, so in-process checks (e.g. `test_import_all_consistency`) cannot see failures that only happen when experimental estimators are not enabled.\n`test_wildcard_import_for_public_modules` builds a script of `from sklearn.<mod> import *` for every top-level public module (`pkgutil.iter_modules`, skipping `_`-prefixed, `tests`, `conftest`) and runs it with `sklearn.utils._testing.assert_run_python_script_without_output` in a fresh interpreter.\nThe script also asserts no `sklearn.experimental.*` submodule got imported as a side effect of the star imports.\nSubprocess tests must be marked `@pytest.mark.xfail(_IS_WASM, reason=\"cannot start subprocess\")` (`_IS_WASM` from sklearn/utils/fixes.py).\nWhen adding a new public subpackage or experimental gate, this test will catch `__all__` entries that raise on access.",
+        "applies": "sklearn/tests/test_common.py import/`__all__` consistency tests",
+        "deps": [
+          {
+            "path": "sklearn/tests/test_common.py",
+            "symbol": "test_wildcard_import_for_public_modules"
+          },
+          {
+            "path": "sklearn/utils/_testing.py",
+            "symbol": "assert_run_python_script_without_output"
+          },
+          {
+            "path": "sklearn/utils/fixes.py",
+            "symbol": "_IS_WASM"
+          }
+        ],
+        "tags": [
+          "testing",
+          "subprocess",
+          "star-import",
+          "experimental",
+          "wasm"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "experimental-estimators-gated-by-module-getattr-must-not-be",
+        "title": "Experimental estimators gated by module __getattr__ must not be listed in __all__",
+        "kind": "rule",
+        "body": "Symptom: `from sklearn.model_selection import *` raises ImportError asking to import `sklearn.experimental.enable_halving_search_cv`.\nRoot cause: sklearn/model_selection/__init__.py listed HalvingGridSearchCV/HalvingRandomSearchCV in `__all__`, but the module `__getattr__` raises ImportError for them until the experimental enabler is imported; `import *` resolves every name in `__all__`.\nFix pattern: keep experimental (enabler-gated) names OUT of `__all__`; for type checkers, import them only under `if typing.TYPE_CHECKING:` with `# noqa: F401` (the noqa is needed because the name is no longer referenced by `__all__`).\nConstraints: applies to any subpackage whose `__getattr__` guards experimental names (e.g. halving search, and similarly gated estimators); explicit access must still raise the guidance error, and the name must work after the `sklearn.experimental.enable_*` import. Remove the TYPE_CHECKING block only once the estimator leaves experimental.",
+        "deps": [
+          {
+            "path": "sklearn/model_selection/__init__.py",
+            "symbol": "__all__",
+            "hash": "sha256:c0a08e9337f20cbb33aa4816",
+            "line": 58,
+            "missing": false,
+            "fanout": {
+              "files": 130,
+              "sites": 0,
+              "refs": 182
+            }
+          },
+          {
+            "path": "sklearn/model_selection/__init__.py",
+            "symbol": "__getattr__",
+            "hash": "sha256:62cf16366742639f1663a774",
+            "line": 96,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 0,
+              "refs": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "import-surface-tests-in-test-common-py-must-run-in-a-subproc",
+        "title": "Import-surface tests in test_common.py must run in a subprocess to avoid enable_* side effects",
+        "kind": "howto",
+        "body": "sklearn/tests/test_common.py imports `sklearn.experimental.enable_halving_search_cv` at module level, so in-process checks (e.g. `test_import_all_consistency`) cannot see failures that only happen when experimental estimators are not enabled.\n`test_wildcard_import_for_public_modules` builds a script of `from sklearn.<mod> import *` for every top-level public module (`pkgutil.iter_modules`, skipping `_`-prefixed, `tests`, `conftest`) and runs it with `sklearn.utils._testing.assert_run_python_script_without_output` in a fresh interpreter.\nThe script also asserts no `sklearn.experimental.*` submodule got imported as a side effect of the star imports.\nSubprocess tests must be marked `@pytest.mark.xfail(_IS_WASM, reason=\"cannot start subprocess\")` (`_IS_WASM` from sklearn/utils/fixes.py).\nWhen adding a new public subpackage or experimental gate, this test will catch `__all__` entries that raise on access.",
+        "deps": [
+          {
+            "path": "sklearn/tests/test_common.py",
+            "symbol": "test_wildcard_import_for_public_modules",
+            "hash": "sha256:14907364e4101acd3c592992",
+            "line": 166,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/utils/_testing.py",
+            "symbol": "assert_run_python_script_without_output",
+            "hash": "sha256:376ab3fbdec073e333fb8051",
+            "line": 909,
+            "missing": false,
+            "fanout": {
+              "files": 8,
+              "sites": 12,
+              "refs": 20
+            }
+          },
+          {
+            "path": "sklearn/utils/fixes.py",
+            "symbol": "_IS_WASM",
+            "hash": "sha256:15f3173c2c15dc540ffbf3d7",
+            "line": 22,
+            "missing": false,
+            "fanout": {
+              "files": 13,
+              "sites": 0,
+              "refs": 25
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34965",
+    "pr": 34965,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6225,
+    "elapsedMs": 13722,
+    "proposed": [
+      {
+        "title": "accept_large_sparse=False breaks under sparse_interface=\"sparray\" because sparse arrays keep int64 indices",
+        "kind": "rule",
+        "answers": [
+          "SpectralEmbedding raises ValueError about 64-bit sparse indices with sparray",
+          "SpectralClustering fails under config_context(sparse_interface=\"sparray\")",
+          "when should I pass accept_large_sparse=False to check_array",
+          "kneighbors_graph returns int64 indices with csr_array"
+        ],
+        "body": "Symptom: SpectralEmbedding / SpectralClustering (default eigen_solver=\"arpack\") raised a ValueError about 64-bit sparse indices when fitted under config_context(sparse_interface=\"sparray\"), even on small data.\nRoot cause: sklearn/manifold/_spectral_embedding.py:_spectral_embedding called check_array(laplacian, accept_sparse=\"csr\", accept_large_sparse=False) in the arpack branch. scipy sparse arrays (csr_array, unlike csr_matrix) never downcast index dtype by content when built from (data, indices, indptr) (scipy/scipy#16774), so the kneighbors_graph output, 0.5*(A+A.T) and csgraph laplacian all carry int64 indices.\nFix pattern: drop accept_large_sparse=False (default True) when the consumer is pure scipy (eigsh, incl. shift-invert sigma=-1e-5, handles int64 indices), matching the amg/lobpcg branches of the same function.\nConstraints: keep accept_large_sparse=False only where the data goes into Cython/C code needing 32-bit index buffers (libsvm, liblinear, k-means _k_means_lloyd, coordinate descent, SGD per the PR); those estimators still reject int64-indexed sparray input by design. Any new accept_large_sparse=False guard should be checked against sparray input, since index size there doesn't track the data size.",
+        "applies": "Any check_array/validate_data call on sparse input that may come from scipy sparse arrays (sparse_interface=\"sparray\"), especially graph/kNN-derived matrices",
+        "deps": [
+          {
+            "path": "sklearn/manifold/_spectral_embedding.py",
+            "symbol": "_spectral_embedding"
+          }
+        ],
+        "tags": [
+          "sparse",
+          "sparray",
+          "scipy",
+          "check_array",
+          "accept_large_sparse",
+          "manifold",
+          "spectral"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing spmatrix vs sparray parity with config_context(sparse_interface=...)",
+        "kind": "howto",
+        "answers": [
+          "how to test an estimator with sparse arrays instead of sparse matrices",
+          "regression test for sparse_interface sparray",
+          "compare results between spmatrix and sparray backends"
+        ],
+        "body": "To check that an estimator behaves the same under both sparse backends, fit it twice inside `sklearn.config_context(sparse_interface=\"spmatrix\")` and `sklearn.config_context(sparse_interface=\"sparray\")` and compare outputs. Internal sparse objects (e.g. kneighbors_graph results) then follow the configured interface, which surfaces sparray-only issues like int64 indices.\nExample: sklearn/manifold/tests/test_spectral_embedding.py:test_spectral_embedding_sparse_interface_sparray uses make_blobs(n_samples=30), fixed random_state and eigen_tol, then compares with _assert_equal_with_sign_flipping(..., tol=1e-5) because eigenvectors are only defined up to sign.\nA bug fix needs a changelog fragment at doc/whats_new/upcoming_changes/<module>/<PR number>.fix.rst, named with the real PR number.",
+        "applies": "Writing non-regression tests for estimators that build or consume sparse data internally",
+        "deps": [
+          {
+            "path": "sklearn/manifold/tests/test_spectral_embedding.py",
+            "symbol": "test_spectral_embedding_sparse_interface_sparray"
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/sklearn.manifold/34965.fix.rst"
+          }
+        ],
+        "tags": [
+          "testing",
+          "sparse",
+          "sparray",
+          "config_context",
+          "changelog"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "accept-large-sparse-false-breaks-under-sparse-interface-spar",
+        "title": "accept_large_sparse=False breaks under sparse_interface=\"sparray\" because sparse arrays keep int64 indices",
+        "kind": "rule",
+        "body": "Symptom: SpectralEmbedding / SpectralClustering (default eigen_solver=\"arpack\") raised a ValueError about 64-bit sparse indices when fitted under config_context(sparse_interface=\"sparray\"), even on small data.\nRoot cause: sklearn/manifold/_spectral_embedding.py:_spectral_embedding called check_array(laplacian, accept_sparse=\"csr\", accept_large_sparse=False) in the arpack branch. scipy sparse arrays (csr_array, unlike csr_matrix) never downcast index dtype by content when built from (data, indices, indptr) (scipy/scipy#16774), so the kneighbors_graph output, 0.5*(A+A.T) and csgraph laplacian all carry int64 indices.\nFix pattern: drop accept_large_sparse=False (default True) when the consumer is pure scipy (eigsh, incl. shift-invert sigma=-1e-5, handles int64 indices), matching the amg/lobpcg branches of the same function.\nConstraints: keep accept_large_sparse=False only where the data goes into Cython/C code needing 32-bit index buffers (libsvm, liblinear, k-means _k_means_lloyd, coordinate descent, SGD per the PR); those estimators still reject int64-indexed sparray input by design. Any new accept_large_sparse=False guard should be checked against sparray input, since index size there doesn't track the data size.",
+        "deps": [
+          {
+            "path": "sklearn/manifold/_spectral_embedding.py",
+            "symbol": "_spectral_embedding",
+            "hash": "sha256:f922633f9c12853bdf78bd9d",
+            "line": 287,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 3,
+              "refs": 8
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-spmatrix-vs-sparray-parity-with-config-context-spars",
+        "title": "Testing spmatrix vs sparray parity with config_context(sparse_interface=...)",
+        "kind": "howto",
+        "body": "To check that an estimator behaves the same under both sparse backends, fit it twice inside `sklearn.config_context(sparse_interface=\"spmatrix\")` and `sklearn.config_context(sparse_interface=\"sparray\")` and compare outputs. Internal sparse objects (e.g. kneighbors_graph results) then follow the configured interface, which surfaces sparray-only issues like int64 indices.\nExample: sklearn/manifold/tests/test_spectral_embedding.py:test_spectral_embedding_sparse_interface_sparray uses make_blobs(n_samples=30), fixed random_state and eigen_tol, then compares with _assert_equal_with_sign_flipping(..., tol=1e-5) because eigenvectors are only defined up to sign.\nA bug fix needs a changelog fragment at doc/whats_new/upcoming_changes/<module>/<PR number>.fix.rst, named with the real PR number.",
+        "deps": [
+          {
+            "path": "sklearn/manifold/tests/test_spectral_embedding.py",
+            "symbol": "test_spectral_embedding_sparse_interface_sparray",
+            "hash": "sha256:7d3b34c4a434c7224b8f5f08",
+            "line": 551,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/sklearn.manifold/34965.fix.rst",
+            "hash": "sha256:9000df46742b05ef19aeaf26",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-35043",
+    "pr": 35043,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4174,
+    "elapsedMs": 10953,
+    "proposed": [
+      {
+        "title": "NewtonSolver line search: a stalled alpha must exit early, and success is tracked with an explicit ls_converged flag rather than for/else",
+        "kind": "rule",
+        "answers": [
+          "RuntimeWarning divide by zero in the newton-cholesky / newton-lsmr line search",
+          "LogisticRegression or PoissonRegressor with solver newton-cholesky warns 'divide by zero encountered'",
+          "how does the GLM Newton solver line search decide that it failed",
+          "adding a new break to the line search loop in _newton_solver.py"
+        ],
+        "body": "Symptom: fitting a GLM with a Newton solver (for example solver=\"newton-cholesky\") raises a numpy \"divide by zero\" RuntimeWarning along with the usual \"Line search of Newton solver ... did not converge\" warning.\nRoot cause: in sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver.line_search, alpha is clamped by `max(alpha_trial, min_step_reduction * alpha, min_step_length)`. Once alpha reaches min_step_length, alpha == alpha_old, so the next iteration's interpolation divides by a denominator of 0 (denom = 0). This bug came from #34157.\nFix pattern: break out of the loop as soon as `alpha == alpha_old` after the update. Because a `break` no longer means success, the `for ... else:` warning was replaced: a local `ls_converged = False` is set to True just before each success `break` (the Armijo check, the tiny gradient check and the machine-precision checks), and the code after the loop runs `if not ls_converged: warnings.warn(...)`.\nConstraints: any new exit from this loop must say whether it is a success (set ls_converged = True) or a failure (leave it False). Do not go back to for/else, which would treat the stall break as convergence. The early exit only removes the bad division. The line search still fails and warns in that case.",
+        "applies": "sklearn/linear_model/_glm/_newton_solver.py NewtonSolver line search loop (newton-cholesky and other NewtonSolver subclasses)",
+        "deps": [
+          {
+            "path": "sklearn/linear_model/_glm/_newton_solver.py",
+            "symbol": "NewtonSolver.line_search"
+          }
+        ],
+        "tags": [
+          "linear_model",
+          "glm",
+          "newton-solver",
+          "line-search",
+          "numerical-stability",
+          "warnings"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "newtonsolver-line-search-a-stalled-alpha-must-exit-early-and",
+        "title": "NewtonSolver line search: a stalled alpha must exit early, and success is tracked with an explicit ls_converged flag rather than for/else",
+        "kind": "rule",
+        "body": "Symptom: fitting a GLM with a Newton solver (for example solver=\"newton-cholesky\") raises a numpy \"divide by zero\" RuntimeWarning along with the usual \"Line search of Newton solver ... did not converge\" warning.\nRoot cause: in sklearn/linear_model/_glm/_newton_solver.py:NewtonSolver.line_search, alpha is clamped by `max(alpha_trial, min_step_reduction * alpha, min_step_length)`. Once alpha reaches min_step_length, alpha == alpha_old, so the next iteration's interpolation divides by a denominator of 0 (denom = 0). This bug came from #34157.\nFix pattern: break out of the loop as soon as `alpha == alpha_old` after the update. Because a `break` no longer means success, the `for ... else:` warning was replaced: a local `ls_converged = False` is set to True just before each success `break` (the Armijo check, the tiny gradient check and the machine-precision checks), and the code after the loop runs `if not ls_converged: warnings.warn(...)`.\nConstraints: any new exit from this loop must say whether it is a success (set ls_converged = True) or a failure (leave it False). Do not go back to for/else, which would treat the stall break as convergence. The early exit only removes the bad division. The line search still fails and warns in that case.",
+        "deps": [
+          {
+            "path": "sklearn/linear_model/_glm/_newton_solver.py",
+            "symbol": "NewtonSolver.line_search",
+            "hash": "sha256:3e62aa8d7a7a6750383346a1",
+            "line": 318,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 5,
+              "refs": 14
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34513",
+    "pr": 34513,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5403,
+    "elapsedMs": 9056,
+    "proposed": [
+      {
+        "title": "Skipping check_array with validate_data(skip_check_array=True) also skips the finite check, so add it back explicitly",
+        "kind": "rule",
+        "answers": [
+          "SelectKBest transform accepts inf with set_output(transform='pandas')",
+          "why does transform not reject NaN/inf when the input is a DataFrame?",
+          "feature selector pandas output skips validation",
+          "validate_data skip_check_array ensure_all_finite ignored"
+        ],
+        "body": "Symptom: with `set_output(transform=\"pandas\")` and a DataFrame input, feature selectors like SelectKBest let inf (and NaN) through `transform`. The same input as a numpy array raises \"Input X contains infinity/NaN\".\nRoot cause: sklearn/feature_selection/_base.py:SelectorMixin.transform keeps the DataFrame as-is (`preserve_X`) by passing `skip_check_array=preserve_X` to `validate_data`. That skips check_array completely, so `ensure_all_finite` has no effect.\nFix pattern: after `validate_data(..., skip_check_array=True)`, call `assert_all_finite(X, input_name=\"X\")` (from sklearn.utils.validation) yourself when the estimator does not allow NaN. Read the `get_tags(self).input_tags.allow_nan` tag once and use it for both checks.\nConstraints: allow_nan=True turns off the whole finite check on both the numpy and the pandas paths, so inf passes too (VarianceThreshold, the only built-in selector that allows NaN, passes NaN and inf). Any other transformer that uses skip_check_array to keep the container type needs the same explicit check. SelectorMixin is a public mixin, so read tags with get_tags rather than __sklearn_tags__.",
+        "applies": "sklearn/feature_selection SelectorMixin and any estimator that calls validate_data with skip_check_array=True",
+        "deps": [
+          {
+            "path": "sklearn/feature_selection/_base.py",
+            "symbol": "SelectorMixin.transform"
+          },
+          {
+            "path": "sklearn/feature_selection/tests/test_base.py",
+            "symbol": "test_transform_dataframe_non_finite"
+          },
+          {
+            "path": "sklearn/feature_selection/tests/test_variance_threshold.py",
+            "symbol": "test_transform_dataframe_allow_nan"
+          }
+        ],
+        "tags": [
+          "validation",
+          "pandas-output",
+          "set_output",
+          "non-finite",
+          "feature_selection"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "skipping-check-array-with-validate-data-skip-check-array-tru",
+        "title": "Skipping check_array with validate_data(skip_check_array=True) also skips the finite check, so add it back explicitly",
+        "kind": "rule",
+        "body": "Symptom: with `set_output(transform=\"pandas\")` and a DataFrame input, feature selectors like SelectKBest let inf (and NaN) through `transform`. The same input as a numpy array raises \"Input X contains infinity/NaN\".\nRoot cause: sklearn/feature_selection/_base.py:SelectorMixin.transform keeps the DataFrame as-is (`preserve_X`) by passing `skip_check_array=preserve_X` to `validate_data`. That skips check_array completely, so `ensure_all_finite` has no effect.\nFix pattern: after `validate_data(..., skip_check_array=True)`, call `assert_all_finite(X, input_name=\"X\")` (from sklearn.utils.validation) yourself when the estimator does not allow NaN. Read the `get_tags(self).input_tags.allow_nan` tag once and use it for both checks.\nConstraints: allow_nan=True turns off the whole finite check on both the numpy and the pandas paths, so inf passes too (VarianceThreshold, the only built-in selector that allows NaN, passes NaN and inf). Any other transformer that uses skip_check_array to keep the container type needs the same explicit check. SelectorMixin is a public mixin, so read tags with get_tags rather than __sklearn_tags__.",
+        "deps": [
+          {
+            "path": "sklearn/feature_selection/_base.py",
+            "symbol": "SelectorMixin.transform",
+            "hash": "sha256:e9df1007b37e30f0b1ba9227",
+            "line": 90,
+            "missing": false,
+            "fanout": {
+              "files": 217,
+              "sites": 1010,
+              "refs": 1875
+            }
+          },
+          {
+            "path": "sklearn/feature_selection/tests/test_base.py",
+            "symbol": "test_transform_dataframe_non_finite",
+            "hash": "sha256:6fd2a5b72be9f1cdf32bb6be",
+            "line": 157,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/feature_selection/tests/test_variance_threshold.py",
+            "symbol": "test_transform_dataframe_allow_nan",
+            "hash": "sha256:5c6819c3135cc3efdbe4fd84",
+            "line": 75,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34959",
+    "pr": 34959,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4140,
+    "elapsedMs": 8193,
+    "proposed": [
+      {
+        "title": "_weighted_percentile: read weights from sorted_weights (NaN weights zeroed), not raw sample_weight",
+        "kind": "rule",
+        "answers": [
+          "_weighted_percentile returns nan with average=True when the data contains NaNs",
+          "weighted median / percentile 100 gives nan even though NaNs should be ignored",
+          "why does _weighted_percentile use sorted_weights instead of sample_weight"
+        ],
+        "body": "Symptom: `_weighted_percentile(..., average=True)` on an array with NaNs returns nan at percentile_rank=100. NaNs are supposed to be ignored.\nRoot cause: sklearn/utils/stats.py:_weighted_percentile ignores NaNs by setting their weight to 0 on the sorted copy `sorted_weights`. The average=True branch that looks for a zero-weight 'plus one' neighbour indexed the original `sample_weight`, where the NaN still has its nonzero weight. NaNs sort last, so only the top percentile could land on one.\nFix pattern: after sorting and masking NaNs, take every weight lookup from `sorted_weights[sorted_idx, col_indices]`. Never index back into the unsorted `sample_weight` with sorted indices.\nConstraints: this applies to any new branch added to _weighted_percentile, whether average or not. NaN bugs only appear at the extreme rank (100), so tests must parametrize percentile_rank to include 0 and 100, not only a middle value. The nan-filtered test in sklearn/utils/tests/test_stats.py:test_weighted_percentile_nan_filtered compares against the same call on NaN-filtered input.",
+        "applies": "sklearn/utils/stats.py _weighted_percentile, NaN handling and average=True interpolation",
+        "deps": [
+          {
+            "path": "sklearn/utils/stats.py",
+            "symbol": "_weighted_percentile"
+          },
+          {
+            "path": "sklearn/utils/tests/test_stats.py",
+            "symbol": "test_weighted_percentile_nan_filtered"
+          }
+        ],
+        "tags": [
+          "weighted_percentile",
+          "nan",
+          "sample_weight",
+          "percentile",
+          "stats"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "weighted-percentile-read-weights-from-sorted-weights-nan-wei",
+        "title": "_weighted_percentile: read weights from sorted_weights (NaN weights zeroed), not raw sample_weight",
+        "kind": "rule",
+        "body": "Symptom: `_weighted_percentile(..., average=True)` on an array with NaNs returns nan at percentile_rank=100. NaNs are supposed to be ignored.\nRoot cause: sklearn/utils/stats.py:_weighted_percentile ignores NaNs by setting their weight to 0 on the sorted copy `sorted_weights`. The average=True branch that looks for a zero-weight 'plus one' neighbour indexed the original `sample_weight`, where the NaN still has its nonzero weight. NaNs sort last, so only the top percentile could land on one.\nFix pattern: after sorting and masking NaNs, take every weight lookup from `sorted_weights[sorted_idx, col_indices]`. Never index back into the unsorted `sample_weight` with sorted indices.\nConstraints: this applies to any new branch added to _weighted_percentile, whether average or not. NaN bugs only appear at the extreme rank (100), so tests must parametrize percentile_rank to include 0 and 100, not only a middle value. The nan-filtered test in sklearn/utils/tests/test_stats.py:test_weighted_percentile_nan_filtered compares against the same call on NaN-filtered input.",
+        "deps": [
+          {
+            "path": "sklearn/utils/stats.py",
+            "symbol": "_weighted_percentile",
+            "hash": "sha256:9fe14945e412bec99fec41aa",
+            "line": 41,
+            "missing": false,
+            "fanout": {
+              "files": 12,
+              "sites": 46,
+              "refs": 68
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_stats.py",
+            "symbol": "test_weighted_percentile_nan_filtered",
+            "hash": "sha256:2c5e66137763f5fff5c14d58",
+            "line": 366,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34837",
+    "pr": 34837,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4865,
+    "elapsedMs": 12287,
+    "proposed": [
+      {
+        "title": "Never pass bound methods to a cache in callback dispatch; cache by the underlying function",
+        "kind": "rule",
+        "answers": [
+          "callback objects are never garbage collected after fit",
+          "ScoringMonitor listener / threads stay alive after the callback is deleted",
+          "memory leak in sklearn callbacks signature cache",
+          "why does _cached_signature use __func__"
+        ],
+        "body": "Symptom: callbacks such as ScoringMonitor, and the listeners, message consumers and threads they own, stay alive after the user drops them, but only once an estimator has called fit with them.\nRoot cause: sklearn/callback/_callback_context.py:CallbackContext called _cached_signature(getattr(callback, hook_name)). A bound method holds a strong reference to its instance, so the cache kept every callback instance alive and grew by one entry per instance, not per class.\nFix pattern: unwrap before caching with `_cached_signature(getattr(hook, \"__func__\", hook))`. That gives one entry per class and no instance reference. Keep calling the bound `hook(estimator, self, **args)` for the real call.\nConstraints: this applies to any memoization (functools cache/lru_cache, dicts) keyed on objects derived from callback instances. Plain functions without __func__ fall back to the hook itself. Releasing callback resources on GC (e.g. sklearn/callback/_transport listeners) depends on there being no hidden strong references.",
+        "applies": "sklearn/callback hook dispatch and any caching keyed on callback instances or their bound methods",
+        "deps": [
+          {
+            "path": "sklearn/callback/_callback_context.py",
+            "symbol": "CallbackContext"
+          },
+          {
+            "path": "sklearn/callback/_callback_context.py",
+            "symbol": "_cached_signature"
+          }
+        ],
+        "tags": [
+          "callbacks",
+          "memory-leak",
+          "caching",
+          "weakref",
+          "gc"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing that callback resources are freed on GC: call fit first, then gc.collect",
+        "kind": "howto",
+        "answers": [
+          "how to test that a callback's listener is closed when garbage collected",
+          "test_scoring_monitor_listener_closed_on_gc passes but leak still exists",
+          "check _listeners and _message_consumers cleanup in tests"
+        ],
+        "body": "When a test checks that a callback releases its resources on deletion, run the callback through a real fit first, e.g. `MaxIterEstimator().set_callbacks(callback).fit()`. Hook-signature caching and the other code paths that can hold references only run during fit. Without fit, the test passes even when there is a leak.\nThen do `del callback; gc.collect()` before asserting that the listener address is gone from sklearn/callback/_transport `_listeners` and `_message_consumers`.\nThe reference test is sklearn/callback/tests/test_scoring_monitor.py:test_scoring_monitor_listener_closed_on_gc. The test estimators live in sklearn/callback/tests/_common/estimators.py (MaxIterEstimator, MetaEstimator).",
+        "applies": "Tests in sklearn/callback/tests asserting cleanup of callback-owned resources",
+        "deps": [
+          {
+            "path": "sklearn/callback/tests/test_scoring_monitor.py",
+            "symbol": "test_scoring_monitor_listener_closed_on_gc"
+          },
+          {
+            "path": "sklearn/callback/tests/_common/estimators.py",
+            "symbol": "MaxIterEstimator"
+          }
+        ],
+        "tags": [
+          "callbacks",
+          "testing",
+          "gc",
+          "ScoringMonitor"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "never-pass-bound-methods-to-a-cache-in-callback-dispatch-cac",
+        "title": "Never pass bound methods to a cache in callback dispatch; cache by the underlying function",
+        "kind": "rule",
+        "body": "Symptom: callbacks such as ScoringMonitor, and the listeners, message consumers and threads they own, stay alive after the user drops them, but only once an estimator has called fit with them.\nRoot cause: sklearn/callback/_callback_context.py:CallbackContext called _cached_signature(getattr(callback, hook_name)). A bound method holds a strong reference to its instance, so the cache kept every callback instance alive and grew by one entry per instance, not per class.\nFix pattern: unwrap before caching with `_cached_signature(getattr(hook, \"__func__\", hook))`. That gives one entry per class and no instance reference. Keep calling the bound `hook(estimator, self, **args)` for the real call.\nConstraints: this applies to any memoization (functools cache/lru_cache, dicts) keyed on objects derived from callback instances. Plain functions without __func__ fall back to the hook itself. Releasing callback resources on GC (e.g. sklearn/callback/_transport listeners) depends on there being no hidden strong references.",
+        "deps": [
+          {
+            "path": "sklearn/callback/_callback_context.py",
+            "symbol": "CallbackContext",
+            "hash": "sha256:2f1ebde4457d1e590fe44998",
+            "line": 17,
+            "missing": false,
+            "fanout": {
+              "files": 10,
+              "sites": 1,
+              "refs": 26
+            }
+          },
+          {
+            "path": "sklearn/callback/_callback_context.py",
+            "symbol": "_cached_signature",
+            "hash": "sha256:14b2292457356a28c2677068",
+            "line": 14,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-that-callback-resources-are-freed-on-gc-call-fit-fir",
+        "title": "Testing that callback resources are freed on GC: call fit first, then gc.collect",
+        "kind": "howto",
+        "body": "When a test checks that a callback releases its resources on deletion, run the callback through a real fit first, e.g. `MaxIterEstimator().set_callbacks(callback).fit()`. Hook-signature caching and the other code paths that can hold references only run during fit. Without fit, the test passes even when there is a leak.\nThen do `del callback; gc.collect()` before asserting that the listener address is gone from sklearn/callback/_transport `_listeners` and `_message_consumers`.\nThe reference test is sklearn/callback/tests/test_scoring_monitor.py:test_scoring_monitor_listener_closed_on_gc. The test estimators live in sklearn/callback/tests/_common/estimators.py (MaxIterEstimator, MetaEstimator).",
+        "deps": [
+          {
+            "path": "sklearn/callback/tests/test_scoring_monitor.py",
+            "symbol": "test_scoring_monitor_listener_closed_on_gc",
+            "hash": "sha256:dee5ef7b0d6a297bfecb961a",
+            "line": 412,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/callback/tests/_common/estimators.py",
+            "symbol": "MaxIterEstimator",
+            "hash": "sha256:3c7b45a4972d50f5457d931c",
+            "line": 15,
+            "missing": false,
+            "fanout": {
+              "files": 8,
+              "sites": 57,
+              "refs": 85
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34779",
+    "pr": 34779,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6062,
+    "elapsedMs": 12728,
+    "proposed": [
+      {
+        "title": "move_to must convert non-ndarray containers (pandas Series, lists) to numpy before dlpack transfer",
+        "kind": "rule",
+        "answers": [
+          "classification metric fails with pandas Series y_true and torch/array_api_strict y_pred under array_api_dispatch",
+          "move_to dlpack error with pandas Series",
+          "pandas categorical labels break array API metrics on another device",
+          "mixed pandas and array API inputs to accuracy_score/f1_score"
+        ],
+        "body": "Symptom: with array_api_dispatch=True, classification metrics raised errors when y_true was a pandas Series (int or categorical) and y_pred/y_prob came from another namespace or device (e.g. torch, array_api_strict device1).\nRoot cause: sklearn/utils/_array_api.py:move_to. get_namespace reports the numpy namespace for pandas Series and lists, but those objects do not support the dlpack protocol, so the cross-namespace transfer failed.\nFix pattern: in move_to, when the source namespace is numpy, the target is not numpy, and the object is not a numpy.ndarray, call numpy.asarray(array) before the dlpack transfer. The torch negative-stride workaround (numpy.ascontiguousarray) runs after this step, so it also applies to the converted array.\nConstraints: the conversion happens only when the target namespace is not numpy. A transfer from numpy to numpy keeps the original container. Any new cross-namespace helper must also normalise array-likes to ndarray before it uses __dlpack__.",
+        "applies": "sklearn/utils/_array_api.py move_to and any metric/estimator receiving pandas or list inputs alongside array API arrays",
+        "deps": [
+          {
+            "path": "sklearn/utils/_array_api.py",
+            "symbol": "move_to"
+          }
+        ],
+        "tags": [
+          "array-api",
+          "pandas",
+          "dlpack",
+          "metrics",
+          "move_to"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Testing classification metrics with mixed pandas/numpy labels and array API predictions",
+        "kind": "howto",
+        "answers": [
+          "how to test array API metric with pandas input",
+          "test mixed namespace inputs for classification metrics",
+          "where are array API classification metric tests"
+        ],
+        "body": "sklearn/metrics/tests/test_common.py has two tests for mixed inputs. test_array_api_mixed_pandas_integer_input checks a pandas int64 y_true against array_api_strict y_pred on device1. test_array_api_classification_mixed_string_numeric_input is parametrized by label_type 'string'/'categorical' and checks a numpy str or pandas category y_true against y_prob from any namespace.\nBoth tests parametrize over CLASSIFICATION_METRICS.keys() - (METRIC_UNDEFINED_BINARY | METRICS_NOT_SUPPORTING_ARRAY_API). They pass pos_label=1 for metrics in METRICS_WITH_POS_LABEL.\nPattern: compute the metric once under config_context(array_api_dispatch=True) with the mixed inputs. Compute it again with dispatch disabled, after move_to(y_pred, xp=np, device='cpu'). Compare the two results with _check_output.\nUse _array_api_for_tests('array_api_strict', 'device1', 'float64') to get a non-default device without a GPU. Use pytest.importorskip('pandas') to guard tests that need pandas.",
+        "applies": "array API tests for sklearn classification metrics",
+        "deps": [
+          {
+            "path": "sklearn/metrics/tests/test_common.py",
+            "symbol": "test_array_api_mixed_pandas_integer_input"
+          },
+          {
+            "path": "sklearn/metrics/tests/test_common.py",
+            "symbol": "test_array_api_classification_mixed_string_numeric_input"
+          }
+        ],
+        "tags": [
+          "array-api",
+          "testing",
+          "metrics",
+          "pandas"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "move-to-must-convert-non-ndarray-containers-pandas-series-li",
+        "title": "move_to must convert non-ndarray containers (pandas Series, lists) to numpy before dlpack transfer",
+        "kind": "rule",
+        "body": "Symptom: with array_api_dispatch=True, classification metrics raised errors when y_true was a pandas Series (int or categorical) and y_pred/y_prob came from another namespace or device (e.g. torch, array_api_strict device1).\nRoot cause: sklearn/utils/_array_api.py:move_to. get_namespace reports the numpy namespace for pandas Series and lists, but those objects do not support the dlpack protocol, so the cross-namespace transfer failed.\nFix pattern: in move_to, when the source namespace is numpy, the target is not numpy, and the object is not a numpy.ndarray, call numpy.asarray(array) before the dlpack transfer. The torch negative-stride workaround (numpy.ascontiguousarray) runs after this step, so it also applies to the converted array.\nConstraints: the conversion happens only when the target namespace is not numpy. A transfer from numpy to numpy keeps the original container. Any new cross-namespace helper must also normalise array-likes to ndarray before it uses __dlpack__.",
+        "deps": [
+          {
+            "path": "sklearn/utils/_array_api.py",
+            "symbol": "move_to",
+            "hash": "sha256:896ec9ad3f9301295c44793d",
+            "line": 523,
+            "missing": false,
+            "fanout": {
+              "files": 49,
+              "sites": 183,
+              "refs": 234
+            }
+          }
+        ]
+      },
+      {
+        "id": "testing-classification-metrics-with-mixed-pandas-numpy-label",
+        "title": "Testing classification metrics with mixed pandas/numpy labels and array API predictions",
+        "kind": "howto",
+        "body": "sklearn/metrics/tests/test_common.py has two tests for mixed inputs. test_array_api_mixed_pandas_integer_input checks a pandas int64 y_true against array_api_strict y_pred on device1. test_array_api_classification_mixed_string_numeric_input is parametrized by label_type 'string'/'categorical' and checks a numpy str or pandas category y_true against y_prob from any namespace.\nBoth tests parametrize over CLASSIFICATION_METRICS.keys() - (METRIC_UNDEFINED_BINARY | METRICS_NOT_SUPPORTING_ARRAY_API). They pass pos_label=1 for metrics in METRICS_WITH_POS_LABEL.\nPattern: compute the metric once under config_context(array_api_dispatch=True) with the mixed inputs. Compute it again with dispatch disabled, after move_to(y_pred, xp=np, device='cpu'). Compare the two results with _check_output.\nUse _array_api_for_tests('array_api_strict', 'device1', 'float64') to get a non-default device without a GPU. Use pytest.importorskip('pandas') to guard tests that need pandas.",
+        "deps": [
+          {
+            "path": "sklearn/metrics/tests/test_common.py",
+            "symbol": "test_array_api_mixed_pandas_integer_input",
+            "hash": "sha256:ec69df99775e9027805dd424",
+            "line": 2853,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/metrics/tests/test_common.py",
+            "symbol": "test_array_api_classification_mixed_string_numeric_input",
+            "hash": "sha256:490e15c4e1fb0966ab3d9c54",
+            "line": 2888,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34746",
+    "pr": 34746,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 3494,
+    "elapsedMs": 9242,
+    "proposed": [
+      {
+        "title": "ProgressBar time column: use rich task.finished_time, not task.elapsed, for finished tasks",
+        "kind": "rule",
+        "answers": [
+          "progress bar timer keeps running after bar is full",
+          "finished sub-estimator bar elapsed time keeps increasing in meta-estimator",
+          "ProgressBar max_propagation_depth timers wrong for completed tasks",
+          "which rich Task attribute gives frozen elapsed time"
+        ],
+        "body": "Symptom: when you use the ProgressBar callback with max_propagation_depth > 0 on a meta-estimator, bars that are already full keep counting up their elapsed time while later sibling bars fill.\nRoot cause: sklearn/callback/_progressbar.py:render (the custom rich time column with `elapsed_when_finished`) read `task.elapsed`. A rich Task counts as `finished` once completed reaches total, but `elapsed` keeps measuring against the current clock until the task is explicitly stopped.\nFix pattern: for finished tasks, display `task.finished_time`. Rich freezes this value when the task completes. Unfinished tasks still show `task.time_remaining`.\nConstraints: this applies to any rich column or rendering code in the callback module that shows a duration for a completed task. Don't depend on `task.elapsed` being frozen unless the code calls `stop_task` explicitly.",
+        "applies": "sklearn/callback/_progressbar.py rich-based progress rendering",
+        "deps": [
+          {
+            "path": "sklearn/callback/_progressbar.py",
+            "symbol": "render"
+          }
+        ],
+        "tags": [
+          "callback",
+          "progressbar",
+          "rich",
+          "meta-estimator",
+          "timer"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "progressbar-time-column-use-rich-task-finished-time-not-task",
+        "title": "ProgressBar time column: use rich task.finished_time, not task.elapsed, for finished tasks",
+        "kind": "rule",
+        "body": "Symptom: when you use the ProgressBar callback with max_propagation_depth > 0 on a meta-estimator, bars that are already full keep counting up their elapsed time while later sibling bars fill.\nRoot cause: sklearn/callback/_progressbar.py:render (the custom rich time column with `elapsed_when_finished`) read `task.elapsed`. A rich Task counts as `finished` once completed reaches total, but `elapsed` keeps measuring against the current clock until the task is explicitly stopped.\nFix pattern: for finished tasks, display `task.finished_time`. Rich freezes this value when the task completes. Unfinished tasks still show `task.time_remaining`.\nConstraints: this applies to any rich column or rendering code in the callback module that shows a duration for a completed task. Don't depend on `task.elapsed` being frozen unless the code calls `stop_task` explicitly.",
+        "deps": [
+          {
+            "path": "sklearn/callback/_progressbar.py",
+            "symbol": "render",
+            "hash": "sha256:ca341a0079b1a5779996ecc5",
+            "line": 125,
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34475",
+    "pr": 34475,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 9695,
+    "elapsedMs": 19936,
+    "proposed": [
+      {
+        "title": "Array API mixed inputs: encode y to integer codes, then move it to X's namespace/device (\"everything follows X\")",
+        "kind": "rule",
+        "answers": [
+          "LinearDiscriminantAnalysis fails when y is on a different device than X",
+          "how to support string labels with array API inputs in a classifier",
+          "check_array_api_mixed_inputs xfail, how do I make an estimator pass it",
+          "y from numpy, X from torch cuda raises an error in fit"
+        ],
+        "body": "Symptom: with array_api_dispatch on, fitting a classifier whose `y` comes from a different namespace/device than `X` (e.g. numpy `y`, torch-GPU `X`), or whose `y` holds string labels, raises an error.\nRoot cause: fit code compared or used `y` directly against arrays in X's namespace (e.g. `xp.unique_counts(y)`, `X[y == group]`). Strings can't be represented in any array API namespace.\nFix pattern (sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit): `self.classes_ = unique_labels(y)` on the original `y`, then `y_encoded = move_to(_encode(y, uniques=self.classes_), xp=xp, device=array_device(X))`. Downstream code uses only `y_encoded` (integer codes that index `classes_`). `classes_` stays in y's namespace/device.\nConstraints: any later step that uses `classes_` together with X-side arrays has to move it explicitly first. When an estimator gains this support, delete its `check_array_api_mixed_inputs` / `check_array_api_string_and_numeric_inputs` entries from `PER_ESTIMATOR_XFAIL_CHECKS` in sklearn/utils/_test_common/instance_generator.py so the common checks actually run. Add changelog fragments under doc/whats_new/upcoming_changes/array-api/.",
+        "applies": "Classifiers in sklearn that are adding array API support for mixed namespace/device or string targets",
+        "deps": [
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis.fit"
+          },
+          {
+            "path": "sklearn/utils/_test_common/instance_generator.py",
+            "symbol": "PER_ESTIMATOR_XFAIL_CHECKS"
+          },
+          {
+            "path": "sklearn/utils/_array_api.py",
+            "symbol": "move_to"
+          },
+          {
+            "path": "sklearn/utils/_encode.py",
+            "symbol": "_encode"
+          }
+        ],
+        "tags": [
+          "array-api",
+          "device",
+          "mixed-inputs",
+          "string-labels",
+          "classes_",
+          "xfail"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "LDA internal helpers take pre-encoded y_encoded plus n_classes and must not recompute uniques",
+        "kind": "rule",
+        "answers": [
+          "what does _class_means expect for y",
+          "LDA solver signature y_encoded n_classes",
+          "why does _class_cov take n_classes",
+          "LDA means_/priors_ order mismatch with classes_"
+        ],
+        "body": "Invariant: in sklearn/discriminant_analysis.py, `_class_means(X, y_encoded, *, n_classes)` and `_class_cov(X, y_encoded, priors, ..., *, n_classes)` take integer codes that index `self.classes_`. The same goes for `LinearDiscriminantAnalysis._solve_lstsq`, `_solve_eigen` and `_solve_svd`. Row `i` of `means_` and `priors_[i]` belong to code `i`.\nThe helpers loop over `range(n_classes)` with `y_encoded == idx`. The numpy path uses `np.bincount(y_encoded, minlength=n_classes)` and `np.add.at`. They must not call `unique`/`unique_inverse` on y again. That extra pass was the redundant work this change removed, and raw labels can be strings or live on another device.\nn_classes comes from `self.classes_.shape[0]`. `fit` sets `classes_` and computes priors via `xp.unique_counts(y_encoded)` before it dispatches to a solver, so any new solver or helper must keep that order and pass `y_encoded`, never the raw `y`.",
+        "applies": "sklearn/discriminant_analysis.py LDA fit/solver code",
+        "deps": [
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "_class_means"
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "_class_cov"
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis._solve_svd"
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis.fit"
+          }
+        ],
+        "tags": [
+          "discriminant_analysis",
+          "LDA",
+          "encoding",
+          "performance"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "array-api-mixed-inputs-encode-y-to-integer-codes-then-move-i",
+        "title": "Array API mixed inputs: encode y to integer codes, then move it to X's namespace/device (\"everything follows X\")",
+        "kind": "rule",
+        "body": "Symptom: with array_api_dispatch on, fitting a classifier whose `y` comes from a different namespace/device than `X` (e.g. numpy `y`, torch-GPU `X`), or whose `y` holds string labels, raises an error.\nRoot cause: fit code compared or used `y` directly against arrays in X's namespace (e.g. `xp.unique_counts(y)`, `X[y == group]`). Strings can't be represented in any array API namespace.\nFix pattern (sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit): `self.classes_ = unique_labels(y)` on the original `y`, then `y_encoded = move_to(_encode(y, uniques=self.classes_), xp=xp, device=array_device(X))`. Downstream code uses only `y_encoded` (integer codes that index `classes_`). `classes_` stays in y's namespace/device.\nConstraints: any later step that uses `classes_` together with X-side arrays has to move it explicitly first. When an estimator gains this support, delete its `check_array_api_mixed_inputs` / `check_array_api_string_and_numeric_inputs` entries from `PER_ESTIMATOR_XFAIL_CHECKS` in sklearn/utils/_test_common/instance_generator.py so the common checks actually run. Add changelog fragments under doc/whats_new/upcoming_changes/array-api/.",
+        "deps": [
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis.fit",
+            "hash": "sha256:7e99491781076cb52c11e871",
+            "line": 651,
+            "missing": false
+          },
+          {
+            "path": "sklearn/utils/_test_common/instance_generator.py",
+            "hash": "sha256:2c1a38403496460a81abbd58",
+            "missing": false
+          },
+          {
+            "path": "sklearn/utils/_array_api.py",
+            "symbol": "move_to",
+            "hash": "sha256:896ec9ad3f9301295c44793d",
+            "line": 523,
+            "missing": false,
+            "fanout": {
+              "files": 49,
+              "sites": 183,
+              "refs": 234
+            }
+          },
+          {
+            "path": "sklearn/utils/_encode.py",
+            "symbol": "_encode",
+            "hash": "sha256:646366c43d745af5d5cc12ed",
+            "line": 254,
+            "missing": false,
+            "fanout": {
+              "files": 7,
+              "sites": 13,
+              "refs": 23
+            }
+          }
+        ]
+      },
+      {
+        "id": "lda-internal-helpers-take-pre-encoded-y-encoded-plus-n-class",
+        "title": "LDA internal helpers take pre-encoded y_encoded plus n_classes and must not recompute uniques",
+        "kind": "rule",
+        "body": "Invariant: in sklearn/discriminant_analysis.py, `_class_means(X, y_encoded, *, n_classes)` and `_class_cov(X, y_encoded, priors, ..., *, n_classes)` take integer codes that index `self.classes_`. The same goes for `LinearDiscriminantAnalysis._solve_lstsq`, `_solve_eigen` and `_solve_svd`. Row `i` of `means_` and `priors_[i]` belong to code `i`.\nThe helpers loop over `range(n_classes)` with `y_encoded == idx`. The numpy path uses `np.bincount(y_encoded, minlength=n_classes)` and `np.add.at`. They must not call `unique`/`unique_inverse` on y again. That extra pass was the redundant work this change removed, and raw labels can be strings or live on another device.\nn_classes comes from `self.classes_.shape[0]`. `fit` sets `classes_` and computes priors via `xp.unique_counts(y_encoded)` before it dispatches to a solver, so any new solver or helper must keep that order and pass `y_encoded`, never the raw `y`.",
+        "deps": [
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "_class_means",
+            "hash": "sha256:8c550af8088936df2fc13a58",
+            "line": 98,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "_class_cov",
+            "hash": "sha256:58102af9641539ab4b519d60",
+            "line": 132,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis._solve_svd",
+            "hash": "sha256:a50d7cf59d3adccaaa7a37a5",
+            "line": 569,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 3,
+              "refs": 5
+            }
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis.fit",
+            "hash": "sha256:7e99491781076cb52c11e871",
+            "line": 651,
+            "missing": false
+          },
+          {
+            "path": "sklearn/discriminant_analysis.py",
+            "symbol": "LinearDiscriminantAnalysis._solve_lstsq",
+            "hash": "sha256:3fe1dfb30e8a3f33fa779d67",
+            "line": 439,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34605",
+    "pr": 34605,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 4417,
+    "elapsedMs": 8660,
+    "proposed": [
+      {
+        "title": "indexable/_make_indexable must return dataframes in their native type, never wrapped in narwhals",
+        "kind": "rule",
+        "answers": [
+          "cross_val_score passes narwhals DataFrame to my estimator",
+          "estimator receives wrong dataframe type in cross_val_predict / permutation_test_score",
+          "does indexable convert pandas/polars to narwhals?",
+          "why does my custom estimator get nw.DataFrame instead of pandas"
+        ],
+        "body": "Symptom: in CV tools (cross_val_predict, cross_val_score, permutation_test_score), user estimators received narwhals DataFrame/Series wrappers instead of the pandas/polars/pyarrow objects they were given.\nRoot cause: sklearn/utils/validation.py:_make_indexable returned `nw.from_native(iterable, allow_series=True)` for dataframe-like inputs (regression from #33959). indexable() is used by model_selection to prepare X/y, which then flow unchanged into estimator.fit/predict.\nFix pattern: return the native object as-is (`return iterable`). Narwhals may be used internally for checking or indexing, but anything indexable returns must keep the caller's type.\nConstraints: input type = output type for all containers. The one intended exception is sparse: non-CSR sparse is converted to CSR (csc_array -> csr_array). Lists, tuples, arrays, pandas Index/Series, polars Series and pyarrow arrays come back unchanged. This is enforced by sklearn/utils/tests/test_validation.py:test_indexable_return_type. Do not loosen sklearn/model_selection/tests/test_validation.py:test_cross_val_and_permutation_test_on_dataframe to accept `x.to_native()`. It must check the exact native type.",
+        "applies": "Any change to sklearn.utils.indexable/_make_indexable or the dataframe handling of CV/model_selection utilities",
+        "deps": [
+          {
+            "path": "sklearn/utils/validation.py",
+            "symbol": "_make_indexable"
+          },
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_indexable_return_type"
+          },
+          {
+            "path": "sklearn/model_selection/tests/test_validation.py",
+            "symbol": "test_cross_val_and_permutation_test_on_dataframe"
+          }
+        ],
+        "tags": [
+          "narwhals",
+          "dataframe",
+          "indexable",
+          "cross-validation",
+          "polars",
+          "pandas",
+          "pyarrow"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "indexable-make-indexable-must-return-dataframes-in-their-nat",
+        "title": "indexable/_make_indexable must return dataframes in their native type, never wrapped in narwhals",
+        "kind": "rule",
+        "body": "Symptom: in CV tools (cross_val_predict, cross_val_score, permutation_test_score), user estimators received narwhals DataFrame/Series wrappers instead of the pandas/polars/pyarrow objects they were given.\nRoot cause: sklearn/utils/validation.py:_make_indexable returned `nw.from_native(iterable, allow_series=True)` for dataframe-like inputs (regression from #33959). indexable() is used by model_selection to prepare X/y, which then flow unchanged into estimator.fit/predict.\nFix pattern: return the native object as-is (`return iterable`). Narwhals may be used internally for checking or indexing, but anything indexable returns must keep the caller's type.\nConstraints: input type = output type for all containers. The one intended exception is sparse: non-CSR sparse is converted to CSR (csc_array -> csr_array). Lists, tuples, arrays, pandas Index/Series, polars Series and pyarrow arrays come back unchanged. This is enforced by sklearn/utils/tests/test_validation.py:test_indexable_return_type. Do not loosen sklearn/model_selection/tests/test_validation.py:test_cross_val_and_permutation_test_on_dataframe to accept `x.to_native()`. It must check the exact native type.",
+        "deps": [
+          {
+            "path": "sklearn/utils/validation.py",
+            "symbol": "_make_indexable",
+            "hash": "sha256:984c2cc6247c836044196ad1",
+            "line": 461,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_indexable_return_type",
+            "hash": "sha256:c07c1f8d60a2c8a16d700cd8",
+            "line": 2552,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/model_selection/tests/test_validation.py",
+            "symbol": "test_cross_val_and_permutation_test_on_dataframe",
+            "hash": "sha256:698708b6e467c50676c36150",
+            "line": 650,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/utils/validation.py",
+            "symbol": "indexable",
+            "hash": "sha256:23a45194bf414edb05655d1c",
+            "line": 486,
+            "missing": false,
+            "fanout": {
+              "files": 15,
+              "sites": 18,
+              "refs": 48
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34480",
+    "pr": 34480,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5690,
+    "elapsedMs": 13254,
+    "proposed": [
+      {
+        "title": "Array API mixed inputs: move y/sample_weight onto X's namespace/device BEFORE dtype-coupled validation",
+        "kind": "rule",
+        "answers": [
+          "TypeError: 'dtype' must be a dtype, not torch.dtype when fitting with numpy y and torch X",
+          "estimator fails when y and X come from different array libraries or devices",
+          "where should move_to be called in fit/score for array API support",
+          "check_array_api_mixed_inputs fails for my estimator"
+        ],
+        "body": "Symptom: fit/score raises `TypeError: 'dtype' must be a dtype, not torch.dtype` (or similar) when `y`/`sample_weight` come from a different array API namespace or device than `X` (e.g. numpy y with torch-GPU X).\nRoot cause: sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit/score called `move_to` only after `check_array(y, dtype=X.dtype)` and `_check_sample_weight(sample_weight, X, dtype=...)`; those pass X's dtype (from X's namespace) into a validator running on y's namespace.\nFix pattern: right after validating X and getting `xp, _, device = get_namespace_and_device(X)`, call `y, sample_weight = move_to(y, sample_weight, xp=xp, device=device)`, then do any validation that uses X's dtype. `move_to` is a no-op when namespaces already match.\nConstraints: applies to any estimator method whose y/sample_weight validation is dtype-coupled to X (fit, score, partial_fit). Do it in every such method; score in GLM needed its own move since it validates separately.",
+        "applies": "Array API support in sklearn estimators accepting y/sample_weight alongside X",
+        "deps": [
+          {
+            "path": "sklearn/linear_model/_glm/glm.py",
+            "symbol": "_GeneralizedLinearRegressor.fit"
+          },
+          {
+            "path": "sklearn/linear_model/_glm/glm.py",
+            "symbol": "_GeneralizedLinearRegressor.score"
+          }
+        ],
+        "tags": [
+          "array-api",
+          "move_to",
+          "input-validation",
+          "sample_weight",
+          "glm"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Enabling check_array_api_mixed_inputs for an estimator: drop XFAIL and run with SCIPY_ARRAY_API=1",
+        "kind": "howto",
+        "answers": [
+          "how to test mixed namespace/device array API inputs for an estimator",
+          "where are array API xfail checks listed",
+          "how to mark an estimator as supporting mixed array API inputs"
+        ],
+        "body": "Per-estimator expected failures live in sklearn/utils/_test_common/instance_generator.py:PER_ESTIMATOR_XFAIL_CHECKS, e.g. `\"check_array_api_mixed_inputs\": \"mixed array API input support not added yet\"`. Once the estimator supports y/sample_weight from another namespace/device, delete that entry (leave other entries like `check_array_api_same_namespace` until separately fixed).\nRun: `SCIPY_ARRAY_API=1 pytest -k \"array_api_mixed_inputs and <EstimatorName>\"` (SCIPY_ARRAY_API=1 is required for array API tests). cupy/mps parametrizations skip when backends are absent; GPU torch covers the CPU-numpy y -> GPU-torch X case.\nAdd a changelog fragment at doc/whats_new/upcoming_changes/array-api/<PR>.fix.rst.",
+        "applies": "Array API test coverage for sklearn estimators",
+        "deps": [
+          {
+            "path": "sklearn/utils/_test_common/instance_generator.py",
+            "symbol": "PER_ESTIMATOR_XFAIL_CHECKS"
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/array-api/34480.fix.rst"
+          }
+        ],
+        "tags": [
+          "array-api",
+          "testing",
+          "xfail",
+          "changelog"
+        ],
+        "confidence": 0.7
+      }
+    ],
+    "saved": [
+      {
+        "id": "array-api-mixed-inputs-move-y-sample-weight-onto-x-s-namespa",
+        "title": "Array API mixed inputs: move y/sample_weight onto X's namespace/device BEFORE dtype-coupled validation",
+        "kind": "rule",
+        "body": "Symptom: fit/score raises `TypeError: 'dtype' must be a dtype, not torch.dtype` (or similar) when `y`/`sample_weight` come from a different array API namespace or device than `X` (e.g. numpy y with torch-GPU X).\nRoot cause: sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit/score called `move_to` only after `check_array(y, dtype=X.dtype)` and `_check_sample_weight(sample_weight, X, dtype=...)`; those pass X's dtype (from X's namespace) into a validator running on y's namespace.\nFix pattern: right after validating X and getting `xp, _, device = get_namespace_and_device(X)`, call `y, sample_weight = move_to(y, sample_weight, xp=xp, device=device)`, then do any validation that uses X's dtype. `move_to` is a no-op when namespaces already match.\nConstraints: applies to any estimator method whose y/sample_weight validation is dtype-coupled to X (fit, score, partial_fit). Do it in every such method; score in GLM needed its own move since it validates separately.",
+        "deps": [
+          {
+            "path": "sklearn/linear_model/_glm/glm.py",
+            "symbol": "_GeneralizedLinearRegressor.fit",
+            "hash": "sha256:c732dc5b49af2b191b492668",
+            "line": 250,
+            "missing": false
+          },
+          {
+            "path": "sklearn/linear_model/_glm/glm.py",
+            "symbol": "_GeneralizedLinearRegressor.score",
+            "hash": "sha256:7ba6daa0dacb924c04ea008c",
+            "line": 486,
+            "missing": false,
+            "fanout": {
+              "files": 249,
+              "sites": 461,
+              "refs": 1951
+            }
+          }
+        ]
+      },
+      {
+        "id": "enabling-check-array-api-mixed-inputs-for-an-estimator-drop",
+        "title": "Enabling check_array_api_mixed_inputs for an estimator: drop XFAIL and run with SCIPY_ARRAY_API=1",
+        "kind": "howto",
+        "body": "Per-estimator expected failures live in sklearn/utils/_test_common/instance_generator.py:PER_ESTIMATOR_XFAIL_CHECKS, e.g. `\"check_array_api_mixed_inputs\": \"mixed array API input support not added yet\"`. Once the estimator supports y/sample_weight from another namespace/device, delete that entry (leave other entries like `check_array_api_same_namespace` until separately fixed).\nRun: `SCIPY_ARRAY_API=1 pytest -k \"array_api_mixed_inputs and <EstimatorName>\"` (SCIPY_ARRAY_API=1 is required for array API tests). cupy/mps parametrizations skip when backends are absent; GPU torch covers the CPU-numpy y -> GPU-torch X case.\nAdd a changelog fragment at doc/whats_new/upcoming_changes/array-api/<PR>.fix.rst.",
+        "deps": [
+          {
+            "path": "sklearn/utils/_test_common/instance_generator.py",
+            "hash": "sha256:2c1a38403496460a81abbd58",
+            "missing": false
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+            "hash": "sha256:3dd30ff79630aaa561860dc2",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34263",
+    "pr": 34263,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6985,
+    "elapsedMs": 14423,
+    "proposed": [
+      {
+        "title": "Pipeline.transform_input defaults to (\"X_val\",); the routing-disabled guard must exempt the default",
+        "kind": "rule",
+        "answers": [
+          "why is X_val not transformed by the pipeline preprocessing steps",
+          "Pipeline raises 'transform_input parameter can only be used if metadata routing is enabled'",
+          "what is the default transform_input of Pipeline / make_pipeline",
+          "validation set passed to fit is not preprocessed in a pipeline"
+        ],
+        "body": "Symptom: users passing a validation set (`X_val`) through a Pipeline forgot to set `transform_input=[\"X_val\"]`, so the final estimator received an untransformed validation set, which is hard to notice.\nRoot cause: sklearn/pipeline.py:Pipeline.__init__ defaulted `transform_input=None`.\nFix pattern: the default is now the immutable tuple `(\"X_val\",)` in both `Pipeline.__init__` and `make_pipeline`, and `_parameter_constraints[\"transform_input\"]` accepts `[list, tuple, None]`. The check in `Pipeline.fit` that raises when routing is disabled only fires for a non-empty value that differs from `(\"X_val\",)`. So with routing off, a default pipeline still fits. Passing `X_val=` to fit then fails with the usual \"Pipeline.fit does not accept\" routing error.\nConstraints: if you change the default or the guard, `None`, `()` and the default must all stay usable without metadata routing. Any other value must still raise ValueError (\"can only be used if metadata routing is enabled\"). With routing on, the default must not raise when `X_val` is absent from fit params.",
+        "applies": "sklearn/pipeline.py Pipeline / make_pipeline transform_input handling and its routing guard",
+        "deps": [
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline.__init__"
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline.fit"
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "make_pipeline"
+          },
+          {
+            "path": "sklearn/tests/test_pipeline.py",
+            "symbol": "test_transform_input_no_slep6"
+          }
+        ],
+        "tags": [
+          "pipeline",
+          "metadata-routing",
+          "transform_input",
+          "X_val",
+          "defaults"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "Changing a Pipeline constructor default requires updating make_pipeline, docstrings, repr/get_params tests and a changelog fragment",
+        "kind": "rule",
+        "answers": [
+          "what else needs updating when I change a Pipeline parameter default",
+          "test_pprint fails after changing Pipeline default",
+          "get_params expected dict in test_set_pipeline_step_passthrough mismatch"
+        ],
+        "body": "A Pipeline default appears in several places that this PR had to update together:\n- sklearn/pipeline.py:Pipeline.__init__ and sklearn/pipeline.py:make_pipeline both have the default in their signature and docstring. Add a `.. versionchanged::` entry in each docstring.\n- `_parameter_constraints` must accept the type of the new default. Here a tuple was added for `transform_input`.\n- sklearn/tests/test_pipeline.py:test_set_pipeline_step_passthrough has the full get_params dict hard-coded.\n- sklearn/utils/tests/test_pprint.py has Pipeline's full repr text hard-coded, e.g. `transform_input=('X_val',)`.\n- Add a changelog fragment at doc/whats_new/upcoming_changes/sklearn.pipeline/<PR>.fix.rst.",
+        "applies": "Any change to Pipeline/make_pipeline constructor parameters or defaults",
+        "deps": [
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "make_pipeline"
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline._parameter_constraints"
+          },
+          {
+            "path": "sklearn/tests/test_pipeline.py",
+            "symbol": "test_set_pipeline_step_passthrough"
+          },
+          {
+            "path": "sklearn/utils/tests/test_pprint.py"
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/sklearn.pipeline/34263.fix.rst"
+          }
+        ],
+        "tags": [
+          "pipeline",
+          "changelog",
+          "pprint",
+          "tests",
+          "conventions"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "pipeline-transform-input-defaults-to-x-val-the-routing-disab",
+        "title": "Pipeline.transform_input defaults to (\"X_val\",); the routing-disabled guard must exempt the default",
+        "kind": "rule",
+        "body": "Symptom: users passing a validation set (`X_val`) through a Pipeline forgot to set `transform_input=[\"X_val\"]`, so the final estimator received an untransformed validation set, which is hard to notice.\nRoot cause: sklearn/pipeline.py:Pipeline.__init__ defaulted `transform_input=None`.\nFix pattern: the default is now the immutable tuple `(\"X_val\",)` in both `Pipeline.__init__` and `make_pipeline`, and `_parameter_constraints[\"transform_input\"]` accepts `[list, tuple, None]`. The check in `Pipeline.fit` that raises when routing is disabled only fires for a non-empty value that differs from `(\"X_val\",)`. So with routing off, a default pipeline still fits. Passing `X_val=` to fit then fails with the usual \"Pipeline.fit does not accept\" routing error.\nConstraints: if you change the default or the guard, `None`, `()` and the default must all stay usable without metadata routing. Any other value must still raise ValueError (\"can only be used if metadata routing is enabled\"). With routing on, the default must not raise when `X_val` is absent from fit params.",
+        "deps": [
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline.__init__",
+            "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+            "line": 219,
+            "missing": false,
+            "fanout": {
+              "files": 103,
+              "sites": 197,
+              "refs": 246
+            }
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline.fit",
+            "hash": "sha256:d505cee8aac0d040c8acdcaa",
+            "line": 585,
+            "missing": false
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "make_pipeline",
+            "hash": "sha256:b1ac1a390103b3dfb491299a",
+            "line": 1459,
+            "missing": false,
+            "fanout": {
+              "files": 109,
+              "sites": 257,
+              "refs": 375
+            }
+          },
+          {
+            "path": "sklearn/tests/test_pipeline.py",
+            "symbol": "test_transform_input_no_slep6",
+            "hash": "sha256:146f92fb3fdece2614b247ad",
+            "line": 2222,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "changing-a-pipeline-constructor-default-requires-updating-ma",
+        "title": "Changing a Pipeline constructor default requires updating make_pipeline, docstrings, repr/get_params tests and a changelog fragment",
+        "kind": "rule",
+        "body": "A Pipeline default appears in several places that this PR had to update together:\n- sklearn/pipeline.py:Pipeline.__init__ and sklearn/pipeline.py:make_pipeline both have the default in their signature and docstring. Add a `.. versionchanged::` entry in each docstring.\n- `_parameter_constraints` must accept the type of the new default. Here a tuple was added for `transform_input`.\n- sklearn/tests/test_pipeline.py:test_set_pipeline_step_passthrough has the full get_params dict hard-coded.\n- sklearn/utils/tests/test_pprint.py has Pipeline's full repr text hard-coded, e.g. `transform_input=('X_val',)`.\n- Add a changelog fragment at doc/whats_new/upcoming_changes/sklearn.pipeline/<PR>.fix.rst.",
+        "deps": [
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "make_pipeline",
+            "hash": "sha256:b1ac1a390103b3dfb491299a",
+            "line": 1459,
+            "missing": false,
+            "fanout": {
+              "files": 109,
+              "sites": 257,
+              "refs": 375
+            }
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline",
+            "hash": "sha256:079b9bb12295d8d79cd32aa5",
+            "line": 93,
+            "missing": false,
+            "fanout": {
+              "files": 89,
+              "sites": 200,
+              "refs": 428
+            }
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "make_pipeline",
+            "hash": "sha256:b1ac1a390103b3dfb491299a",
+            "line": 1459,
+            "missing": false,
+            "fanout": {
+              "files": 109,
+              "sites": 257,
+              "refs": 375
+            }
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "transform_input",
+            "hash": "sha256:5848016a0e00daf31d60ac0a",
+            "line": 1522,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 36
+            }
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "get_params",
+            "hash": "sha256:30ecb8835a94e2e100c35a50",
+            "line": 254,
+            "missing": false,
+            "fanout": {
+              "files": 47,
+              "sites": 131,
+              "refs": 152
+            }
+          },
+          {
+            "path": "sklearn/tests/test_pipeline.py",
+            "symbol": "test_set_pipeline_step_passthrough",
+            "hash": "sha256:814f4a869fe688dee6b80569",
+            "line": 855,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_pprint.py",
+            "symbol": "Pipeline",
+            "hash": "sha256:727e0a7f3271b32555ace9d8",
+            "line": 139,
+            "missing": false,
+            "fanout": {
+              "files": 89,
+              "sites": 200,
+              "refs": 428
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_pprint.py",
+            "symbol": "transform_input",
+            "hash": "sha256:95fad347f3ee89898276c089",
+            "line": 307,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 0,
+              "refs": 36
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_pprint.py",
+            "symbol": "test_pipeline",
+            "hash": "sha256:2bc93595161a9d0fc4dd7b6e",
+            "line": 292,
+            "missing": false
+          },
+          {
+            "path": "sklearn/utils/tests/test_pprint.py",
+            "symbol": "get_params",
+            "hash": "sha256:062ab1adcc5c0e5f89184d84",
+            "line": 647,
+            "missing": false
+          },
+          {
+            "path": "doc/whats_new/upcoming_changes/sklearn.pipeline/34263.fix.rst",
+            "hash": "sha256:b84dfc1620197d589ad811d2",
+            "missing": false
+          },
+          {
+            "path": "sklearn/pipeline.py",
+            "symbol": "Pipeline.__init__",
+            "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+            "line": 219,
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34188",
+    "pr": 34188,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 3508,
+    "elapsedMs": 7517,
+    "proposed": [
+      {
+        "title": "Bagging fallback methods must receive the routed params of the method actually called",
+        "kind": "rule",
+        "answers": [
+          "BaggingClassifier.predict_proba ignores or misroutes metadata to sub-estimator",
+          "metadata routing wrong when estimator has no predict_proba and voting is used",
+          "predict_proba params sent to predict in bagging",
+          "set_predict_proba_request not honored in BaggingClassifier"
+        ],
+        "body": "Symptom: With metadata routing enabled, BaggingClassifier.predict_proba passes metadata requested for `predict` to the sub-estimator's `predict_proba` (and vice versa when the estimator lacks predict_proba and bagging falls back to voting), so request settings appear ignored or the wrong kwargs reach the estimator.\nRoot cause: sklearn/ensemble/_bagging.py:_parallel_predict_proba receives both `predict_params` and `predict_proba_params` but used them crossed: the `hasattr(estimator, \"predict_proba\")` branch got predict_params and the voting branch got predict_proba_params.\nFix pattern: when the consuming method is selected dynamically (hasattr-based fallback), route each call with the params bundle for the method actually invoked: `estimator.predict_proba(..., **(predict_proba_params or {}))`, `estimator.predict(..., **(predict_params or {}))`.\nConstraints: applies to any meta-estimator helper that branches between consumer methods (predict_proba/predict, decision_function/predict_log_proba fallbacks in the same file); check that routed_params.estimator.<method> matches the call site in every branch.",
+        "applies": "Metadata routing in sklearn/ensemble/_bagging.py parallel prediction helpers and similar fallback-based meta-estimators",
+        "deps": [
+          {
+            "path": "sklearn/ensemble/_bagging.py",
+            "symbol": "_parallel_predict_proba"
+          }
+        ],
+        "tags": [
+          "metadata-routing",
+          "bagging",
+          "ensemble",
+          "predict_proba",
+          "fallback"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "bagging-fallback-methods-must-receive-the-routed-params-of-t",
+        "title": "Bagging fallback methods must receive the routed params of the method actually called",
+        "kind": "rule",
+        "body": "Symptom: With metadata routing enabled, BaggingClassifier.predict_proba passes metadata requested for `predict` to the sub-estimator's `predict_proba` (and vice versa when the estimator lacks predict_proba and bagging falls back to voting), so request settings appear ignored or the wrong kwargs reach the estimator.\nRoot cause: sklearn/ensemble/_bagging.py:_parallel_predict_proba receives both `predict_params` and `predict_proba_params` but used them crossed: the `hasattr(estimator, \"predict_proba\")` branch got predict_params and the voting branch got predict_proba_params.\nFix pattern: when the consuming method is selected dynamically (hasattr-based fallback), route each call with the params bundle for the method actually invoked: `estimator.predict_proba(..., **(predict_proba_params or {}))`, `estimator.predict(..., **(predict_params or {}))`.\nConstraints: applies to any meta-estimator helper that branches between consumer methods (predict_proba/predict, decision_function/predict_log_proba fallbacks in the same file); check that routed_params.estimator.<method> matches the call site in every branch.",
+        "deps": [
+          {
+            "path": "sklearn/ensemble/_bagging.py",
+            "symbol": "_parallel_predict_proba",
+            "hash": "sha256:6fa979c6e4cbf263f1a5292d",
+            "line": 188,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "sklearn/ensemble/_bagging.py",
+            "symbol": "BaggingClassifier.predict_proba",
+            "hash": "sha256:0c5401cb2b3976f802ed8b00",
+            "line": 968,
+            "missing": false,
+            "fanout": {
+              "files": 143,
+              "sites": 379,
+              "refs": 990
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-34051",
+    "pr": 34051,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 6146,
+    "elapsedMs": 14823,
+    "proposed": [
+      {
+        "title": "check_array: dataframe input may already be a narwhals.DataFrame; read pandas-only attributes via to_native()",
+        "kind": "rule",
+        "answers": [
+          "check_array fails when passed a narwhals DataFrame",
+          "AttributeError 'sparse' or dtypes.apply in check_array with narwhals input",
+          "pandas sparse DataFrame wrapped in narwhals not converted to sparse matrix",
+          "how does check_array detect fully sparse pandas DataFrames"
+        ],
+        "body": "Symptom: check_array raises an error when the input is a narwhals.DataFrame (e.g. one wrapping a pandas DataFrame, possibly with sparse columns) instead of a raw pandas DataFrame.\nRoot cause: sklearn/utils/validation.py:check_array called pandas-only API (`array.sparse`, `array.dtypes.apply`, `array.sparse.to_coo()`) directly on `array`, which may be a narwhals wrapper rather than the native frame.\nFix pattern: take the native object from the narwhals view (`df_pandas = array_df.to_native()`) and do all pandas-specific checks on it: SparseDtype detection, `dtypes_orig`, and the fully-sparse `df_pandas.sparse.to_coo()` conversion.\nConstraints: any new pandas-specific logic in check_array's dataframe branch must use the native frame, not `array`. Callers may pass native or narwhals frames. check_array always returns a numpy array, Array API array, or scipy sparse array/matrix, never a dataframe. Test both forms by parametrizing with `nw.from_native(df)` (narwhals.stable.v2), as test_check_sparse_pandas_sp_format does.",
+        "applies": "sklearn/utils/validation.py check_array dataframe handling (pandas/narwhals inputs)",
+        "deps": [
+          {
+            "path": "sklearn/utils/validation.py",
+            "symbol": "check_array"
+          },
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_check_sparse_pandas_sp_format"
+          }
+        ],
+        "tags": [
+          "narwhals",
+          "pandas",
+          "sparse",
+          "check_array",
+          "validation",
+          "dataframe"
+        ],
+        "confidence": 0.8
+      },
+      {
+        "title": "In validation tests, mutate dense arrays before converting them to scipy sparse",
+        "kind": "rule",
+        "answers": [
+          "SparseEfficiencyWarning in test_validation",
+          "setting element of csr_matrix in test raises warning",
+          "how to inject nan/inf into sparse test input"
+        ],
+        "body": "Convention seen in sklearn/utils/tests/test_validation.py (test_check_array_ensure_all_finite_valid / _invalid, test_check_array_links_to_imputer_doc_only_for_X): build the dense array, set elements such as `X[0, 0] = np.nan`, and only then apply `retype` (sp.csr_array / sp.csr_matrix).\nDoing it in the other order assigns into a CSR structure, which emits scipy.sparse.SparseEfficiencyWarning.\nIf a test has to mutate a sparse matrix in place anyway, mark it with `@pytest.mark.filterwarnings(\"ignore::scipy.sparse.SparseEfficiencyWarning\")`, as the PR does for the parametrized test that comes before test_ordering.",
+        "applies": "tests in sklearn/utils/tests/test_validation.py (and similar tests that parametrize over dense/sparse containers)",
+        "deps": [
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_check_array_ensure_all_finite_invalid"
+          }
+        ],
+        "tags": [
+          "tests",
+          "scipy.sparse",
+          "warnings",
+          "SparseEfficiencyWarning"
+        ],
+        "confidence": 0.6
+      }
+    ],
+    "saved": [
+      {
+        "id": "check-array-dataframe-input-may-already-be-a-narwhals-datafr",
+        "title": "check_array: dataframe input may already be a narwhals.DataFrame; read pandas-only attributes via to_native()",
+        "kind": "rule",
+        "body": "Symptom: check_array raises an error when the input is a narwhals.DataFrame (e.g. one wrapping a pandas DataFrame, possibly with sparse columns) instead of a raw pandas DataFrame.\nRoot cause: sklearn/utils/validation.py:check_array called pandas-only API (`array.sparse`, `array.dtypes.apply`, `array.sparse.to_coo()`) directly on `array`, which may be a narwhals wrapper rather than the native frame.\nFix pattern: take the native object from the narwhals view (`df_pandas = array_df.to_native()`) and do all pandas-specific checks on it: SparseDtype detection, `dtypes_orig`, and the fully-sparse `df_pandas.sparse.to_coo()` conversion.\nConstraints: any new pandas-specific logic in check_array's dataframe branch must use the native frame, not `array`. Callers may pass native or narwhals frames. check_array always returns a numpy array, Array API array, or scipy sparse array/matrix, never a dataframe. Test both forms by parametrizing with `nw.from_native(df)` (narwhals.stable.v2), as test_check_sparse_pandas_sp_format does.",
+        "deps": [
+          {
+            "path": "sklearn/utils/validation.py",
+            "symbol": "check_array",
+            "hash": "sha256:9b92cbc7de2044077b0d59db",
+            "line": 729,
+            "missing": false,
+            "fanout": {
+              "files": 98,
+              "sites": 341,
+              "refs": 484
+            }
+          },
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_check_sparse_pandas_sp_format",
+            "hash": "sha256:03695d119706688f7c549d6b",
+            "line": 1909,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "in-validation-tests-mutate-dense-arrays-before-converting-th",
+        "title": "In validation tests, mutate dense arrays before converting them to scipy sparse",
+        "kind": "rule",
+        "body": "Convention seen in sklearn/utils/tests/test_validation.py (test_check_array_ensure_all_finite_valid / _invalid, test_check_array_links_to_imputer_doc_only_for_X): build the dense array, set elements such as `X[0, 0] = np.nan`, and only then apply `retype` (sp.csr_array / sp.csr_matrix).\nDoing it in the other order assigns into a CSR structure, which emits scipy.sparse.SparseEfficiencyWarning.\nIf a test has to mutate a sparse matrix in place anyway, mark it with `@pytest.mark.filterwarnings(\"ignore::scipy.sparse.SparseEfficiencyWarning\")`, as the PR does for the parametrized test that comes before test_ordering.",
+        "deps": [
+          {
+            "path": "sklearn/utils/tests/test_validation.py",
+            "symbol": "test_check_array_ensure_all_finite_invalid",
+            "hash": "sha256:abfcb0c8ab12d42937be3fa6",
+            "line": 245,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "scikit-learn-33260",
+    "pr": 33260,
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "tokens": 5950,
+    "elapsedMs": 14163,
+    "proposed": [
+      {
+        "title": "NMF cd solver: arrays passed to the Cython _update_cdnmf_fast must be made C-contiguous explicitly",
+        "kind": "rule",
+        "answers": [
+          "NMF fit_transform raises ValueError: ndarray is not C-contiguous",
+          "NMF breaks with new scipy version / scipy dev",
+          "why does _update_cdnmf_fast fail on memoryview",
+          "nndsvd init produces Fortran-ordered W"
+        ],
+        "body": "Symptom: `NMF(n_components=5).fit_transform(X)` (default solver=\"cd\", nndsvd-style init) crashes with `ValueError: ndarray is not C-contiguous` from `_cdnmf_fast._update_cdnmf_fast`, seen with SciPy dev.\nRoot cause: `sklearn/decomposition/_cdnmf_fast.pyx:_update_cdnmf_fast` declares `W` as a `floating[:, ::1]` (C-contiguous) memoryview, but `sklearn/decomposition/_nmf.py:_fit_coordinate_descent` only forced `Ht` to C order. W from the SVD-based init inherits the memory layout of `scipy.linalg.svd` output, and SciPy changed its C/F ordering (scipy/scipy#24538).\nFix pattern: at the Python/Cython boundary, call `np.ascontiguousarray` on every array that the Cython signature declares `::1` (here both `W` and `Ht = H.T`). Don't rely on the layout an upstream library returns. Sparse X is converted csc->csr only when `sp.issparse(X) and X.format == \"csc\"`.\nConstraints: this applies to any Cython kernel with `[:, ::1]` memoryviews. Transposes (`H.T`) and SVD outputs are the usual sources of F-ordered arrays. `sklearn/decomposition/tests/test_nmf.py:test_nmf_smoke` covers every init (None, nndsvd, nndsvda, nndsvdar, random) × solver (cd, mu) × tall/wide shape. Extend it when you add an init or solver, because the original bug was not caught by CI.",
+        "applies": "sklearn/decomposition NMF coordinate-descent solver and other Python wrappers that call Cython kernels with C-contiguous memoryviews",
+        "deps": [
+          {
+            "path": "sklearn/decomposition/_nmf.py",
+            "symbol": "_fit_coordinate_descent"
+          },
+          {
+            "path": "sklearn/decomposition/_cdnmf_fast.pyx",
+            "symbol": "_update_cdnmf_fast"
+          },
+          {
+            "path": "sklearn/decomposition/tests/test_nmf.py",
+            "symbol": "test_nmf_smoke"
+          }
+        ],
+        "tags": [
+          "nmf",
+          "cython",
+          "memory-layout",
+          "c-contiguous",
+          "scipy-compat",
+          "svd"
+        ],
+        "confidence": 0.8
+      }
+    ],
+    "saved": [
+      {
+        "id": "nmf-cd-solver-arrays-passed-to-the-cython-update-cdnmf-fast",
+        "title": "NMF cd solver: arrays passed to the Cython _update_cdnmf_fast must be made C-contiguous explicitly",
+        "kind": "rule",
+        "body": "Symptom: `NMF(n_components=5).fit_transform(X)` (default solver=\"cd\", nndsvd-style init) crashes with `ValueError: ndarray is not C-contiguous` from `_cdnmf_fast._update_cdnmf_fast`, seen with SciPy dev.\nRoot cause: `sklearn/decomposition/_cdnmf_fast.pyx:_update_cdnmf_fast` declares `W` as a `floating[:, ::1]` (C-contiguous) memoryview, but `sklearn/decomposition/_nmf.py:_fit_coordinate_descent` only forced `Ht` to C order. W from the SVD-based init inherits the memory layout of `scipy.linalg.svd` output, and SciPy changed its C/F ordering (scipy/scipy#24538).\nFix pattern: at the Python/Cython boundary, call `np.ascontiguousarray` on every array that the Cython signature declares `::1` (here both `W` and `Ht = H.T`). Don't rely on the layout an upstream library returns. Sparse X is converted csc->csr only when `sp.issparse(X) and X.format == \"csc\"`.\nConstraints: this applies to any Cython kernel with `[:, ::1]` memoryviews. Transposes (`H.T`) and SVD outputs are the usual sources of F-ordered arrays. `sklearn/decomposition/tests/test_nmf.py:test_nmf_smoke` covers every init (None, nndsvd, nndsvda, nndsvdar, random) × solver (cd, mu) × tall/wide shape. Extend it when you add an init or solver, because the original bug was not caught by CI.",
+        "deps": [
+          {
+            "path": "sklearn/decomposition/_nmf.py",
+            "symbol": "_fit_coordinate_descent",
+            "hash": "sha256:4ac364bdf869510ee80f349d",
+            "line": 399,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "sklearn/decomposition/_cdnmf_fast.pyx",
+            "symbol": "_update_cdnmf_fast",
+            "hash": "sha256:c8e4809caa75fe05b482c4df",
+            "line": 8,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "sklearn/decomposition/tests/test_nmf.py",
+            "symbol": "test_nmf_smoke",
+            "hash": "sha256:38667edbcfe647b1a0d5164f",
+            "line": 1013,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

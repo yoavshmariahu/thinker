@@ -1,0 +1,1271 @@
+[
+  {
+    "id": "grafana-132418",
+    "pr": 132418,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17632,
+    "elapsedMs": 14258,
+    "proposed": [
+      {
+        "title": "Keep nested field overrides isolated from shared query data",
+        "kind": "rule",
+        "answers": [
+          "Why do all series in a Dashboard datasource panel inherit the table column's display name?",
+          "How can Time series to table leak units, colors or thresholds into another panel?",
+          "How should applyFieldOverrides merge config into nested frames without mutating source data?"
+        ],
+        "body": "Symptom: A panel using the -- Dashboard -- datasource with withTransforms: false inherits a source table's column display name and styling after Time series to table.\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides merges parent config with defaultsDeep, which mutates its first argument; nested fields can share config objects with source query fields.\nFix pattern: Copy each nested frame and its fields, deep-clone each field's config before merging parent defaults, and apply recursive overrides to the copied frames. Returned nested fields must still receive the parent config.\nConstraints: This pattern applies to config merging for FieldType.frame values that may share source data. Shallow config copies are insufficient because defaultsDeep can mutate shared custom or thresholds objects; the required isolation concerns config, not a deep copy of all frame data.",
+        "applies": "Changes to nested-frame config propagation in applyFieldOverrides, including frames produced by Time series to table.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+            "symbol": "applyFieldOverrides"
+          }
+        ],
+        "tags": [
+          "field-overrides",
+          "nested-frames",
+          "shared-data",
+          "time-series-to-table",
+          "dashboard-datasource"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-nested-field-overrides-isolated-from-shared-query-data",
+        "title": "Keep nested field overrides isolated from shared query data",
+        "kind": "rule",
+        "body": "Symptom: A panel using the -- Dashboard -- datasource with withTransforms: false inherits a source table's column display name and styling after Time series to table.\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides merges parent config with defaultsDeep, which mutates its first argument; nested fields can share config objects with source query fields.\nFix pattern: Copy each nested frame and its fields, deep-clone each field's config before merging parent defaults, and apply recursive overrides to the copied frames. Returned nested fields must still receive the parent config.\nConstraints: This pattern applies to config merging for FieldType.frame values that may share source data. Shallow config copies are insufficient because defaultsDeep can mutate shared custom or thresholds objects; the required isolation concerns config, not a deep copy of all frame data.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+            "symbol": "applyFieldOverrides",
+            "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+            "line": 96,
+            "missing": false,
+            "fanout": {
+              "files": 45,
+              "sites": 60,
+              "refs": 118
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133093",
+    "pr": 133093,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 18609,
+    "elapsedMs": 18062,
+    "proposed": [
+      {
+        "title": "Preserve the Dashboard datasource reference during v2 external export",
+        "kind": "rule",
+        "answers": [
+          "Why does a panel show Random Walk data after sharing and reimporting a dashboard?",
+          "How should v2 export handle the -- Dashboard -- datasource?",
+          "Preserve queries that reuse another panel’s results when sharing a dashboard"
+        ],
+        "body": "Symptom: After exporting with “Share dashboard with another instance” and reimporting, a panel that reuses another panel’s results displays generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 treated the stable -- Dashboard -- reference as an instance-specific datasource UID and removed it.\nFix pattern: Preserve datasource.name equal to SHARED_DASHBOARD_QUERY with an early return before generating datasource-remapping labels or removing the reference.\nConstraints: Applies to v2 external exports, including mixed queries and inlined library panels, with query group datasource or dashboard. Match the exact reference; ordinary datasource anonymization, other built-in datasources, migrations, and datasource resolution retain their existing behavior.",
+        "applies": "V2 dashboard exports shared with another instance that contain Dashboard datasource queries.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+            "symbol": "makeExportableV2"
+          }
+        ],
+        "tags": [
+          "dashboard",
+          "datasource",
+          "v2-export",
+          "external-sharing"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-the-dashboard-datasource-reference-during-v2-extern",
+        "title": "Preserve the Dashboard datasource reference during v2 external export",
+        "kind": "rule",
+        "body": "Symptom: After exporting with “Share dashboard with another instance” and reimporting, a panel that reuses another panel’s results displays generated Random Walk data.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 treated the stable -- Dashboard -- reference as an instance-specific datasource UID and removed it.\nFix pattern: Preserve datasource.name equal to SHARED_DASHBOARD_QUERY with an early return before generating datasource-remapping labels or removing the reference.\nConstraints: Applies to v2 external exports, including mixed queries and inlined library panels, with query group datasource or dashboard. Match the exact reference; ordinary datasource anonymization, other built-in datasources, migrations, and datasource resolution retain their existing behavior.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+            "symbol": "makeExportableV2",
+            "hash": "sha256:380f3045b677a3d81039df7c",
+            "line": 423,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 12,
+              "refs": 19
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133023",
+    "pr": 133023,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 18734,
+    "elapsedMs": 21924,
+    "proposed": [
+      {
+        "title": "Keep missing-series resolution counts compatible with int64 in both rule tables",
+        "kind": "rule",
+        "answers": [
+          "Why do missing-series resolution counts above 32,767 fail to save?",
+          "Support large missing-series evaluation counts on MySQL or PostgreSQL",
+          "How should missing-series resolution counts be stored in rule version history?"
+        ],
+        "body": "Symptom: Saving a missing-series resolution count above 32,767 fails on MySQL or PostgreSQL.\nRoot cause: SMALLINT database columns could not represent the model’s int64 values; the correction lives in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve.\nFix pattern: Widen both alert_rule and alert_rule_version columns together to nullable BIGINT; verify persistence in the current rule and its matching version, as in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules using 43,200 evaluations.\nConstraints: Preserve nullability and compatible ranges in both tables. This migration supplies backend-specific SQL for MySQL and PostgreSQL only; it provides no schema alteration for other backends.",
+        "applies": "Changes to missing_series_evals_to_resolve persistence or its database range on MySQL and PostgreSQL.",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve"
+          },
+          {
+            "path": "pkg/services/ngalert/store/alert_rule_test.go",
+            "symbol": "TestIntegrationUpdateAlertRules"
+          }
+        ],
+        "tags": [
+          "alerting",
+          "missing-series",
+          "database-migrations",
+          "rule-versioning"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-missing-series-resolution-counts-compatible-with-int64",
+        "title": "Keep missing-series resolution counts compatible with int64 in both rule tables",
+        "kind": "rule",
+        "body": "Symptom: Saving a missing-series resolution count above 32,767 fails on MySQL or PostgreSQL.\nRoot cause: SMALLINT database columns could not represent the model’s int64 values; the correction lives in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve.\nFix pattern: Widen both alert_rule and alert_rule_version columns together to nullable BIGINT; verify persistence in the current rule and its matching version, as in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules using 43,200 evaluations.\nConstraints: Preserve nullability and compatible ranges in both tables. This migration supplies backend-specific SQL for MySQL and PostgreSQL only; it provides no schema alteration for other backends.",
+        "deps": [
+          {
+            "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+            "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+            "hash": "sha256:910108e1b78d35d4e240c381",
+            "line": 19,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 2
+            }
+          },
+          {
+            "path": "pkg/services/ngalert/store/alert_rule_test.go",
+            "symbol": "TestIntegrationUpdateAlertRules",
+            "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+            "line": 52,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-133033",
+    "pr": 133033,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17047,
+    "elapsedMs": 16311,
+    "proposed": [
+      {
+        "title": "Keep OpenFeature evaluation namespaces concrete",
+        "kind": "rule",
+        "answers": [
+          "Why are flag evaluation requests rejected for a namespace mismatch?",
+          "How should OpenFeature handle a wildcard service-token namespace?",
+          "Which namespace and targeting key should the evaluation context use?"
+        ],
+        "body": "Symptom: Flag evaluation requests using a cluster-wide service token are rejected for a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext used the identity's wildcard namespace as the evaluation namespace and targeting key, conflicting with the caller's concrete auth namespace.\nFix pattern: Select a nonempty, non-wildcard identity namespace first; otherwise use \"stacks-\" + cfg.StackID when set, then \"default\". Use the selected namespace for both the evaluation context's namespace attribute and targeting key.\nConstraints: This selection applies to request OpenFeature evaluation context. A concrete identity namespace takes precedence over StackID; empty or \"*\" identity namespaces must fall back. pkg/services/contexthandler/contexthandler_test.go:TestContextHandler verifies selection and agreement between the namespace attribute and targeting key.",
+        "applies": "Request OpenFeature evaluation context constructed by ContextHandler.setRequestContext.",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ContextHandler.setRequestContext"
+          },
+          {
+            "path": "pkg/services/contexthandler/contexthandler_test.go",
+            "symbol": "TestContextHandler"
+          }
+        ],
+        "tags": [
+          "openfeature",
+          "evaluation-context",
+          "namespace",
+          "feature-flags"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-openfeature-evaluation-namespaces-concrete",
+        "title": "Keep OpenFeature evaluation namespaces concrete",
+        "kind": "rule",
+        "body": "Symptom: Flag evaluation requests using a cluster-wide service token are rejected for a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:ContextHandler.setRequestContext used the identity's wildcard namespace as the evaluation namespace and targeting key, conflicting with the caller's concrete auth namespace.\nFix pattern: Select a nonempty, non-wildcard identity namespace first; otherwise use \"stacks-\" + cfg.StackID when set, then \"default\". Use the selected namespace for both the evaluation context's namespace attribute and targeting key.\nConstraints: This selection applies to request OpenFeature evaluation context. A concrete identity namespace takes precedence over StackID; empty or \"*\" identity namespaces must fall back. pkg/services/contexthandler/contexthandler_test.go:TestContextHandler verifies selection and agreement between the namespace attribute and targeting key.",
+        "deps": [
+          {
+            "path": "pkg/services/contexthandler/contexthandler.go",
+            "symbol": "ContextHandler",
+            "hash": "sha256:7e2bafbef478109aa6de31ad",
+            "line": 41,
+            "missing": false,
+            "fanout": {
+              "files": 11,
+              "sites": 0,
+              "refs": 25
+            }
+          },
+          {
+            "path": "pkg/services/contexthandler/contexthandler_test.go",
+            "symbol": "TestContextHandler",
+            "hash": "sha256:686759b39724caa91cdb1125",
+            "line": 27,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132979",
+    "pr": 132979,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16724,
+    "elapsedMs": 13421,
+    "proposed": [
+      {
+        "title": "Use the shared modal action row to avoid clipped button focus rings",
+        "kind": "rule",
+        "answers": [
+          "The focus ring is cut off around confirmation modal buttons.",
+          "How should confirmation modal action buttons be laid out?",
+          "Fix clipped keyboard focus outlines in modal footers."
+        ],
+        "body": "Symptom: Buttons in confirmation modals show cut-off focus rings.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent used a bespoke buttonsContainer and Stack for its action buttons.\nFix pattern: Render modal actions inside Modal.ButtonRow instead of the custom action-row wrapper.\nConstraints: Applies to confirmation modal action layout; preserve button handlers, submit type, disabled state, ref, and test selector when replacing the wrapper. This does not establish a general defect in Stack.",
+        "applies": "Confirmation modal action buttons rendered by ConfirmContent.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+            "symbol": "ConfirmContent"
+          }
+        ],
+        "tags": [
+          "modals",
+          "focus",
+          "accessibility",
+          "grafana-ui"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "use-the-shared-modal-action-row-to-avoid-clipped-button-focu",
+        "title": "Use the shared modal action row to avoid clipped button focus rings",
+        "kind": "rule",
+        "body": "Symptom: Buttons in confirmation modals show cut-off focus rings.\nRoot cause: packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx:ConfirmContent used a bespoke buttonsContainer and Stack for its action buttons.\nFix pattern: Render modal actions inside Modal.ButtonRow instead of the custom action-row wrapper.\nConstraints: Applies to confirmation modal action layout; preserve button handlers, submit type, disabled state, ref, and test selector when replacing the wrapper. This does not establish a general defect in Stack.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+            "symbol": "ConfirmContent",
+            "hash": "sha256:1b0f886b4db1e45987b16f83",
+            "line": 53,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 8
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132877",
+    "pr": 132877,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 18808,
+    "elapsedMs": 20297,
+    "proposed": [
+      {
+        "title": "Observe Combobox positioning only while its menu is open",
+        "kind": "rule",
+        "answers": [
+          "Why does a Combobox inside collapsed details keep updating?",
+          "How should Combobox floating observers follow menu visibility?",
+          "Why does the hidden Feature Control Combobox cause repeated input DOM updates?"
+        ],
+        "body": "Symptom: A Combobox inside collapsed details receives continual size measurements and repeatedly updates its input DOM.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat registered autoUpdate through whileElementsMounted, so CSS-hidden elements remained observed.\nFix pattern: Start autoUpdate in an effect guarded by isOpen and the presence of both input and floating refs; return its cleanup function.\nConstraints: Observe while the menu is open and both elements exist; mounted elements alone do not establish visibility when CSS or collapsed details can hide them.",
+        "applies": "Combobox positioning and sizing observation in useComboboxFloat, including CSS-hidden containers.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat"
+          }
+        ],
+        "tags": [
+          "combobox",
+          "floating-ui",
+          "visibility",
+          "effect-cleanup"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Skip unchanged computed Combobox size updates",
+        "kind": "rule",
+        "answers": [
+          "Why does the Combobox rerender for identical size measurements?",
+          "How do I prevent unchanged menu dimensions from updating the input DOM?",
+          "How should useComboboxFloat deduplicate size callbacks?"
+        ],
+        "body": "Symptom: Repeated identical menu size measurements rerender the Combobox and update its input DOM despite unchanged visible attributes.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat called setPopoverMaxSize with a new size object for every measurement.\nFix pattern: Compare computed width and height with a ref holding the last committed dimensions; return when both match, otherwise update the ref before setting state.\nConstraints: Compare the final dimensions after sizing calculations, not just raw available space; skip state updates only when both dimensions are unchanged.",
+        "applies": "Popover maximum-size state updates in the useComboboxFloat size middleware.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat"
+          }
+        ],
+        "tags": [
+          "combobox",
+          "react",
+          "size-measurement",
+          "rerenders"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "observe-combobox-positioning-only-while-its-menu-is-open",
+        "title": "Observe Combobox positioning only while its menu is open",
+        "kind": "rule",
+        "body": "Symptom: A Combobox inside collapsed details receives continual size measurements and repeatedly updates its input DOM.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat registered autoUpdate through whileElementsMounted, so CSS-hidden elements remained observed.\nFix pattern: Start autoUpdate in an effect guarded by isOpen and the presence of both input and floating refs; return its cleanup function.\nConstraints: Observe while the menu is open and both elements exist; mounted elements alone do not establish visibility when CSS or collapsed details can hide them.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat",
+            "hash": "sha256:28df1c52551d1b3bfff3f362",
+            "line": 45,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 3,
+              "refs": 7
+            }
+          }
+        ]
+      },
+      {
+        "id": "skip-unchanged-computed-combobox-size-updates",
+        "title": "Skip unchanged computed Combobox size updates",
+        "kind": "rule",
+        "body": "Symptom: Repeated identical menu size measurements rerender the Combobox and update its input DOM despite unchanged visible attributes.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat called setPopoverMaxSize with a new size object for every measurement.\nFix pattern: Compare computed width and height with a ref holding the last committed dimensions; return when both match, otherwise update the ref before setting state.\nConstraints: Compare the final dimensions after sizing calculations, not just raw available space; skip state updates only when both dimensions are unchanged.",
+        "deps": [
+          {
+            "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+            "symbol": "useComboboxFloat",
+            "hash": "sha256:28df1c52551d1b3bfff3f362",
+            "line": 45,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 3,
+              "refs": 7
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132966",
+    "pr": 132966,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 19330,
+    "elapsedMs": 19622,
+    "proposed": [
+      {
+        "title": "Negotiate aggregated discovery to find CRD-backed groups",
+        "kind": "rule",
+        "answers": [
+          "Why are CRD-backed resources missing from router discovery?",
+          "Why does introspection fail for an aggregated apiextensions-apiserver?",
+          "How should the router negotiate and decode /apis responses?"
+        ],
+        "body": "Symptom: CRD-backed resource groups are missing when an apiextensions-apiserver is configured as a router aggregate target.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups queried /apis without requesting aggregated discovery; the standalone apiextensions server's classic response contains a static group map that does not track CRDs.\nFix pattern: Request aggregatedDiscoveryJSON before application/json; pkg/router/aggregate_discovery.go:decodeDiscoveryResponse selects aggregated decoding when the response Content-Type contains apidiscovery.k8s.io and converts it to []metav1.APIGroup.\nConstraints: Applies to active /apis discovery of aggregate targets. Preserve classic APIGroupList decoding for targets that negotiate down or ignore Accept; choose the decoder from the actual response Content-Type.",
+        "applies": "Router active discovery of API groups on aggregate apiserver targets.",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "decodeDiscoveryResponse"
+          },
+          {
+            "path": "pkg/router/aggregate_discovery_test.go",
+            "symbol": "TestDiscoverGroups_AggregatedFormat"
+          }
+        ],
+        "tags": [
+          "router",
+          "api-discovery",
+          "apiextensions",
+          "content-negotiation"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Preserve upstream version priority when normalizing discovery",
+        "kind": "rule",
+        "answers": [
+          "How does the router choose a discovered group's preferred API version?",
+          "Why must aggregated discovery versions retain their order?",
+          "How should APIGroupDiscoveryList be converted for router discovery?"
+        ],
+        "body": "pkg/router/aggregate_discovery.go:apiGroupDiscoveryListToGroups normalizes aggregated discovery into the classic metav1.APIGroup shape expected by the router.\nPreserve each group's upstream version order and construct GroupVersion as group name + \"/\" + version.\nSet PreferredVersion to the first converted version only when versions are present; changing the order changes the preferred version advertised by the router.",
+        "applies": "Conversion of aggregated APIGroupDiscoveryList responses into classic router discovery groups.",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "apiGroupDiscoveryListToGroups"
+          }
+        ],
+        "tags": [
+          "router",
+          "api-discovery",
+          "version-priority"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "negotiate-aggregated-discovery-to-find-crd-backed-groups",
+        "title": "Negotiate aggregated discovery to find CRD-backed groups",
+        "kind": "rule",
+        "body": "Symptom: CRD-backed resource groups are missing when an apiextensions-apiserver is configured as a router aggregate target.\nRoot cause: pkg/router/aggregate_discovery.go:discoverGroups queried /apis without requesting aggregated discovery; the standalone apiextensions server's classic response contains a static group map that does not track CRDs.\nFix pattern: Request aggregatedDiscoveryJSON before application/json; pkg/router/aggregate_discovery.go:decodeDiscoveryResponse selects aggregated decoding when the response Content-Type contains apidiscovery.k8s.io and converts it to []metav1.APIGroup.\nConstraints: Applies to active /apis discovery of aggregate targets. Preserve classic APIGroupList decoding for targets that negotiate down or ignore Accept; choose the decoder from the actual response Content-Type.",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "discoverGroups",
+            "hash": "sha256:76d0e2520fc7ce49bba2e288",
+            "line": 18,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 7,
+              "refs": 14
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "decodeDiscoveryResponse",
+            "hash": "sha256:541f271a0f43d870ea86a531",
+            "line": 54,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pkg/router/aggregate_discovery_test.go",
+            "symbol": "TestDiscoverGroups_AggregatedFormat",
+            "hash": "sha256:ce75bd7f3c034a4daa18b6a4",
+            "line": 51,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "preserve-upstream-version-priority-when-normalizing-discover",
+        "title": "Preserve upstream version priority when normalizing discovery",
+        "kind": "rule",
+        "body": "pkg/router/aggregate_discovery.go:apiGroupDiscoveryListToGroups normalizes aggregated discovery into the classic metav1.APIGroup shape expected by the router.\nPreserve each group's upstream version order and construct GroupVersion as group name + \"/\" + version.\nSet PreferredVersion to the first converted version only when versions are present; changing the order changes the preferred version advertised by the router.",
+        "deps": [
+          {
+            "path": "pkg/router/aggregate_discovery.go",
+            "symbol": "apiGroupDiscoveryListToGroups",
+            "hash": "sha256:d381faa3e3dd42a191e4f431",
+            "line": 75,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132940",
+    "pr": 132940,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16485,
+    "elapsedMs": 13164,
+    "proposed": [
+      {
+        "title": "Strip resourceVersion before branching in v2 dashboard saves",
+        "kind": "rule",
+        "answers": [
+          "Why does saving a new v2 dashboard fail when resourceVersion is set?",
+          "Should v2 dashboard saves include resourceVersion?",
+          "Where should dashboard save metadata be sanitized?"
+        ],
+        "body": "Symptom: Saving a new v2 dashboard fails when the supplied metadata includes resourceVersion.\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard stripped resourceVersion only in the update branch, leaving it in create requests.\nFix pattern: Remove metadata.resourceVersion from the outgoing object before branching between create and update, so both save paths receive sanitized metadata.\nConstraints: Applies to both create and update through the v2 dashboard save API; this does not establish a rule for other resource APIs.",
+        "applies": "Changes to outgoing metadata in K8sDashboardV2API.saveDashboard, including saves with caller-supplied Kubernetes metadata.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard/api/v2.ts",
+            "symbol": "K8sDashboardV2API.saveDashboard"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "v2-api",
+          "save",
+          "resourceVersion"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "strip-resourceversion-before-branching-in-v2-dashboard-saves",
+        "title": "Strip resourceVersion before branching in v2 dashboard saves",
+        "kind": "rule",
+        "body": "Symptom: Saving a new v2 dashboard fails when the supplied metadata includes resourceVersion.\nRoot cause: public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard stripped resourceVersion only in the update branch, leaving it in create requests.\nFix pattern: Remove metadata.resourceVersion from the outgoing object before branching between create and update, so both save paths receive sanitized metadata.\nConstraints: Applies to both create and update through the v2 dashboard save API; this does not establish a rule for other resource APIs.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard/api/v2.ts",
+            "symbol": "K8sDashboardV2API.saveDashboard",
+            "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+            "line": 118,
+            "missing": false,
+            "fanout": {
+              "files": 30,
+              "sites": 108,
+              "refs": 144
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132860",
+    "pr": 132860,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 16677,
+    "elapsedMs": 13015,
+    "proposed": [
+      {
+        "title": "Anchor log key matching at word boundaries",
+        "kind": "rule",
+        "answers": [
+          "Why does the logs panel freeze on a long log line without assignments?",
+          "How can log key highlighting avoid catastrophic regex backtracking?",
+          "Where is key=value highlighting defined for the logs panel?"
+        ],
+        "body": "Symptom: The logs panel can stall when highlighting a long word without an '='.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar — the log-token-key prefix (\\b|\\B) permits matching at every position, repeatedly scanning suffixes for an assignment and causing quadratic backtracking.\nFix pattern: Restrict candidate key starts to word boundaries with /\\b[\\w_]+(?=\\s*=)/gi while retaining the assignment lookahead.\nConstraints: Applies to word-style assignment keys in logs highlighting; preserve recognition of keys such as foo, status, and key_1 before '='. This pattern does not address other token rules.",
+        "applies": "Logs panel Prism grammar changes affecting assignment-key recognition or performance on long unassigned words.",
+        "deps": [
+          {
+            "path": "public/app/features/logs/components/panel/grammar.ts",
+            "symbol": "logsGrammar"
+          }
+        ],
+        "tags": [
+          "logs",
+          "syntax-highlighting",
+          "regex",
+          "performance"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "anchor-log-key-matching-at-word-boundaries",
+        "title": "Anchor log key matching at word boundaries",
+        "kind": "rule",
+        "body": "Symptom: The logs panel can stall when highlighting a long word without an '='.\nRoot cause: public/app/features/logs/components/panel/grammar.ts:logsGrammar — the log-token-key prefix (\\b|\\B) permits matching at every position, repeatedly scanning suffixes for an assignment and causing quadratic backtracking.\nFix pattern: Restrict candidate key starts to word boundaries with /\\b[\\w_]+(?=\\s*=)/gi while retaining the assignment lookahead.\nConstraints: Applies to word-style assignment keys in logs highlighting; preserve recognition of keys such as foo, status, and key_1 before '='. This pattern does not address other token rules.",
+        "deps": [
+          {
+            "path": "public/app/features/logs/components/panel/grammar.ts",
+            "symbol": "logsGrammar",
+            "hash": "sha256:60577e559afa47c5d9518eb0",
+            "line": 7,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 1
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-131837",
+    "pr": 131837,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17677,
+    "elapsedMs": 18453,
+    "proposed": [
+      {
+        "title": "Preserve query variable refresh policy during v2 import datasource remapping",
+        "kind": "rule",
+        "answers": [
+          "Why does importing a dashboard change a query variable's refresh setting?",
+          "Should a variable with refresh set to never be upgraded when its datasource changes?",
+          "Which query variable settings should survive datasource remapping during UI import?"
+        ],
+        "body": "Symptom: A query variable's configured refresh setting changes after importing a v2 dashboard and selecting a replacement datasource.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt the variable spec with an explicit refresh override, replacing the author's policy.\nFix pattern: Preserve refresh through the existing spec spread, including onTimeRangeChanged, onDashboardLoad, and never; continue clearing datasource-dependent options and current selection.\nConstraints: Applies when v2 import remaps a query variable to a selected datasource. Clearing options does not require upgrading never to onDashboardLoad. Variables retaining a $datasourceVar reference and the v1 import path are outside this replacement behavior.",
+        "applies": "V2 dashboard UI import when replacing a query variable's datasource with the datasource selected in the import form.",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceVariableDatasources"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "import",
+          "query-variables",
+          "datasource-remapping",
+          "refresh"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-query-variable-refresh-policy-during-v2-import-data",
+        "title": "Preserve query variable refresh policy during v2 import datasource remapping",
+        "kind": "rule",
+        "body": "Symptom: A query variable's configured refresh setting changes after importing a v2 dashboard and selecting a replacement datasource.\nRoot cause: public/app/features/manage-dashboards/import/utils/inputs.ts:replaceVariableDatasources rebuilt the variable spec with an explicit refresh override, replacing the author's policy.\nFix pattern: Preserve refresh through the existing spec spread, including onTimeRangeChanged, onDashboardLoad, and never; continue clearing datasource-dependent options and current selection.\nConstraints: Applies when v2 import remaps a query variable to a selected datasource. Clearing options does not require upgrading never to onDashboardLoad. Variables retaining a $datasourceVar reference and the v1 import path are outside this replacement behavior.",
+        "deps": [
+          {
+            "path": "public/app/features/manage-dashboards/import/utils/inputs.ts",
+            "symbol": "replaceVariableDatasources",
+            "hash": "sha256:6a6208936d3a8ee52db20d5b",
+            "line": 738,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 2
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132572",
+    "pr": 132572,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 18905,
+    "elapsedMs": 18821,
+    "proposed": [
+      {
+        "title": "Preserve comparison values in diff flame graph sandwich transforms",
+        "kind": "rule",
+        "answers": [
+          "Why do Sandwich view tooltips show NaN or undefined in a diff flame graph?",
+          "How should Callers/Callees merges preserve comparison values?",
+          "How should diff tooltips handle a missing valueRight?"
+        ],
+        "body": "Symptom: In a Diff flame graph's Sandwich view (Callers/Callees), Baseline/Comparison/Diff tooltip values display NaN% or undefined.\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:getParentSubtrees rebuilt value without preserving valueRight; packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx:getDiffTooltipData assumed item.valueRight existed.\nFix pattern: Merge valueRight alongside value using transformed input values, counting missing valueRight as zero when any input carries it; when rebasing parents, copy both values from the child. Normalize missing tooltip item.valueRight to zero before arithmetic and formatting.\nConstraints: Comparison-value aggregation applies when at least one merged input has valueRight; non-diff merges must leave valueRight undefined. The tooltip fallback is defensive; accurate comparison values still require the transforms to preserve them.",
+        "applies": "Diff flame graph node merging, Sandwich view parent rebasing, and tooltip calculations involving item.valueRight.",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeSubtrees"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "getParentSubtrees"
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+            "symbol": "getDiffTooltipData"
+          }
+        ],
+        "tags": [
+          "flamegraph",
+          "diff-profiles",
+          "sandwich-view",
+          "tooltips"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-comparison-values-in-diff-flame-graph-sandwich-tran",
+        "title": "Preserve comparison values in diff flame graph sandwich transforms",
+        "kind": "rule",
+        "body": "Symptom: In a Diff flame graph's Sandwich view (Callers/Callees), Baseline/Comparison/Diff tooltip values display NaN% or undefined.\nRoot cause: packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:mergeSubtrees and packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts:getParentSubtrees rebuilt value without preserving valueRight; packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx:getDiffTooltipData assumed item.valueRight existed.\nFix pattern: Merge valueRight alongside value using transformed input values, counting missing valueRight as zero when any input carries it; when rebasing parents, copy both values from the child. Normalize missing tooltip item.valueRight to zero before arithmetic and formatting.\nConstraints: Comparison-value aggregation applies when at least one merged input has valueRight; non-diff merges must leave valueRight undefined. The tooltip fallback is defensive; accurate comparison values still require the transforms to preserve them.",
+        "deps": [
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "mergeSubtrees",
+            "hash": "sha256:efdd86920cd35d6545517800",
+            "line": 66,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 7,
+              "refs": 11
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+            "symbol": "getParentSubtrees",
+            "hash": "sha256:22720615ee8b45fe356070d7",
+            "line": 15,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          },
+          {
+            "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+            "symbol": "getDiffTooltipData",
+            "hash": "sha256:9759bf64a11ff7b7d7391239",
+            "line": 130,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 4,
+              "refs": 6
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132648",
+    "pr": 132648,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17534,
+    "elapsedMs": 25008,
+    "proposed": [
+      {
+        "title": "MutableDataFrame must accept writes to its derived length during object copying",
+        "kind": "rule",
+        "answers": [
+          "Why does Explore’s raw Prometheus view crash with multiple instant queries?",
+          "Why does cloneDeep(props.data) throw in a plugin under an ESM build?",
+          "Why does MutableDataFrame have an empty length setter?",
+          "Can RawListContainer use the supplied tableResult directly?"
+        ],
+        "body": "Symptom: Explore’s raw Prometheus view with two or more instant queries, or a plugin cloning its data, can throw “Cannot set property length … which has only a getter” under strict ESM builds.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame.length was getter-only; generic copiers recreate the prototype and assign properties, including length. public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer unnecessarily deep-cloned the merged frame.\nFix pattern: Keep a no-op setter for the derived length so generic copiers can assign it without throwing; read-only consumers such as RawListContainer can use the supplied frame directly.\nConstraints: Length remains derived from the first field, so assigning it must not resize the frame or override the getter’s value. Direct frame reuse applies to consumers that only read it; consumers that mutate data need a separate ownership decision.",
+        "applies": "Changes to MutableDataFrame’s length accessor, generic frame copying, or Explore’s read-only raw Prometheus list.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame.length"
+          },
+          {
+            "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+            "symbol": "RawListContainer"
+          }
+        ],
+        "tags": [
+          "dataframes",
+          "strict-mode",
+          "cloning",
+          "explore",
+          "prometheus"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "mutabledataframe-must-accept-writes-to-its-derived-length-du",
+        "title": "MutableDataFrame must accept writes to its derived length during object copying",
+        "kind": "rule",
+        "body": "Symptom: Explore’s raw Prometheus view with two or more instant queries, or a plugin cloning its data, can throw “Cannot set property length … which has only a getter” under strict ESM builds.\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts:MutableDataFrame.length was getter-only; generic copiers recreate the prototype and assign properties, including length. public/app/features/explore/PrometheusListView/RawListContainer.tsx:RawListContainer unnecessarily deep-cloned the merged frame.\nFix pattern: Keep a no-op setter for the derived length so generic copiers can assign it without throwing; read-only consumers such as RawListContainer can use the supplied frame directly.\nConstraints: Length remains derived from the first field, so assigning it must not resize the frame or override the getter’s value. Direct frame reuse applies to consumers that only read it; consumers that mutate data need a separate ownership decision.",
+        "deps": [
+          {
+            "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+            "symbol": "MutableDataFrame.length",
+            "hash": "sha256:43ad0430d0b0e4f460c6fd75",
+            "line": 73,
+            "missing": false
+          },
+          {
+            "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+            "symbol": "RawListContainer",
+            "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+            "line": 61,
+            "missing": false,
+            "fanout": {
+              "files": 5,
+              "sites": 0,
+              "refs": 8
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-131464",
+    "pr": 131464,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 17774,
+    "elapsedMs": 21341,
+    "proposed": [
+      {
+        "title": "Keep annotation tag deletes scoped without forcing a zero tag ID",
+        "kind": "rule",
+        "answers": [
+          "Removed annotation tags still appear in tag filtering",
+          "Why does ensureTags fail to unlink replaced tags?",
+          "How should MustCols be used when deleting annotation tag links?"
+        ],
+        "body": "Symptom: Tags removed from an annotation still appear in annotation tag filtering.\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags forced the delete bean's zero TagID into the WHERE clause, adding tag_id = 0 alongside tag_id IN (...).\nFix pattern: Force only annotation_id with MustCols; let In(\"tag_id\", tagsDelete) supply the tag predicate.\nConstraints: Applies to link deletion in ensureTags, shared by Add, update and AddMany. Keep annotation_id forced even when zero, or the delete can affect other annotations; this does not repair existing stale links or the separate AddMany write-back defect.",
+        "applies": "Changes to annotation tag link deletion in xormRepositoryImpl.ensureTags.",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags"
+          }
+        ],
+        "tags": [
+          "annotations",
+          "tags",
+          "xorm",
+          "deletion"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Verify annotation tag updates against the join table",
+        "kind": "rule",
+        "answers": [
+          "Annotation tags look correct but tag filtering shows removed tags",
+          "How do I test that replacing annotation tags removes old links?",
+          "Why can an annotation Tags assertion miss stale tag links?"
+        ],
+        "body": "Invariant: Annotation tag changes must keep annotation.tags and annotation_tag consistent; link maintenance lives in pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags.\nVisibility: Get builds ItemDTO.Tags from annotation.tags, while GetTags uses annotation_tag for filtering, so DTO assertions alone can pass with stale links.\nTest convention: pkg/services/annotations/annotationsimpl/xorm_store_test.go:TestIntegrationAnnotations queries annotation_tag joined to tag for the annotation ID and checks the exact tag set with ElementsMatch after replacing a tag.",
+        "applies": "Implementation and integration tests for replacing or removing annotation tags.",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags"
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "symbol": "TestIntegrationAnnotations"
+          }
+        ],
+        "tags": [
+          "annotations",
+          "tags",
+          "integration-tests",
+          "consistency"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-annotation-tag-deletes-scoped-without-forcing-a-zero-ta",
+        "title": "Keep annotation tag deletes scoped without forcing a zero tag ID",
+        "kind": "rule",
+        "body": "Symptom: Tags removed from an annotation still appear in annotation tag filtering.\nRoot cause: pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags forced the delete bean's zero TagID into the WHERE clause, adding tag_id = 0 alongside tag_id IN (...).\nFix pattern: Force only annotation_id with MustCols; let In(\"tag_id\", tagsDelete) supply the tag predicate.\nConstraints: Applies to link deletion in ensureTags, shared by Add, update and AddMany. Keep annotation_id forced even when zero, or the delete can affect other annotations; this does not repair existing stale links or the separate AddMany write-back defect.",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags",
+            "hash": "sha256:72bb4b9142f3bc4223046c53",
+            "line": 230,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          }
+        ]
+      },
+      {
+        "id": "verify-annotation-tag-updates-against-the-join-table",
+        "title": "Verify annotation tag updates against the join table",
+        "kind": "rule",
+        "body": "Invariant: Annotation tag changes must keep annotation.tags and annotation_tag consistent; link maintenance lives in pkg/services/annotations/annotationsimpl/xorm_store.go:ensureTags.\nVisibility: Get builds ItemDTO.Tags from annotation.tags, while GetTags uses annotation_tag for filtering, so DTO assertions alone can pass with stale links.\nTest convention: pkg/services/annotations/annotationsimpl/xorm_store_test.go:TestIntegrationAnnotations queries annotation_tag joined to tag for the annotation ID and checks the exact tag set with ElementsMatch after replacing a tag.",
+        "deps": [
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store.go",
+            "symbol": "ensureTags",
+            "hash": "sha256:72bb4b9142f3bc4223046c53",
+            "line": 230,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 3,
+              "refs": 3
+            }
+          },
+          {
+            "path": "pkg/services/annotations/annotationsimpl/xorm_store_test.go",
+            "symbol": "TestIntegrationAnnotations",
+            "hash": "sha256:99e419faa33c8690d9f4de24",
+            "line": 34,
+            "missing": false,
+            "fanout": {
+              "files": 0,
+              "sites": 0,
+              "refs": 0
+            }
+          },
+          {
+            "path": "pkg/services/ngalert/state/historian/annotation.go",
+            "symbol": "tags",
+            "hash": "sha256:00716a03f5cc52b4169a6b89",
+            "line": 367,
+            "missing": false,
+            "fanout": {
+              "files": 232,
+              "sites": 24,
+              "refs": 1193
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-132082",
+    "pr": 132082,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 21037,
+    "elapsedMs": 29343,
+    "proposed": [
+      {
+        "title": "Auto-fit row tracks must shrink with panels while preserving non-fit height",
+        "kind": "rule",
+        "answers": [
+          "Why is there empty space below a short auto-fit panel?",
+          "How should minimum panel height affect auto-grid row sizing?",
+          "How do non-fit panels keep their configured row height?"
+        ],
+        "body": "Symptom: A short auto-fit panel leaves unexpected bottom padding before the next dashboard row.\nRoot cause: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate reserved the configured row height even when the panel's fit minimum was lower.\nFix pattern: Floor fit-enabled row tracks at min(configured row height, resolved fit minimum), with max-content growth; a minimum of \"none\" resolves to zero. In public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx:AutoGridItemRenderer, preserve non-fit panels' row-height minimum when row heights are matched and auto-height panels are enabled, or their explicit row height when unmatched.\nConstraints: Lower the shared track floor only when fit content is present and fillScreen is false. Clamp larger fit minimums to the configured row height so they do not inflate non-fit-only rows; fit panels contribute their own minimum.",
+        "applies": "Dashboard auto-grid sizing with fit-content panels, including layouts mixing fit and non-fit panels.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+            "symbol": "AutoGridItemRenderer"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "auto-grid",
+          "fit-content",
+          "row-height"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      },
+      {
+        "title": "Keep derived auto-grid row sizing consistent across creation, edits and loading",
+        "kind": "rule",
+        "answers": [
+          "Why does minimum panel height behave differently after loading a dashboard?",
+          "Where must auto-grid row sizing be updated when minimum height changes?",
+          "How does a single panel opting into fit content affect grid rows?"
+        ],
+        "body": "Mechanism: Grid autoRows is derived from row height, fill-screen mode, fit-content presence and minimum height through public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate.\nCreation and edits: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:AutoGridLayoutManager passes the initial minimum; updateAutoRows passes the current minimum, and onMinHeightChanged invokes updateAutoRows after updating state.\nLoading: public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts:deserializeAutoGridLayout passes the resolved minimum and enables fit row growth only when auto-height panels are enabled and either the layout default or any child explicitly opts into fit content.\nInvariant: Keep these inputs and recomputation paths in sync. Omitting the minimum during creation or loading restores the row-height floor; skipping recomputation after an edit leaves stale row sizing.",
+        "applies": "Changes to auto-grid minimum-height settings, derived row templates or layout deserialization.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager.updateAutoRows"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager.onMinHeightChanged"
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+            "symbol": "deserializeAutoGridLayout"
+          }
+        ],
+        "tags": [
+          "dashboards",
+          "auto-grid",
+          "serialization",
+          "derived-state"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "auto-fit-row-tracks-must-shrink-with-panels-while-preserving",
+        "title": "Auto-fit row tracks must shrink with panels while preserving non-fit height",
+        "kind": "rule",
+        "body": "Symptom: A short auto-fit panel leaves unexpected bottom padding before the next dashboard row.\nRoot cause: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate reserved the configured row height even when the panel's fit minimum was lower.\nFix pattern: Floor fit-enabled row tracks at min(configured row height, resolved fit minimum), with max-content growth; a minimum of \"none\" resolves to zero. In public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx:AutoGridItemRenderer, preserve non-fit panels' row-height minimum when row heights are matched and auto-height panels are enabled, or their explicit row height when unmatched.\nConstraints: Lower the shared track floor only when fit content is present and fillScreen is false. Clamp larger fit minimums to the configured row height so they do not inflate non-fit-only rows; fit panels contribute their own minimum.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate",
+            "hash": "sha256:05ff2d7b650b4737c660aa59",
+            "line": 637,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 15,
+              "refs": 19
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+            "symbol": "AutoGridItemRenderer",
+            "hash": "sha256:b090eb847acbb352f0557664",
+            "line": 29,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 0,
+              "refs": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "keep-derived-auto-grid-row-sizing-consistent-across-creation",
+        "title": "Keep derived auto-grid row sizing consistent across creation, edits and loading",
+        "kind": "rule",
+        "body": "Mechanism: Grid autoRows is derived from row height, fill-screen mode, fit-content presence and minimum height through public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:getAutoRowsTemplate.\nCreation and edits: public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx:AutoGridLayoutManager passes the initial minimum; updateAutoRows passes the current minimum, and onMinHeightChanged invokes updateAutoRows after updating state.\nLoading: public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts:deserializeAutoGridLayout passes the resolved minimum and enables fit row growth only when auto-height panels are enabled and either the layout default or any child explicitly opts into fit content.\nInvariant: Keep these inputs and recomputation paths in sync. Omitting the minimum during creation or loading restores the row-height floor; skipping recomputation after an edit leaves stale row sizing.",
+        "deps": [
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager",
+            "hash": "sha256:78ee88694ee659cfbdd47980",
+            "line": 82,
+            "missing": false,
+            "fanout": {
+              "files": 80,
+              "sites": 48,
+              "refs": 354
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "getAutoRowsTemplate",
+            "hash": "sha256:05ff2d7b650b4737c660aa59",
+            "line": 637,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 15,
+              "refs": 19
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager.updateAutoRows",
+            "hash": "sha256:856fa72c5c6af8af94a54b36",
+            "line": 438,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 8,
+              "refs": 8
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+            "symbol": "AutoGridLayoutManager.onMinHeightChanged",
+            "hash": "sha256:90a4c45bdbff925ef3aa56f8",
+            "line": 382,
+            "missing": false,
+            "fanout": {
+              "files": 3,
+              "sites": 11,
+              "refs": 15
+            }
+          },
+          {
+            "path": "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts",
+            "symbol": "deserializeAutoGridLayout",
+            "hash": "sha256:2721917c150dbbd6d50392b3",
+            "line": 132,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 10,
+              "refs": 13
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  },
+  {
+    "id": "grafana-130358",
+    "pr": 130358,
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "tokens": 23973,
+    "elapsedMs": 13878,
+    "proposed": [
+      {
+        "title": "Preserve datasource type and UID in trace correlation queries",
+        "kind": "rule",
+        "answers": [
+          "Show context says No more logs available after clicking Logs for this span",
+          "Datasource-specific log context controls are missing after navigating from a trace",
+          "What datasource reference must trace-to-logs and trace-to-metrics queries carry?"
+        ],
+        "body": "Symptom: After clicking Logs for this span, Show context displays “No more logs available” instead of surrounding logs and datasource-specific controls.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory generated inner queries without datasource.type; a UID alone allowed execution but did not reliably identify the plugin.\nFix pattern: Attach datasource: { type, uid } from the target datasource settings to generated logs and metrics queries, including interpolated alternative log queries.\nConstraints: Preserve the complete reference with dynamic trace-to-logs queries both enabled and disabled. The Explore pane's datasource UID does not replace the reference required on each inner query.",
+        "applies": "Explore trace-to-logs and trace-to-metrics link generation, including alternative log queries.",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+            "symbol": "legacyCreateSpanLinkFactory"
+          }
+        ],
+        "tags": [
+          "explore",
+          "trace-to-logs",
+          "trace-to-metrics",
+          "datasource",
+          "log-context"
+        ],
+        "confidence": 0.8,
+        "extends": ""
+      }
+    ],
+    "saved": [
+      {
+        "id": "preserve-datasource-type-and-uid-in-trace-correlation-querie",
+        "title": "Preserve datasource type and UID in trace correlation queries",
+        "kind": "rule",
+        "body": "Symptom: After clicking Logs for this span, Show context displays “No more logs available” instead of surrounding logs and datasource-specific controls.\nRoot cause: public/app/features/explore/TraceView/createSpanLink.tsx:legacyCreateSpanLinkFactory generated inner queries without datasource.type; a UID alone allowed execution but did not reliably identify the plugin.\nFix pattern: Attach datasource: { type, uid } from the target datasource settings to generated logs and metrics queries, including interpolated alternative log queries.\nConstraints: Preserve the complete reference with dynamic trace-to-logs queries both enabled and disabled. The Explore pane's datasource UID does not replace the reference required on each inner query.",
+        "deps": [
+          {
+            "path": "public/app/features/explore/TraceView/createSpanLink.tsx",
+            "symbol": "legacyCreateSpanLinkFactory",
+            "hash": "sha256:9d9b347650c49e0e7564738a",
+            "line": 149,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 1,
+              "refs": 1
+            }
+          }
+        ]
+      }
+    ],
+    "skipped": []
+  }
+]

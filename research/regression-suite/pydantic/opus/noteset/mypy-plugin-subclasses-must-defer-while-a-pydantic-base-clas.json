@@ -1,0 +1,68 @@
+{
+  "id": "mypy-plugin-subclasses-must-defer-while-a-pydantic-base-clas",
+  "title": "Mypy plugin: subclasses must defer while a Pydantic base class is still unprocessed (import cycles)",
+  "kind": "rule",
+  "answers": [
+    "mypy plugin crash with import cycle between models",
+    "mypy says unexpected keyword argument for an inherited field of a subclass",
+    "base class fields missing from generated __init__ signature in mypy plugin",
+    "why does pydantic mypy plugin set pydantic-mypy-metadata-tag"
+  ],
+  "body": "Symptom: with the pydantic mypy plugin, a subclass whose base model has a forward reference back to the subclass (TYPE_CHECKING import cycle) crashes the plugin, or gets an `__init__` signature that is missing the base's fields (issue #11329).\nRoot cause: pydantic/mypy.py:PydanticModelTransformer.collect_fields_and_class_vars skipped any MRO entry without METADATA_KEY. If the base's own transform was deferred (unresolved forward ref), the subclass was finalized without the base's fields.\nFix pattern: PydanticModelTransformer.transform tags every class it starts on with `info.metadata.setdefault(METADATA_TAG_KEY, {})`. When a base has METADATA_TAG_KEY but no METADATA_KEY (started but not finished), collect_fields_and_class_vars returns (None, None). transform then calls `self._api.defer()` and returns False, so another semantic-analysis pass runs.\nConstraints: only defer when `not self._api.final_iteration`. On the final iteration, fall through or mypy cannot terminate. Non-Pydantic bases have neither key and are still skipped. Any new 'not ready yet' path in transform should follow the same defer-unless-final pattern.",
+  "applies": "pydantic/mypy.py plugin model transformation and inheritance handling",
+  "tags": [
+    "mypy-plugin",
+    "import-cycle",
+    "deferral",
+    "inheritance"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.transform",
+      "hash": "sha256:9a6682e00c747eaae7016a3b",
+      "line": 521,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 33,
+        "refs": 40
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "PydanticModelTransformer.collect_fields_and_class_vars",
+      "hash": "sha256:504c7c127dbe565bfa23c9a6",
+      "line": 671,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic/mypy.py",
+      "symbol": "METADATA_TAG_KEY",
+      "hash": "sha256:555051296ccd16f7cb2e973d",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13767"
+  },
+  "created": "2026-10-07T00:36:04.373Z",
+  "verified": "2026-10-07T00:36:04.373Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

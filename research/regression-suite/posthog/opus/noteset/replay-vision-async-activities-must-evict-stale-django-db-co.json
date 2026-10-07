@@ -1,0 +1,46 @@
+{
+  "id": "replay-vision-async-activities-must-evict-stale-django-db-co",
+  "title": "Replay Vision async activities must evict stale Django DB connections first (track_activity)",
+  "kind": "rule",
+  "answers": [
+    "observation never gets a thumbnail after a database blip",
+    "async replay vision activity fails on first attempt after connection drop",
+    "where are stale db connections closed for replay vision temporal activities",
+    "connection already closed in async ORM call in temporal activity"
+  ],
+  "body": "Symptom: after one dropped Postgres connection, an observation is left without a thumbnail for good. Every attempt of an async Replay Vision activity fails the same way, so retries don't help.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity evicted stale connections only in the sync wrapper. Async ORM calls (e.g. `aget`) run on the same long-lived thread, so dead connections build up there too.\nFix pattern: async_wrapper now runs `await sync_to_async(close_stale_db_connections)()` (from posthog.temporal.common.utils) before calling the activity. This covers every async activity decorated with @track_activity.\nConstraints: the eviction is skipped under `settings.TEST`, as close_db_connections already does, because it touches Django connections in tests that have no DB access. So no unit test covers it. New Replay Vision activities, sync or async, should use @track_activity to get this. Adding more retries does not replace the eviction.",
+  "applies": "Temporal activities under products/replay_vision/backend/temporal that touch the Django ORM",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "django",
+    "db-connections",
+    "async",
+    "thumbnail"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/decorators.py",
+      "symbol": "track_activity",
+      "hash": "sha256:0bfcea6ffcd49e778bd938ac",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 29,
+        "sites": 50,
+        "refs": 80
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:14:42.150Z",
+  "verified": "2026-10-07T00:14:42.150Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

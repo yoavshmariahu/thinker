@@ -1,0 +1,45 @@
+{
+  "id": "queue-routing-mismatch-guard-in-alert-evaluation-activity",
+  "title": "Queue routing mismatch guard in alert evaluation activity",
+  "kind": "rule",
+  "answers": [
+    "Why did alert evaluation skip without recording an errored check when detector config changed?",
+    "How does evaluate_alert prevent AI detector checks from running on standard workers without credentials?",
+    "What happens if an alert detector type is modified between workflow prepare and evaluate activities?"
+  ],
+  "body": "Symptom: Alert check evaluation fails with worker credential errors or crashes if an alert's detector configuration is changed right before evaluation.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert reloaded the alert configuration from the database without confirming it matched inputs.uses_llm_detector chosen during workflow prepare.\nFix pattern: Compare the reloaded detector type against the routed input type; if mismatched, return early with alert_check_id=None and preserve next_check_at so the next scheduler tick can re-route.\nConstraints: Applies to Temporal workflow activities where queue routing is decided in an earlier step based on mutable database state.",
+  "applies": "Temporal alert workflow activities routing between AI and standard worker queues",
+  "tags": [
+    "alerts",
+    "temporal",
+    "ai-detector",
+    "task-routing"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:23:52.113Z",
+  "verified": "2026-10-07T00:23:52.113Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-detector-outcome-metrics-recording-on-retry-exhaustion"
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "id": "count-detector-unavailability-only-after-recording-the-faile",
+  "title": "Count detector unavailability only after recording the failed check",
+  "kind": "rule",
+  "answers": [
+    "Why does one scheduled AI detector check count as several failures?",
+    "Where should unavailable detector outcomes be counted?",
+    "Should a failed attempt count if a later retry succeeds?"
+  ],
+  "body": "Symptom: Detector health metrics report several failures for one scheduled check, or both failure and success when a retry succeeds.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert is retried by Temporal, so incrementing unavailable there counts attempts instead of recorded outcomes.\nFix pattern: Re-raise unavailable errors for retry; increment unavailable in posthog/temporal/alerts/activities.py:record_failed_evaluation only after writing the errored check and checking its error code.\nConstraints: Count only LLM_DETECTOR_UNAVAILABLE_ERROR_CODE failures that were actually recorded; skipped writes, including alerts disabled mid-check, and other error types must not increment unavailable.",
+  "applies": "The unavailable outcome of posthog_insight_alerts_ai_detector_checks_total across Temporal retries and failure recording.",
+  "tags": [
+    "alerts",
+    "ai-detector",
+    "metrics",
+    "temporal-retries"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "record_failed_evaluation",
+      "hash": "sha256:8aa482e903ec6c76c7ddc618",
+      "line": 569,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "symbol": "LLM_DETECTOR_UNAVAILABLE_ERROR_CODE",
+      "hash": "sha256:7966bfdf6f00a0985193d567",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:17:52.047Z",
+  "verified": "2026-10-07T00:17:52.047Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-detector-failure-messages-must-describe-the-outcome",
+    "revalidate-detector-type-against-the-prepared-worker-route"
+  ]
+}

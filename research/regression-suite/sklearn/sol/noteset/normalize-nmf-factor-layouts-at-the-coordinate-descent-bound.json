@@ -1,0 +1,43 @@
+{
+  "id": "normalize-nmf-factor-layouts-at-the-coordinate-descent-bound",
+  "title": "Normalize NMF factor layouts at the coordinate-descent boundary",
+  "kind": "rule",
+  "answers": [
+    "Why does NMF fit_transform fail with 'ndarray is not C-contiguous'?",
+    "How should NMF handle changes in SciPy SVD output ordering?",
+    "What array layouts does the NMF coordinate-descent solver require?"
+  ],
+  "body": "Symptom: NMF fit_transform raises ValueError: ndarray is not C-contiguous with SciPy development versions.\nRoot cause: sklearn/decomposition/_nmf.py:_fit_coordinate_descent did not normalize W's memory layout, allowing changes in SciPy SVD output ordering to reach the coordinate-descent kernel.\nFix pattern: At sklearn/decomposition/_nmf.py:_fit_coordinate_descent, normalize W and H.T with np.ascontiguousarray before updates, and convert CSC input X to CSR.\nConstraints: Enforce the factor layout requirement at the coordinate-descent boundary regardless of initialization; do not rely on upstream SVD output ordering. This requirement is specific to coordinate descent and does not establish a layout requirement for the multiplicative-update solver.",
+  "applies": "NMF coordinate-descent initialization and solver input preparation.",
+  "tags": [
+    "nmf",
+    "coordinate-descent",
+    "array-layout",
+    "scipy"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/decomposition/_nmf.py",
+      "symbol": "_fit_coordinate_descent",
+      "hash": "sha256:4ac364bdf869510ee80f349d",
+      "line": 399,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#33260"
+  },
+  "created": "2026-10-07T00:36:34.247Z",
+  "verified": "2026-10-07T00:36:34.247Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

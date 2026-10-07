@@ -1,0 +1,44 @@
+{
+  "id": "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati",
+  "title": "Prevent excessive re-renders in useComboboxFloat from floating-ui autoUpdate and size measurements",
+  "kind": "rule",
+  "answers": [
+    "Why does Combobox inside collapsed details or Feature Control UI cause continuous re-renders?",
+    "How to prevent useComboboxFloat from re-rendering when floating UI size measurements do not change?",
+    "Why is autoUpdate causing DOM updates on closed or CSS-hidden Combobox inputs?"
+  ],
+  "body": "Symptom: Combobox inputs in CSS-hidden or collapsed elements (such as Feature Control UI details) cause continuous re-renders and input DOM updates.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat ran autoUpdate unconditionally via whileElementsMounted and called setPopoverMaxSize with new object references on identical dimensions.\nFix pattern: Run autoUpdate inside a useEffect only when isOpen is true, and cache popoverMaxSize in a useRef to skip state updates when dimensions have not changed.\nConstraints: Applies to floating components whose trigger or content is hidden via CSS rather than unmounted; does not apply when floating elements are fully unmounted while closed.",
+  "applies": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts and floating-ui popover positioning",
+  "tags": [
+    "combobox",
+    "floating-ui",
+    "react",
+    "performance",
+    "rerender"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "useComboboxFloat",
+      "hash": "sha256:28df1c52551d1b3bfff3f362",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-07T00:04:29.005Z",
+  "verified": "2026-10-07T00:04:29.005Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

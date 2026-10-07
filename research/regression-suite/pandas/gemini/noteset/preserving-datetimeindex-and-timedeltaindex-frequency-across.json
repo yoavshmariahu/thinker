@@ -1,0 +1,70 @@
+{
+  "id": "preserving-datetimeindex-and-timedeltaindex-frequency-across",
+  "title": "Preserving DatetimeIndex and TimedeltaIndex frequency across index unions and concatenation",
+  "kind": "rule",
+  "answers": [
+    "Why does pd.concat lose DatetimeIndex or TimedeltaIndex freq depending on Series order?",
+    "Why does pd.DataFrame constructor set DatetimeIndex freq to None with CustomBusinessDay?",
+    "How does union_indexes restore shared DatetimeIndex frequency after pairwise combinations?"
+  ],
+  "body": "Symptom: pd.concat or DataFrame constructor loses the freq (sets freq=None) of a DatetimeIndex or TimedeltaIndex depending on the order of input Series.\nRoot cause: pandas/core/indexes/api.py:union_indexes combines inputs pairwise; non-contiguous intermediate unions drop non-inferable offsets (like CustomBusinessDay) when falling back to generic set union with freq='infer'.\nFix pattern: Do not attempt to preserve frequency during intermediate pairwise union steps; restore the shared input frequency once on the final index using pandas/core/indexes/api.py:_maybe_restore_freq in pandas/core/indexes/api.py:union_indexes and pandas/core/indexes/api.py:_get_combined_index.\nConstraints: Applies only when result is monotonic increasing with freq is None, all inputs are DatetimeIndex or TimedeltaIndex sharing the exact same non-None freq, and type(result._data)._validate_frequency passes without raising ValueError.",
+  "applies": "Index union and concatenation of DatetimeIndex or TimedeltaIndex in pandas/core/indexes/api.py.",
+  "tags": [
+    "pandas",
+    "concat",
+    "dataframe",
+    "datetimeindex",
+    "timedeltaindex",
+    "freq",
+    "union-indexes"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_maybe_restore_freq",
+      "hash": "sha256:8819240ba586a058d82c2476",
+      "line": 312,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "union_indexes",
+      "hash": "sha256:253cac1a9969780747a568e9",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pandas/core/indexes/api.py",
+      "symbol": "_get_combined_index",
+      "hash": "sha256:861485905d0fdf1e4a35a884",
+      "line": 116,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69445"
+  },
+  "created": "2026-10-07T00:38:51.911Z",
+  "verified": "2026-10-07T00:38:51.911Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

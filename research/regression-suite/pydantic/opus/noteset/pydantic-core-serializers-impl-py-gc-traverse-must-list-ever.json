@@ -1,0 +1,46 @@
+{
+  "id": "pydantic-core-serializers-impl-py-gc-traverse-must-list-ever",
+  "title": "pydantic-core serializers: impl_py_gc_traverse! must list every field that holds Python refs or nested serializers",
+  "kind": "rule",
+  "answers": [
+    "memory leak / reference cycle not collected with model serializer extra fields",
+    "added a new field to a serializer struct in pydantic-core, what else must change?",
+    "GeneralFieldsSerializer GC traverse missing extra_serializer",
+    "why does the gc traversal test fail for a serializer"
+  ],
+  "body": "Symptom: objects reachable only through a model/dataclass serializer (e.g. the serializer for `extra` fields) are not visited by Python's cyclic GC, so reference cycles through them leak.\nRoot cause: pydantic-core/src/serializers/fields.rs:GeneralFieldsSerializer had an `extra_serializer` field that was missing from its `impl_py_gc_traverse!` list (only `fields` and `computed_fields` were listed), and the macro call sat far from the struct definition, so the two drifted apart.\nFix pattern: add every field that holds Py objects or nested serializers to the `impl_py_gc_traverse!(Struct { ... })` invocation; keep the invocation right below the struct definition so new fields get noticed.\nConstraints: any time you add or rename a field on a serializer/validator struct that holds Python objects (Py<...>, CombinedSerializer, Option/Box/maps of them), update its impl_py_gc_traverse! in the same change. Plain Rust data (usize, bools, strings) doesn't need to be listed. Upstream PR #13626 added a check that caught this omission.",
+  "applies": "Rust structs in pydantic-core/src/serializers (and similar validator structs) that use impl_py_gc_traverse!",
+  "tags": [
+    "pydantic-core",
+    "gc",
+    "traverse",
+    "serializer",
+    "memory-leak",
+    "rust"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/fields.rs",
+      "symbol": "GeneralFieldsSerializer",
+      "hash": "sha256:20be22439dbf97c4389c1d96",
+      "line": 126,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13629"
+  },
+  "created": "2026-10-07T00:36:45.096Z",
+  "verified": "2026-10-07T00:36:45.096Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

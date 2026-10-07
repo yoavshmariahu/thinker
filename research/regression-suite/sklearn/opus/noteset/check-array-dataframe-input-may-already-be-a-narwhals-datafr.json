@@ -1,0 +1,60 @@
+{
+  "id": "check-array-dataframe-input-may-already-be-a-narwhals-datafr",
+  "title": "check_array: dataframe input may already be a narwhals.DataFrame; read pandas-only attributes via to_native()",
+  "kind": "rule",
+  "answers": [
+    "check_array fails when passed a narwhals DataFrame",
+    "AttributeError 'sparse' or dtypes.apply in check_array with narwhals input",
+    "pandas sparse DataFrame wrapped in narwhals not converted to sparse matrix",
+    "how does check_array detect fully sparse pandas DataFrames"
+  ],
+  "body": "Symptom: check_array raises an error when the input is a narwhals.DataFrame (e.g. one wrapping a pandas DataFrame, possibly with sparse columns) instead of a raw pandas DataFrame.\nRoot cause: sklearn/utils/validation.py:check_array called pandas-only API (`array.sparse`, `array.dtypes.apply`, `array.sparse.to_coo()`) directly on `array`, which may be a narwhals wrapper rather than the native frame.\nFix pattern: take the native object from the narwhals view (`df_pandas = array_df.to_native()`) and do all pandas-specific checks on it: SparseDtype detection, `dtypes_orig`, and the fully-sparse `df_pandas.sparse.to_coo()` conversion.\nConstraints: any new pandas-specific logic in check_array's dataframe branch must use the native frame, not `array`. Callers may pass native or narwhals frames. check_array always returns a numpy array, Array API array, or scipy sparse array/matrix, never a dataframe. Test both forms by parametrizing with `nw.from_native(df)` (narwhals.stable.v2), as test_check_sparse_pandas_sp_format does.",
+  "applies": "sklearn/utils/validation.py check_array dataframe handling (pandas/narwhals inputs)",
+  "tags": [
+    "narwhals",
+    "pandas",
+    "sparse",
+    "check_array",
+    "validation",
+    "dataframe"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "check_array",
+      "hash": "sha256:9b92cbc7de2044077b0d59db",
+      "line": 729,
+      "missing": false,
+      "fanout": {
+        "files": 98,
+        "sites": 341,
+        "refs": 484
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_validation.py",
+      "symbol": "test_check_sparse_pandas_sp_format",
+      "hash": "sha256:03695d119706688f7c549d6b",
+      "line": 1909,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34051"
+  },
+  "created": "2026-10-07T00:31:05.865Z",
+  "verified": "2026-10-07T00:31:05.865Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "indexable-make-indexable-must-return-dataframes-in-their-nat"
+  ]
+}

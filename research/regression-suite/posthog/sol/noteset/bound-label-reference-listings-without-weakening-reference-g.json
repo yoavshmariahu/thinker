@@ -1,0 +1,55 @@
+{
+  "id": "bound-label-reference-listings-without-weakening-reference-g",
+  "title": "Bound label-reference listings without weakening reference guards",
+  "kind": "rule",
+  "answers": [
+    "Why does moving or deleting a prompt label produce an enormous error message?",
+    "How should label-reference parent listings be capped?",
+    "Do capped reference listings still prevent moving or deleting referenced labels?"
+  ],
+  "body": "Symptom: Moving or deleting a prompt label produces an enormous error body when thousands of prompts reference it.\nRoot cause: products/ai_observability/backend/prompt_references.py:get_active_parents_referencing_label returned uncapped parent names that were joined into error messages.\nFix pattern: Order distinct parent names in SQL before slicing to MAX_ACTIVE_REFERENCE_RESULTS; this bounds message size and makes the selected names deterministic.\nConstraints: The capped listing supports error messages, dialogs, and existence-based guards: references beyond the cap still yield a nonempty result. Do not treat it as a complete reference inventory.",
+  "applies": "Active parent-name listings for prompt-label references, especially label-move and label-delete guards and messages.",
+  "tags": [
+    "prompts",
+    "labels",
+    "reference-guards",
+    "query-limits"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "get_active_parents_referencing_label",
+      "hash": "sha256:ab09a02c9197c91d36c61ec4",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "MAX_ACTIVE_REFERENCE_RESULTS",
+      "hash": "sha256:73d4eed130b477f7bc358a6a",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105660"
+  },
+  "created": "2026-10-07T00:14:43.657Z",
+  "verified": "2026-10-07T00:14:43.657Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

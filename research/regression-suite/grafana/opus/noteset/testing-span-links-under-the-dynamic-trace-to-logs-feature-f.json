@@ -1,0 +1,43 @@
+{
+  "id": "testing-span-links-under-the-dynamic-trace-to-logs-feature-f",
+  "title": "Testing span links under the dynamic trace-to-logs feature flag",
+  "kind": "howto",
+  "answers": [
+    "how to test createSpanLink with GrafanaDynamicTraceToLogs on and off",
+    "run createSpanLink tests",
+    "parse the Explore pane from a span link href in tests"
+  ],
+  "body": "Run with `yarn jest --no-watch public/app/features/explore/TraceView/createSpanLink.test.ts`.\nTo cover both code paths, use `it.each([false, true])` with `setTestFlags({ [FlagKeys.GrafanaDynamicTraceToLogs]: flag })`, then call `setupSpanLinkFactory()`. Reset the flags afterwards with `setTestFlags({})`, as the existing afterEach does.\nTo check fields without comparing the whole href string, parse the pane: `JSON.parse(new URL(link.href, 'http://localhost').searchParams.get('left')!)`, then assert on `pane.queries[0].datasource`.\nWhen the dynamic path is on, `linkModel.interpolatedParams.alternativeQueries` holds the extra queries. Assert on them with `expect.objectContaining`.",
+  "applies": "Unit tests for public/app/features/explore/TraceView/createSpanLink",
+  "tags": [
+    "testing",
+    "jest",
+    "feature-flags",
+    "traceview"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+      "symbol": "setupSpanLinkFactory",
+      "hash": "sha256:f2dffd4986ff2ac351f1ca4d",
+      "line": 1718,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 51,
+        "refs": 51
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#130358"
+  },
+  "created": "2026-10-07T00:05:58.250Z",
+  "verified": "2026-10-07T00:05:58.250Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

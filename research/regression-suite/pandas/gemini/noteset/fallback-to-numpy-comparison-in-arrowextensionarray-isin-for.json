@@ -1,0 +1,43 @@
+{
+  "id": "fallback-to-numpy-comparison-in-arrowextensionarray-isin-for",
+  "title": "Fallback to numpy comparison in ArrowExtensionArray.isin for unboxable mixed values",
+  "kind": "rule",
+  "answers": [
+    "Why does Series.isin raise ArrowTypeError or OverflowError on pyarrow dtypes?",
+    "How does ArrowExtensionArray.isin handle mixed-type values that PyArrow cannot box?",
+    "Fix ArrowInvalid or OverflowError when calling isin on PyArrow-backed Series"
+  ],
+  "body": "Symptom: Series.isin, DataFrame.isin, or Index.isin on pyarrow dtypes raises ArrowInvalid, ArrowTypeError, or OverflowError when values contains mixed or unboxable types.\nRoot cause: pandas/core/arrays/arrow/array.py:ArrowExtensionArray.isin delegates directly to pc.is_in after _box_pa, which fails when PyArrow cannot box mixed-type values into a uniform arrow array.\nFix pattern: Catch (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError) on the PyArrow boxing/compute call and fall back to algos.isin on numpy arrays for non-null entries, matching null entries only against missing values in values.\nConstraints: Applies to ArrowExtensionArray.isin when values cannot be boxed by pyarrow; missing values (including NaN) in values must match only nulls in the arrow array.",
+  "applies": "PyArrow-backed extension arrays (ArrowExtensionArray.isin) when passed mixed or incompatible values.",
+  "tags": [
+    "pandas",
+    "pyarrow",
+    "arrowextensionarray",
+    "isin"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/arrays/arrow/array.py",
+      "symbol": "ArrowExtensionArray.isin",
+      "hash": "sha256:adce499d277b46378e6f092f",
+      "line": 1969,
+      "missing": false,
+      "fanout": {
+        "files": 57,
+        "sites": 344,
+        "refs": 414
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70300"
+  },
+  "created": "2026-10-07T00:41:37.613Z",
+  "verified": "2026-10-07T00:41:37.613Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,1220 @@
+{
+  "repo": "pydantic/pydantic",
+  "base": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "pydantic-13941",
+      "pr": 13941,
+      "sha": "98e9ecec0a5e56cfc92a8882eca19d525340ba98",
+      "parent": "8cbc8965b55aea1a69e748e38fd154a5caf6419e",
+      "subject": "Fix Clippy lints (#13941)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "pydantic-core/src/definitions.rs"
+      ],
+      "production": [
+        "pydantic-core/src/definitions.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13912",
+      "pr": 13912,
+      "sha": "e5b02608847e59c4cdbeb6355d49374a800a9c91",
+      "parent": "e2ac21dcd66fc682f8a50f6e179dbd95fa4b44ac",
+      "subject": "Handle OS errors during `ZoneInfo` validation (#13912)",
+      "codeLines": 2,
+      "totalLines": 131,
+      "files": [
+        "pydantic/_internal/_validators.py",
+        "tests/test_types_zoneinfo.py",
+        "tests/types/test_zoneinfo.py"
+      ],
+      "production": [
+        "pydantic/_internal/_validators.py"
+      ]
+    },
+    {
+      "id": "pydantic-13903",
+      "pr": 13903,
+      "sha": "c9ac504d2ab62f7135950ccd7a5c0684be30805f",
+      "parent": "26f7b8a1ad02951962c4073297fa9a2b1ce8d30c",
+      "subject": "Correct `MISSING` sentinel `version-added` directive (#13903)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic-core/python/pydantic_core/__init__.py"
+      ],
+      "production": [
+        "pydantic-core/python/pydantic_core/__init__.py"
+      ]
+    },
+    {
+      "id": "pydantic-13892",
+      "pr": 13892,
+      "sha": "ee4c062be800adb418b7f34ce3e06bc9aad93d74",
+      "parent": "b0cd9d347dc4159043620fde554cbd63d08e3ad5",
+      "subject": "Don't apply `ser_json_timedelta` to all datetime types in serialization inference (#13892)",
+      "codeLines": 69,
+      "totalLines": 124,
+      "files": [
+        "pydantic-core/src/serializers/config.rs",
+        "pydantic-core/src/serializers/infer.rs",
+        "pydantic-core/src/serializers/type_serializers/timedelta.rs",
+        "tests/test_datetime.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/config.rs",
+        "pydantic-core/src/serializers/infer.rs",
+        "pydantic-core/src/serializers/type_serializers/timedelta.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13874",
+      "pr": 13874,
+      "sha": "bb6da4cfbb1f559885ea2fa207ec93853bfeac64",
+      "parent": "df5af375b51168a7e289b7e2dc1b259635121eee",
+      "subject": "Handle `TypeError` gracefully during docstring extraction (#13874)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/_internal/_docs_extraction.py"
+      ],
+      "production": [
+        "pydantic/_internal/_docs_extraction.py"
+      ]
+    },
+    {
+      "id": "pydantic-13858",
+      "pr": 13858,
+      "sha": "dae7e2065283db4d3d677ebae9d2dc8423131c62",
+      "parent": "1f35b5072ca6382e23efe92b92e11a065eda27fa",
+      "subject": "Fix dead isinstance check in `_decorator_infos_for_class()` (#13858)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/_internal/_decorators.py"
+      ],
+      "production": [
+        "pydantic/_internal/_decorators.py"
+      ]
+    },
+    {
+      "id": "pydantic-13825",
+      "pr": 13825,
+      "sha": "dae3788547fa8c7c3c78d28d284d3f669ad8c1d3",
+      "parent": "0384c970e37a59b344e75161eb106ea9996378ba",
+      "subject": "Do not mutate `model_config` attribute (#13825)",
+      "codeLines": 106,
+      "totalLines": 222,
+      "files": [
+        "pydantic/_internal/_config.py",
+        "pydantic/_internal/_dataclasses.py",
+        "pydantic/_internal/_model_construction.py",
+        "pydantic/_internal/_signature.py",
+        "pydantic/config.py",
+        "pydantic/deprecated/decorator.py",
+        "tests/test_config.py",
+        "tests/test_deprecated_validate_arguments.py",
+        "tests/test_model_signature.py"
+      ],
+      "production": [
+        "pydantic/_internal/_config.py",
+        "pydantic/_internal/_dataclasses.py",
+        "pydantic/_internal/_model_construction.py",
+        "pydantic/_internal/_signature.py",
+        "pydantic/config.py",
+        "pydantic/deprecated/decorator.py"
+      ]
+    },
+    {
+      "id": "pydantic-13850",
+      "pr": 13850,
+      "sha": "0384c970e37a59b344e75161eb106ea9996378ba",
+      "parent": "915896d163835a57fd7987180087409a3229bd71",
+      "subject": "Catch `OverflowError` during `ByteSize` validation (#13850)",
+      "codeLines": 7,
+      "totalLines": 10,
+      "files": [
+        "pydantic/types.py",
+        "tests/test_types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-13827",
+      "pr": 13827,
+      "sha": "6aca42d7718b6a6de8f5dfc31043bbe662b01c93",
+      "parent": "617abdb1bb95b6a5d7808937cac7ef2fdbe918d9",
+      "subject": "Fix two typos in the `decimal_encoder()` docstring (#13827)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/deprecated/json.py"
+      ],
+      "production": [
+        "pydantic/deprecated/json.py"
+      ]
+    },
+    {
+      "id": "pydantic-13821",
+      "pr": 13821,
+      "sha": "51d2b27aa90a4cce5d2acc8d9c44cd170f26c3e4",
+      "parent": "7b15a786a755ec4089a34c9bb5f957f8b8ce3690",
+      "subject": "Fix documentation examples not raising and remove unused `string_sub_type` unused error code (#13821)",
+      "codeLines": 3,
+      "totalLines": 39,
+      "files": [
+        "docs/concepts/experimental.md",
+        "docs/errors/usage_errors.md",
+        "docs/errors/validation_errors.md",
+        "pydantic-core/python/pydantic_core/core_schema.py",
+        "pydantic-core/src/errors/types.rs",
+        "pydantic-core/tests/test_errors.py"
+      ],
+      "production": [
+        "pydantic-core/python/pydantic_core/core_schema.py",
+        "pydantic-core/src/errors/types.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13804",
+      "pr": 13804,
+      "sha": "f543f06749b5c0adba7c9a1d31ff229b3d045d1a",
+      "parent": "ec71b0323a84bda8b2c1fb4b88f2f0ff801ebe7b",
+      "subject": "Document `url_preserve_empty_path` in network types (#13804)",
+      "codeLines": 38,
+      "totalLines": 38,
+      "files": [
+        "pydantic/config.py",
+        "pydantic/networks.py"
+      ],
+      "production": [
+        "pydantic/config.py",
+        "pydantic/networks.py"
+      ]
+    },
+    {
+      "id": "pydantic-13785",
+      "pr": 13785,
+      "sha": "831893ed0411d45c20aacae88e067c9c33a89501",
+      "parent": "e2683e14d3c449cc74cde3efc94bf19f4ee9d95f",
+      "subject": "Fix race conditions in freethreaded build (#13785)",
+      "codeLines": 31,
+      "totalLines": 198,
+      "files": [
+        "pydantic/_internal/_decorators.py",
+        "pydantic/_internal/_namespace_utils.py",
+        "pydantic/main.py",
+        "tests/conftest.py",
+        "tests/test_freethreaded.py"
+      ],
+      "production": [
+        "pydantic/_internal/_decorators.py",
+        "pydantic/_internal/_namespace_utils.py",
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-13767",
+      "pr": 13767,
+      "sha": "6208022f515f48a35642838caf48d62d1d82e398",
+      "parent": "0e802642a6bb4c9e42f5b6ef01d510f22be1e606",
+      "subject": "Fix Mypy plugin crash with import cycle (#13767)",
+      "codeLines": 16,
+      "totalLines": 66,
+      "files": [
+        "pydantic/mypy.py",
+        "pyproject.toml",
+        "tests/mypy/modules/import_cycle.py",
+        "tests/mypy/modules/import_cycle_base.py",
+        "tests/mypy/outputs/mypy-plugin_ini/import_cycle.py",
+        "tests/mypy/test_mypy.py"
+      ],
+      "production": [
+        "pydantic/mypy.py"
+      ]
+    },
+    {
+      "id": "pydantic-13756",
+      "pr": 13756,
+      "sha": "74a852ea4838a03519e09a9dae4806dcdc026bf5",
+      "parent": "27f473c24ed63a475903d8289c84fb81987f04e9",
+      "subject": "Fix duplicate word 'it it' in fields docstring (#13756)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/v1/fields.py"
+      ],
+      "production": [
+        "pydantic/v1/fields.py"
+      ]
+    },
+    {
+      "id": "pydantic-13711",
+      "pr": 13711,
+      "sha": "d6e2021f761fc6bd53bd955a9cc3916cc5d0bfe6",
+      "parent": "952c239fadf1f64e5d29cbf15d1696548d8ac53c",
+      "subject": "Don't apply serialization temporal formats to validation JSON schemas (#13711)",
+      "codeLines": 2,
+      "totalLines": 3,
+      "files": [
+        "pydantic/json_schema.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-13702",
+      "pr": 13702,
+      "sha": "55084b74b3abfdfeee61105b9840e968a0739800",
+      "parent": "3c356318f0dafc149a018d0f9867651741b6c967",
+      "subject": "Do not drop include/exclude if serializer wasn't called (#13702)",
+      "codeLines": 34,
+      "totalLines": 59,
+      "files": [
+        "pydantic-core/src/serializers/extra.rs",
+        "pydantic-core/src/serializers/type_serializers/function.rs",
+        "tests/test_serialize.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/extra.rs",
+        "pydantic-core/src/serializers/type_serializers/function.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13666",
+      "pr": 13666,
+      "sha": "c04e41686b1e4338bd23da9b815c3e5108872631",
+      "parent": "02c5c975fa9f1bf4f094834487786d3148987fee",
+      "subject": "Fix typo in `pydantic/mypy.py` (#13666)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/mypy.py"
+      ],
+      "production": [
+        "pydantic/mypy.py"
+      ]
+    },
+    {
+      "id": "pydantic-13629",
+      "pr": 13629,
+      "sha": "52fbbfa1dc14a9b1fc40a1e246a3cbf2ce4987d1",
+      "parent": "8affe9bacade6713774fccbff11cb5264c3b1c7b",
+      "subject": "Fix missing GC traversal in `pydantic-core` for `GeneralFieldsSerializer` (#13629)",
+      "codeLines": 11,
+      "totalLines": 11,
+      "files": [
+        "pydantic-core/src/serializers/fields.rs"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/fields.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13604",
+      "pr": 13604,
+      "sha": "9b4d952c59d64b940a0a2559299aff81243e1ded",
+      "parent": "5922459fcf33d9a8767fd0fd25a982bbf0d7668d",
+      "subject": "Fix support for callable discriminators with PEP 695 type aliases (#13604)",
+      "codeLines": 39,
+      "totalLines": 60,
+      "files": [
+        "pydantic/_internal/_discriminated_union.py",
+        "pydantic/types.py",
+        "tests/types/unions/test_discriminated_union.py"
+      ],
+      "production": [
+        "pydantic/_internal/_discriminated_union.py",
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-13575",
+      "pr": 13575,
+      "sha": "cac36dce9c5acb6389c0e87da3ee3726291c73f3",
+      "parent": "c4eac98eba19e48fc4414a33f973299b08f3ac55",
+      "subject": "Fix documented default of `ConfigDict.str_min_length` (#13575)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/config.py"
+      ],
+      "production": [
+        "pydantic/config.py"
+      ]
+    },
+    {
+      "id": "pydantic-13552",
+      "pr": 13552,
+      "sha": "79e15fab237a2fbf6a2cd2e5db984b503269940c",
+      "parent": "17e2ddaffe41a619aaf9c4dc67c0995aa8016af2",
+      "subject": "Avoid double-wrapping polymorphism trampoline for model serializers (#13552)",
+      "codeLines": 3,
+      "totalLines": 3,
+      "files": [
+        "pydantic-core/src/serializers/shared.rs"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/shared.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13565",
+      "pr": 13565,
+      "sha": "63f2722f6bfedf0c5b645b348a62ca0ce0b5358c",
+      "parent": "cea43cc7b8d6b9d28e158038cfb6900b39504cab",
+      "subject": "Fix documented signature of `field_title_generator` (#13565)",
+      "codeLines": 8,
+      "totalLines": 8,
+      "files": [
+        "pydantic/fields.py"
+      ],
+      "production": [
+        "pydantic/fields.py"
+      ]
+    },
+    {
+      "id": "pydantic-13537",
+      "pr": 13537,
+      "sha": "35b8d94c1435a3e78fc919cfdb439a1ef85a8d6f",
+      "parent": "a54529f06204ecb8f940d2506ff66dd1521917c8",
+      "subject": "Fix `SecretStr` equality comparison raising `TypeError` on non-ASCII values (#13537)",
+      "codeLines": 6,
+      "totalLines": 9,
+      "files": [
+        "pydantic/types.py",
+        "tests/test_types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-13515",
+      "pr": 13515,
+      "sha": "a54529f06204ecb8f940d2506ff66dd1521917c8",
+      "parent": "60d4c4873e44d587c8d70d7a1c731f7361fe55eb",
+      "subject": "Don't error on unhashable generic arguments on generic Pydantic models (#13515)",
+      "codeLines": 30,
+      "totalLines": 44,
+      "files": [
+        "pydantic/_internal/_generics.py",
+        "tests/test_generics.py"
+      ],
+      "production": [
+        "pydantic/_internal/_generics.py"
+      ]
+    },
+    {
+      "id": "pydantic-13428",
+      "pr": 13428,
+      "sha": "220cd3d21c6192eee72ecf8a4d5636f6931fd7f8",
+      "parent": "3ce9b13630b42813ab9ddf5c58fce110541e83a8",
+      "subject": "Fix `__hash__` in `WithJsonSchema` and `Examples` to hash the mode value (#13428)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-13452",
+      "pr": 13452,
+      "sha": "3ce9b13630b42813ab9ddf5c58fce110541e83a8",
+      "parent": "ea09770482bc019d981d4ffb14214286e3c26f13",
+      "subject": "Fix `Interval` zero bounds silently dropped in pipeline API (#13452)",
+      "codeLines": 8,
+      "totalLines": 15,
+      "files": [
+        "pydantic/experimental/pipeline.py",
+        "tests/test_pipeline.py"
+      ],
+      "production": [
+        "pydantic/experimental/pipeline.py"
+      ]
+    },
+    {
+      "id": "pydantic-13436",
+      "pr": 13436,
+      "sha": "03785440e976d89ccc549d0a3c8b7769ed394c2f",
+      "parent": "b281d5aed7f8b43377c40cdfd8a87e2b612f148f",
+      "subject": "Do not ignore timezone offset when using `'seconds'/'milliseconds'` `temporal_mode` (#13436)",
+      "codeLines": 4,
+      "totalLines": 61,
+      "files": [
+        "pydantic-core/src/serializers/type_serializers/datetime_etc.rs",
+        "pydantic-core/tests/serializers/test_datetime.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/type_serializers/datetime_etc.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13449",
+      "pr": 13449,
+      "sha": "b81e54ff7a6f45be6f9f5f79a29ce1721b4b30f4",
+      "parent": "60a3c5938aa64c527fde2fb102426de7d800146d",
+      "subject": "Fix Rust lint errors (#13449)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic-core/src/lookup_key.rs"
+      ],
+      "production": [
+        "pydantic-core/src/lookup_key.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13374",
+      "pr": 13374,
+      "sha": "d398a5f601ee33f148bd09b7d117e430d761ee47",
+      "parent": "d6837e273287b3de161c5e6d62615c79224c1b8f",
+      "subject": "Fix `json_schema_extra` dict being dropped when a callable follows it in `Annotated` (#13374)",
+      "codeLines": 4,
+      "totalLines": 9,
+      "files": [
+        "pydantic/fields.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/fields.py"
+      ]
+    },
+    {
+      "id": "pydantic-13366",
+      "pr": 13366,
+      "sha": "1c9656dc3095c777e593cc004e15434e85d85b29",
+      "parent": "be3e4d174d2a429a31a36ba79530f299c367590f",
+      "subject": "Fix validation of `Fraction` subclasses (#13366)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic-core/src/input/input_python.rs"
+      ],
+      "production": [
+        "pydantic-core/src/input/input_python.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13363",
+      "pr": 13363,
+      "sha": "294f757c67c93704d1ed5ab53f1841b88cae8f79",
+      "parent": "8e168dee8afa69f00c775bdf535b25c3287667b1",
+      "subject": "Fix application of nested operators in pipeline API (#13363)",
+      "codeLines": 11,
+      "totalLines": 23,
+      "files": [
+        "pydantic/experimental/pipeline.py",
+        "tests/test_pipeline.py"
+      ],
+      "production": [
+        "pydantic/experimental/pipeline.py"
+      ]
+    },
+    {
+      "id": "pydantic-13362",
+      "pr": 13362,
+      "sha": "8e168dee8afa69f00c775bdf535b25c3287667b1",
+      "parent": "e5307dba1fcf50cc896d04c10de7cd83effc03b5",
+      "subject": "Fix `test_computed_field_deprecated()` test failure (#13362)",
+      "codeLines": 6,
+      "totalLines": 16,
+      "files": [
+        "pydantic/_internal/_model_construction.py",
+        "tests/test_deprecated_fields.py"
+      ],
+      "production": [
+        "pydantic/_internal/_model_construction.py"
+      ]
+    },
+    {
+      "id": "pydantic-13307",
+      "pr": 13307,
+      "sha": "d54b8cc2c5bedb3d6fb37e559d4b53d21c5217f5",
+      "parent": "1aad2fef04eb59fa1466f74784cb1e8a3b910f5d",
+      "subject": "Fix tuple order in `AliasGenerator.generate_aliases()` docstring (#13307)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/aliases.py"
+      ],
+      "production": [
+        "pydantic/aliases.py"
+      ]
+    },
+    {
+      "id": "pydantic-13283",
+      "pr": 13283,
+      "sha": "718ef06e1062892128907f4f28e15f76ff1a38f9",
+      "parent": "b8292987f6a15cff05d6cc6adea20857d3b0a804",
+      "subject": "Fix missing period after 'e.g' in docstrings and grammar in docs (#13283)",
+      "codeLines": 6,
+      "totalLines": 8,
+      "files": [
+        "docs/api/standard_library_types.md",
+        "pydantic/networks.py"
+      ],
+      "production": [
+        "pydantic/networks.py"
+      ]
+    },
+    {
+      "id": "pydantic-13276",
+      "pr": 13276,
+      "sha": "ab33bb7bbc62ad44575bde189d6d40a83fcbaab2",
+      "parent": "e01b13b459a2249e804cde549a16a6b96cefaf85",
+      "subject": "Do not resolve recursive `'definitions-ref'` schemas in schema cleaning (#13276)",
+      "codeLines": 25,
+      "totalLines": 39,
+      "files": [
+        "pydantic/_internal/_generate_schema.py",
+        "tests/test_type_alias_type.py"
+      ],
+      "production": [
+        "pydantic/_internal/_generate_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-13152",
+      "pr": 13152,
+      "sha": "14e0f2ba41ea84f3c92f1cec0b065390ce6ccb6f",
+      "parent": "1078a0516b1854708915c0157df5fab059cc453b",
+      "subject": "Avoid redundant dictionary lookups in `_migration.py` (#13152)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "pydantic/_migration.py"
+      ],
+      "production": [
+        "pydantic/_migration.py"
+      ]
+    },
+    {
+      "id": "pydantic-13129",
+      "pr": 13129,
+      "sha": "1078a0516b1854708915c0157df5fab059cc453b",
+      "parent": "ff956060c16a4f4b497ac27affd5f9343c83198e",
+      "subject": "Preserve `RootModel` core metadata (#13129)",
+      "codeLines": 17,
+      "totalLines": 49,
+      "files": [
+        "pydantic/_internal/_generate_schema.py",
+        "pydantic/json_schema.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/_internal/_generate_schema.py",
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-13108",
+      "pr": 13108,
+      "sha": "07724d08a90d01cdd6b38235eabd158cb63491bb",
+      "parent": "749aa690f24b4867e4b21793bab68f37f0d28a25",
+      "subject": "Fix Clippy 0.1.95 warnings (#13108)",
+      "codeLines": 34,
+      "totalLines": 34,
+      "files": [
+        "pydantic-core/src/input/input_abstract.rs",
+        "pydantic-core/src/input/input_python.rs",
+        "pydantic-core/src/input/input_string.rs",
+        "pydantic-core/src/input/return_enums.rs",
+        "pydantic-core/src/validators/mod.rs"
+      ],
+      "production": [
+        "pydantic-core/src/input/input_abstract.rs",
+        "pydantic-core/src/input/input_python.rs",
+        "pydantic-core/src/input/input_string.rs",
+        "pydantic-core/src/input/return_enums.rs",
+        "pydantic-core/src/validators/mod.rs"
+      ]
+    },
+    {
+      "id": "pydantic-13062",
+      "pr": 13062,
+      "sha": "b1bf19445d8ac144a7a0e82674d2d87eebab6c18",
+      "parent": "17a35e371bdff348c0690651d324c91fc7c9ff9e",
+      "subject": "Fix model equality when using runtime `extra` configuration (#13062)",
+      "codeLines": 6,
+      "totalLines": 15,
+      "files": [
+        "pydantic/main.py",
+        "tests/test_main.py"
+      ],
+      "production": [
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-13016",
+      "pr": 13016,
+      "sha": "46dea928844edfdbee5ca1f36cbc3b042e2a8abd",
+      "parent": "e99f6d53b5ce54dbfddca8f0226e0e4e2126705b",
+      "subject": "Warn when serializing fixed length tuples with too few items (#13016)",
+      "codeLines": 7,
+      "totalLines": 16,
+      "files": [
+        "pydantic-core/src/serializers/type_serializers/tuple.rs",
+        "pydantic-core/tests/serializers/test_list_tuple.py"
+      ],
+      "production": [
+        "pydantic-core/src/serializers/type_serializers/tuple.rs"
+      ]
+    },
+    {
+      "id": "pydantic-12897",
+      "pr": 12897,
+      "sha": "1a37a3d479dea9b21c7379e882bf5ec56fb94fc2",
+      "parent": "0574aaab3f38f2bc6671100697bf55a05e6c4b9d",
+      "subject": "Ensure custom `__init__()` is called when using `model_validate_strings()` (#12897)",
+      "codeLines": 5,
+      "totalLines": 21,
+      "files": [
+        "pydantic-core/src/input/input_string.rs",
+        "tests/test_edge_cases.py"
+      ],
+      "production": [
+        "pydantic-core/src/input/input_string.rs"
+      ]
+    },
+    {
+      "id": "pydantic-12922",
+      "pr": 12922,
+      "sha": "4f818e02fa95b854bc2ca295e04c10422d16cd44",
+      "parent": "f2bc2561277c2936779f0d913dda030fbb589e59",
+      "subject": "Fix typos (#12922)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/_internal/_fields.py",
+        "pydantic/functional_validators.py"
+      ],
+      "production": [
+        "pydantic/_internal/_fields.py",
+        "pydantic/functional_validators.py"
+      ]
+    },
+    {
+      "id": "pydantic-12816",
+      "pr": 12816,
+      "sha": "0967dd93002a0e766440cf3b9c5004888ccf21ba",
+      "parent": "2b15fedf4d9070991da352ea345cfff7f937f767",
+      "subject": "Ensure `__pydantic_private__` is set in `model_construct()` with user-defined `model_post_init()` (#12816)",
+      "codeLines": 6,
+      "totalLines": 17,
+      "files": [
+        "pydantic/main.py",
+        "tests/test_main.py"
+      ],
+      "production": [
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-12869",
+      "pr": 12869,
+      "sha": "95dc3ee5b1911bcb678ada0b940c89544aebb4ee",
+      "parent": "a6b0bb0aa9331699b550d1c21ec45af7111250cf",
+      "subject": "Fix grammar in dataclass field completion docstring (#12869)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/dataclasses.py"
+      ],
+      "production": [
+        "pydantic/dataclasses.py"
+      ]
+    },
+    {
+      "id": "pydantic-12855",
+      "pr": 12855,
+      "sha": "f41d300d484a043d3a26d1d95383cd490bd9fde0",
+      "parent": "56b6c0e788c5f7f9156e1812132e1ca92243d17b",
+      "subject": "Fix backported V1 namespace (#12855)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/v1/main.py",
+        "pydantic/v1/version.py"
+      ],
+      "production": [
+        "pydantic/v1/main.py",
+        "pydantic/v1/version.py"
+      ]
+    },
+    {
+      "id": "pydantic-12826",
+      "pr": 12826,
+      "sha": "c763adeba844eb45c7bbad30adf631559dfddc0b",
+      "parent": "fce3d034312b47a16b45b51d229e5107ca6b3bbc",
+      "subject": "Fix walrus operator precedence in `UrlConstraints.__get_pydantic_core_schema__()` (#12826)",
+      "codeLines": 2,
+      "totalLines": 8,
+      "files": [
+        "pydantic/networks.py",
+        "tests/test_networks.py"
+      ],
+      "production": [
+        "pydantic/networks.py"
+      ]
+    },
+    {
+      "id": "pydantic-12827",
+      "pr": 12827,
+      "sha": "fce3d034312b47a16b45b51d229e5107ca6b3bbc",
+      "parent": "e943b41ed1700fdbe8b8804c0355c605805e73ae",
+      "subject": "Fix `__hash__` in `UuidVersion` and `PathType` to hash values instead of types (#12827)",
+      "codeLines": 4,
+      "totalLines": 4,
+      "files": [
+        "pydantic/types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-12760",
+      "pr": 12760,
+      "sha": "de8dedd5100fb3c6fbf0cebd9c2e31beecbdde36",
+      "parent": "32cc8c38a09411a932221397e6e12696dcfd1470",
+      "subject": "Ensure deterministic JSON schema defaults by sorting sets (#12760)",
+      "codeLines": 10,
+      "totalLines": 14,
+      "files": [
+        "docs/api/standard_library_types.md",
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-12588",
+      "pr": 12588,
+      "sha": "b5885e720ba5148ecbba9787b86a49ed63948d68",
+      "parent": "8ed09ab94936a22c3cd934d8266327137d5d9523",
+      "subject": "Fix docstring of `core_schema.invalid_schema()` (#12588)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic-core/python/pydantic_core/core_schema.py"
+      ],
+      "production": [
+        "pydantic-core/python/pydantic_core/core_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-12495",
+      "pr": 12495,
+      "sha": "ad9c3775fef295111c5fc1a37d1d0cc88e219c88",
+      "parent": "f787c339795f75b9e6bb195d4c1955a50bf5874f",
+      "subject": "Fix `InitVar` being ignored when using with the `pydantic.Field()` function (#12495)",
+      "codeLines": 4,
+      "totalLines": 30,
+      "files": [
+        "pydantic/fields.py",
+        "tests/test_dataclasses.py"
+      ],
+      "production": [
+        "pydantic/fields.py"
+      ]
+    },
+    {
+      "id": "pydantic-12494",
+      "pr": 12494,
+      "sha": "f787c339795f75b9e6bb195d4c1955a50bf5874f",
+      "parent": "3bcc454d132f65dcd9d524a6638ec003fb9771c8",
+      "subject": "Fix nested model schema deduplication in JSON schema generation (#12494)",
+      "codeLines": 7,
+      "totalLines": 31,
+      "files": [
+        "pydantic/json_schema.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-12352",
+      "pr": 12352,
+      "sha": "f839721eab806e812d9b5276c961cfd78a056812",
+      "parent": "5b6a45df8a2f2e55aaf346239d26ed187993eb51",
+      "subject": "Fix spelling in `model_dump()` docstring (#12352)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/main.py"
+      ],
+      "production": [
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-12302",
+      "pr": 12302,
+      "sha": "05b973b30671795c19ee30ad90617186340b1ab8",
+      "parent": "d83910ef4b89a4f78c5887679f792626a66caacb",
+      "subject": "Fix `ensure_ascii` option for `TypeAdapter` (#12302)",
+      "codeLines": 1,
+      "totalLines": 15,
+      "files": [
+        "pydantic/type_adapter.py",
+        "tests/test_json.py"
+      ],
+      "production": [
+        "pydantic/type_adapter.py"
+      ]
+    },
+    {
+      "id": "pydantic-12209",
+      "pr": 12209,
+      "sha": "62d70d1632c121c7d10095abf9174f660b0f5860",
+      "parent": "0054305e14dfb60681b154596b7c9547fc7db2b9",
+      "subject": "Fix mypy v2 plugin for upcoming `1.18` mypy release (#12209)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "pydantic/mypy.py"
+      ],
+      "production": [
+        "pydantic/mypy.py"
+      ]
+    },
+    {
+      "id": "pydantic-12106",
+      "pr": 12106,
+      "sha": "9c5eb6e59e3fe3b4f553929c62cd9f578cefc4de",
+      "parent": "be5ca62e8909465349ad1cda7232043866fbac4b",
+      "subject": "Fix `__getattr__()` behavior on Pydantic models when a property raised an `AttributeError` and extra values are present (#12106)",
+      "codeLines": 7,
+      "totalLines": 10,
+      "files": [
+        "pydantic/main.py",
+        "tests/test_fields.py"
+      ],
+      "production": [
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-11766",
+      "pr": 11766,
+      "sha": "a3f42a4d6e1765d03a9ad49f9f2ae83c4c525794",
+      "parent": "625dd4284b266c17f0b70d282f237dd3ee7ec9f2",
+      "subject": "Fix example in `populate_by_name` documentation (#11766)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/config.py"
+      ],
+      "production": [
+        "pydantic/config.py"
+      ]
+    },
+    {
+      "id": "pydantic-11695",
+      "pr": 11695,
+      "sha": "a43b3467e544c2e94a47636ee0cebdeb9391c80c",
+      "parent": "876bf76f34f9ab313923a3428a4d4aaf00144f43",
+      "subject": "Fix ImportError message for `email-validator` (#11695)",
+      "codeLines": 2,
+      "totalLines": 4,
+      "files": [
+        "pydantic/networks.py",
+        "tests/test_networks.py"
+      ],
+      "production": [
+        "pydantic/networks.py"
+      ]
+    },
+    {
+      "id": "pydantic-11611",
+      "pr": 11611,
+      "sha": "6433ea747d86f2b8074a27ab68e4cc6e573ae92f",
+      "parent": "8e98bc0a66379e693780eb6edd611f4177c60c30",
+      "subject": "Fix inaccurate docstring example in `_BaseMultiHostUrl.query_params()` (#11611)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/networks.py"
+      ],
+      "production": [
+        "pydantic/networks.py"
+      ]
+    },
+    {
+      "id": "pydantic-11579",
+      "pr": 11579,
+      "sha": "69b2b63aacfd2dee4a48a82ea303efbf710f11be",
+      "parent": "87cb27f5fb8ce6436483e75a1d9714a59f10a853",
+      "subject": "Fix runtime error when computing model string representation involving cached properties and self-referenced models (#11579)",
+      "codeLines": 9,
+      "totalLines": 32,
+      "files": [
+        "pydantic/main.py",
+        "tests/test_main.py"
+      ],
+      "production": [
+        "pydantic/main.py"
+      ]
+    },
+    {
+      "id": "pydantic-11559",
+      "pr": 11559,
+      "sha": "d85f5118e3b3a09544167bd31de471662359210b",
+      "parent": "b9fb3f110d6653653fb48a44430e7d2fca886ae9",
+      "subject": "Fix `NotRequired` qualifier not taken into account in stringified annotation (#11559)",
+      "codeLines": 22,
+      "totalLines": 41,
+      "files": [
+        "pydantic/_internal/_generate_schema.py",
+        "tests/test_types_typeddict.py"
+      ],
+      "production": [
+        "pydantic/_internal/_generate_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-11366",
+      "pr": 11366,
+      "sha": "f5d1e3e7379ad59b3d674108d881c091abf5c879",
+      "parent": "be262010b28972f500b4648e9fb947f51a660c59",
+      "subject": "Fix JSON Schema reference logic with `examples` keys (#11366)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-11367",
+      "pr": 11367,
+      "sha": "be262010b28972f500b4648e9fb947f51a660c59",
+      "parent": "b88bf661c9922411e1aee0df7d1b297cfab634dc",
+      "subject": "Use the correct JSON Schema mode when handling function schemas (#11367)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-11375",
+      "pr": 11375,
+      "sha": "b88bf661c9922411e1aee0df7d1b297cfab634dc",
+      "parent": "1893af06bb744415ba0545d868685e1c56b384d4",
+      "subject": "Fix `AllowInfNan` code example formatting (#11375)",
+      "codeLines": 1,
+      "totalLines": 1,
+      "files": [
+        "pydantic/types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-11305",
+      "pr": 11305,
+      "sha": "8311d1ac6d23e82e96045c933f4d67ef2b2b5693",
+      "parent": "42b932822fb42a1393f57234f7eb9d79781d875a",
+      "subject": "Fix JSON Schema reference collection with `\"examples\"` keys (#11305)",
+      "codeLines": 9,
+      "totalLines": 30,
+      "files": [
+        "pydantic/json_schema.py",
+        "tests/test_json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-11215",
+      "pr": 11215,
+      "sha": "da0449e00fa1ed203c18e81adae9775c4bbbad6f",
+      "parent": "9dc7d0bd2b6eb68d8afd569ac43102be30b69f81",
+      "subject": "Do not error if `PYDANTIC_PRIVATE_ALLOW_UNHANDLED_SCHEMA_TYPES` environment variable is not set (#11215)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-10740",
+      "pr": 10740,
+      "sha": "21563d72ef3ce3df232ebbb1ecc2cac3205c657b",
+      "parent": "6b92e9dab9eb3e649af148d5d8a9a8d2d2cd31d2",
+      "subject": "Fix broken note tag. (#10740)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/functional_validators.py"
+      ],
+      "production": [
+        "pydantic/functional_validators.py"
+      ]
+    },
+    {
+      "id": "pydantic-10421",
+      "pr": 10421,
+      "sha": "cf671c808fba1a78bc4995e8276dd9e48876f2d9",
+      "parent": "2f4723f64b8e034fcc9c35eb756c8b4c724e3408",
+      "subject": "Fix rendering of `StringContraints` documentation example (#10421)",
+      "codeLines": 1,
+      "totalLines": 1,
+      "files": [
+        "pydantic/types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-10188",
+      "pr": 10188,
+      "sha": "5d99a659c8f4d593b9fafd3cf1a69d5f32b7d8dd",
+      "parent": "dfe84151aadfe12057dfbfd7b79d8140ac16d2ae",
+      "subject": "Fix invalid JSON Schemas being generated for functions in certain scenarios (#10188)",
+      "codeLines": 4,
+      "totalLines": 18,
+      "files": [
+        "pydantic/json_schema.py",
+        "tests/test_validate_call.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-9958",
+      "pr": 9958,
+      "sha": "630cc566a447fa072d46d274c0bca1dafde756ff",
+      "parent": "9de2c2595ff66965901f377ae62913090020628d",
+      "subject": "Fix _field_name_for_signature docstring (#9958)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/_internal/_signature.py"
+      ],
+      "production": [
+        "pydantic/_internal/_signature.py"
+      ]
+    },
+    {
+      "id": "pydantic-9892",
+      "pr": 9892,
+      "sha": "7cfaebaba63f377e7c3673c5b679470d955b1b34",
+      "parent": "9cfb1f079f04e869c2a5c06f4597d86dc972b865",
+      "subject": "Fix `ComputedFieldInfo.wrapped_property` pointer when a property setter is assigned (#9892)",
+      "codeLines": 6,
+      "totalLines": 7,
+      "files": [
+        "pydantic/_internal/_decorators.py",
+        "tests/test_computed_fields.py"
+      ],
+      "production": [
+        "pydantic/_internal/_decorators.py"
+      ]
+    },
+    {
+      "id": "pydantic-8837",
+      "pr": 8837,
+      "sha": "12ebdfc6790ab0c29cc8aefd1d97dd04603eb7cb",
+      "parent": "3dd3b42cc0badef035f81a714a4e5f94e985f941",
+      "subject": "Fix deprecation warning with usage of `ast.Str` (#8837)",
+      "codeLines": 8,
+      "totalLines": 8,
+      "files": [
+        "pydantic/_internal/_docs_extraction.py"
+      ],
+      "production": [
+        "pydantic/_internal/_docs_extraction.py"
+      ]
+    },
+    {
+      "id": "pydantic-8750",
+      "pr": 8750,
+      "sha": "e3f3fd0a1b28b93d24ee4605ef2864dbb12dc3f6",
+      "parent": "825a6920e177a3b65836c13c7f37d82b810ce482",
+      "subject": "Add missing word in `json_schema.py` module docstring (#8750)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    },
+    {
+      "id": "pydantic-8286",
+      "pr": 8286,
+      "sha": "8d2e6f2bd8a03c11be2e81109bb9444463606b17",
+      "parent": "8bbb3c1fa0f360cf153ec82273b422f7ea64a789",
+      "subject": "Don't check for subclass of `bool` for `JsonValue` (#8286)",
+      "codeLines": 4,
+      "totalLines": 25,
+      "files": [
+        "pydantic/types.py",
+        "tests/test_types.py"
+      ],
+      "production": [
+        "pydantic/types.py"
+      ]
+    },
+    {
+      "id": "pydantic-7183",
+      "pr": 7183,
+      "sha": "d6140fa7c533f71c1e57599d3f15000f05b1d20e",
+      "parent": "d465ec5542a611ffefab45736859f37b0b251eb8",
+      "subject": "Fix: move `getattr` warning in deprecated `BaseConfig` (#7183)",
+      "codeLines": 11,
+      "totalLines": 11,
+      "files": [
+        "pydantic/deprecated/config.py"
+      ],
+      "production": [
+        "pydantic/deprecated/config.py"
+      ]
+    },
+    {
+      "id": "pydantic-7074",
+      "pr": 7074,
+      "sha": "6d7c161c917c351bcf63256977fdf07b572fb887",
+      "parent": "d97bd841a690ec779970f17bf11fc7d2b7c6c110",
+      "subject": "Fix typo in json_schema.py (#7074)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pydantic/json_schema.py"
+      ],
+      "production": [
+        "pydantic/json_schema.py"
+      ]
+    }
+  ]
+}

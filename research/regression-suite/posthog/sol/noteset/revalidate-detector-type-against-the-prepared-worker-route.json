@@ -1,0 +1,45 @@
+{
+  "id": "revalidate-detector-type-against-the-prepared-worker-route",
+  "title": "Revalidate detector type against the prepared worker route",
+  "kind": "rule",
+  "answers": [
+    "What happens if an alert's detector type changes during a check?",
+    "Why would an AI detector run on a worker without model credentials?",
+    "How should evaluation handle a detector type that no longer matches its queue?"
+  ],
+  "body": "Symptom: Changing an alert to an AI detector during a check can send its model call to a worker without model credentials.\nRoot cause: posthog/temporal/alerts/activities.py:evaluate_alert reloads the alert after prepare has selected the task queue from the earlier detector type.\nFix pattern: Compare the loaded detector type with inputs.uses_llm_detector before selecting the executor; evaluate the same loaded snapshot only when they agree.\nConstraints: On either direction of detector-type mismatch, return no check and no notification, preserve next_check_at, and let the next scheduler tick prepare and route again; only the AI worker holds model credentials.",
+  "applies": "Alert evaluation when detector configuration can change between preparation and execution.",
+  "tags": [
+    "alerts",
+    "ai-detector",
+    "task-routing",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-10-07T00:17:53.310Z",
+  "verified": "2026-10-07T00:17:53.310Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "count-detector-unavailability-only-after-recording-the-faile"
+  ]
+}

@@ -1,0 +1,3903 @@
+[
+  {
+    "id": "scikit-learn-35042",
+    "pr": 35042,
+    "source": "https://github.com/scikit-learn/scikit-learn/pull/35042",
+    "sha": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "doc/whats_new/upcoming_changes/sklearn.model_selection/35042.fix.rst": [
+        0
+      ],
+      "sklearn/model_selection/__init__.py": [
+        52,
+        65,
+        66
+      ],
+      "sklearn/tests/test_common.py": [
+        158,
+        159,
+        160,
+        161,
+        41,
+        59,
+        165
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "doc/whats_new/upcoming_changes/sklearn.model_selection/35042.fix.rst",
+          "status": "D",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "sklearn/model_selection/__init__.py",
+          "status": "M",
+          "added": 3,
+          "removed": 1
+        },
+        {
+          "path": "sklearn/tests/test_common.py",
+          "status": "M",
+          "added": 4,
+          "removed": 30
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/tests/test_common.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change adds 'HalvingGridSearchCV' and 'HalvingRandomSearchCV' to 'sklearn.model_selection.__all__' while their imports remain guarded under 'if typing.TYPE_CHECKING:'. At runtime, these symbols are not imported into module scope, breaking wildcard imports ('from sklearn.model_selection import *') and violating '__all__' completeness."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "sklearn/model_selection/__init__.py",
+          "line": 66,
+          "message": "'HalvingGridSearchCV' and 'HalvingRandomSearchCV' are added to '__all__', but they are only imported inside an 'if typing.TYPE_CHECKING:' block. Because 'typing.TYPE_CHECKING' is False at runtime, these identifiers are not defined in the module namespace, causing wildcard imports ('from sklearn.model_selection import *') and runtime lookups to fail with AttributeError.",
+          "evidence": "if typing.TYPE_CHECKING:\n    # Avoid errors in type checkers (e.g. pyrefly) for experimental estimators.\n    # TODO: remove this check once the estimator is no longer experimental.\n    from sklearn.model_selection._search_successive_halving import (\n        HalvingGridSearchCV,\n        HalvingRandomSearchCV,\n    )\n...\n__all__ = [\n    \"GridSearchCV\",\n    \"GroupKFold\",\n    \"GroupShuffleSplit\",\n+    \"HalvingGridSearchCV\",\n+    \"HalvingRandomSearchCV\",\n    \"KFold\",",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-db91e88a7a4de247f9444d68"
+        }
+      ],
+      "cost": 0,
+      "tokens": 28314,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-b55791340c846584a77c",
+            "file": "sklearn/tests/test_common.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "assert not experimental_modules, experimental_modules",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/tests/test_common.py",
+          "changed": [
+            "test_root_import_all_completeness"
+          ],
+          "removed": [
+            "test_wildcard_import_for_public_modules"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "66e5b8a9-c597-4e31-bae6-d71d2ca669a7",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ab587cd4-0bca-4e01-bd53-5e35cc517ee4",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "66e5b8a9-c597-4e31-bae6-d71d2ca669a7",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 15223,
+              "output_tokens": 13091,
+              "thinking_tokens": 12752,
+              "cache_read_tokens": 0,
+              "total_tokens": 28314
+            },
+            "tokens": {
+              "inputTokens": 15223,
+              "outputTokens": 13091,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 28314
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:45:25.752Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "66e5b8a9-c597-4e31-bae6-d71d2ca669a7",
+            "startedAt": "2026-10-07T00:44:47.490Z",
+            "completedAt": "2026-10-07T00:45:25.754Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 28314,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "sklearn/model_selection/__init__.py",
+                "line": 66,
+                "message": "'HalvingGridSearchCV' and 'HalvingRandomSearchCV' are added to '__all__', but they are only imported inside an 'if typing.TYPE_CHECKING:' block. Because 'typing.TYPE_CHECKING' is False at runtime, these identifiers are not defined in the module namespace, causing wildcard imports ('from sklearn.model_selection import *') and runtime lookups to fail with AttributeError.",
+                "evidence": "if typing.TYPE_CHECKING:\n    # Avoid errors in type checkers (e.g. pyrefly) for experimental estimators.\n    # TODO: remove this check once the estimator is no longer experimental.\n    from sklearn.model_selection._search_successive_halving import (\n        HalvingGridSearchCV,\n        HalvingRandomSearchCV,\n    )\n...\n__all__ = [\n    \"GridSearchCV\",\n    \"GroupKFold\",\n    \"GroupShuffleSplit\",\n+    \"HalvingGridSearchCV\",\n+    \"HalvingRandomSearchCV\",\n    \"KFold\",",
+                "confidence": 0.95,
+                "inChange": true,
+                "notes": [],
+                "id": "f-db91e88a7a4de247f9444d68"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/tests/test_common.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "b3165f21-5645-4e5f-a2d2-e95400565d20",
+            "t": "2026-10-07T00:45:25.754Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 38271,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "doc/whats_new/upcoming_changes/sklearn.model_selection/35042.fix.rst",
+          "status": "D",
+          "added": 0,
+          "removed": 2
+        },
+        {
+          "path": "sklearn/model_selection/__init__.py",
+          "status": "M",
+          "added": 3,
+          "removed": 1
+        },
+        {
+          "path": "sklearn/tests/test_common.py",
+          "status": "M",
+          "added": 4,
+          "removed": 30
+        }
+      ],
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/tests/test_common.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change violates the rule 'keep-experimental-estimators-out-of-module-all-to-prevent-wi' by re-introducing experimental estimators HalvingGridSearchCV and HalvingRandomSearchCV into sklearn/model_selection/__init__.py:__all__, which are only imported under 'if typing.TYPE_CHECKING:' and not available at runtime, causing wildcard imports to fail. The notes 'avoid-division-by-zero-on-line-search-step-stagnation-in-new' and 'converting-non-ndarray-array-likes-before-cross-namespace-ar' are unrelated to this change. No cached notes are outdated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "sklearn/model_selection/__init__.py",
+          "line": 65,
+          "message": "HalvingGridSearchCV and HalvingRandomSearchCV are experimental estimators only imported under 'if typing.TYPE_CHECKING:' that require explicit enablement. Adding them to '__all__' violates the rule to keep experimental estimators out of module __all__ and causes wildcard imports ('from sklearn.model_selection import *') to fail at runtime.",
+          "evidence": "+    \"HalvingGridSearchCV\",\n+    \"HalvingRandomSearchCV\",",
+          "confidence": 0.95,
+          "note": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+          "inChange": true,
+          "notes": [
+            "keep-experimental-estimators-out-of-module-all-to-prevent-wi"
+          ],
+          "id": "f-5e3213cd275f756e35da6c0d"
+        }
+      ],
+      "cost": 0,
+      "tokens": 31330,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-b55791340c846584a77c",
+            "file": "sklearn/tests/test_common.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "assert not experimental_modules, experimental_modules",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/tests/test_common.py",
+          "changed": [
+            "test_root_import_all_completeness"
+          ],
+          "removed": [
+            "test_wildcard_import_for_public_modules"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+          "title": "Keep experimental estimators out of module __all__ to prevent wildcard import errors",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#35042"
+          },
+          "why": "rests on sklearn/model_selection/__init__.py:__all__; 2 changed lines in it"
+        },
+        {
+          "id": "avoid-division-by-zero-on-line-search-step-stagnation-in-new",
+          "title": "Avoid division by zero on line search step stagnation in Newton solver",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#35043"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+          "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34779"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "aa9f38a2-ab1a-4925-b9c4-16c3c09556bb",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "033767fd-b192-40b3-aa54-42215dd3a262",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "aa9f38a2-ab1a-4925-b9c4-16c3c09556bb",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16339,
+              "output_tokens": 14991,
+              "thinking_tokens": 14699,
+              "cache_read_tokens": 0,
+              "total_tokens": 31330
+            },
+            "tokens": {
+              "inputTokens": 16339,
+              "outputTokens": 14991,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 31330
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:46:01.051Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "aa9f38a2-ab1a-4925-b9c4-16c3c09556bb",
+            "startedAt": "2026-10-07T00:45:25.775Z",
+            "completedAt": "2026-10-07T00:46:01.053Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 31330,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "sklearn/model_selection/__init__.py",
+                "line": 65,
+                "message": "HalvingGridSearchCV and HalvingRandomSearchCV are experimental estimators only imported under 'if typing.TYPE_CHECKING:' that require explicit enablement. Adding them to '__all__' violates the rule to keep experimental estimators out of module __all__ and causes wildcard imports ('from sklearn.model_selection import *') to fail at runtime.",
+                "evidence": "+    \"HalvingGridSearchCV\",\n+    \"HalvingRandomSearchCV\",",
+                "confidence": 0.95,
+                "note": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+                "inChange": true,
+                "notes": [
+                  "keep-experimental-estimators-out-of-module-all-to-prevent-wi"
+                ],
+                "id": "f-5e3213cd275f756e35da6c0d"
+              }
+            ],
+            "notes": {
+              "consulted": 3,
+              "direct": 1,
+              "related": 2,
+              "assessed": 3,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/tests/test_common.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "2df7dfe1-1a9f-41b0-ba72-15d9b04f2100",
+            "t": "2026-10-07T00:46:01.053Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 35299,
+      "validModel": true
+    }
+  },
+  {
+    "id": "scikit-learn-34746",
+    "pr": 34746,
+    "source": "https://github.com/scikit-learn/scikit-learn/pull/34746",
+    "sha": "53302ff996818d108851e31d38a421425026bba5",
+    "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "sklearn/callback/_progressbar.py": [
+        127
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/callback/_progressbar.py",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 3,
+        "direct": 1,
+        "related": 2,
+        "assessed": 3,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change in sklearn/callback/_progressbar.py violates note freeze-progressbar-timer-using-task-finished-time-on-complet by replacing task.finished_time with task.elapsed for completed tasks, causing finished progress bar timers to continue running."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "sklearn/callback/_progressbar.py",
+          "line": 127,
+          "message": "The change uses task.elapsed instead of task.finished_time when task.finished and self.elapsed_when_finished are True, causing timers on completed progress bars to continue running.",
+          "evidence": "seconds = task.elapsed",
+          "confidence": 0.95,
+          "note": "freeze-progressbar-timer-using-task-finished-time-on-complet",
+          "inChange": true,
+          "notes": [
+            "freeze-progressbar-timer-using-task-finished-time-on-complet"
+          ],
+          "id": "f-70f95cc74b4a9652d735afb1"
+        }
+      ],
+      "cost": 0,
+      "tokens": 23553,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/callback/_progressbar.py",
+          "changed": [
+            "_StyledTimeRemainingColumn.render"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "freeze-progressbar-timer-using-task-finished-time-on-complet",
+          "title": "Freeze ProgressBar timer using task.finished_time on completion",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34746"
+          },
+          "why": "rests on sklearn/callback/_progressbar.py:render; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "unwrap-bound-callback-hooks-before-caching-signatures-to-pre",
+          "title": "Unwrap bound callback hooks before caching signatures to prevent memory leaks",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+          "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34779"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "a117770c-88bc-4204-b9f3-6bace0f7c872",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ed0077fb-dbeb-4f13-9b31-bbacc0950ccc",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "a117770c-88bc-4204-b9f3-6bace0f7c872",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 15161,
+              "output_tokens": 8392,
+              "thinking_tokens": 8230,
+              "cache_read_tokens": 0,
+              "total_tokens": 23553
+            },
+            "tokens": {
+              "inputTokens": 15161,
+              "outputTokens": 8392,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 23553
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:46:25.664Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "a117770c-88bc-4204-b9f3-6bace0f7c872",
+            "startedAt": "2026-10-07T00:46:01.210Z",
+            "completedAt": "2026-10-07T00:46:25.665Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 23553,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "sklearn/callback/_progressbar.py",
+                "line": 127,
+                "message": "The change uses task.elapsed instead of task.finished_time when task.finished and self.elapsed_when_finished are True, causing timers on completed progress bars to continue running.",
+                "evidence": "seconds = task.elapsed",
+                "confidence": 0.95,
+                "note": "freeze-progressbar-timer-using-task-finished-time-on-complet",
+                "inChange": true,
+                "notes": [
+                  "freeze-progressbar-timer-using-task-finished-time-on-complet"
+                ],
+                "id": "f-70f95cc74b4a9652d735afb1"
+              }
+            ],
+            "notes": {
+              "consulted": 3,
+              "direct": 1,
+              "related": 2,
+              "assessed": 3,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "d13dba2f-39d6-4609-b20a-fa469a23c4b4",
+            "t": "2026-10-07T00:46:25.665Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 24463,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/callback/_progressbar.py",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change updates the column render logic to use task.elapsed instead of task.finished_time when the task is finished. No bugs or broken invariants were found in the provided code."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 21752,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/callback/_progressbar.py",
+          "changed": [
+            "_StyledTimeRemainingColumn.render"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "cc714914-6327-49f3-85d1-58cf9b8e3869",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "c33a7519-45f6-4dc1-8b7c-0bbe2a4ccd6b",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "cc714914-6327-49f3-85d1-58cf9b8e3869",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 14232,
+              "output_tokens": 7520,
+              "thinking_tokens": 7476,
+              "cache_read_tokens": 0,
+              "total_tokens": 21752
+            },
+            "tokens": {
+              "inputTokens": 14232,
+              "outputTokens": 7520,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 21752
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:46:49.621Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "cc714914-6327-49f3-85d1-58cf9b8e3869",
+            "startedAt": "2026-10-07T00:46:25.673Z",
+            "completedAt": "2026-10-07T00:46:49.621Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 21752,
+            "findings": [],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "ac227795-ea11-42b5-978d-b82a96c44435",
+            "t": "2026-10-07T00:46:49.622Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 23956,
+      "validModel": true
+    }
+  },
+  {
+    "id": "scikit-learn-34605",
+    "pr": 34605,
+    "source": "https://github.com/scikit-learn/scikit-learn/pull/34605",
+    "sha": "4347a16712cb2bfe51c376ff60ad9c033a689abf",
+    "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "sklearn/model_selection/tests/test_validation.py": [
+        661,
+        664
+      ],
+      "sklearn/utils/tests/test_validation.py": [
+        34,
+        2531
+      ],
+      "sklearn/utils/validation.py": [
+        478
+      ]
+    },
+    "armOrder": [
+      "cached",
+      "baseline"
+    ],
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/model_selection/tests/test_validation.py",
+          "status": "M",
+          "added": 2,
+          "removed": 2
+        },
+        {
+          "path": "sklearn/utils/tests/test_validation.py",
+          "status": "M",
+          "added": 0,
+          "removed": 29
+        },
+        {
+          "path": "sklearn/utils/validation.py",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/model_selection/tests/test_validation.py",
+          "sklearn/utils/tests/test_validation.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change violates the note 'preserve-native-dataframe-and-series-container-types-in-inde'. It modifies sklearn/utils/validation.py:_make_indexable to convert native DataFrames and Series to Narwhals objects via nw.from_native, deletes test_indexable_return_type which verified type preservation, and weakens cross-validation tests to tolerate Narwhals wrappers."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "sklearn/utils/validation.py",
+          "line": 478,
+          "message": "Returning nw.from_native(iterable, allow_series=True) in _make_indexable converts native DataFrame and Series objects into Narwhals containers instead of returning them unchanged, causing cross-validation tools to pass Narwhals objects to downstream estimators.",
+          "evidence": "return nw.from_native(iterable, allow_series=True)",
+          "confidence": 0.95,
+          "note": "preserve-native-dataframe-and-series-container-types-in-inde",
+          "inChange": true,
+          "notes": [
+            "preserve-native-dataframe-and-series-container-types-in-inde"
+          ],
+          "id": "f-45496d0c0a39941580673bb1"
+        }
+      ],
+      "cost": 0,
+      "tokens": 27568,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-1141805c93d2482c8d04",
+            "file": "sklearn/utils/tests/test_validation.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    assert isinstance(X, expected_type)",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/model_selection/tests/test_validation.py",
+          "changed": [
+            "check_df",
+            "check_series"
+          ],
+          "removed": []
+        },
+        {
+          "path": "sklearn/utils/tests/test_validation.py",
+          "changed": [],
+          "removed": [
+            "test_indexable_return_type"
+          ]
+        },
+        {
+          "path": "sklearn/utils/validation.py",
+          "changed": [
+            "_make_indexable"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "preserve-native-dataframe-and-series-container-types-in-inde",
+          "title": "Preserve native DataFrame and Series container types in indexable",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34605"
+          },
+          "why": "rests on sklearn/utils/validation.py:_make_indexable; 2 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+          "title": "Keep experimental estimators out of module __all__ to prevent wildcard import errors",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#35042"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+          "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34779"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "validate-finite-values-in-selectormixin-transform-for-pandas",
+          "title": "Validate finite values in SelectorMixin transform for pandas output",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34513"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "unwrap-narwhals-dataframes-to-native-pandas-before-checking",
+          "title": "Unwrap Narwhals DataFrames to native pandas before checking sparse attributes in check_array",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34051"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "default-transform-input-to-x-val-in-pipeline-and-make-pipeli",
+          "title": "Default transform_input to ('X_val',) in Pipeline and make_pipeline",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34263"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-sorted-weights-instead-of-original-sample-weights-duri",
+          "title": "Check sorted weights instead of original sample weights during percentile averaging",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34959"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "998842dc-c2c4-4c74-b18b-a7587564c6ef",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "9c09472c-4fc6-4570-a547-bcfb12fae08b",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "998842dc-c2c4-4c74-b18b-a7587564c6ef",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16832,
+              "output_tokens": 10736,
+              "thinking_tokens": 10520,
+              "cache_read_tokens": 0,
+              "total_tokens": 27568
+            },
+            "tokens": {
+              "inputTokens": 16832,
+              "outputTokens": 10736,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 27568
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:47:17.183Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "998842dc-c2c4-4c74-b18b-a7587564c6ef",
+            "startedAt": "2026-10-07T00:46:49.735Z",
+            "completedAt": "2026-10-07T00:47:17.183Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 27568,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "sklearn/utils/validation.py",
+                "line": 478,
+                "message": "Returning nw.from_native(iterable, allow_series=True) in _make_indexable converts native DataFrame and Series objects into Narwhals containers instead of returning them unchanged, causing cross-validation tools to pass Narwhals objects to downstream estimators.",
+                "evidence": "return nw.from_native(iterable, allow_series=True)",
+                "confidence": 0.95,
+                "note": "preserve-native-dataframe-and-series-container-types-in-inde",
+                "inChange": true,
+                "notes": [
+                  "preserve-native-dataframe-and-series-container-types-in-inde"
+                ],
+                "id": "f-45496d0c0a39941580673bb1"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/model_selection/tests/test_validation.py",
+                "sklearn/utils/tests/test_validation.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "2b27bbca-a8e1-407c-ab9b-cf0b68aa8036",
+            "t": "2026-10-07T00:47:17.183Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 27452,
+      "validModel": true
+    },
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/model_selection/tests/test_validation.py",
+          "status": "M",
+          "added": 2,
+          "removed": 2
+        },
+        {
+          "path": "sklearn/utils/tests/test_validation.py",
+          "status": "M",
+          "added": 0,
+          "removed": 29
+        },
+        {
+          "path": "sklearn/utils/validation.py",
+          "status": "M",
+          "added": 1,
+          "removed": 1
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/model_selection/tests/test_validation.py",
+          "sklearn/utils/tests/test_validation.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "The change in sklearn/utils/validation.py causes _make_indexable to return Narwhals wrappers (nw.from_native) rather than preserving native dataframe and series types, breaking the contract of indexable (as tested by the deleted test_indexable_return_type). Downstream callers like cross_val_predict were not updated to convert Narwhals objects back to native containers before passing them to estimators, causing estimators to receive Narwhals wrappers instead of native objects. In sklearn/model_selection/tests/test_validation.py, check_df and check_series were modified to call .to_native(), which masks this contract violation and risks raising AttributeError on objects lacking a .to_native() method."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "sklearn/utils/validation.py",
+          "line": 478,
+          "message": "_make_indexable changes the return type contract of indexable by returning a Narwhals DataFrame or Series instead of preserving the native container type (type(X)), as was previously tested in test_indexable_return_type. Callers of indexable such as cross_val_predict were not updated to handle Narwhals objects or convert them back to native types, causing downstream estimators to receive Narwhals wrappers instead of native DataFrames or Series.",
+          "evidence": "return nw.from_native(iterable, allow_series=True)",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-e74ef00c525485d6776e68b3"
+        },
+        {
+          "severity": "warning",
+          "category": "bug",
+          "file": "sklearn/model_selection/tests/test_validation.py",
+          "line": 661,
+          "message": "check_df unconditionally calls x.to_native() if isinstance(x, input_type) is False. If x is an unexpected object that lacks a .to_native() method, this raises an AttributeError instead of returning False. This change masks the underlying contract violation in cross_val_predict, which now passes Narwhals wrappers to the estimator.",
+          "evidence": "return isinstance(x, input_type) or isinstance(x.to_native(), input_type)",
+          "confidence": 0.85,
+          "inChange": true,
+          "notes": [],
+          "id": "f-d6539296dbb087d5db78339c"
+        }
+      ],
+      "cost": 0,
+      "tokens": 70798,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-1141805c93d2482c8d04",
+            "file": "sklearn/utils/tests/test_validation.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    assert isinstance(X, expected_type)",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/model_selection/tests/test_validation.py",
+          "changed": [
+            "check_df",
+            "check_series"
+          ],
+          "removed": []
+        },
+        {
+          "path": "sklearn/utils/tests/test_validation.py",
+          "changed": [],
+          "removed": [
+            "test_indexable_return_type"
+          ]
+        },
+        {
+          "path": "sklearn/utils/validation.py",
+          "changed": [
+            "_make_indexable"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 1,
+        "info": 0
+      },
+      "runId": "22d07e46-2f8d-4680-a6ca-313d1d5a86f7",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "727d5fa3-213f-46f4-9db0-b1ea72bd8bc0",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "22d07e46-2f8d-4680-a6ca-313d1d5a86f7",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 15194,
+              "output_tokens": 55604,
+              "thinking_tokens": 55166,
+              "cache_read_tokens": 0,
+              "total_tokens": 70798
+            },
+            "tokens": {
+              "inputTokens": 15194,
+              "outputTokens": 55604,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 70798
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:54:09.856Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "22d07e46-2f8d-4680-a6ca-313d1d5a86f7",
+            "startedAt": "2026-10-07T00:52:03.077Z",
+            "completedAt": "2026-10-07T00:54:09.875Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 70798,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "sklearn/utils/validation.py",
+                "line": 478,
+                "message": "_make_indexable changes the return type contract of indexable by returning a Narwhals DataFrame or Series instead of preserving the native container type (type(X)), as was previously tested in test_indexable_return_type. Callers of indexable such as cross_val_predict were not updated to handle Narwhals objects or convert them back to native types, causing downstream estimators to receive Narwhals wrappers instead of native DataFrames or Series.",
+                "evidence": "return nw.from_native(iterable, allow_series=True)",
+                "confidence": 0.95,
+                "inChange": true,
+                "notes": [],
+                "id": "f-e74ef00c525485d6776e68b3"
+              },
+              {
+                "severity": "warning",
+                "category": "bug",
+                "file": "sklearn/model_selection/tests/test_validation.py",
+                "line": 661,
+                "message": "check_df unconditionally calls x.to_native() if isinstance(x, input_type) is False. If x is an unexpected object that lacks a .to_native() method, this raises an AttributeError instead of returning False. This change masks the underlying contract violation in cross_val_predict, which now passes Narwhals wrappers to the estimator.",
+                "evidence": "return isinstance(x, input_type) or isinstance(x.to_native(), input_type)",
+                "confidence": 0.85,
+                "inChange": true,
+                "notes": [],
+                "id": "f-d6539296dbb087d5db78339c"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/model_selection/tests/test_validation.py",
+                "sklearn/utils/tests/test_validation.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "13909cb5-4055-49e5-8f0d-d11142242fb3",
+            "t": "2026-10-07T00:54:09.875Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 126802,
+      "validModel": true
+    }
+  },
+  {
+    "id": "scikit-learn-34480",
+    "pr": 34480,
+    "source": "https://github.com/scikit-learn/scikit-learn/pull/34480",
+    "sha": "372c786e346dc40bee7aea553ec1e30a8076ecb9",
+    "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "doc/whats_new/upcoming_changes/array-api/34480.fix.rst": [
+        0
+      ],
+      "sklearn/linear_model/_glm/glm.py": [
+        295,
+        296,
+        532,
+        533,
+        534,
+        286,
+        523
+      ],
+      "sklearn/utils/_test_common/instance_generator.py": [
+        1206
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+          "status": "D",
+          "added": 0,
+          "removed": 3
+        },
+        {
+          "path": "sklearn/linear_model/_glm/glm.py",
+          "status": "M",
+          "added": 5,
+          "removed": 6
+        },
+        {
+          "path": "sklearn/utils/_test_common/instance_generator.py",
+          "status": "M",
+          "added": 1,
+          "removed": 0
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/utils/_test_common/instance_generator.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "In `_GeneralizedLinearRegressor.score` (line 540), formatting `base_loss.__name__` in the error message for invalid `y` values raises an `AttributeError` because `base_loss` is an instance of a loss class rather than a class or function. It should use `base_loss.__class__.__name__` instead, as is done in `fit`."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "sklearn/linear_model/_glm/glm.py",
+          "line": 540,
+          "message": "`base_loss` is an instance of a loss class (assigned from `self._base_loss`), which does not possess a `__name__` attribute. When `not base_loss.in_y_true_range(y)` is triggered, accessing `base_loss.__name__` raises an `AttributeError` instead of raising the intended `ValueError`. It should be `base_loss.__class__.__name__` (consistent with `fit`).",
+          "evidence": "if not base_loss.in_y_true_range(y):\n            raise ValueError(\n                \"Some value(s) of y are out of the valid range of the loss\"\n                f\" {base_loss.__name__}.\"\n            )",
+          "confidence": 0.95,
+          "inChange": false,
+          "notes": [],
+          "id": "f-15f9953ef2156810ea101c9d"
+        }
+      ],
+      "cost": 0,
+      "tokens": 62086,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/linear_model/_glm/glm.py",
+          "changed": [
+            "_GeneralizedLinearRegressor.fit",
+            "_GeneralizedLinearRegressor.score"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "92ce2ca0-349a-4368-a4f1-9ac15c6720e9",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "96c4582b-e1d5-4199-9ec2-8170446f4b6d",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "92ce2ca0-349a-4368-a4f1-9ac15c6720e9",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 16668,
+              "output_tokens": 45418,
+              "thinking_tokens": 45132,
+              "cache_read_tokens": 0,
+              "total_tokens": 62086
+            },
+            "tokens": {
+              "inputTokens": 16668,
+              "outputTokens": 45418,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 62086
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:55:45.082Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "92ce2ca0-349a-4368-a4f1-9ac15c6720e9",
+            "startedAt": "2026-10-07T00:54:09.981Z",
+            "completedAt": "2026-10-07T00:55:45.082Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 62086,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "sklearn/linear_model/_glm/glm.py",
+                "line": 540,
+                "message": "`base_loss` is an instance of a loss class (assigned from `self._base_loss`), which does not possess a `__name__` attribute. When `not base_loss.in_y_true_range(y)` is triggered, accessing `base_loss.__name__` raises an `AttributeError` instead of raising the intended `ValueError`. It should be `base_loss.__class__.__name__` (consistent with `fit`).",
+                "evidence": "if not base_loss.in_y_true_range(y):\n            raise ValueError(\n                \"Some value(s) of y are out of the valid range of the loss\"\n                f\" {base_loss.__name__}.\"\n            )",
+                "confidence": 0.95,
+                "inChange": false,
+                "notes": [],
+                "id": "f-15f9953ef2156810ea101c9d"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/utils/_test_common/instance_generator.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "85b1d53f-ff96-4812-b31c-b8a06851df62",
+            "t": "2026-10-07T00:55:45.082Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 95105,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+          "status": "D",
+          "added": 0,
+          "removed": 3
+        },
+        {
+          "path": "sklearn/linear_model/_glm/glm.py",
+          "status": "M",
+          "added": 5,
+          "removed": 6
+        },
+        {
+          "path": "sklearn/utils/_test_common/instance_generator.py",
+          "status": "M",
+          "added": 1,
+          "removed": 0
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [
+          {
+            "id": "order-move-to-before-dtype-validation-for-mixed-array-api-in",
+            "reason": "The note claims that GLMs in sklearn.linear_model._glm support mixed array API inputs across X, y, and sample_weight and requires move_to before dtype-coupled validation. However, the code demonstrates that mixed array API input support for GLMs is not supported: doc/whats_new/upcoming_changes/array-api/34480.fix.rst is deleted, PoissonRegressor is explicitly marked with xfail for 'check_array_api_mixed_inputs' ('mixed array API input support not added yet') in sklearn/utils/_test_common/instance_generator.py, and move_to is positioned after check_array and _check_sample_weight in both _GeneralizedLinearRegressor.fit and score. Corrected body: Generalized linear models in sklearn.linear_model._glm do not currently support mixed array API inputs across X, y, and sample_weight (check_array_api_mixed_inputs is xfailed); move_to is called after check_array and _check_sample_weight.",
+            "correction": ""
+          }
+        ],
+        "uncovered": [
+          "sklearn/utils/_test_common/instance_generator.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change reverts mixed array API input support for GLMs: the release note 34480.fix.rst is removed, PoissonRegressor is marked xfail for check_array_api_mixed_inputs in instance_generator.py, and move_to is moved after check_array and _check_sample_weight in _GeneralizedLinearRegressor.fit and score. The note order-move-to-before-dtype-validation-for-mixed-array-api-in is outdated as GLMs do not support mixed array API inputs. All other notes are unrelated to this change. No bugs or violations were found in the code shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [],
+      "cost": 0,
+      "tokens": 36848,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "no-signals",
+        "findings": [],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/linear_model/_glm/glm.py",
+          "changed": [
+            "_GeneralizedLinearRegressor.fit",
+            "_GeneralizedLinearRegressor.score"
+          ],
+          "removed": []
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "order-move-to-before-dtype-validation-for-mixed-array-api-in",
+          "title": "Order move_to before dtype validation for mixed array API inputs in GLMs",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34480"
+          },
+          "why": "rests on sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit, sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.score; 11 changed lines in them, naming what the note names"
+        },
+        {
+          "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+          "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34779"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "mixed-device-and-string-label-array-api-handling-in-lineardi",
+          "title": "Mixed device and string label array API handling in LinearDiscriminantAnalysis",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34475"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "check-sorted-weights-instead-of-original-sample-weights-duri",
+          "title": "Check sorted weights instead of original sample weights during percentile averaging",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34959"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "unwrap-bound-callback-hooks-before-caching-signatures-to-pre",
+          "title": "Unwrap bound callback hooks before caching signatures to prevent memory leaks",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34837"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "keep-experimental-estimators-out-of-module-all-to-prevent-wi",
+          "title": "Keep experimental estimators out of module __all__ to prevent wildcard import errors",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#35042"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce",
+          "title": "Enforce C-contiguity on array inputs to NMF coordinate descent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#33260"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "d094414c-a697-46af-a331-a7b837ad2100",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "b09d8cbb-368a-4119-bd77-0a1ccce629e8",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "d094414c-a697-46af-a331-a7b837ad2100",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 18566,
+              "output_tokens": 18282,
+              "thinking_tokens": 17891,
+              "cache_read_tokens": 0,
+              "total_tokens": 36848
+            },
+            "tokens": {
+              "inputTokens": 18566,
+              "outputTokens": 18282,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 36848
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:56:28.790Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "d094414c-a697-46af-a331-a7b837ad2100",
+            "startedAt": "2026-10-07T00:55:45.095Z",
+            "completedAt": "2026-10-07T00:56:28.791Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 36848,
+            "findings": [],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [
+                {
+                  "id": "order-move-to-before-dtype-validation-for-mixed-array-api-in",
+                  "reason": "The note claims that GLMs in sklearn.linear_model._glm support mixed array API inputs across X, y, and sample_weight and requires move_to before dtype-coupled validation. However, the code demonstrates that mixed array API input support for GLMs is not supported: doc/whats_new/upcoming_changes/array-api/34480.fix.rst is deleted, PoissonRegressor is explicitly marked with xfail for 'check_array_api_mixed_inputs' ('mixed array API input support not added yet') in sklearn/utils/_test_common/instance_generator.py, and move_to is positioned after check_array and _check_sample_weight in both _GeneralizedLinearRegressor.fit and score. Corrected body: Generalized linear models in sklearn.linear_model._glm do not currently support mixed array API inputs across X, y, and sample_weight (check_array_api_mixed_inputs is xfailed); move_to is called after check_array and _check_sample_weight.",
+                  "correction": ""
+                }
+              ],
+              "uncovered": [
+                "sklearn/utils/_test_common/instance_generator.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "2d05905a-599f-4307-a9e2-691fa989bede",
+            "t": "2026-10-07T00:56:28.791Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 43706,
+      "validModel": true
+    }
+  },
+  {
+    "id": "scikit-learn-33260",
+    "pr": 33260,
+    "source": "https://github.com/scikit-learn/scikit-learn/pull/33260",
+    "sha": "a75111fe68986aa9f7a5f552f8b7bf7e411ac170",
+    "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+    "model": "gemini-3.8-flash-high",
+    "reasoningEffort": "high",
+    "cohort": "gemini",
+    "expect": {
+      "sklearn/decomposition/_nmf.py": [
+        483,
+        484,
+        485
+      ],
+      "sklearn/decomposition/tests/test_nmf.py": [
+        1010
+      ]
+    },
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "baseline": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "nocache",
+        "related": false,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/decomposition/_nmf.py",
+          "status": "M",
+          "added": 3,
+          "removed": 5
+        },
+        {
+          "path": "sklearn/decomposition/tests/test_nmf.py",
+          "status": "M",
+          "added": 0,
+          "removed": 15
+        }
+      ],
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/decomposition/tests/test_nmf.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "In `sklearn/decomposition/_nmf.py`, the refactoring to `check_array` removed `W = np.ascontiguousarray(W)` without adding a corresponding check for `W`, leaving `W` without C-order memory layout guarantees despite the invariant stated in the code comment."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "bug",
+          "file": "sklearn/decomposition/_nmf.py",
+          "line": 484,
+          "message": "`W` is no longer ensured to be C-contiguous in memory (e.g. via `check_array(W, order=\"C\")` or `np.ascontiguousarray(W)`), violating the required invariant explicitly stated in the comment that both `W` and `Ht` are in C order.",
+          "evidence": "-    W = np.ascontiguousarray(W)\n-    Ht = np.ascontiguousarray(H.T)\n+    # so W and Ht are both in C order in memory\n+    Ht = check_array(H.T, order=\"C\")",
+          "confidence": 0.95,
+          "inChange": true,
+          "notes": [],
+          "id": "f-c179501b0c8cd0ee133eaf9a"
+        }
+      ],
+      "cost": 0,
+      "tokens": 25209,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-cd196d76c3013a2b1536",
+            "file": "sklearn/decomposition/tests/test_nmf.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    assert W.shape == (shape[0], 5)\n    assert nmf.components_.shape == (5, shape[1])",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/decomposition/_nmf.py",
+          "changed": [
+            "_fit_coordinate_descent"
+          ],
+          "removed": []
+        },
+        {
+          "path": "sklearn/decomposition/tests/test_nmf.py",
+          "changed": [],
+          "removed": [
+            "test_nmf_smoke"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "baseline",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "baseline",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "29e530a3-d109-4c06-b3ba-f0c59ac2a9b0",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "ea9efb4c-c24f-41dd-a91e-ecbc36fc7822",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "29e530a3-d109-4c06-b3ba-f0c59ac2a9b0",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 15284,
+              "output_tokens": 9925,
+              "thinking_tokens": 9692,
+              "cache_read_tokens": 0,
+              "total_tokens": 25209
+            },
+            "tokens": {
+              "inputTokens": 15284,
+              "outputTokens": 9925,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 25209
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:56:55.447Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "29e530a3-d109-4c06-b3ba-f0c59ac2a9b0",
+            "startedAt": "2026-10-07T00:56:28.873Z",
+            "completedAt": "2026-10-07T00:56:55.447Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 25209,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "bug",
+                "file": "sklearn/decomposition/_nmf.py",
+                "line": 484,
+                "message": "`W` is no longer ensured to be C-contiguous in memory (e.g. via `check_array(W, order=\"C\")` or `np.ascontiguousarray(W)`), violating the required invariant explicitly stated in the comment that both `W` and `Ht` are in C order.",
+                "evidence": "-    W = np.ascontiguousarray(W)\n-    Ht = np.ascontiguousarray(H.T)\n+    # so W and Ht are both in C order in memory\n+    Ht = check_array(H.T, order=\"C\")",
+                "confidence": 0.95,
+                "inChange": true,
+                "notes": [],
+                "id": "f-c179501b0c8cd0ee133eaf9a"
+              }
+            ],
+            "notes": {
+              "consulted": 0,
+              "direct": 1,
+              "related": 0,
+              "assessed": 0,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/decomposition/tests/test_nmf.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "baseline",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "baseline",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "573bb6f2-ab45-4459-8255-afc7a53e5031",
+            "t": "2026-10-07T00:56:55.447Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 26577,
+      "validModel": true
+    },
+    "cached": {
+      "scope": "working tree against HEAD",
+      "state": false,
+      "strategy": {
+        "mode": "holistic",
+        "related": true,
+        "callers": false,
+        "triage": false,
+        "triageModel": "haiku",
+        "verify": false,
+        "chunks": 1
+      },
+      "files": [
+        {
+          "path": "sklearn/decomposition/_nmf.py",
+          "status": "M",
+          "added": 3,
+          "removed": 5
+        },
+        {
+          "path": "sklearn/decomposition/tests/test_nmf.py",
+          "status": "M",
+          "added": 0,
+          "removed": 15
+        }
+      ],
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [
+          "sklearn/decomposition/tests/test_nmf.py"
+        ],
+        "skipped": 0
+      },
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "The change in `sklearn/decomposition/_nmf.py:_fit_coordinate_descent` violates note `enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce`. It removes `W = np.ascontiguousarray(W)` and fails to ensure C-contiguity on `W`, despite the added comment stating that both `W` and `Ht` are in C order in memory. All other cache notes concern unrelated modules (manifold, utils, linear_model, pipeline, discriminant_analysis) and have no relation to this change. None of the notes are shown to be outdated by the code."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "sklearn/decomposition/_nmf.py",
+          "line": 483,
+          "message": "The change removes C-contiguity enforcement on array `W` by deleting `W = np.ascontiguousarray(W)` without replacing it with an equivalent check (such as `check_array(W, order='C')`). Although the comment states `# so W and Ht are both in C order in memory`, only `Ht` is converted, violating the requirement described in note `enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce` that array inputs to Cython coordinate descent memoryviews must be C-contiguous.",
+          "evidence": "-    W = np.ascontiguousarray(W)\n-    Ht = np.ascontiguousarray(H.T)\n-    if sp.issparse(X) and X.format == \"csc\":\n-        X = X.tocsr()\n+    # so W and Ht are both in C order in memory\n+    Ht = check_array(H.T, order=\"C\")\n+    X = check_array(X, accept_sparse=\"csr\")",
+          "confidence": 0.95,
+          "note": "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce",
+          "inChange": true,
+          "notes": [
+            "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce"
+          ],
+          "id": "f-e2c397db940ff2c9f650c12a"
+        }
+      ],
+      "cost": 0,
+      "tokens": 23892,
+      "model": "gemini-3.8-flash-high",
+      "errors": [],
+      "integrity": {
+        "status": "needs-review",
+        "findings": [
+          {
+            "id": "gate-cd196d76c3013a2b1536",
+            "file": "sklearn/decomposition/tests/test_nmf.py",
+            "line": 0,
+            "rule": "assertion-changed",
+            "severity": "warning",
+            "certainty": "needs-assessment",
+            "evidenceType": "text-change",
+            "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+            "before": "    assert W.shape == (shape[0], 5)\n    assert nmf.components_.shape == (5, shape[1])",
+            "after": "",
+            "resolution": "needs-review"
+          }
+        ],
+        "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+      },
+      "task": null,
+      "symbols": [
+        {
+          "path": "sklearn/decomposition/_nmf.py",
+          "changed": [
+            "_fit_coordinate_descent"
+          ],
+          "removed": []
+        },
+        {
+          "path": "sklearn/decomposition/tests/test_nmf.py",
+          "changed": [],
+          "removed": [
+            "test_nmf_smoke"
+          ]
+        }
+      ],
+      "thoroughness": {
+        "version": 1,
+        "assessment": "unassessed",
+        "gateSource": "default",
+        "gateInput": null,
+        "decisions": [
+          {
+            "step": "worth_reviewing",
+            "source": "default",
+            "score": null,
+            "threshold": 0.15,
+            "recommended": null,
+            "selected": true,
+            "status": "assessed",
+            "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+            "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+            "caseReason": null
+          },
+          {
+            "step": "callers",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+            "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+            "caseReason": null
+          },
+          {
+            "step": "chunks",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+            "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+            "caseReason": null
+          },
+          {
+            "step": "verify",
+            "source": "default",
+            "score": null,
+            "threshold": 0.6,
+            "recommended": null,
+            "selected": false,
+            "status": "skipped",
+            "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+            "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+            "caseReason": null
+          },
+          {
+            "step": "tests",
+            "source": "default",
+            "score": null,
+            "threshold": 0.5,
+            "recommended": null,
+            "selected": false,
+            "status": "not-recommended",
+            "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+            "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+            "caseReason": null
+          }
+        ],
+        "verifications": [],
+        "summary": {
+          "calls": 0,
+          "retained": 0,
+          "dropped": 0,
+          "severityChanged": 0,
+          "errors": 0,
+          "tokens": 0,
+          "callDurationMs": 0
+        }
+      },
+      "toAssess": [
+        {
+          "id": "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce",
+          "title": "Enforce C-contiguity on array inputs to NMF coordinate descent",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#33260"
+          },
+          "why": "rests on sklearn/decomposition/_nmf.py:_fit_coordinate_descent; 8 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "allow-64-bit-sparse-array-indices-in-spectralembedding-with",
+          "title": "Allow 64-bit sparse array indices in SpectralEmbedding with ARPACK solver",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34965"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "unwrap-narwhals-dataframes-to-native-pandas-before-checking",
+          "title": "Unwrap Narwhals DataFrames to native pandas before checking sparse attributes in check_array",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34051"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "converting-non-ndarray-array-likes-before-cross-namespace-ar",
+          "title": "Converting non-ndarray array-likes before cross-namespace array API transfer",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34779"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "order-move-to-before-dtype-validation-for-mixed-array-api-in",
+          "title": "Order move_to before dtype validation for mixed array API inputs in GLMs",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34480"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "default-transform-input-to-x-val-in-pipeline-and-make-pipeli",
+          "title": "Default transform_input to ('X_val',) in Pipeline and make_pipeline",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34263"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "mixed-device-and-string-label-array-api-handling-in-lineardi",
+          "title": "Mixed device and string label array API handling in LinearDiscriminantAnalysis",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "scikit-learn/scikit-learn#34475"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "chunks": 1,
+      "models": {
+        "gemini/gemini-3.8-flash-high": 1
+      },
+      "behaviors": [],
+      "counts": {
+        "error": 1,
+        "warning": 0,
+        "info": 0
+      },
+      "runId": "67894547-451b-41e5-a210-e3f6197edbd1",
+      "impact": {
+        "recorded": true,
+        "pr": null,
+        "events": [
+          {
+            "op": "model",
+            "eventId": "60672f32-f712-4842-825f-2058de89bd72",
+            "purpose": "review",
+            "phase": "review",
+            "impactRun": "67894547-451b-41e5-a210-e3f6197edbd1",
+            "provider": "gemini",
+            "model": "gemini-3.8-flash-high",
+            "usage": {
+              "input_tokens": 9076,
+              "output_tokens": 14816,
+              "thinking_tokens": 14380,
+              "cache_read_tokens": 8150,
+              "total_tokens": 23892
+            },
+            "tokens": {
+              "inputTokens": 9076,
+              "outputTokens": 14816,
+              "cacheReadTokens": null,
+              "cacheWriteTokens": null,
+              "totalTokens": 23892
+            },
+            "cost": null,
+            "failed": false,
+            "schema": 1,
+            "t": "2026-10-07T00:57:30.701Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          },
+          {
+            "op": "impact-review",
+            "runId": "67894547-451b-41e5-a210-e3f6197edbd1",
+            "startedAt": "2026-10-07T00:56:55.458Z",
+            "completedAt": "2026-10-07T00:57:30.702Z",
+            "head": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+            "branch": null,
+            "scope": {
+              "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+              "head": "worktree",
+              "label": "working tree against HEAD"
+            },
+            "model": "gemini-3.8-flash-high",
+            "tokens": 23892,
+            "findings": [
+              {
+                "severity": "error",
+                "category": "violation",
+                "file": "sklearn/decomposition/_nmf.py",
+                "line": 483,
+                "message": "The change removes C-contiguity enforcement on array `W` by deleting `W = np.ascontiguousarray(W)` without replacing it with an equivalent check (such as `check_array(W, order='C')`). Although the comment states `# so W and Ht are both in C order in memory`, only `Ht` is converted, violating the requirement described in note `enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce` that array inputs to Cython coordinate descent memoryviews must be C-contiguous.",
+                "evidence": "-    W = np.ascontiguousarray(W)\n-    Ht = np.ascontiguousarray(H.T)\n-    if sp.issparse(X) and X.format == \"csc\":\n-        X = X.tocsr()\n+    # so W and Ht are both in C order in memory\n+    Ht = check_array(H.T, order=\"C\")\n+    X = check_array(X, accept_sparse=\"csr\")",
+                "confidence": 0.95,
+                "note": "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce",
+                "inChange": true,
+                "notes": [
+                  "enforce-c-contiguity-on-array-inputs-to-nmf-coordinate-desce"
+                ],
+                "id": "f-e2c397db940ff2c9f650c12a"
+              }
+            ],
+            "notes": {
+              "consulted": 7,
+              "direct": 1,
+              "related": 6,
+              "assessed": 7,
+              "staleBefore": [],
+              "outdated": [],
+              "uncovered": [
+                "sklearn/decomposition/tests/test_nmf.py"
+              ],
+              "skipped": 0
+            },
+            "thoroughness": {
+              "version": 1,
+              "assessment": "unassessed",
+              "gateSource": "default",
+              "gateInput": null,
+              "decisions": [
+                {
+                  "step": "worth_reviewing",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.15,
+                  "recommended": null,
+                  "selected": true,
+                  "status": "assessed",
+                  "question": "Read `the_change.changed_lines`. Could these lines plausibly introduce a defect, or alter behaviour a person depends on?",
+                  "criterion": "It changes what the code does, or could: logic, control flow, data, configuration that takes effect, or a dependency version.",
+                  "caseReason": null
+                },
+                {
+                  "step": "callers",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "To judge `the_change`, would it be necessary to see the code that CALLS the definitions it alters, rather than the definitions alone?",
+                  "criterion": "It changes a signature, a return shape, a thrown error, a default, or a precondition — so whether it is correct depends on the call sites.",
+                  "caseReason": null
+                },
+                {
+                  "step": "chunks",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Is `the_change` too large or too spread out to be judged carefully in a single pass?",
+                  "criterion": "Many files, or unrelated concerns mixed together, so reading it as one piece would lose detail.",
+                  "caseReason": null
+                },
+                {
+                  "step": "verify",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.6,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "skipped",
+                  "question": "Read `the_change.changed_lines`. Could a reviewer reading only these lines raise a complaint about them that turns out to be wrong?",
+                  "criterion": "It is subtle, relies on context not visible in the diff, or follows a convention that looks wrong without it — a first reading could misjudge it.",
+                  "caseReason": null
+                },
+                {
+                  "step": "tests",
+                  "source": "default",
+                  "score": null,
+                  "threshold": 0.5,
+                  "recommended": null,
+                  "selected": false,
+                  "status": "not-recommended",
+                  "question": "Read `the_change.changed_lines`. Could these lines be wrong in a way that reading them would NOT reveal, so that only running the code would show it?",
+                  "criterion": "Being wrong here would look correct on the page: a query, a serialization or cache key, a concurrency or ordering assumption, a format or protocol detail, a value that must match something elsewhere.",
+                  "caseReason": null
+                }
+              ],
+              "verifications": [],
+              "summary": {
+                "calls": 0,
+                "retained": 0,
+                "dropped": 0,
+                "severityChanged": 0,
+                "errors": 0,
+                "tokens": 0,
+                "callDurationMs": 0
+              }
+            },
+            "errors": [],
+            "schema": 1,
+            "eventId": "8230d76c-3716-409c-bf51-ce983f4d7ad2",
+            "t": "2026-10-07T00:57:30.702Z",
+            "origin": "github.com/scikit-learn/scikit-learn",
+            "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/bench/suite-worktrees/sklearn-gemini"
+          }
+        ]
+      },
+      "elapsedMs": 35253,
+      "validModel": true
+    }
+  }
+]

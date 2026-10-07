@@ -1,0 +1,78 @@
+{
+  "id": "pipeline-transform-input-defaults-to-x-val-the-routing-disab",
+  "title": "Pipeline.transform_input defaults to (\"X_val\",); the routing-disabled guard must exempt the default",
+  "kind": "rule",
+  "answers": [
+    "why is X_val not transformed by the pipeline preprocessing steps",
+    "Pipeline raises 'transform_input parameter can only be used if metadata routing is enabled'",
+    "what is the default transform_input of Pipeline / make_pipeline",
+    "validation set passed to fit is not preprocessed in a pipeline"
+  ],
+  "body": "Symptom: users passing a validation set (`X_val`) through a Pipeline forgot to set `transform_input=[\"X_val\"]`, so the final estimator received an untransformed validation set, which is hard to notice.\nRoot cause: sklearn/pipeline.py:Pipeline.__init__ defaulted `transform_input=None`.\nFix pattern: the default is now the immutable tuple `(\"X_val\",)` in both `Pipeline.__init__` and `make_pipeline`, and `_parameter_constraints[\"transform_input\"]` accepts `[list, tuple, None]`. The check in `Pipeline.fit` that raises when routing is disabled only fires for a non-empty value that differs from `(\"X_val\",)`. So with routing off, a default pipeline still fits. Passing `X_val=` to fit then fails with the usual \"Pipeline.fit does not accept\" routing error.\nConstraints: if you change the default or the guard, `None`, `()` and the default must all stay usable without metadata routing. Any other value must still raise ValueError (\"can only be used if metadata routing is enabled\"). With routing on, the default must not raise when `X_val` is absent from fit params.",
+  "applies": "sklearn/pipeline.py Pipeline / make_pipeline transform_input handling and its routing guard",
+  "tags": [
+    "pipeline",
+    "metadata-routing",
+    "transform_input",
+    "x_val",
+    "defaults"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.__init__",
+      "hash": "sha256:6a6b951dcc3103039cbd2cdd",
+      "line": 219,
+      "missing": false,
+      "fanout": {
+        "files": 103,
+        "sites": 197,
+        "refs": 246
+      }
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "Pipeline.fit",
+      "hash": "sha256:d505cee8aac0d040c8acdcaa",
+      "line": 585,
+      "missing": false
+    },
+    {
+      "path": "sklearn/pipeline.py",
+      "symbol": "make_pipeline",
+      "hash": "sha256:b1ac1a390103b3dfb491299a",
+      "line": 1459,
+      "missing": false,
+      "fanout": {
+        "files": 109,
+        "sites": 257,
+        "refs": 375
+      }
+    },
+    {
+      "path": "sklearn/tests/test_pipeline.py",
+      "symbol": "test_transform_input_no_slep6",
+      "hash": "sha256:146f92fb3fdece2614b247ad",
+      "line": 2222,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34263"
+  },
+  "created": "2026-10-07T00:30:43.503Z",
+  "verified": "2026-10-07T00:30:43.503Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "changing-a-pipeline-constructor-default-requires-updating-ma"
+  ]
+}

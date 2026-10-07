@@ -1,0 +1,58 @@
+{
+  "id": "alert-rule-schema-changes-must-mirror-between-alert-rule-and",
+  "title": "Alert rule schema changes must mirror between alert_rule and alert_rule_version",
+  "kind": "rule",
+  "answers": [
+    "Do schema changes to alert_rule also need to be applied to alert_rule_version?",
+    "Why must alert_rule_version columns match alert_rule columns in Grafana Alerting?",
+    "What tables must be updated when modifying an alert rule column definition?"
+  ],
+  "body": "Invariant: Schema modifications to alert_rule columns must be mirrored identically in alert_rule_version.\nEnforced at: pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules\nWhat breaks if skipped: Updating an alert rule writes a snapshot to alert_rule_version; if schemas diverge, rule updates fail on database insertion or truncate history data.",
+  "applies": "Grafana Alerting rule storage and versioning schema migrations",
+  "tags": [
+    "alerting",
+    "database",
+    "schema-sync",
+    "alert-rule-version"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/store/alert_rule_test.go",
+      "symbol": "TestIntegrationUpdateAlertRules",
+      "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:03:16.481Z",
+  "verified": "2026-10-07T00:03:16.481Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "widen-database-column-to-bigint-when-int64-alert-rule-fields",
+    "registering-new-sql-migrations-in-ossmigrations-and-migratio"
+  ]
+}

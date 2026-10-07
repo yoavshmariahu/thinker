@@ -1,0 +1,1327 @@
+{
+  "repo": "pandas-dev/pandas",
+  "base": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "rule": "Newest first-parent fix-like commits with 1–120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "pandas-70138",
+      "pr": 70138,
+      "sha": "63651d6717faa0fb850c2723c0183194255d6e1c",
+      "parent": "62371617c7b1e805fa2936b2062e7f362795a18d",
+      "subject": "DEPR: merge/join suffixes that collide across left and right (GH#13659) (#70138)",
+      "codeLines": 14,
+      "totalLines": 41,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/reshape/merge.py",
+        "pandas/tests/frame/methods/test_join.py",
+        "pandas/tests/reshape/merge/test_merge.py"
+      ],
+      "production": [
+        "pandas/core/reshape/merge.py"
+      ]
+    },
+    {
+      "id": "pandas-70526",
+      "pr": 70526,
+      "sha": "62371617c7b1e805fa2936b2062e7f362795a18d",
+      "parent": "b4b8b2232152476d07ee615935b114e33d45c8b0",
+      "subject": "BUG: Styler.background_gradient colors NaN as the lowest value when vmin == vmax (GH#47695) (#70526)",
+      "codeLines": 6,
+      "totalLines": 17,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/formats/style.py",
+        "pandas/tests/io/formats/style/test_matplotlib.py"
+      ],
+      "production": [
+        "pandas/io/formats/style.py"
+      ]
+    },
+    {
+      "id": "pandas-70631",
+      "pr": 70631,
+      "sha": "b4b8b2232152476d07ee615935b114e33d45c8b0",
+      "parent": "d0db79675452e9e0e8750eb184aeb7d61ad54bb6",
+      "subject": "BUG: IntervalIndex raising Cython TypeError for RangeIndex and non-interval EA input (GH#68343) (#70631)",
+      "codeLines": 5,
+      "totalLines": 63,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/arrays/interval.py",
+        "pandas/tests/indexes/interval/test_constructors.py",
+        "pandas/tests/indexes/interval/test_setops.py"
+      ],
+      "production": [
+        "pandas/core/arrays/interval.py"
+      ]
+    },
+    {
+      "id": "pandas-69446",
+      "pr": 69446,
+      "sha": "d0db79675452e9e0e8750eb184aeb7d61ad54bb6",
+      "parent": "c76be9d0dd4bb51f928bb65a992c283d59934b09",
+      "subject": "BUG: to_excel wrote NaN MultiIndex column label as last level value (GH#62340) (#69446)",
+      "codeLines": 3,
+      "totalLines": 15,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/formats/excel.py",
+        "pandas/tests/io/excel/test_writers.py"
+      ],
+      "production": [
+        "pandas/io/formats/excel.py"
+      ]
+    },
+    {
+      "id": "pandas-69961",
+      "pr": 69961,
+      "sha": "c76be9d0dd4bb51f928bb65a992c283d59934b09",
+      "parent": "206d70b4b3d4bf7b20caf256f216c732f57f9cf5",
+      "subject": "BUG: honor date formats in OpenpyxlWriter (#69961)",
+      "codeLines": 2,
+      "totalLines": 41,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/io/excel/_openpyxl.py",
+        "pandas/tests/io/excel/test_openpyxl.py"
+      ],
+      "production": [
+        "pandas/io/excel/_openpyxl.py"
+      ]
+    },
+    {
+      "id": "pandas-70640",
+      "pr": 70640,
+      "sha": "206d70b4b3d4bf7b20caf256f216c732f57f9cf5",
+      "parent": "b92d01250d24de136c92681d313bb1720a532805",
+      "subject": "DOC: Fix docs signature for the BYearEnd, BYearBegin and YearBegin constructors (#70640)",
+      "codeLines": 20,
+      "totalLines": 20,
+      "files": [
+        "doc/source/signature_overrides.py"
+      ],
+      "production": [
+        "doc/source/signature_overrides.py"
+      ]
+    },
+    {
+      "id": "pandas-70404",
+      "pr": 70404,
+      "sha": "85986ab8167ae7eaf968737097562c766a603306",
+      "parent": "bcbcf6d44633c9eb194f399d725800ae6c892a46",
+      "subject": "BUG: parallel read_csv raised on a quoted newline at a chunk boundary (#70404)",
+      "codeLines": 48,
+      "totalLines": 160,
+      "files": [
+        "pandas/io/parsers/readers.py",
+        "pandas/tests/io/parser/test_parallel_read.py"
+      ],
+      "production": [
+        "pandas/io/parsers/readers.py"
+      ]
+    },
+    {
+      "id": "pandas-70515",
+      "pr": 70515,
+      "sha": "bcbcf6d44633c9eb194f399d725800ae6c892a46",
+      "parent": "e4456d18532a5a6d2e9e5fe6899d691c76fea650",
+      "subject": "BUG: Series.mode(dropna=False) raising TypeError for boolean dtype (#70515)",
+      "codeLines": 2,
+      "totalLines": 19,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/algorithms.py",
+        "pandas/tests/series/test_reductions.py"
+      ],
+      "production": [
+        "pandas/core/algorithms.py"
+      ]
+    },
+    {
+      "id": "pandas-70493",
+      "pr": 70493,
+      "sha": "8f05b64200e8801c2966929889c0bd860f575ce8",
+      "parent": "d82c8ccb44a44e1609a3cd3e8170b0083ff16c19",
+      "subject": "BUG: hash_pandas_object raised on mixed-type values with non-ASCII bytes (GH#27215) (#70493)",
+      "codeLines": 10,
+      "totalLines": 26,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/util/hashing.py",
+        "pandas/tests/util/test_hashing.py"
+      ],
+      "production": [
+        "pandas/core/util/hashing.py"
+      ]
+    },
+    {
+      "id": "pandas-69445",
+      "pr": 69445,
+      "sha": "d82c8ccb44a44e1609a3cd3e8170b0083ff16c19",
+      "parent": "4b412e59fb6ba97f87d72651dbf7f33c914a808a",
+      "subject": "BUG: retain DatetimeIndex freq in concat regardless of input order (GH#64253) (#69445)",
+      "codeLines": 34,
+      "totalLines": 96,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/indexes/api.py",
+        "pandas/tests/frame/test_constructors.py",
+        "pandas/tests/reshape/concat/test_datetimes.py"
+      ],
+      "production": [
+        "pandas/core/indexes/api.py"
+      ]
+    },
+    {
+      "id": "pandas-70403",
+      "pr": 70403,
+      "sha": "fc908e17ebf7087e6a36e866768d3bb35e96a760",
+      "parent": "255c2ac652912dc8177b18dff8728e8eee147481",
+      "subject": "BUG: parallel read_csv lost or added a row after a bare CR in the header (#70403)",
+      "codeLines": 4,
+      "totalLines": 39,
+      "files": [
+        "pandas/io/parsers/readers.py",
+        "pandas/tests/io/parser/test_parallel_read.py"
+      ],
+      "production": [
+        "pandas/io/parsers/readers.py"
+      ]
+    },
+    {
+      "id": "pandas-70228",
+      "pr": 70228,
+      "sha": "255c2ac652912dc8177b18dff8728e8eee147481",
+      "parent": "f65e5170565bb5a2ee37b49d286c30c9f2764dbb",
+      "subject": "BUG: bar subplots draw date labels on inner shared-x axes (follow-up to GH#62992) (#70228)",
+      "codeLines": 34,
+      "totalLines": 61,
+      "files": [
+        "pandas/plotting/_matplotlib/core.py",
+        "pandas/tests/plotting/test_datetimelike.py"
+      ],
+      "production": [
+        "pandas/plotting/_matplotlib/core.py"
+      ]
+    },
+    {
+      "id": "pandas-69026",
+      "pr": 69026,
+      "sha": "f7be3ffce1c09480b86448d2544e8a2293af6111",
+      "parent": "67b43b389914bc348b084f727b39033a7a3602ff",
+      "subject": "BUG: replace silently discards a compiled regex on ArrowDtype strings (#69026)",
+      "codeLines": 11,
+      "totalLines": 100,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/internals/blocks.py",
+        "pandas/tests/arrays/categorical/test_replace.py",
+        "pandas/tests/series/methods/test_replace.py"
+      ],
+      "production": [
+        "pandas/core/internals/blocks.py"
+      ]
+    },
+    {
+      "id": "pandas-68929",
+      "pr": 68929,
+      "sha": "67b43b389914bc348b084f727b39033a7a3602ff",
+      "parent": "a141df6527c881cef1c64deca72f5f5ee947af31",
+      "subject": "BUG: DataFrame.clip with an extension-dtype array/Index bound degrades to object (#68929)",
+      "codeLines": 15,
+      "totalLines": 38,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/frame.py",
+        "pandas/core/generic.py",
+        "pandas/tests/frame/methods/test_clip.py"
+      ],
+      "production": [
+        "pandas/core/frame.py",
+        "pandas/core/generic.py"
+      ]
+    },
+    {
+      "id": "pandas-70405",
+      "pr": 70405,
+      "sha": "503fe2ec8fd3951d4fed15973fa74b22b16f5d30",
+      "parent": "83b5a9f23caef50e4f44201ed983283eddfb6b53",
+      "subject": "BUG: read_csv ignored encoding_errors for text buffers on the C and pyarrow engines (#70405)",
+      "codeLines": 11,
+      "totalLines": 27,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/common.py",
+        "pandas/tests/io/parser/test_encoding.py"
+      ],
+      "production": [
+        "pandas/io/common.py"
+      ]
+    },
+    {
+      "id": "pandas-68637",
+      "pr": 68637,
+      "sha": "f2cc18a4ea3b4b8f8b553d876d60e78952ceee03",
+      "parent": "51c9110b5022e972440f7416c3712a143fa1d3c8",
+      "subject": "BUG: treat an iterator as scalar-like in Categorical comparisons (GH#31646) (#68637)",
+      "codeLines": 5,
+      "totalLines": 17,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/arrays/categorical.py",
+        "pandas/tests/arrays/categorical/test_operators.py"
+      ],
+      "production": [
+        "pandas/core/arrays/categorical.py"
+      ]
+    },
+    {
+      "id": "pandas-70300",
+      "pr": 70300,
+      "sha": "567f9a6e523f84b646b5022a854f392994932ddb",
+      "parent": "71e11934c88cebded4f633e845cd1a16d27bfbe6",
+      "subject": "BUG: isin on pyarrow dtypes raising for mixed values (#70300)",
+      "codeLines": 16,
+      "totalLines": 51,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/tests/series/methods/test_isin.py"
+      ],
+      "production": [
+        "pandas/core/arrays/arrow/array.py"
+      ]
+    },
+    {
+      "id": "pandas-70219",
+      "pr": 70219,
+      "sha": "c4ac5fa891fec0f9f8bfd758b33d81202460b871",
+      "parent": "7b819f97971b9dce5b3b9a1048749af6d86b1440",
+      "subject": "BUG: .loc setitem with an integer slice on a Decimal index (#70219)",
+      "codeLines": 84,
+      "totalLines": 124,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/indexes/base.py",
+        "pandas/core/indexes/category.py",
+        "pandas/core/indexes/interval.py",
+        "pandas/core/indexes/multi.py",
+        "pandas/core/indexes/range.py",
+        "pandas/tests/indexing/multiindex/test_partial.py",
+        "pandas/tests/indexing/test_loc.py",
+        "pandas/tests/series/indexing/test_setitem.py"
+      ],
+      "production": [
+        "pandas/core/indexes/base.py",
+        "pandas/core/indexes/category.py",
+        "pandas/core/indexes/interval.py",
+        "pandas/core/indexes/multi.py",
+        "pandas/core/indexes/range.py"
+      ]
+    },
+    {
+      "id": "pandas-70229",
+      "pr": 70229,
+      "sha": "859d918abbc2b18ddfe77a81ec938d3dcfe45f30",
+      "parent": "4f340db6023cbb471afcefb78c2b221424e8c449",
+      "subject": "BUG: read_sql with psycopg2 DictCursor and duplicate column names (GH#53028) (#70229)",
+      "codeLines": 5,
+      "totalLines": 50,
+      "files": [
+        "pandas/io/sql.py",
+        "pandas/tests/io/test_sql.py"
+      ],
+      "production": [
+        "pandas/io/sql.py"
+      ]
+    },
+    {
+      "id": "pandas-70230",
+      "pr": 70230,
+      "sha": "1f56dbaeac942a99bf9d83da6745930a33f1cf49",
+      "parent": "fdb031a57265546ecf6e4231783815df7c77d51f",
+      "subject": "BUG: plotting regressions for arrow decimal and binary columns (GH#64535) (#70230)",
+      "codeLines": 17,
+      "totalLines": 54,
+      "files": [
+        "pandas/plotting/_matplotlib/core.py",
+        "pandas/tests/plotting/frame/test_frame.py"
+      ],
+      "production": [
+        "pandas/plotting/_matplotlib/core.py"
+      ]
+    },
+    {
+      "id": "pandas-69656",
+      "pr": 69656,
+      "sha": "ca5049b693693e80aebbc11e6690c082679af031",
+      "parent": "b1052768a28b26bfe545487ba8fd01ae64b3dc41",
+      "subject": "BUG: bar/barh plot raises on timedelta64 data containing NaT (GH#39320) (#69656)",
+      "codeLines": 10,
+      "totalLines": 34,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/plotting/_matplotlib/core.py",
+        "pandas/tests/plotting/frame/test_frame.py",
+        "pandas/tests/plotting/test_series.py"
+      ],
+      "production": [
+        "pandas/plotting/_matplotlib/core.py"
+      ]
+    },
+    {
+      "id": "pandas-70233",
+      "pr": 70233,
+      "sha": "b1052768a28b26bfe545487ba8fd01ae64b3dc41",
+      "parent": "8a6a15235faabb1618a189b4d6bb1902ab98731d",
+      "subject": "BUG: setitem-with-expansion, map and groupby.agg raised for a value the dtype cannot hold (#70233)",
+      "codeLines": 17,
+      "totalLines": 104,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/core/arrays/masked.py",
+        "pandas/core/arrays/string_arrow.py",
+        "pandas/tests/groupby/aggregate/test_aggregate.py",
+        "pandas/tests/indexing/test_loc.py",
+        "pandas/tests/series/methods/test_map.py"
+      ],
+      "production": [
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/core/arrays/masked.py",
+        "pandas/core/arrays/string_arrow.py"
+      ]
+    },
+    {
+      "id": "pandas-69859",
+      "pr": 69859,
+      "sha": "8a6a15235faabb1618a189b4d6bb1902ab98731d",
+      "parent": "c0ab61952afcae7531748257848ce0388247124b",
+      "subject": "DOC: show fixed categories for consistent get_dummies columns (GH#22078) (#69859)",
+      "codeLines": 8,
+      "totalLines": 18,
+      "files": [
+        "doc/source/user_guide/reshaping.rst",
+        "pandas/core/reshape/encoding.py"
+      ],
+      "production": [
+        "pandas/core/reshape/encoding.py"
+      ]
+    },
+    {
+      "id": "pandas-68521",
+      "pr": 68521,
+      "sha": "82e2fd80d9dd626f3bef42dcb95d4a784af7d451",
+      "parent": "69e17e3018bfe2e487ca4b7b3a7d62b0b35db088",
+      "subject": "BUG: iloc/loc setitem broadcast a 1-D value down rows on an all-datetimelike frame (#68521)",
+      "codeLines": 64,
+      "totalLines": 221,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/internals/blocks.py",
+        "pandas/tests/indexing/test_iloc.py"
+      ],
+      "production": [
+        "pandas/core/internals/blocks.py"
+      ]
+    },
+    {
+      "id": "pandas-70146",
+      "pr": 70146,
+      "sha": "69e17e3018bfe2e487ca4b7b3a7d62b0b35db088",
+      "parent": "76c9588293f3252f4606a5ca64373da6333c2071",
+      "subject": "BUG: float16 var/std/sem overflow to inf (GH#41277) (#70146)",
+      "codeLines": 31,
+      "totalLines": 58,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/nanops.py",
+        "pandas/tests/test_nanops.py"
+      ],
+      "production": [
+        "pandas/core/nanops.py"
+      ]
+    },
+    {
+      "id": "pandas-70225",
+      "pr": 70225,
+      "sha": "29dbb3c153e00987a2d559d8f969103785a0576b",
+      "parent": "ee947f39aa31768aaf3269a456b52e62a35c9403",
+      "subject": "BUG: SparseArray.astype unboxed a Timestamp/Timedelta fill value on an object subtype (#70225)",
+      "codeLines": 6,
+      "totalLines": 36,
+      "files": [
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/tests/arrays/sparse/test_astype.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/array.py"
+      ]
+    },
+    {
+      "id": "pandas-70128",
+      "pr": 70128,
+      "sha": "248c4cfb8140717fca7f6e233e75815b7c46574a",
+      "parent": "ee65b02def263b21133d3b716786eeb42537b9bd",
+      "subject": "DOC: fix whatsnew errata in v3.0.0, v3.0.1 and v3.1.0 (#70128)",
+      "codeLines": 4,
+      "totalLines": 25,
+      "files": [
+        "doc/source/whatsnew/v3.0.0.rst",
+        "doc/source/whatsnew/v3.0.1.rst",
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/timedeltas.py"
+      ],
+      "production": [
+        "pandas/core/arrays/timedeltas.py"
+      ]
+    },
+    {
+      "id": "pandas-70101",
+      "pr": 70101,
+      "sha": "b3cfeb4992a083954710e4f82624c77eb6a34094",
+      "parent": "a07efb25c9507bee4adf388149168e454b141d3b",
+      "subject": "BUG: PeriodIndex resample with closed=\"right\" (GH#44363) (#70101)",
+      "codeLines": 7,
+      "totalLines": 23,
+      "files": [
+        "doc/source/whatsnew/v3.2.0.rst",
+        "pandas/core/resample.py",
+        "pandas/tests/resample/test_period_index.py"
+      ],
+      "production": [
+        "pandas/core/resample.py"
+      ]
+    },
+    {
+      "id": "pandas-70133",
+      "pr": 70133,
+      "sha": "a246a077a6dc36588f5dccebef719624809b0420",
+      "parent": "5827e6e44110caccfc5f1d90b0a34e714f1054f5",
+      "subject": "DOC: don't claim the HDFStore is unmodified on an empty table write (#70133)",
+      "codeLines": 8,
+      "totalLines": 15,
+      "files": [
+        "doc/source/user_guide/io.rst",
+        "pandas/io/pytables.py",
+        "pandas/tests/io/pytables/test_append.py"
+      ],
+      "production": [
+        "pandas/io/pytables.py"
+      ]
+    },
+    {
+      "id": "pandas-70139",
+      "pr": 70139,
+      "sha": "5827e6e44110caccfc5f1d90b0a34e714f1054f5",
+      "parent": "283acb3c66964be76c66afaf521c5df841ad30e1",
+      "subject": "BUG: PeriodArray from non-ndarray datetime64[ns] data (#70139)",
+      "codeLines": 9,
+      "totalLines": 47,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/period.py",
+        "pandas/tests/arrays/period/test_constructors.py"
+      ],
+      "production": [
+        "pandas/core/arrays/period.py"
+      ]
+    },
+    {
+      "id": "pandas-70095",
+      "pr": 70095,
+      "sha": "b2f5e1f46d174d47cbdf0d960397618fe18a3aa7",
+      "parent": "589988b093546fb9dc038d8105b3057d77a32c7d",
+      "subject": "TYP: add type parameters to bare generics in core.indexes and dtypes.missing (GH#30539) (#70095)",
+      "codeLines": 53,
+      "totalLines": 53,
+      "files": [
+        "pandas/core/dtypes/missing.py",
+        "pandas/core/indexes/frozen.py",
+        "pandas/core/indexes/interval.py",
+        "pandas/core/indexes/multi.py",
+        "pandas/core/indexes/range.py"
+      ],
+      "production": [
+        "pandas/core/dtypes/missing.py",
+        "pandas/core/indexes/frozen.py",
+        "pandas/core/indexes/interval.py",
+        "pandas/core/indexes/multi.py",
+        "pandas/core/indexes/range.py"
+      ]
+    },
+    {
+      "id": "pandas-69792",
+      "pr": 69792,
+      "sha": "c7327f2d5ecefefae8c0c9f181a58c829b6be8f4",
+      "parent": "a0806b6c9d3efb61b99ef5012e64fdb1f2f49e42",
+      "subject": "BUG: handle negative width in Arrow string padding (#69792)",
+      "codeLines": 2,
+      "totalLines": 13,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/_arrow_string_mixins.py",
+        "pandas/tests/strings/test_case_justify.py"
+      ],
+      "production": [
+        "pandas/core/arrays/_arrow_string_mixins.py"
+      ]
+    },
+    {
+      "id": "pandas-69917",
+      "pr": 69917,
+      "sha": "d6accf04a339988aa774ab4d0d10e36621c6449a",
+      "parent": "0201ff9a771a127580d9208b4008e8c2c0d0bfe1",
+      "subject": "BUG: raise informative error in wide_to_long when j matches a stubnam… (#69917)",
+      "codeLines": 4,
+      "totalLines": 26,
+      "files": [
+        "pandas/core/reshape/melt.py",
+        "pandas/tests/reshape/test_melt.py"
+      ],
+      "production": [
+        "pandas/core/reshape/melt.py"
+      ]
+    },
+    {
+      "id": "pandas-69840",
+      "pr": 69840,
+      "sha": "43a0dff2b5365d25e7e9a602b0627530dd55008b",
+      "parent": "285a4a3c329bf1387beb3425b4405765f8c6eaad",
+      "subject": "BUG: DataFrame.itertuples(index=False) dropping rows when there are no columns (GH#25408) (#69840)",
+      "codeLines": 11,
+      "totalLines": 43,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/frame.py",
+        "pandas/tests/frame/methods/test_to_dict.py",
+        "pandas/tests/frame/test_iteration.py"
+      ],
+      "production": [
+        "pandas/core/frame.py"
+      ]
+    },
+    {
+      "id": "pandas-69781",
+      "pr": 69781,
+      "sha": "dabb415652dd804c7e58a8bc958f5f02c2d75cab",
+      "parent": "04f236729d80fb2052556f4cc231e8b433e7499e",
+      "subject": "BUG: wrap two-element Index repr to respect display.width (GH#16334) (#69781)",
+      "codeLines": 4,
+      "totalLines": 38,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/formats/printing.py",
+        "pandas/tests/indexes/datetimes/test_formats.py",
+        "pandas/tests/io/formats/test_printing.py"
+      ],
+      "production": [
+        "pandas/io/formats/printing.py"
+      ]
+    },
+    {
+      "id": "pandas-69668",
+      "pr": 69668,
+      "sha": "300ad10f85ecf64ce055eaf7cca64d6203129ce7",
+      "parent": "aaaad33727d092a341926c9e76fccc81009d673f",
+      "subject": "REGR: fix Series.str.zfill raising ArrowInvalid for negative width with pyarrow-backed strings (#69668)",
+      "codeLines": 3,
+      "totalLines": 15,
+      "files": [
+        "pandas/core/arrays/_arrow_string_mixins.py",
+        "pandas/tests/strings/test_case_justify.py"
+      ],
+      "production": [
+        "pandas/core/arrays/_arrow_string_mixins.py"
+      ]
+    },
+    {
+      "id": "pandas-69494",
+      "pr": 69494,
+      "sha": "ffd823b7acd026bf75a89f7f09ecc752124c29e2",
+      "parent": "e50bf5e707d71004aea367987945d639549bd7de",
+      "subject": "BUG: read_parquet/to_parquet fall back to fsspec when pyarrow can't build the filesystem (GH#58078) (#69494)",
+      "codeLines": 23,
+      "totalLines": 108,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/parquet.py",
+        "pandas/tests/io/test_fsspec.py"
+      ],
+      "production": [
+        "pandas/io/parquet.py"
+      ]
+    },
+    {
+      "id": "pandas-69784",
+      "pr": 69784,
+      "sha": "4df99bd293e246c731f18f4a8202e828965c6314",
+      "parent": "f2fe9a5705da5093134b90a16b84ed7b15f25fee",
+      "subject": "BUG: merge on pyarrow keys with nulls fails on 32-bit (GH#57523) (#69784)",
+      "codeLines": 6,
+      "totalLines": 13,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/reshape/merge.py",
+        "pandas/tests/indexes/numeric/test_indexing.py"
+      ],
+      "production": [
+        "pandas/core/reshape/merge.py"
+      ]
+    },
+    {
+      "id": "pandas-69507",
+      "pr": 69507,
+      "sha": "19e3501c725ec51f8d3d1ed0149e2d62f6cc95b3",
+      "parent": "512cc70cef21c549645305d4ba2d6abd04074829",
+      "subject": "BUG: name the value_labels key in the non-unique Stata labels error (GH#54590) (#69507)",
+      "codeLines": 8,
+      "totalLines": 27,
+      "files": [
+        "pandas/io/stata.py",
+        "pandas/tests/io/test_stata.py"
+      ],
+      "production": [
+        "pandas/io/stata.py"
+      ]
+    },
+    {
+      "id": "pandas-69490",
+      "pr": 69490,
+      "sha": "512cc70cef21c549645305d4ba2d6abd04074829",
+      "parent": "ece8dad9fcc0d772eb3f5a687095c5f0a8b5cf4c",
+      "subject": "BUG: to_csv with quoting wrote float32 values with float64 repr (GH#60699) (#69490)",
+      "codeLines": 11,
+      "totalLines": 36,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/indexes/base.py",
+        "pandas/tests/io/formats/test_to_csv.py"
+      ],
+      "production": [
+        "pandas/core/indexes/base.py"
+      ]
+    },
+    {
+      "id": "pandas-69639",
+      "pr": 69639,
+      "sha": "bb391398aaa288c331003a7342292c2e3ac8998a",
+      "parent": "a0789626f031b7ff272c0788fba55735ed621bd2",
+      "subject": "DOC: document that display.unicode.east_asian_width handles emoji (GH#58098) (#69639)",
+      "codeLines": 12,
+      "totalLines": 27,
+      "files": [
+        "doc/source/user_guide/options.rst",
+        "pandas/core/config_init.py"
+      ],
+      "production": [
+        "pandas/core/config_init.py"
+      ]
+    },
+    {
+      "id": "pandas-69627",
+      "pr": 69627,
+      "sha": "a0789626f031b7ff272c0788fba55735ed621bd2",
+      "parent": "b92b10322d372a945d0bf0f76bf96514ecee9168",
+      "subject": "BUG: no extra leading space for object columns in to_string formatters (GH#26002) (#69627)",
+      "codeLines": 5,
+      "totalLines": 27,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/formats/format.py",
+        "pandas/tests/frame/test_repr.py",
+        "pandas/tests/io/formats/test_to_string.py"
+      ],
+      "production": [
+        "pandas/io/formats/format.py"
+      ]
+    },
+    {
+      "id": "pandas-69502",
+      "pr": 69502,
+      "sha": "b9564f48ed522124565eb4f939bff26aed50da84",
+      "parent": "b64b39e807da215e05d607b3f9df12a3ffd270ec",
+      "subject": "DOC: clarify astype errors=\"ignore\" does not cover missing mapping keys (GH#30324) (#69502)",
+      "codeLines": 4,
+      "totalLines": 10,
+      "files": [
+        "pandas/core/generic.py",
+        "pandas/tests/frame/methods/test_astype.py",
+        "pandas/tests/series/methods/test_astype.py"
+      ],
+      "production": [
+        "pandas/core/generic.py"
+      ]
+    },
+    {
+      "id": "pandas-68358",
+      "pr": 68358,
+      "sha": "3830c7ed0144a43f96e0e41b06ffd6c1e714d687",
+      "parent": "d2cc23640c81e68f9a7da88c15472c1d38dbe3b8",
+      "subject": "BUG: Fix RangeIndex.symmetric_difference skips required sort when one side is empty (#68358)",
+      "codeLines": 3,
+      "totalLines": 23,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/indexes/range.py",
+        "pandas/tests/indexes/ranges/test_setops.py"
+      ],
+      "production": [
+        "pandas/core/indexes/range.py"
+      ]
+    },
+    {
+      "id": "pandas-68587",
+      "pr": 68587,
+      "sha": "be9eebf87e4129d25044c9284d0405c993e26d2e",
+      "parent": "c6294974a7106937929d31e55e6bccc8f719ed4d",
+      "subject": "BUG: read_csv silently wrapped out-of-range integers (GH#55232) (#68587)",
+      "codeLines": 91,
+      "totalLines": 176,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/_libs/parsers.pyx",
+        "pandas/core/arrays/integer.py",
+        "pandas/core/arrays/masked.py",
+        "pandas/core/arrays/numeric.py",
+        "pandas/io/parsers/python_parser.py",
+        "pandas/tests/arrays/integer/test_construction.py",
+        "pandas/tests/arrays/masked/test_indexing.py",
+        "pandas/tests/io/parser/dtypes/test_dtypes_basic.py"
+      ],
+      "production": [
+        "pandas/core/arrays/integer.py",
+        "pandas/core/arrays/masked.py",
+        "pandas/core/arrays/numeric.py",
+        "pandas/io/parsers/python_parser.py"
+      ]
+    },
+    {
+      "id": "pandas-69449",
+      "pr": 69449,
+      "sha": "c1402ab5cdc0a5c08ab0b2669d44200a12897636",
+      "parent": "3f573414b99fe1f32676ed94784217af78c8751b",
+      "subject": "BUG: avoid Series.values deprecation warning in to_numeric (GH#69448) (#69449)",
+      "codeLines": 4,
+      "totalLines": 19,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/tools/numeric.py",
+        "pandas/tests/tools/test_to_numeric.py"
+      ],
+      "production": [
+        "pandas/core/tools/numeric.py"
+      ]
+    },
+    {
+      "id": "pandas-69411",
+      "pr": 69411,
+      "sha": "e2674416e46dad28ffe2b8fba4359916f2857ef5",
+      "parent": "f0617cccedab31b9e82f3437fcf895c2b63e3c71",
+      "subject": "BUG: DTI/TDI failing to raise on 0-dim ndarray (#69411)",
+      "codeLines": 3,
+      "totalLines": 25,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/datetimelike.py",
+        "pandas/tests/indexes/datetimes/test_constructors.py",
+        "pandas/tests/indexes/timedeltas/test_constructors.py"
+      ],
+      "production": [
+        "pandas/core/arrays/datetimelike.py"
+      ]
+    },
+    {
+      "id": "pandas-69410",
+      "pr": 69410,
+      "sha": "cebedf3f9401a201dd008446a6c85eb7a43115da",
+      "parent": "b5bde2d8b743089618e580e0e5690439ec161ee4",
+      "subject": "DOC: Fix return for to_numeric (#69410)",
+      "codeLines": 9,
+      "totalLines": 9,
+      "files": [
+        "pandas/core/tools/numeric.py"
+      ],
+      "production": [
+        "pandas/core/tools/numeric.py"
+      ]
+    },
+    {
+      "id": "pandas-68702",
+      "pr": 68702,
+      "sha": "1fbaae651881514f5269c9a6c7d173463239c408",
+      "parent": "c52f21c867b7cf250b784a9d5af36ddffc0936fc",
+      "subject": "BUG: preserve line breaks in ODS cells in to_excel/read_excel (#68702)",
+      "codeLines": 43,
+      "totalLines": 134,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/excel/_odfreader.py",
+        "pandas/io/excel/_odswriter.py",
+        "pandas/tests/io/excel/test_odf.py",
+        "pandas/tests/io/excel/test_odswriter.py"
+      ],
+      "production": [
+        "pandas/io/excel/_odfreader.py",
+        "pandas/io/excel/_odswriter.py"
+      ]
+    },
+    {
+      "id": "pandas-68122",
+      "pr": 68122,
+      "sha": "fdb1ca585940abceb4b1c5a29cfdab76dbe0a2b6",
+      "parent": "aad6b6a4ffe99b1f2275b2d046be20a84df2657d",
+      "subject": "BUG: fix self-contradictory set_levels/set_codes error for nested value with scalar level (#66287) (#68122)",
+      "codeLines": 2,
+      "totalLines": 10,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/indexes/multi.py",
+        "pandas/tests/indexes/multi/test_get_set.py"
+      ],
+      "production": [
+        "pandas/core/indexes/multi.py"
+      ]
+    },
+    {
+      "id": "pandas-65819",
+      "pr": 65819,
+      "sha": "ebbcd619d49047688c65eb59b5c726b8389064e5",
+      "parent": "9b4575b753275cf10fe80428cb2263e4086ad3f6",
+      "subject": "BUG: exclude integer rolling on column from result (#65819)",
+      "codeLines": 21,
+      "totalLines": 21,
+      "files": [
+        "pandas/core/generic.py",
+        "pandas/core/groupby/groupby.py",
+        "pandas/core/window/rolling.py"
+      ],
+      "production": [
+        "pandas/core/generic.py",
+        "pandas/core/groupby/groupby.py",
+        "pandas/core/window/rolling.py"
+      ]
+    },
+    {
+      "id": "pandas-69406",
+      "pr": 69406,
+      "sha": "9b4575b753275cf10fe80428cb2263e4086ad3f6",
+      "parent": "f913ed73f3344138a25c4ac0341e40dcca7753c9",
+      "subject": "DOC: Fix read_hdf example to pass key as keyword argument (#69255) (#69406)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "pandas/io/pytables.py"
+      ],
+      "production": [
+        "pandas/io/pytables.py"
+      ]
+    },
+    {
+      "id": "pandas-68316",
+      "pr": 68316,
+      "sha": "b95a3de7fd567a36391709960159765e199dfded",
+      "parent": "550e5fd6a1422fb84ba85df46454fe5fe9004af8",
+      "subject": "TST: add high_memory pytest mark and restore test_string_column_above_2GB (#68316)",
+      "codeLines": 12,
+      "totalLines": 42,
+      "files": [
+        "doc/source/development/contributing_codebase.rst",
+        "pandas/conftest.py",
+        "pandas/tests/io/test_parquet.py"
+      ],
+      "production": [
+        "pandas/conftest.py"
+      ]
+    },
+    {
+      "id": "pandas-69028",
+      "pr": 69028,
+      "sha": "550e5fd6a1422fb84ba85df46454fe5fe9004af8",
+      "parent": "7d287a5a8368259c96daec9606691070245bfe2d",
+      "subject": "BUG: Index.insert silently truncating a value into a sparse subtype (#69028)",
+      "codeLines": 21,
+      "totalLines": 108,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/core/dtypes/dtypes.py",
+        "pandas/tests/arrays/sparse/test_array.py",
+        "pandas/tests/arrays/sparse/test_combine_concat.py",
+        "pandas/tests/dtypes/cast/test_find_common_type.py",
+        "pandas/tests/indexes/base_class/test_reshape.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/core/dtypes/dtypes.py"
+      ]
+    },
+    {
+      "id": "pandas-68931",
+      "pr": 68931,
+      "sha": "7ceea803f9f4e44aafd8ccf078e41cc3b583b8bc",
+      "parent": "4304b35aae259160264eec90b207c3bb5c86e152",
+      "subject": "BUG: groupby(observed=False) with dropped NA keys raised IndexError or misordered groups (#68931)",
+      "codeLines": 17,
+      "totalLines": 82,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/groupby/ops.py",
+        "pandas/tests/groupby/test_categorical.py"
+      ],
+      "production": [
+        "pandas/core/groupby/ops.py"
+      ]
+    },
+    {
+      "id": "pandas-68945",
+      "pr": 68945,
+      "sha": "4304b35aae259160264eec90b207c3bb5c86e152",
+      "parent": "072ea95b782041d7c5e0482464ed3b966e10ad2d",
+      "subject": "BUG: to_datetime returned category dtype for categorical input when the cache fired (GH#28629) (#68945)",
+      "codeLines": 6,
+      "totalLines": 50,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/tools/datetimes.py",
+        "pandas/tests/tools/test_to_datetime.py"
+      ],
+      "production": [
+        "pandas/core/tools/datetimes.py"
+      ]
+    },
+    {
+      "id": "pandas-68465",
+      "pr": 68465,
+      "sha": "0e0f3cb6bb2edd2447f3615dbc2c04b20f3aada6",
+      "parent": "5d1c40fea08f8762e407714019bbd134c04cd6a0",
+      "subject": "BUG: defer the blocked-numexpr warning to first use (GH#66956) (#68465)",
+      "codeLines": 99,
+      "totalLines": 242,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/computation/check.py",
+        "pandas/core/computation/eval.py",
+        "pandas/core/computation/expressions.py",
+        "pandas/tests/computation/test_compat.py",
+        "pandas/tests/frame/test_query_eval.py"
+      ],
+      "production": [
+        "pandas/core/computation/check.py",
+        "pandas/core/computation/eval.py",
+        "pandas/core/computation/expressions.py"
+      ]
+    },
+    {
+      "id": "pandas-68000",
+      "pr": 68000,
+      "sha": "d8167d76bebf30b495ab4863791063949d5bfdaf",
+      "parent": "0f3fa2070e83d399f0dc94745acc9daaf6f11183",
+      "subject": "BUG: named agg result depended on the output name matching the column name (GH#63743) (#68000)",
+      "codeLines": 44,
+      "totalLines": 131,
+      "files": [
+        "pandas/core/apply.py",
+        "pandas/core/groupby/generic.py",
+        "pandas/tests/apply/test_frame_apply_relabeling.py",
+        "pandas/tests/groupby/aggregate/test_aggregate.py"
+      ],
+      "production": [
+        "pandas/core/apply.py",
+        "pandas/core/groupby/generic.py"
+      ]
+    },
+    {
+      "id": "pandas-68973",
+      "pr": 68973,
+      "sha": "39a1cc737e17e6fa05bc656868c2e60292ac00d9",
+      "parent": "c79267e36119247999508c17d9cba12e10984add",
+      "subject": "BUG: read_sas held a SAS7BDAT file open until a cyclic collection (#68973)",
+      "codeLines": 28,
+      "totalLines": 45,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/_libs/sas.pyx",
+        "pandas/io/sas/sas7bdat.py",
+        "pandas/tests/io/sas/test_sas7bdat.py"
+      ],
+      "production": [
+        "pandas/io/sas/sas7bdat.py"
+      ]
+    },
+    {
+      "id": "pandas-68002",
+      "pr": 68002,
+      "sha": "7ff336f03f38b69af2ae54f6a777954347cab9cb",
+      "parent": "8825489163449abfa472e49befca0a8f05620397",
+      "subject": "BUG: find_stack_level treating third-party pandas* packages as pandas-internal (#68002)",
+      "codeLines": 4,
+      "totalLines": 62,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/tests/util/test_find_stack_level.py",
+        "pandas/util/_exceptions.py"
+      ],
+      "production": [
+        "pandas/util/_exceptions.py"
+      ]
+    },
+    {
+      "id": "pandas-68153",
+      "pr": 68153,
+      "sha": "a290443f9e0f1dee4ea6aa9d9a5effb8ba5dbaee",
+      "parent": "a77f7cd865b78bb728d410d946a5ec20e9d8511c",
+      "subject": "BUG: infer_freq returned \"B\"/\"bh\" for indexes with fractional day/hour gaps (#68153)",
+      "codeLines": 12,
+      "totalLines": 78,
+      "files": [
+        "pandas/tests/tseries/frequencies/test_inference.py",
+        "pandas/tseries/frequencies.py"
+      ],
+      "production": [
+        "pandas/tseries/frequencies.py"
+      ]
+    },
+    {
+      "id": "pandas-67976",
+      "pr": 67976,
+      "sha": "d3c7be82eee5b0af901e62b00d6c4108d110f5eb",
+      "parent": "00398c9ee6b775d2b11621b57c69072e9aa2431e",
+      "subject": "BUG: list-of-tuples setitem silently written column-major (GH#65264) (#67976)",
+      "codeLines": 11,
+      "totalLines": 118,
+      "files": [
+        "pandas/core/indexing.py",
+        "pandas/tests/indexing/test_iloc.py",
+        "pandas/tests/indexing/test_indexing.py"
+      ],
+      "production": [
+        "pandas/core/indexing.py"
+      ]
+    },
+    {
+      "id": "pandas-68566",
+      "pr": 68566,
+      "sha": "240b68b8d40ac104afc6b8d4ed81d4406dde0f2b",
+      "parent": "ff083d09483d1202e71db6c6db19e6e5261f87c4",
+      "subject": "BUG: ufunc accumulate on a SparseArray raised instead of accumulating (#68566)",
+      "codeLines": 7,
+      "totalLines": 47,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/tests/arrays/sparse/test_array.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/array.py"
+      ]
+    },
+    {
+      "id": "pandas-68642",
+      "pr": 68642,
+      "sha": "e76564f049797ee6c0a3decabf70953c90cfddc7",
+      "parent": "ef3ed3d2063b39f4e431ded38618fb1c32fa6689",
+      "subject": "BUG: HDFStore where-clause with a None operand answered instead of raising (GH#64348) (#68642)",
+      "codeLines": 4,
+      "totalLines": 49,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/computation/pytables.py",
+        "pandas/tests/io/pytables/test_select.py"
+      ],
+      "production": [
+        "pandas/core/computation/pytables.py"
+      ]
+    },
+    {
+      "id": "pandas-68558",
+      "pr": 68558,
+      "sha": "fdcbb0de42a4e7799ab864706f84dc8ff489d769",
+      "parent": "289dd8337fba10a0c81748abc73f3c8ea28ef40f",
+      "subject": "BUG: SparseDtype stored an NA fill value verbatim on a datetimelike subtype (#68558)",
+      "codeLines": 11,
+      "totalLines": 49,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/dtypes/dtypes.py",
+        "pandas/tests/arrays/sparse/test_array.py",
+        "pandas/tests/arrays/sparse/test_dtype.py"
+      ],
+      "production": [
+        "pandas/core/dtypes/dtypes.py"
+      ]
+    },
+    {
+      "id": "pandas-68508",
+      "pr": 68508,
+      "sha": "fab71f1372abaa7d39d9fc6f09edb046f1da1cdd",
+      "parent": "06bb5d434364a27aa02a4356710dcc5b84140b10",
+      "subject": "BUG: unstack size PerformanceWarning missed multi-level and NaN cases (GH#10582) (#68508)",
+      "codeLines": 14,
+      "totalLines": 108,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/reshape/reshape.py",
+        "pandas/tests/frame/test_stack_unstack.py"
+      ],
+      "production": [
+        "pandas/core/reshape/reshape.py"
+      ]
+    },
+    {
+      "id": "pandas-68557",
+      "pr": 68557,
+      "sha": "6336a58aac392d9e910d5a13038f95b9379b85e3",
+      "parent": "a547f69e8cfd60ff2ee17946066c099fa64ee933",
+      "subject": "BUG: sparse cumprod/cummin/cummax read the NA gaps of an int subtype as 0 (GH#68187) (#68557)",
+      "codeLines": 2,
+      "totalLines": 34,
+      "files": [
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/tests/arrays/sparse/test_array.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/array.py"
+      ]
+    },
+    {
+      "id": "pandas-68564",
+      "pr": 68564,
+      "sha": "a547f69e8cfd60ff2ee17946066c099fa64ee933",
+      "parent": "2106a8d21d3bafef020ba90f0f61c8cb5973cff1",
+      "subject": "BUG: DataFrame.sparse.density warned for a frame with no columns (#68564)",
+      "codeLines": 6,
+      "totalLines": 14,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/core/arrays/sparse/accessor.py",
+        "pandas/tests/arrays/sparse/test_accessor.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/accessor.py"
+      ]
+    },
+    {
+      "id": "pandas-68583",
+      "pr": 68583,
+      "sha": "c55b1c98f8ec989e26a5dfca14f080de6729e425",
+      "parent": "6bd17a5ad8379a9d15eab952e0f996bfca2f83ad",
+      "subject": "BUG: HDFStore.append silently reinterpreted stored rows when tz-naive and tz-aware data met (#68583)",
+      "codeLines": 30,
+      "totalLines": 61,
+      "files": [
+        "doc/source/whatsnew/v3.1.0.rst",
+        "pandas/io/pytables.py",
+        "pandas/tests/io/pytables/test_timezones.py"
+      ],
+      "production": [
+        "pandas/io/pytables.py"
+      ]
+    },
+    {
+      "id": "pandas-68501",
+      "pr": 68501,
+      "sha": "7320ea14032e1a8a436592a7ddab69e431ea9035",
+      "parent": "2f69c9e6ade5124360cbd4a8c4450e0bde76c184",
+      "subject": "PERF: Avoid generator overhead in select_dtypes (#68501)",
+      "codeLines": 18,
+      "totalLines": 18,
+      "files": [
+        "pandas/core/frame.py"
+      ],
+      "production": [
+        "pandas/core/frame.py"
+      ]
+    },
+    {
+      "id": "pandas-68467",
+      "pr": 68467,
+      "sha": "b9d2c70eea606bc8e9962b2aed2d135bd6004d41",
+      "parent": "c09926a15c2a47f79e597a248a7f3e4299428b34",
+      "subject": "BUG: all-NA argmin/argmax raised numpy's empty-sequence message for every EA dtype (#68467)",
+      "codeLines": 13,
+      "totalLines": 20,
+      "files": [
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/core/sorting.py",
+        "pandas/tests/arrays/sparse/test_reductions.py",
+        "pandas/tests/extension/base/methods.py"
+      ],
+      "production": [
+        "pandas/core/arrays/sparse/array.py",
+        "pandas/core/sorting.py"
+      ]
+    },
+    {
+      "id": "pandas-68480",
+      "pr": 68480,
+      "sha": "c09926a15c2a47f79e597a248a7f3e4299428b34",
+      "parent": "f2bcc9c4aa53ae4d05e3b56f2618d3f52417b1e3",
+      "subject": "BUG: HDF5 append silently mixed a CategoricalIndex with an integer Index (GH#65576) (#68480)",
+      "codeLines": 17,
+      "totalLines": 46,
+      "files": [
+        "pandas/io/pytables.py",
+        "pandas/tests/io/pytables/test_categorical.py"
+      ],
+      "production": [
+        "pandas/io/pytables.py"
+      ]
+    },
+    {
+      "id": "pandas-68391",
+      "pr": 68391,
+      "sha": "d234e64cda8215ecad1600dd08f5fdad47397972",
+      "parent": "95aaa1af4e7bbb0416c3c274fa6151ca2394f11d",
+      "subject": "BUG: EA sem() method rejected ddof on masked and Arrow arrays (#68391)",
+      "codeLines": 9,
+      "totalLines": 42,
+      "files": [
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/core/arrays/masked.py",
+        "pandas/tests/extension/base/reduce.py",
+        "pandas/tests/reductions/test_reductions.py"
+      ],
+      "production": [
+        "pandas/core/arrays/arrow/array.py",
+        "pandas/core/arrays/masked.py"
+      ]
+    },
+    {
+      "id": "pandas-68446",
+      "pr": 68446,
+      "sha": "95aaa1af4e7bbb0416c3c274fa6151ca2394f11d",
+      "parent": "6b7588246a51ae33486c05e4c1dcc03ecc98cc60",
+      "subject": "BUG: DataFrame.dtypes could be left permanently stale by a concurrent write (#68446)",
+      "codeLines": 20,
+      "totalLines": 48,
+      "files": [
+        "pandas/_libs/internals.pyx",
+        "pandas/core/internals/managers.py",
+        "pandas/tests/internals/test_internals.py"
+      ],
+      "production": [
+        "pandas/core/internals/managers.py"
+      ]
+    },
+    {
+      "id": "pandas-68192",
+      "pr": 68192,
+      "sha": "ce7f4faa0e22ed937879a1e3e8d4b1dff0cbfdfe",
+      "parent": "07006c4818a6254074b7067cd498d66aa25ec53f",
+      "subject": "BUG: Index.replace raised AssertionError for a dtype-changing replacement (#68192)",
+      "codeLines": 22,
+      "totalLines": 105,
+      "files": [
+        "doc/source/reference/indexing.rst",
+        "pandas/core/indexes/base.py",
+        "pandas/tests/copy_view/index/test_index.py",
+        "pandas/tests/indexes/test_base.py"
+      ],
+      "production": [
+        "pandas/core/indexes/base.py"
+      ]
+    }
+  ]
+}

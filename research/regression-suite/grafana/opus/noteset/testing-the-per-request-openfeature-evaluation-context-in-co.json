@@ -1,0 +1,68 @@
+{
+  "id": "testing-the-per-request-openfeature-evaluation-context-in-co",
+  "title": "Testing the per-request OpenFeature evaluation context in contexthandler",
+  "kind": "howto",
+  "answers": [
+    "how to test which namespace OpenFeature sees for a request",
+    "unit test the openfeature transaction context set by the context handler",
+    "fake an authn identity with a namespace in contexthandler tests"
+  ],
+  "body": "Pattern used in pkg/services/contexthandler/contexthandler_test.go:TestContextHandler:\n- Build the handler with contexthandler.ProvideService(cfg, &authntest.FakeService{ExpectedIdentity: &authn.Identity{ID, Type: claims.TypeUser, Namespace}}, featuremgmt.WithFeatures()). Set cfg.StackID on setting.NewCfg() to test the stack fallback.\n- Create webtest.NewServer(t, routing.NewRouteRegister()), call server.Mux.Use(handler.Middleware) and register a route with server.Mux.Get.\n- Inside the route, read openfeature.TransactionContext(c.Req.Context()) and assert on evalCtx.TargetingKey() and evalCtx.Attribute(\"namespace\").\n- Send the request with server.Send(server.NewGetRequest(path)) and close res.Body.",
+  "applies": "Unit tests for request-context and OpenFeature setup in pkg/services/contexthandler",
+  "tags": [
+    "testing",
+    "openfeature",
+    "contexthandler",
+    "authntest",
+    "webtest"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler_test.go",
+      "symbol": "TestContextHandler",
+      "hash": "sha256:686759b39724caa91cdb1125",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "ProvideService",
+      "hash": "sha256:692c1b24cc26f6fc234c3ea6",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 172,
+        "sites": 799,
+        "refs": 1017
+      }
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "NewServer",
+      "hash": "sha256:f7d91420518aa5a787d8936f",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 119,
+        "sites": 363,
+        "refs": 364
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-10-07T00:02:46.007Z",
+  "verified": "2026-10-07T00:02:46.007Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

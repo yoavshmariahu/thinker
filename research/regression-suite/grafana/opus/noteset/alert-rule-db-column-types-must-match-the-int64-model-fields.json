@@ -1,0 +1,70 @@
+{
+  "id": "alert-rule-db-column-types-must-match-the-int64-model-fields",
+  "title": "Alert rule DB column types must match the int64 model fields, in both alert_rule and alert_rule_version",
+  "kind": "rule",
+  "answers": [
+    "saving alert rule with large missing series evaluations to resolve fails",
+    "missing_series_evals_to_resolve out of range smallint error on MySQL/Postgres",
+    "why does alert_rule_version need the same migration as alert_rule",
+    "how to widen an alert rule column type"
+  ],
+  "body": "Symptom: an alert rule with \"missing series evaluations to resolve\" set above 32,767 fails to save (out of range) on MySQL or PostgreSQL.\nRoot cause: the column was added as SMALLINT by pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:AddAlertRuleMissingSeriesEvalsToResolve, but the model field MissingSeriesEvalsToResolve is *int64.\nFix pattern: leave the original migration as is. Add a new migration (ExpandAlertRuleMissingSeriesEvalsToResolve) that widens the column to nullable BIGINT. Add a regression test in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules that stores a value above the limit and reads it back from both the rule (GetAlertRuleByUID) and the alertRuleVersion row.\nConstraints: every rule column exists in both alert_rule and alert_rule_version, so a type change needs one migration per table. Otherwise version history writes still overflow. Only MySQL and Postgres SQL was added. SQLite was not altered.",
+  "applies": "Schema changes to ngalert alert_rule / alert_rule_version columns",
+  "tags": [
+    "ngalert",
+    "migrations",
+    "alert_rule",
+    "alert_rule_version",
+    "smallint",
+    "bigint"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "AddAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:35c1d71f535a159aa82435e4",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/store/alert_rule_test.go",
+      "symbol": "TestIntegrationUpdateAlertRules",
+      "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:02:28.460Z",
+  "verified": "2026-10-07T00:02:28.460Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

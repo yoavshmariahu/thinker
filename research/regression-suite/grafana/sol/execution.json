@@ -1,0 +1,11 @@
+{
+  "repo": "grafana/grafana",
+  "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "provider": "codex",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "thinkerCommit": "1587c4348d48018fafbe0927f812dc4fcd10f324",
+  "manifestSha256": "7e6b47355a2568e9efa116429bc69dfc1b87b762a23d4668c7d7aa21a5ea010b",
+  "patchSha256": "84935ec4cfbb0f9ed3a6fb2b8177acc061878e10e0c0c5b517af103e60b8ee03",
+  "modelFallback": false
+}

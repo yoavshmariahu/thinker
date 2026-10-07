@@ -1,0 +1,69 @@
+{
+  "id": "use-missing-field-error-to-match-or-replace-generic-required",
+  "title": "Use missing_field_error to match or replace generic required-field errors from source config validation",
+  "kind": "rule",
+  "answers": [
+    "how to replace Required field ... is missing with a custom message for a source",
+    "where is the Required field error string built",
+    "filter required-field errors in a source validate_config"
+  ],
+  "body": "common/config.py:missing_field_error(field_name) is the one place that builds the \"Required field '<name>' is missing\" string, and validate_config uses it.\nA source that wants to suppress or reword those errors should build its match set from missing_field_error. BigQuery does this: _KEY_FILE_FIELD_ERRORS is built from dataclasses.fields(BigQueryAuthTypeConfigKeyFileConfig). Don't copy the literal string into the source.\nBuild the field list from the generated config dataclass (generated_configs/<source>), not a hand-written list, so it stays in sync when the generated config changes.\nTests check that no returned error contains \"Required field\". API tests in backend/tests/api/test_external_data_source.py check the user-facing message text, so update them when you change the copy.",
+  "applies": "Any warehouse source overriding validate_config on top of the shared config walker",
+  "tags": [
+    "validation",
+    "source-config",
+    "convention",
+    "error-messages"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py",
+      "symbol": "missing_field_error",
+      "hash": "sha256:1b0145a2f111158a684d8baa",
+      "line": 186,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+      "symbol": "_KEY_FILE_FIELD_ERRORS",
+      "hash": "sha256:121bd336671e5076ed1a9fea",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "products/warehouse_sources/backend/tests/api/test_external_data_source.py",
+      "symbol": "test_create_external_data_source_missing_required_bigquery_job_input",
+      "hash": "sha256:636884ddd38373b82a04050d",
+      "line": 2433,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105736"
+  },
+  "created": "2026-10-07T00:12:20.671Z",
+  "verified": "2026-10-07T00:12:20.671Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "warehouse-source-auth-options-the-unpicked-option-s-nested-c"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "inspect-native-pandas-data-when-validating-narwhals-datafram",
+  "title": "Inspect native pandas data when validating Narwhals DataFrames",
+  "kind": "rule",
+  "answers": [
+    "Why does check_array fail on a Narwhals DataFrame?",
+    "How should check_array inspect pandas-backed Narwhals input?",
+    "How should sparse pandas columns behave when wrapped in Narwhals?"
+  ],
+  "body": "Symptom: check_array errors when input is already a Narwhals DataFrame backed by pandas.\nRoot cause: sklearn/utils/validation.py:check_array accessed pandas-specific dtype and sparse interfaces on the input, which may be a Narwhals wrapper.\nFix pattern: Obtain the native pandas DataFrame with array_df.to_native(); use it for dtype inspection, sparse-column detection, and fully sparse conversion through sparse.to_coo().\nConstraints: This pattern applies to pandas-backed DataFrames. Fully sparse DataFrames must enter sparse validation and honor accept_sparse; DataFrames with only some sparse columns warn that conversion will produce a dense NumPy array. Do not generalize pandas-specific inspection to other backends.",
+  "applies": "check_array handling of native pandas DataFrames and pandas-backed Narwhals DataFrames, especially sparse columns.",
+  "tags": [
+    "validation",
+    "narwhals",
+    "pandas",
+    "sparse"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/validation.py",
+      "symbol": "check_array",
+      "hash": "sha256:9b92cbc7de2044077b0d59db",
+      "line": 729,
+      "missing": false,
+      "fanout": {
+        "files": 98,
+        "sites": 341,
+        "refs": 484
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34051"
+  },
+  "created": "2026-10-07T00:36:17.927Z",
+  "verified": "2026-10-07T00:36:17.927Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

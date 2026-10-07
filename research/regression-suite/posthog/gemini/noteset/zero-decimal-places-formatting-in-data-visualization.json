@@ -1,0 +1,57 @@
+{
+  "id": "zero-decimal-places-formatting-in-data-visualization",
+  "title": "Zero decimal places formatting in data visualization",
+  "kind": "rule",
+  "answers": [
+    "Why does setting decimal places to 0 not round numbers in SQL insights or tables?",
+    "How are 0 decimal places formatted under style None in data visualization?",
+    "Why do Big numbers or table cells still show fractions after setting decimal places to 0?"
+  ],
+  "body": "Symptom: Setting Decimal places to 0 on a SQL insight has no effect under style None, displaying raw float values like 42.195 instead of 42.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and table cell formatting in frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic checked decimalPlaces for truthiness, treating 0 as falsy.\nFix pattern: Compare decimalPlaces != null rather than checking truthiness so explicit 0 values are preserved.\nConstraints: Applies when formatting numbers under styles like None or custom precision; does not apply under short style, where table cells ignore decimalPlaces.",
+  "applies": "Number formatting with style None or explicit decimal places in data visualization.",
+  "tags": [
+    "data-visualization",
+    "formatting",
+    "insights",
+    "sql"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:24:27.343Z",
+  "verified": "2026-10-07T00:24:27.343Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "raw-series-values-preservation-for-data-visualization-aggreg"
+  ]
+}

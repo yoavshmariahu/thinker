@@ -1,0 +1,70 @@
+{
+  "id": "install-bar-date-locators-before-shared-subplot-label-hiding",
+  "title": "Install bar date locators before shared-subplot label hiding",
+  "kind": "rule",
+  "answers": [
+    "Why do date labels appear on every shared-x bar subplot?",
+    "How should bar plots hide inner subplot date labels?",
+    "When should BarPlot install dynamic date locators?"
+  ],
+  "body": "Symptom: Bar subplots with a regular-frequency date index show minor date labels on inner shared-x axes instead of only the bottom subplot.\nRoot cause: Installing dynamic date locators in pandas/plotting/_matplotlib/core.py:BarPlot._post_plot_logic happens after _adorn_subplots hides shared-x labels, allowing the new locators to redraw them.\nFix pattern: Install the period converter and dynamic date locators in pandas/plotting/_matplotlib/core.py:BarPlot._setup_date_axis, before subplot adornment; this also ensures user-supplied xticks are mapped through the intended converter.\nConstraints: Applies to dynamic date axes for regular-frequency DatetimeIndex/PeriodIndex bar plots; shared-x label hiding requires this ordering, while ordinary positional bar ticks are outside this pattern.",
+  "applies": "Matplotlib bar plots using dynamic date axes, especially shared-x subplots and user-supplied date ticks.",
+  "tags": [
+    "plotting",
+    "bar",
+    "date-axis",
+    "shared-x",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._setup_date_axis",
+      "hash": "sha256:454a625ce6be37c9d292e40b",
+      "line": 2206,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/plotting/_matplotlib/core.py",
+      "symbol": "BarPlot._post_plot_logic",
+      "hash": "sha256:1c18b1286f7b66c464b6a8dd",
+      "line": 2237,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pandas/tests/plotting/test_datetimelike.py",
+      "symbol": "TestTSPlot.test_bar_plot_date_axis_subplots_sharex",
+      "hash": "sha256:f14191936b7c464c12357d5d",
+      "line": 2098,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70228"
+  },
+  "created": "2026-10-07T00:27:11.649Z",
+  "verified": "2026-10-07T00:27:11.649Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "reapply-date-label-styling-after-bar-axis-limits-change"
+  ]
+}

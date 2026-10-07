@@ -1,0 +1,45 @@
+{
+  "id": "preserve-dashboard-datasource-reference-in-v2-dashboard-expo",
+  "title": "Preserve Dashboard datasource reference in v2 dashboard exports",
+  "kind": "rule",
+  "answers": [
+    "Why does a panel sharing another panel's query show Random Walk data after exporting and reimporting a v2 dashboard?",
+    "How are -- Dashboard -- datasource queries handled during v2 dashboard export?",
+    "Why are shared dashboard query results lost when exporting a dashboard with 'Share dashboard with another instance'?",
+    "How to preserve the Dashboard datasource reference when exporting v2 dashboards?"
+  ],
+  "body": "Symptom: Exporting a v2 dashboard with \"Share dashboard with another instance\" enabled causes panels reusing another panel's query results to display Random Walk data after reimport.\nRoot cause: public/app/features/dashboard-scene/scene/export/exporters.ts:makeExportableV2 treated the `-- Dashboard --` datasource reference as an instance-specific UID, stripping or remapping it.\nFix pattern: Return early before datasource remapping or label attachment when datasource.name matches SHARED_DASHBOARD_QUERY.\nConstraints: Applies only to the `-- Dashboard --` datasource reference during external export; ordinary datasource anonymization, other built-in datasources, and template variables retain standard export handling.",
+  "applies": "Exporting Grafana v2 dashboards with external sharing enabled",
+  "tags": [
+    "dashboards",
+    "export",
+    "dashboard-scene",
+    "datasource",
+    "v2-spec"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-10-07T00:02:20.560Z",
+  "verified": "2026-10-07T00:02:20.560Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

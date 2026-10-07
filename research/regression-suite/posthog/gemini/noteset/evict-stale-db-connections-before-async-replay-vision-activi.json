@@ -1,0 +1,44 @@
+{
+  "id": "evict-stale-db-connections-before-async-replay-vision-activi",
+  "title": "Evict stale DB connections before async Replay Vision activities",
+  "kind": "rule",
+  "answers": [
+    "Why are Replay Vision observations missing thumbnails after a database connection drop?",
+    "How does track_activity handle stale database connections in async Temporal activities?",
+    "Why do async Replay Vision activities fail on dead Django DB connections?"
+  ],
+  "body": "Symptom: Replay Vision observations permanently fail or miss thumbnails after a dropped database connection.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity only closed stale connections before sync activities, leaving dead connections on the worker thread during async ORM calls.\nFix pattern: Run await sync_to_async(close_stale_db_connections)() before async activity execution when not settings.TEST.\nConstraints: Applies to async Temporal activities in Replay Vision; skipped in tests (settings.TEST) where touching connections fails without DB access.",
+  "applies": "Async Temporal activities using Django ORM in products/replay_vision",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "django",
+    "database",
+    "connections"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/decorators.py",
+      "symbol": "track_activity",
+      "hash": "sha256:0bfcea6ffcd49e778bd938ac",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 29,
+        "sites": 50,
+        "refs": 80
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-10-07T00:20:41.401Z",
+  "verified": "2026-10-07T00:20:41.401Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

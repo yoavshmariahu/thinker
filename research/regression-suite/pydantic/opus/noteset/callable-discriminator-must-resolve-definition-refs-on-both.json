@@ -1,0 +1,70 @@
+{
+  "id": "callable-discriminator-must-resolve-definition-refs-on-both",
+  "title": "Callable Discriminator must resolve definition-refs on both paths (handler vs definitions dict)",
+  "kind": "rule",
+  "answers": [
+    "callable discriminator fails with PEP 695 type alias in Field(discriminator=...)",
+    "TypeAliasType union with Tag not recognized when discriminator is a function",
+    "MissingDefinitionForUnionRef with Discriminator(lambda ...) on a type alias field",
+    "how does Discriminator._convert_schema resolve refs"
+  ],
+  "body": "Symptom: a field typed as a PEP 695 / TypeAliasType union of `Annotated[Model, Tag(...)]` choices, with `Field(discriminator=Discriminator(callable))`, failed to validate because the tags were not found or the ref was not resolved. `Annotated[..., Discriminator(...)]` worked.\nRoot cause: `pydantic/types.py:Discriminator._convert_schema` only resolved `definition-ref` schemas (the root and each choice) through `handler.resolve_ref_schema`. When it is called later from `pydantic/_internal/_discriminated_union.py:apply_discriminator` (deferred/callable discriminators), `handler` is None, so refs were never resolved.\nFix pattern: `apply_discriminator` now passes `definitions=definitions`. `_convert_schema` uses a local `_resolve_ref` helper that tries `handler` first and falls back to `definitions.get(schema['schema_ref'])`. A root ref that can't be resolved raises `MissingDefinitionForUnionRef`. A choice ref that can't be resolved is left as it is.\nConstraints: any new ref-dependent logic in `_convert_schema` has to go through `_resolve_ref`, never `handler` directly, because both entry points exist (during field schema generation and deferred via `apply_discriminator`). This mirrors `_ApplyInferredDiscriminator._apply_to_root()` for string discriminators. Nested refs are still not flattened (there is an xfail test).",
+  "applies": "Discriminated unions with callable Discriminator in pydantic/types.py and pydantic/_internal/_discriminated_union.py",
+  "tags": [
+    "discriminated-union",
+    "pep695",
+    "type-alias",
+    "discriminator",
+    "definitions",
+    "core-schema"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "Discriminator._convert_schema",
+      "hash": "sha256:89d72ddd7545a596f06a4e4d",
+      "line": 3117,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_discriminated_union.py",
+      "symbol": "apply_discriminator",
+      "hash": "sha256:071097aa6bf88655a5db3955",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/types/unions/test_discriminated_union.py",
+      "symbol": "test_discriminated_union_type_alias_type_separate_callable_discriminator_field",
+      "hash": "sha256:3264a01bae9bf8cb9b1b2dbe",
+      "line": 2341,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13604"
+  },
+  "created": "2026-10-07T00:36:54.382Z",
+  "verified": "2026-10-07T00:36:54.382Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

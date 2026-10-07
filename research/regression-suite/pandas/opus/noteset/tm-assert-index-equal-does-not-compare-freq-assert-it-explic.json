@@ -1,0 +1,79 @@
+{
+  "id": "tm-assert-index-equal-does-not-compare-freq-assert-it-explic",
+  "title": "tm.assert_index_equal does not compare freq; assert it explicitly in tests",
+  "kind": "rule",
+  "answers": [
+    "test passes but freq is wrong",
+    "how to test that the DatetimeIndex freq is preserved",
+    "does assert_index_equal check freq"
+  ],
+  "body": "Convention: tm.assert_index_equal does not check the .freq of a DatetimeIndex or TimedeltaIndex. Tests that care about freq add a separate `assert result.freq == expected.freq`, with the comment \"# Not checked by assert_index_equal\".\nExamples: pandas/tests/reshape/concat/test_datetimes.py:TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent and pandas/tests/frame/test_constructors.py:TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq.\nTo build an expected index that must have freq=None (e.g. a non-monotonic append), use idx._with_freq(None).\nWhen the concat test omits sort and all inputs are DatetimeIndex, wrap the call in tm.assert_produces_warning(Pandas4Warning, match=\"Sorting by default when concatenating all DatetimeIndex\"). TimedeltaIndex inputs do not raise this warning.",
+  "applies": "pandas tests asserting DatetimeIndex/TimedeltaIndex results",
+  "tags": [
+    "testing",
+    "freq",
+    "assert_index_equal",
+    "pandas4warning"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/reshape/concat/test_datetimes.py",
+      "symbol": "TestDatetimeConcat",
+      "hash": "sha256:31a2fdc8a6c01e5aa797348a",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/frame/test_constructors.py",
+      "symbol": "TestDataFrameConstructors",
+      "hash": "sha256:c26a0c92fe067cc39c9b9a97",
+      "line": 66,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/reshape/concat/test_datetimes.py",
+      "symbol": "TestDatetimeConcat.test_concat_datetimeindex_freq_order_independent",
+      "hash": "sha256:d6567c6e72acadde9210bb88",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/frame/test_constructors.py",
+      "symbol": "TestDataFrameConstructors.test_constructor_dict_of_series_datetimeindex_freq",
+      "hash": "sha256:3ce26368a7bea29d011a78b7",
+      "line": 533,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#69445"
+  },
+  "created": "2026-10-07T00:23:40.722Z",
+  "verified": "2026-10-07T00:23:40.722Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,98 @@
+{
+  "id": "testing-combobox-floating-behaviour-by-partially-mocking-flo",
+  "title": "Testing Combobox floating behaviour by partially mocking @floating-ui/react",
+  "kind": "howto",
+  "answers": [
+    "how to test that autoUpdate is not called in Combobox",
+    "how to simulate a floating-ui size measurement in jest",
+    "test that useComboboxFloat does not rerender"
+  ],
+  "body": "Combobox.test.tsx uses `jest.mock('@floating-ui/react', ...)` and spreads `jest.requireActual`. It wraps `autoUpdate` in `jest.fn` that calls through to the real function. It wraps `size`, saving `options.apply` into a module-level `mockSizeApply`, then returns `actual.size(options)`.\n- Get the typed mock with `jest.mocked(autoUpdate)` and call `mockReset()` on it in afterEach.\n- To fake a size measurement, call `mockSizeApply?.({ availableWidth, availableHeight })` inside `act()`.\n- To detect hidden DOM churn on the input, spy on `HTMLInputElement.prototype.removeAttribute` and assert it was not called with 'name'.\n- useComboboxFloat.test.ts fully stubs the module (useFloating returns `{ floatingStyles: {} }`) and counts renders inside `renderHook`.\nAlways `await user.click(...)`. MultiCombobox.test.tsx had a missing await, which this PR fixed.",
+  "applies": "Jest tests under packages/grafana-ui/src/components/Combobox",
+  "tags": [
+    "testing",
+    "jest",
+    "floating-ui",
+    "combobox"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+      "symbol": "options",
+      "hash": "sha256:20641e9288e5ed29058d7a89",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+      "symbol": "mockSizeApply",
+      "hash": "sha256:0759508dad4669fc0acce763",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+      "symbol": "actual",
+      "hash": "sha256:7ee92c5c2cdcf165c98a9105",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 178,
+        "sites": 0,
+        "refs": 316
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+      "symbol": "afterEach",
+      "hash": "sha256:128698f7c6c0d09551b5b8a1",
+      "line": 72,
+      "missing": false,
+      "fanout": {
+        "files": 611,
+        "sites": 800,
+        "refs": 826
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+      "symbol": "mockSizeApply",
+      "hash": "sha256:0759508dad4669fc0acce763",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+      "symbol": "renderHook",
+      "hash": "sha256:0de64e76d882e70536e49ec6",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 207,
+        "sites": 1625,
+        "refs": 1831
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-07T00:03:16.337Z",
+  "verified": "2026-10-07T00:03:16.337Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

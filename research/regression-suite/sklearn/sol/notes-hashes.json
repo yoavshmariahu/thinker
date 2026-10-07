@@ -1,0 +1,21 @@
+{
+  "allow-64-bit-sparse-indices-in-spectral-arpack-validation.json": "118aa0bb74e1a08680b1bcda45c2d3fccc48d7b8cd907bde5c5dad37581bc863",
+  "cache-callback-hook-signatures-without-retaining-callback-in.json": "4bf6472133151bb6c39037cc9ccfba45641b99fdef701a1535c83479dee12ec2",
+  "exercise-fitting-before-checking-scoringmonitor-garbage-coll.json": "342dd7badfc2784120870fd429928262b02e8e66020db86a776d8adb82377358",
+  "freeze-elapsed-time-displays-for-finished-progress-tasks.json": "3b909bea2a860be5478ab317b7132a0b5da554d3733669265da8a45cc3d435d1",
+  "inspect-native-pandas-data-when-validating-narwhals-datafram.json": "91f36f275c741f59fa3a335ac26fb5298c4bfef3af8bb87facdfae456077cecc",
+  "keep-experimental-halving-estimators-out-of-wildcard-exports.json": "12cee78fba7211b33572e413b05e03d076142e261265d37855702dc9de1ac192",
+  "lda-helpers-share-one-positional-class-encoding.json": "0a1f3ca7450ebb01801301938a68558b5642f91772b3a84730e7e38ea13dcf51",
+  "move-glm-targets-and-weights-before-dtype-coupled-validation.json": "bc082b4929be44c17c8b76738490fa6a7df131bb22abd2ed5504c782a8ea1376",
+  "normalize-lda-targets-to-x-through-integer-encoding.json": "4d549fc0bd268d4c0f9779754a712a7095383dddb9f1e145772609652e0d9fd2",
+  "normalize-nmf-factor-layouts-at-the-coordinate-descent-bound.json": "7541302d31a710f2bcc6659eb8336a0285e7468341f277bab8655ce9090fe58c",
+  "normalize-numpy-backed-containers-before-cross-namespace-arr.json": "9e0b73aa5b8c97949e3219a8de0064edea134a1d50483b2b87eab5b2656cb975",
+  "preserve-native-dataframe-types-through-indexable-and-cross.json": "d123cee92b005caa5c379aadddd06e2102faf26b29911d4b992e1761dd21a788",
+  "preserve-ordinary-fitting-when-metadata-routing-is-disabled.json": "0bd6200eb0c4dc3e5ba59506a61a5af47bf03c3e8b21421b90062513193c1b7b",
+  "preserved-pandas-input-needs-explicit-finite-value-validatio.json": "1215a87717551a2d72a839554ef6cf2c3b2babeafb5d698984650d79b1897439",
+  "route-bagging-prediction-metadata-to-the-method-actually-inv.json": "4aa092df212b0a165563640dd844bab0aff447a6ebab3470ad00271a5d710e66",
+  "stop-stalled-newton-line-searches-without-marking-them-conve.json": "f6604044e651500ecc1f1d628cccc7fd10e97f1617249258499682c9bd23ec79",
+  "transform-routed-validation-data-alongside-training-data-by.json": "501e0b407566ca45b0579780fe849b6b708174e339ce7a8a6e250cbe10106236",
+  "use-nan-filtered-sorted-weights-when-averaging-weighted-perc.json": "fa81aacc28bdecf2fa866998efb1063125301df085010b5459ee0fb020a17ab6",
+  "validate-public-wildcard-imports-in-a-fresh-interpreter.json": "970715d4fb741b8cc1c3307058d3d92b9e69afd6588096446d5a1df0448b78da"
+}

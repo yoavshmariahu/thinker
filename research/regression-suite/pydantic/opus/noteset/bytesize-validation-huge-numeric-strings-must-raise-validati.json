@@ -1,0 +1,58 @@
+{
+  "id": "bytesize-validation-huge-numeric-strings-must-raise-validati",
+  "title": "ByteSize validation: huge numeric strings must raise ValidationError, not OverflowError",
+  "kind": "rule",
+  "answers": [
+    "ByteSize crashes with OverflowError on a very long number",
+    "cannot convert float infinity to integer in ByteSize validation",
+    "why does a huge byte size string not produce a ValidationError",
+    "how should custom type validators handle numeric overflow"
+  ],
+  "body": "Symptom: validating a `ByteSize` field with an absurdly long number (e.g. '1'*310 + 'KB') raised a raw `OverflowError` instead of a normal ValidationError.\nRoot cause: pydantic/types.py:ByteSize._validate does `int(float(scalar) * unit_mult)`. `float()` of a 310-digit string becomes `inf`, and `int(inf)` raises OverflowError. Only ValueError/AssertionError/PydanticCustomError get turned into validation errors, so the OverflowError escaped.\nFix pattern: wrap the conversion in `try/except OverflowError` and re-raise `PydanticCustomError('byte_size', 'could not parse value and unit from byte string')`. This reuses the error type and message already used for unparseable byte strings.\nConstraints: this applies to any validator in pydantic/types.py that converts user input through float→int (or other arithmetic that can overflow). It must raise PydanticCustomError with an existing error type, not a new type. `byte_sizes` is now annotated `dict[str, float]`. Tests live in tests/test_types.py:test_bytesize_raises and match on the message ('parse value').",
+  "applies": "pydantic/types.py ByteSize and similar custom-type validators that do numeric conversion on user input",
+  "tags": [
+    "bytesize",
+    "overflowerror",
+    "validation-errors",
+    "pydanticcustomerror"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/types.py",
+      "symbol": "ByteSize._validate",
+      "hash": "sha256:9f2cc581ef2ffc80c9e5bd95",
+      "line": 2157,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 3,
+        "refs": 11
+      }
+    },
+    {
+      "path": "tests/test_types.py",
+      "symbol": "test_bytesize_raises",
+      "hash": "sha256:744f300f7baa334c388f9a66",
+      "line": 1319,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13850"
+  },
+  "created": "2026-10-07T00:35:26.942Z",
+  "verified": "2026-10-07T00:35:26.942Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "constant-time-string-comparison-must-encode-to-bytes-first-s"
+  ]
+}

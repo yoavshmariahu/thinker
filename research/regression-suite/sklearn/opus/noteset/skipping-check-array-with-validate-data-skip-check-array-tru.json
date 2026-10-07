@@ -1,0 +1,69 @@
+{
+  "id": "skipping-check-array-with-validate-data-skip-check-array-tru",
+  "title": "Skipping check_array with validate_data(skip_check_array=True) also skips the finite check, so add it back explicitly",
+  "kind": "rule",
+  "answers": [
+    "SelectKBest transform accepts inf with set_output(transform='pandas')",
+    "why does transform not reject NaN/inf when the input is a DataFrame?",
+    "feature selector pandas output skips validation",
+    "validate_data skip_check_array ensure_all_finite ignored"
+  ],
+  "body": "Symptom: with `set_output(transform=\"pandas\")` and a DataFrame input, feature selectors like SelectKBest let inf (and NaN) through `transform`. The same input as a numpy array raises \"Input X contains infinity/NaN\".\nRoot cause: sklearn/feature_selection/_base.py:SelectorMixin.transform keeps the DataFrame as-is (`preserve_X`) by passing `skip_check_array=preserve_X` to `validate_data`. That skips check_array completely, so `ensure_all_finite` has no effect.\nFix pattern: after `validate_data(..., skip_check_array=True)`, call `assert_all_finite(X, input_name=\"X\")` (from sklearn.utils.validation) yourself when the estimator does not allow NaN. Read the `get_tags(self).input_tags.allow_nan` tag once and use it for both checks.\nConstraints: allow_nan=True turns off the whole finite check on both the numpy and the pandas paths, so inf passes too (VarianceThreshold, the only built-in selector that allows NaN, passes NaN and inf). Any other transformer that uses skip_check_array to keep the container type needs the same explicit check. SelectorMixin is a public mixin, so read tags with get_tags rather than __sklearn_tags__.",
+  "applies": "sklearn/feature_selection SelectorMixin and any estimator that calls validate_data with skip_check_array=True",
+  "tags": [
+    "validation",
+    "pandas-output",
+    "set_output",
+    "non-finite",
+    "feature_selection"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/feature_selection/_base.py",
+      "symbol": "SelectorMixin.transform",
+      "hash": "sha256:e9df1007b37e30f0b1ba9227",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 217,
+        "sites": 1010,
+        "refs": 1875
+      }
+    },
+    {
+      "path": "sklearn/feature_selection/tests/test_base.py",
+      "symbol": "test_transform_dataframe_non_finite",
+      "hash": "sha256:6fd2a5b72be9f1cdf32bb6be",
+      "line": 157,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "sklearn/feature_selection/tests/test_variance_threshold.py",
+      "symbol": "test_transform_dataframe_allow_nan",
+      "hash": "sha256:5c6819c3135cc3efdbe4fd84",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34513"
+  },
+  "created": "2026-10-07T00:29:04.925Z",
+  "verified": "2026-10-07T00:29:04.925Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

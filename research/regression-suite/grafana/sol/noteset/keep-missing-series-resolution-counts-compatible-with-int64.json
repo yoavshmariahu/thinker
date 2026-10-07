@@ -1,0 +1,55 @@
+{
+  "id": "keep-missing-series-resolution-counts-compatible-with-int64",
+  "title": "Keep missing-series resolution counts compatible with int64 in both rule tables",
+  "kind": "rule",
+  "answers": [
+    "Why do missing-series resolution counts above 32,767 fail to save?",
+    "Support large missing-series evaluation counts on MySQL or PostgreSQL",
+    "How should missing-series resolution counts be stored in rule version history?"
+  ],
+  "body": "Symptom: Saving a missing-series resolution count above 32,767 fails on MySQL or PostgreSQL.\nRoot cause: SMALLINT database columns could not represent the model’s int64 values; the correction lives in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go:ExpandAlertRuleMissingSeriesEvalsToResolve.\nFix pattern: Widen both alert_rule and alert_rule_version columns together to nullable BIGINT; verify persistence in the current rule and its matching version, as in pkg/services/ngalert/store/alert_rule_test.go:TestIntegrationUpdateAlertRules using 43,200 evaluations.\nConstraints: Preserve nullability and compatible ranges in both tables. This migration supplies backend-specific SQL for MySQL and PostgreSQL only; it provides no schema alteration for other backends.",
+  "applies": "Changes to missing_series_evals_to_resolve persistence or its database range on MySQL and PostgreSQL.",
+  "tags": [
+    "alerting",
+    "missing-series",
+    "database-migrations",
+    "rule-versioning"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/store/alert_rule_test.go",
+      "symbol": "TestIntegrationUpdateAlertRules",
+      "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-07T00:02:25.541Z",
+  "verified": "2026-10-07T00:02:25.541Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

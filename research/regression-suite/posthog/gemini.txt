@@ -1,0 +1,48 @@
+posthog/gemini: mined posthog-105736: 2 notes
+posthog/gemini: mined posthog-105852: 2 notes
+posthog/gemini: mined posthog-104706: 2 notes
+posthog/gemini: mined posthog-91352: 1 notes
+posthog/gemini: mined posthog-105660: 1 notes
+posthog/gemini: mined posthog-105551: 2 notes
+posthog/gemini: mined posthog-105799: 2 notes
+posthog/gemini: mined posthog-105133: 1 notes
+posthog/gemini: mined posthog-105670: 1 notes
+posthog/gemini: mined posthog-105737: 1 notes
+posthog/gemini: mined posthog-105409: 2 notes
+posthog/gemini: mined posthog-105690: 2 notes
+posthog/gemini: mined posthog-96235: 1 notes
+posthog/gemini: mined posthog-105707: 2 notes
+posthog/gemini: mined posthog-103110: 1 notes
+posthog/gemini: reviewed posthog-105736: 1/1 findings
+file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65
+   if(!validModel)throw Error(`${c.id} ${arm} invalid model/error: ${JSON.stringify({models:report.models,errors:report.errors})}`);
+                        ^
+
+Error: posthog-104706 baseline invalid model/error: {"models":{},"errors":[{"id":"nocache","error":"no JSON in the reply: (\n-            synced_ago=timedelta(days=5),\n-            sync_type_config={\"last_full_run_at\": (timezone.now() - timedelta(hours=1)).isoformat()},\n-        )\n-        stalled = "}]}
+    at file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65:25
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.15.0
+file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65
+   if(!validModel)throw Error(`${c.id} ${arm} invalid model/error: ${JSON.stringify({models:report.models,errors:report.errors})}`);
+                        ^
+
+Error: posthog-104706 baseline invalid model/error: {"models":{},"errors":[{"id":"nocache","error":"no JSON in the reply: (empty string)"}]}
+    at file:///Users/yoavshmariahu/src/thinker/.worktrees/regression-five-repos/research/regression-suite/run-cohort.mjs:65:25
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.15.0
+posthog/gemini: posthog-104706 baseline: INVALID; continue remaining frozen cases
+posthog/gemini: reviewed posthog-104706: 1/2 findings
+posthog/gemini: reviewed posthog-105409: 2/2 findings
+posthog/gemini: posthog-105690 baseline: INVALID; continue remaining frozen cases
+posthog/gemini: reviewed posthog-105690: 0/2 findings
+posthog/gemini: posthog-103110 baseline: INVALID; continue remaining frozen cases
+posthog/gemini: posthog-103110 cached: INVALID; continue remaining frozen cases
+posthog/gemini: reviewed posthog-103110: 0/0 findings
+posthog/gemini: INVALID PAIRS: posthog-104706, posthog-105690, posthog-103110
+posthog/gemini: posthog-104706 baseline: prior attempts exhausted; retained invalid
+posthog/gemini: reviewed posthog-104706: 1/2 findings
+posthog/gemini: reviewed posthog-105690: 5/2 findings
+posthog/gemini: reviewed posthog-103110: 0/0 findings
+posthog/gemini: INVALID PAIRS: posthog-104706

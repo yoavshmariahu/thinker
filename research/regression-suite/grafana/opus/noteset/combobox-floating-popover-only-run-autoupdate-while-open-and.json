@@ -1,0 +1,45 @@
+{
+  "id": "combobox-floating-popover-only-run-autoupdate-while-open-and",
+  "title": "Combobox floating popover: only run autoUpdate while open, and dedupe size measurements via a ref",
+  "kind": "rule",
+  "answers": [
+    "Combobox in a collapsed details element keeps re-rendering",
+    "Feature Control UI input gets a DOM update on every frame",
+    "why does useComboboxFloat not pass whileElementsMounted: autoUpdate",
+    "setPopoverMaxSize called repeatedly with identical values"
+  ],
+  "body": "Symptom: A Combobox rendered inside a collapsed <details> (e.g. the Feature Control UI) re-renders over and over, and its <input> gets a DOM update every time even though nothing visible changes.\nRoot cause: packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts:useComboboxFloat passed `whileElementsMounted: autoUpdate` to useFloating. Floating UI's docs say this is only for UI that is conditionally rendered, not UI hidden with CSS. autoUpdate kept firing the `size` middleware `apply`, which called setPopoverMaxSize with a new object holding the same width/height, and every call caused a re-render. On each re-render React sets `element.name = \"\"` and calls removeAttribute('name') on the input.\nFix pattern: Remove whileElementsMounted. Run `autoUpdate(inputRef.current, floatingRef.current, update)` from a useEffect that returns early when `!isOpen` or when either ref is null, with deps [isOpen, update]. In `size.apply`, compare width/height with `popoverMaxSizeRef.current` and return early if they are unchanged. Use a ref because calling setState with an equal new object still re-renders.\nConstraints: Use this for any floating-ui popover whose floating element stays mounted and is hidden with CSS. Conditionally rendered popovers can still use whileElementsMounted. Any new state written from middleware callbacks needs the same equality guard.",
+  "applies": "grafana-ui Combobox/MultiCombobox floating menus, and other floating-ui usage where the floating element stays mounted",
+  "tags": [
+    "combobox",
+    "floating-ui",
+    "rerender",
+    "performance",
+    "autoupdate"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "useComboboxFloat",
+      "hash": "sha256:28df1c52551d1b3bfff3f362",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-07T00:03:12.976Z",
+  "verified": "2026-10-07T00:03:12.976Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

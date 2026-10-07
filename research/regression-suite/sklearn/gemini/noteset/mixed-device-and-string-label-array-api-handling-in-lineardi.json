@@ -1,0 +1,38 @@
+{
+  "id": "mixed-device-and-string-label-array-api-handling-in-lineardi",
+  "title": "Mixed device and string label array API handling in LinearDiscriminantAnalysis",
+  "kind": "rule",
+  "answers": [
+    "How do I support mixed device or namespace array API inputs in scikit-learn estimators?",
+    "Why does LinearDiscriminantAnalysis.fit crash when y is on a different device or has string labels?",
+    "How does the 'everything follows X' policy handle string labels with array API devices?"
+  ],
+  "body": "Symptom: Fitting LinearDiscriminantAnalysis with array API inputs raises when y resides on a different device or namespace than X, or when y contains string labels.\nRoot cause: sklearn/discriminant_analysis.py:LinearDiscriminantAnalysis.fit did not align y to X's device or namespace, and array API standards cannot represent non-numeric string labels.\nFix pattern: Extract self.classes_ using unique_labels(y), encode y into integer codes with _encode, and transfer the codes to X's namespace and device using move_to before passing them to solvers.\nConstraints: Applies to array-API-compliant estimators following the 'everything follows X' policy; self.classes_ must remain in y's original device/namespace.",
+  "applies": "Array API input validation and device alignment in scikit-learn classification estimators.",
+  "tags": [
+    "array-api",
+    "discriminant-analysis",
+    "device-placement",
+    "string-labels"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/discriminant_analysis.py",
+      "symbol": "LinearDiscriminantAnalysis.fit",
+      "hash": "sha256:7e99491781076cb52c11e871",
+      "line": 651,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34475"
+  },
+  "created": "2026-10-07T00:42:33.160Z",
+  "verified": "2026-10-07T00:42:33.160Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

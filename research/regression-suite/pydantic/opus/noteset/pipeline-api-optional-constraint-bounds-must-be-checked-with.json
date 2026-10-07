@@ -1,0 +1,58 @@
+{
+  "id": "pipeline-api-optional-constraint-bounds-must-be-checked-with",
+  "title": "Pipeline API: optional constraint bounds must be checked with `is not None`, not truthiness (zero bounds were dropped)",
+  "kind": "rule",
+  "answers": [
+    "Interval(ge=0) not enforced in validate_as().constrain",
+    "pipeline constrain Interval accepts negative numbers",
+    "zero bound ignored in pydantic experimental pipeline",
+    "Interval(gt=0) accepts 0"
+  ],
+  "body": "Symptom: with the experimental pipeline API, `validate_as(int).constrain(Interval(ge=0, le=10))` accepts -5, and `Interval(gt=0)` / `le=0` / `lt=0` let through 0 or values on the wrong side. Any bound of exactly zero (0, 0.0, Decimal('0')) was silently skipped.\nRoot cause: pydantic/experimental/pipeline.py:_apply_constraint unpacked `annotated_types.Interval` into Ge/Gt/Le/Lt using `if constraint.ge:` etc., so falsy-but-set bounds were treated as absent.\nFix pattern: test optional constraint fields with `is not None` before delegating to the per-bound constraint (`_apply_constraint(s, annotated_types.Ge(constraint.ge))`).\nConstraints: applies to any optional numeric/length field on annotated_types constraints (bounds, min/max lengths, multiple_of) where 0 is a valid value; truthiness checks are only safe for fields where falsy really means 'unset'. Regression cases go in the `test_interval_constraints` parametrization in tests/test_pipeline.py as (type_, pipeline, valid_cases, invalid_cases), with a zero bound on each of ge/gt/le/lt.",
+  "applies": "pydantic/experimental/pipeline.py constraint application (_apply_constraint) and similar optional-bound handling",
+  "tags": [
+    "pipeline",
+    "annotated_types",
+    "interval",
+    "falsy-zero",
+    "constraints",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/experimental/pipeline.py",
+      "symbol": "_apply_constraint",
+      "hash": "sha256:9e80009032750d090d1b5a5a",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/test_pipeline.py",
+      "symbol": "test_interval_constraints",
+      "hash": "sha256:498d683d635fa20909854566",
+      "line": 163,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13452"
+  },
+  "created": "2026-10-07T00:37:29.137Z",
+  "verified": "2026-10-07T00:37:29.137Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

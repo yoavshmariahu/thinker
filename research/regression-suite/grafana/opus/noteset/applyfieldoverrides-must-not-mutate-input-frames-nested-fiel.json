@@ -1,0 +1,71 @@
+{
+  "id": "applyfieldoverrides-must-not-mutate-input-frames-nested-fiel",
+  "title": "applyFieldOverrides must not mutate input frames; nested FieldType.frame fields share config with the source query",
+  "kind": "rule",
+  "answers": [
+    "Panel using -- Dashboard -- datasource shows another panel's displayName/unit/thresholds on every series",
+    "Time series to table panel leaks its field config into raw query results",
+    "why does defaultsDeep in fieldOverrides mutate shared data",
+    "nested frame field config overwritten after applyFieldOverrides"
+  ],
+  "body": "Symptom: a panel reading another panel's results via the `-- Dashboard --` datasource (withTransforms: false) inherits the source table panel's displayName, unit, color, thresholds and custom.cellOptions (e.g. every series named after the table's sparkline column), when the source panel uses \"Time series to table\".\nRoot cause: packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides, for `FieldType.frame` fields, ran `defaultsDeep(valueField.config, config)` on each nested field. lodash `defaultsDeep` mutates its first argument, and the nested frames built by \"Time series to table\" reuse the source query's field objects/config, so the panel config was written into data the query runner and other panels still hold.\nFix pattern: never merge into input objects; build new field objects (`{...valueField, config: defaultsDeep(cloneDeep(valueField.config) || {}, config)}`) and a new frame (`{...nestedFrame, fields: newFields}`) before recursing.\nConstraints: a shallow copy of config is NOT enough — defaultsDeep recurses and would still mutate shared `custom`/`thresholds` objects; cloneDeep is required. It costs ~15% on large sparkline tables (5000 rows: 28.7→34.0 ms), which was accepted. Treat any data handed to applyFieldOverrides (and transformation outputs generally) as possibly shared with other consumers.\nTest: fieldOverrides.test.ts 'will not write the panel config onto the frames it was given' asserts the source frame's config stays `{}`.",
+  "applies": "packages/grafana-data field override application, especially nested frame (sparkline) fields and any in-place config merging",
+  "tags": [
+    "field-overrides",
+    "mutation",
+    "defaultsdeep",
+    "nested-frames",
+    "dashboard-datasource",
+    "time-series-to-table",
+    "sparkline"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+      "symbol": "applyFieldOverrides",
+      "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+      "line": 96,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 60,
+        "refs": 118
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+      "symbol": "displayName",
+      "hash": "sha256:af34ef46250d0a43d3ed4c1f",
+      "line": 603,
+      "missing": false,
+      "fanout": {
+        "files": 514,
+        "sites": 4,
+        "refs": 1327
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.test.ts",
+      "symbol": "applyFieldOverrides",
+      "hash": "sha256:b64fdec57dfc99bda6693c14",
+      "line": 422,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 60,
+        "refs": 118
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132418"
+  },
+  "created": "2026-10-07T00:01:46.441Z",
+  "verified": "2026-10-07T00:01:46.441Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

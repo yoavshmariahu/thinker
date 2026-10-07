@@ -1,0 +1,54 @@
+{
+  "id": "route-bagging-prediction-metadata-to-the-method-actually-inv",
+  "title": "Route bagging prediction metadata to the method actually invoked",
+  "kind": "rule",
+  "answers": [
+    "Why is metadata routed incorrectly during BaggingClassifier.predict_proba?",
+    "How should bagging route metadata when a base estimator lacks predict_proba?",
+    "Which parameters belong to predict_proba versus the voting fallback?"
+  ],
+  "body": "Symptom: Metadata supplied to BaggingClassifier.predict_proba is routed incorrectly to the underlying estimator's prediction method.\nRoot cause: sklearn/ensemble/_bagging.py:_parallel_predict_proba passed predict_params to estimator.predict_proba and predict_proba_params to estimator.predict.\nFix pattern: When selecting the consuming method dynamically, pass the parameters routed for that method: predict_proba_params to predict_proba, and predict_params to predict.\nConstraints: In this helper, estimators exposing predict_proba use that method; estimators without it use predict for voting. Choose metadata by the method actually invoked, not solely by the public ensemble method.",
+  "applies": "Bagging classifier probability prediction and its per-estimator predict voting fallback.",
+  "tags": [
+    "metadata-routing",
+    "bagging",
+    "predict_proba"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "_parallel_predict_proba",
+      "hash": "sha256:6fa979c6e4cbf263f1a5292d",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "sklearn/ensemble/_bagging.py",
+      "symbol": "BaggingClassifier.predict_proba",
+      "hash": "sha256:0c5401cb2b3976f802ed8b00",
+      "line": 968,
+      "missing": false,
+      "fanout": {
+        "files": 143,
+        "sites": 379,
+        "refs": 990
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34188"
+  },
+  "created": "2026-10-07T00:36:00.975Z",
+  "verified": "2026-10-07T00:36:00.975Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

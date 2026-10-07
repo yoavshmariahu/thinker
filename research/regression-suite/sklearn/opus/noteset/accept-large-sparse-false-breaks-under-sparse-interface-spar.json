@@ -1,0 +1,47 @@
+{
+  "id": "accept-large-sparse-false-breaks-under-sparse-interface-spar",
+  "title": "accept_large_sparse=False breaks under sparse_interface=\"sparray\" because sparse arrays keep int64 indices",
+  "kind": "rule",
+  "answers": [
+    "SpectralEmbedding raises ValueError about 64-bit sparse indices with sparray",
+    "SpectralClustering fails under config_context(sparse_interface=\"sparray\")",
+    "when should I pass accept_large_sparse=False to check_array",
+    "kneighbors_graph returns int64 indices with csr_array"
+  ],
+  "body": "Symptom: SpectralEmbedding / SpectralClustering (default eigen_solver=\"arpack\") raised a ValueError about 64-bit sparse indices when fitted under config_context(sparse_interface=\"sparray\"), even on small data.\nRoot cause: sklearn/manifold/_spectral_embedding.py:_spectral_embedding called check_array(laplacian, accept_sparse=\"csr\", accept_large_sparse=False) in the arpack branch. scipy sparse arrays (csr_array, unlike csr_matrix) never downcast index dtype by content when built from (data, indices, indptr) (scipy/scipy#16774), so the kneighbors_graph output, 0.5*(A+A.T) and csgraph laplacian all carry int64 indices.\nFix pattern: drop accept_large_sparse=False (default True) when the consumer is pure scipy (eigsh, incl. shift-invert sigma=-1e-5, handles int64 indices), matching the amg/lobpcg branches of the same function.\nConstraints: keep accept_large_sparse=False only where the data goes into Cython/C code needing 32-bit index buffers (libsvm, liblinear, k-means _k_means_lloyd, coordinate descent, SGD per the PR); those estimators still reject int64-indexed sparray input by design. Any new accept_large_sparse=False guard should be checked against sparray input, since index size there doesn't track the data size.",
+  "applies": "Any check_array/validate_data call on sparse input that may come from scipy sparse arrays (sparse_interface=\"sparray\"), especially graph/kNN-derived matrices",
+  "tags": [
+    "sparse",
+    "sparray",
+    "scipy",
+    "check_array",
+    "accept_large_sparse",
+    "manifold",
+    "spectral"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/manifold/_spectral_embedding.py",
+      "symbol": "_spectral_embedding",
+      "hash": "sha256:f922633f9c12853bdf78bd9d",
+      "line": 287,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34965"
+  },
+  "created": "2026-10-07T00:28:44.833Z",
+  "verified": "2026-10-07T00:28:44.833Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

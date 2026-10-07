@@ -1,0 +1,45 @@
+{
+  "id": "apply-show-nulls-as-zero-after-numeric-parsing-fails",
+  "title": "Apply Show nulls as zero after numeric parsing fails",
+  "kind": "rule",
+  "answers": [
+    "Why does a SQL chart series contain NaN?",
+    "Should Show nulls as zero handle the string 'NaN'?",
+    "How should unparseable y-axis values be handled?"
+  ],
+  "body": "Symptom: An unparseable SQL result such as the string 'NaN' becomes NaN in the chart series instead of following Show nulls as zero.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:dataVisualizationLogic (yData selector) checked input values but did not validate the parsed number.\nFix pattern: Check Number.isNaN(parsed) after numeric conversion and return showNullsAsZero ? 0 : null when parsing fails.\nConstraints: Apply this fallback to invalid or missing y-axis values; preserve valid numeric precision regardless of configured decimal places.",
+  "applies": "SQL insight y-axis numeric parsing and Show nulls as zero behavior.",
+  "tags": [
+    "sql-insights",
+    "null-handling",
+    "numeric-parsing"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false,
+      "fanout": {
+        "files": 69,
+        "sites": 26,
+        "refs": 193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-10-07T00:18:27.609Z",
+  "verified": "2026-10-07T00:18:27.609Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "treat-zero-decimal-places-as-an-explicit-formatting-setting",
+    "keep-chart-series-precision-until-display-formatting"
+  ]
+}

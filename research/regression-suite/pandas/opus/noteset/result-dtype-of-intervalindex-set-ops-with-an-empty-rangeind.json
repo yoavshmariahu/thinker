@@ -1,0 +1,44 @@
+{
+  "id": "result-dtype-of-intervalindex-set-ops-with-an-empty-rangeind",
+  "title": "Result dtype of IntervalIndex set ops with an empty RangeIndex depends on infer_string",
+  "kind": "rule",
+  "answers": [
+    "IntervalIndex.union(RangeIndex(0)) returns object dtype",
+    "why does union with empty index drop interval dtype",
+    "expected dtype for symmetric_difference with an empty RangeIndex"
+  ],
+  "body": "In IntervalIndex `union` and `symmetric_difference` with an empty `pd.RangeIndex(0)`, in either operand order, the empty RangeIndex is ignored for the result dtype only when `using_infer_string` is on (GH#60797). In that case the result equals the IntervalIndex. Otherwise the result is `index.astype(object)`.\nTests of set ops against empty non-interval indexes must branch on the `using_infer_string` fixture. See pandas/tests/indexes/interval/test_setops.py:TestIntervalIndex.test_set_op_empty_rangeindex.",
+  "applies": "Writing or changing tests and behaviour for Index set operations that involve an empty RangeIndex",
+  "tags": [
+    "interval",
+    "setops",
+    "rangeindex",
+    "infer_string",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/indexes/interval/test_setops.py",
+      "symbol": "TestIntervalIndex.test_set_op_empty_rangeindex",
+      "hash": "sha256:3631917c9aacf37db930caf4",
+      "line": 207,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70631"
+  },
+  "created": "2026-10-07T00:22:26.248Z",
+  "verified": "2026-10-07T00:22:26.248Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

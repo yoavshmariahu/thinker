@@ -1,0 +1,129 @@
+{
+  "id": "polymorphism-trampoline-must-wrap-a-model-serializer-only-on",
+  "title": "Polymorphism trampoline must wrap a model serializer only once; the generic CombinedSerializer build path must not wrap again",
+  "kind": "rule",
+  "answers": [
+    "why is the polymorphism trampoline applied twice to model serializers",
+    "where does pydantic-core wrap serializers in the polymorphism trampoline",
+    "serialize_as_any / subclass serialization goes through two trampoline layers",
+    "should I call maybe_wrap_in_polymorphism_trampoline after find_serializer"
+  ],
+  "body": "Invariant: a serializer gets wrapped by `CombinedSerializer::maybe_wrap_in_polymorphism_trampoline` (pydantic-core/src/serializers/shared.rs) exactly once.\nIn the generic build path in `impl CombinedSerializer`, the result of `Self::find_serializer(type_, schema, config, definitions)` is now returned as-is. Before this PR it was also passed through `maybe_wrap_in_polymorphism_trampoline`, so model serializers got wrapped twice (the follow-up to pydantic PR #13522 that pointed this out).\nIf you add a new serializer type that needs polymorphic (subclass) dispatch, wrap it once at the place that already does the wrapping. Do not add a wrap at the shared `find_serializer` call site.\nIf you skip this, you get an extra trampoline layer: double dispatch and extra overhead when serializing each model.",
+  "applies": "pydantic-core Rust serializer construction (serializers/shared.rs CombinedSerializer build/find_serializer) and polymorphic/subclass serialization",
+  "tags": [
+    "pydantic-core",
+    "serializers",
+    "polymorphism",
+    "trampoline",
+    "rust"
+  ],
+  "deps": [
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "maybe_wrap_in_polymorphism_trampoline",
+      "hash": "sha256:5d42684e7aced49d88dcb479",
+      "line": 241,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "find_serializer",
+      "hash": "sha256:f5129d1c80eb379f01e28a1d",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "type_",
+      "hash": "sha256:086660e783e5f3cfa64f68bb",
+      "line": 226,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "CombinedSerializer",
+      "hash": "sha256:1c0dfad05d9d0ced168ed568",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 391
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "maybe_wrap_in_polymorphism_trampoline",
+      "hash": "sha256:5d42684e7aced49d88dcb479",
+      "line": 241,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "find_serializer",
+      "hash": "sha256:f5129d1c80eb379f01e28a1d",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic-core/src/serializers/shared.rs",
+      "symbol": "type_",
+      "hash": "sha256:086660e783e5f3cfa64f68bb",
+      "line": 226,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13552"
+  },
+  "created": "2026-10-07T00:37:04.517Z",
+  "verified": "2026-10-07T00:37:04.517Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

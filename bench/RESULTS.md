@@ -582,8 +582,49 @@ This is **in-sample historical-fix recall**, not unseen-bug detection. Full
 reverse review diffs include removed tests and changelog entries. No clean
 controls or repeated samples were run. The aggregate keeps the original ten
 Autoscaler results; it matches model/effort but spans different Thinker
-revisions. The canary passes the expansion gate; further repositories have
-not been run. [Protocol, cases, raw results, scoring, and reproductions](../research/regression-canary/README.md).
+revisions. The canary passed the expansion gate; the five-repository expansion is
+reported below. [Protocol, cases, raw results, scoring, and reproductions](../research/regression-canary/README.md).
+
+### Seven-repository historical regression recall, 2026-10-06
+
+The expansion attempted 15 bugs each in Grafana, PostHog, pandas,
+scikit-learn and Pydantic. Each repository assigned five bugs to Opus 5.5 high,
+five to GPT-6.1 Sol high and five to Gemini 3.8 Flash high. Every pair and its
+memory-building phase used the same exact model and effort, with fallback
+disabled. All runs used Thinker `1587c4348d48018fafbe0927f812dc4fcd10f324`;
+updates that landed during the experiment were kept out of this cohort.
+
+| expansion cohort | no Thinker | Thinker | gains / losses |
+|---|---:|---:|---:|
+| opus | 18/25 | 23/25 | 6 / 1 |
+| sol | 18/25 | 24/25 | 6 / 0 |
+| gemini | 17/24 | 19/24 | 4 / 2 |
+
+The expansion totals **53/74 without Thinker versus 66/74 with it**: sixteen
+gains and three losses. Model cohorts contain different bugs, so their rates
+do not rank the models. One Gemini/PostHog pair remains invalid after three
+malformed or empty baseline responses and is excluded, not counted as a miss.
+Other transient failures were retried with the same model; all failure records
+and known/unknown usage are retained separately.
+
+Including Autoscaler10 and mitmproxy15 yields **100 planned bugs across seven
+repositories, 99 valid pairs: 67/99 without Thinker versus 90/99 with it**.
+This descriptive aggregate spans earlier Thinker revisions. It measures recall
+of learned historical fixes, not unseen-bug detection. No clean controls were
+run, so false-positive rates remain unknown.
+
+The 225 independent fix-mining operations used 3,701,337 reported tokens.
+Six focused source-mechanism probes across the five repositories pass on fixed
+code and fail on reversed code; these supplement source/PR validation and are
+not full upstream integration tests. A Grafana miss exposed a product failure:
+a correct model finding was suppressed because a secondary detail in its note
+was marked outdated. The study preserves that end-to-end miss and raw evidence.
+
+The requested efficiency canary is separate and has not started: three tasks
+for each model, with and without Thinker (18 runs), on the latest revision
+pinned at its start. Earlier efficiency measurements will remain historical.
+
+[Protocol, repository tables, raw artifacts, scoring, failures and reproductions](../research/regression-suite/README.md).
 
 ### Real bugs on PostHog, 2026-10-04: regressions and bug-introducing pull requests
 

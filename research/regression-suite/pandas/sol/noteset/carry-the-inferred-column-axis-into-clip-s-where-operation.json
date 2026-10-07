@@ -1,0 +1,69 @@
+{
+  "id": "carry-the-inferred-column-axis-into-clip-s-where-operation",
+  "title": "Carry the inferred column axis into clip's where operation",
+  "kind": "rule",
+  "answers": [
+    "Why does DataFrame.clip require an axis for an extension-dtype bound?",
+    "Which axis does clipping use when an array or Index bound is supplied without axis?",
+    "How should clip pass an aligned Series bound to where?"
+  ],
+  "body": "Symptom: DataFrame.clip with an extension-dtype array or Index bound and no axis raises ValueError: Must specify axis=0 or 1.\nRoot cause: pandas/core/generic.py:NDFrame._clip_with_one_bound passed axis=None onward after _align_for_op had converted the bound to a Series aligned against the columns; subsequent DataFrame-Series alignment requires an explicit axis.\nFix pattern: Carry the inferred alignment axis forward: when operand alignment returns a Series and axis is None, set axis=1 before calling where.\nConstraints: Apply this inference in the non-Series list-like bound conversion path; preserve explicit axis=0 and axis=1. pandas/tests/frame/methods/test_clip.py:TestDataFrameClip.test_clip_extension_dtype_bound checks column-default behavior and equivalent inplace and returned results.",
+  "applies": "DataFrame.clip's conversion of non-Series list-like bounds when the caller omits axis.",
+  "tags": [
+    "clip",
+    "axis",
+    "alignment",
+    "inplace"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/generic.py",
+      "symbol": "NDFrame._clip_with_one_bound",
+      "hash": "sha256:034ccae315879cd76ee1d42e",
+      "line": 8910,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._align_for_op",
+      "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+      "line": 10327,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pandas/tests/frame/methods/test_clip.py",
+      "symbol": "TestDataFrameClip.test_clip_extension_dtype_bound",
+      "hash": "sha256:fd098d814b4a02f1c576a0f9",
+      "line": 217,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68929"
+  },
+  "created": "2026-10-07T00:28:00.781Z",
+  "verified": "2026-10-07T00:28:00.781Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-clip-bounds-one-dimensional-during-operand-alignment"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "default-insight-list-ordering-must-use-indexed-columns-with",
+  "title": "Default insight list ordering must use indexed columns with tiebreakers",
+  "kind": "rule",
+  "answers": [
+    "Why does listing insights without an order parameter time out or run slowly?",
+    "How to order insight list querysets when no order param is provided?",
+    "Why does InsightViewSet default order to -last_modified_at and -pk?",
+    "What index covers default ordering for the insights list endpoint?"
+  ],
+  "body": "Symptom: API requests listing insights without an `order` parameter wait tens of seconds per page or time out, pinning web workers.\nRoot cause: products/product_analytics/backend/presentation/insight.py:InsightViewSet defaulted unordered listings to `order_by(\"order\")`, an unindexed nullable column causing full project table scans and sorts on Postgres.\nFix pattern: Default unordered list queries to sort by an indexed column with a deterministic tiebreaker (`order_by(\"-last_modified_at\", \"-pk\")`) supported by partial index `dashboarditem_team_lmod_idx`.\nConstraints: Applies to insight list requests where `order` and `search` query parameters are not provided; explicit order parameters and search queries follow their own ordering.",
+  "applies": "Default queryset ordering and pagination in products/product_analytics/backend/presentation/insight.py:InsightViewSet",
+  "tags": [
+    "insights",
+    "performance",
+    "django-orm",
+    "postgres",
+    "pagination"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/presentation/insight.py",
+      "symbol": "InsightViewSet",
+      "hash": "sha256:7b1b8c942618a99546c7ad16",
+      "line": 1742,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105670"
+  },
+  "created": "2026-10-07T00:22:50.008Z",
+  "verified": "2026-10-07T00:22:50.008Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

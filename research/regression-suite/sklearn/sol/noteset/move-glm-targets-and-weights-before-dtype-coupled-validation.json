@@ -1,0 +1,51 @@
+{
+  "id": "move-glm-targets-and-weights-before-dtype-coupled-validation",
+  "title": "Move GLM targets and weights before dtype-coupled validation",
+  "kind": "rule",
+  "answers": [
+    "Why does PoissonRegressor fail when targets or sample weights use a different array backend?",
+    "Can PoissonRegressor fit or score with CPU targets and GPU features?",
+    "Where should mixed namespace inputs be converted before GLM validation?"
+  ],
+  "body": "Symptom: PoissonRegressor fit or score raises a dtype TypeError when y or sample_weight uses a different array API namespace or device than X.\nRoot cause: sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit and _GeneralizedLinearRegressor.score validated auxiliary inputs against X-derived dtypes before moving them, allowing a foreign backend dtype to reach validation.\nFix pattern: Move y and sample_weight together to X's namespace/device with move_to before check_array and _check_sample_weight; preserve this ordering in both fit and score.\nConstraints: This ordering applies to GLM validation coupled to X.dtype in fit or raw_prediction.dtype in score. The move is a no-op for same-namespace inputs and does not replace dtype or sample-weight validation.",
+  "applies": "Array API target and sample-weight handling in _GeneralizedLinearRegressor.fit and .score, including PoissonRegressor.",
+  "tags": [
+    "array-api",
+    "glm",
+    "poisson-regression",
+    "input-validation",
+    "device"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.fit",
+      "hash": "sha256:c732dc5b49af2b191b492668",
+      "line": 250,
+      "missing": false
+    },
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.score",
+      "hash": "sha256:7ba6daa0dacb924c04ea008c",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 249,
+        "sites": 461,
+        "refs": 1951
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34480"
+  },
+  "created": "2026-10-07T00:35:23.044Z",
+  "verified": "2026-10-07T00:35:23.044Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

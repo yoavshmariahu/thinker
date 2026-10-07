@@ -1,0 +1,11 @@
+{
+  "repo": "scikit-learn/scikit-learn",
+  "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash-high",
+  "effort": "high",
+  "thinkerCommit": "1587c4348d48018fafbe0927f812dc4fcd10f324",
+  "manifestSha256": "d08c8b53d1229c342d8659bac9c41946e5482c40f4db55343402a2458e078991",
+  "patchSha256": "84935ec4cfbb0f9ed3a6fb2b8177acc061878e10e0c0c5b517af103e60b8ee03",
+  "modelFallback": false
+}

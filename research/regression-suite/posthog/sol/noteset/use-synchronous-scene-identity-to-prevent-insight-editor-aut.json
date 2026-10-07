@@ -1,0 +1,44 @@
+{
+  "id": "use-synchronous-scene-identity-to-prevent-insight-editor-aut",
+  "title": "Use synchronous scene identity to prevent insight editor autosaves",
+  "kind": "rule",
+  "answers": [
+    "Why does changing chart type save the insight without clicking Save?",
+    "Why does the insight editor exit edit mode and show Insight updated?",
+    "Which scene state should isInsightSceneInstance compare?",
+    "How should persistDisplayOptions handle a stale insightLogicRef?"
+  ],
+  "body": "Symptom: Selecting a chart type saves the insight without clicking Save, exits edit mode, and shows “Insight updated.”\nRoot cause: frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance previously checked insightLogicRef, which a separate asynchronous listener rebuilds; that ref can lag the editor's current identity and let a PATCH through.\nFix pattern: Determine scene ownership from insightId and dashboardId, updated synchronously by the URL-matching action, so persistDisplayOptions skips the PATCH for the insight currently shown in the editor.\nConstraints: isInsightSceneInstance requires the active scene to be Scene.Insight, insightId to match props.dashboardItemId, and dashboardId to match props.dashboardId with null and undefined treated equally. Preserve dashboard context; the editor-instance guard does not apply outside that scene or to a different instance.",
+  "applies": "Insight display-option persistence and guards that identify the insight currently open in the editor.",
+  "tags": [
+    "insights",
+    "autosave",
+    "race-condition",
+    "scene-identity"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+      "symbol": "isInsightSceneInstance",
+      "hash": "sha256:ec87ebf6698de5e490f8791d",
+      "line": 104,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105737"
+  },
+  "created": "2026-10-07T00:17:13.493Z",
+  "verified": "2026-10-07T00:17:13.493Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

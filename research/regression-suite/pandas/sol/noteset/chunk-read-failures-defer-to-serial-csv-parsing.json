@@ -1,0 +1,57 @@
+{
+  "id": "chunk-read-failures-defer-to-serial-csv-parsing",
+  "title": "Chunk read failures defer to serial CSV parsing",
+  "kind": "rule",
+  "answers": [
+    "Why does read_csv raise on a valid quoted multiline field?",
+    "How should parallel CSV conversion errors be handled?",
+    "Why must parallel read_csv report the same error and row position as serial?"
+  ],
+  "body": "Symptom: A valid CSV with a quoted newline can raise ValueError under dtype= or a raising converter; invalid files can report whichever worker failed first and chunk-relative row positions.\nRoot cause: pandas/io/parsers/readers.py:_read_csv_chunks splits at raw newline boundaries, so adjacent chunks can independently fail tokenization and conversion when a boundary falls inside a quoted field.\nFix pattern: Catch Exception around the chunk engine read, signal workers to stop taking chunks, and return None after joining workers; pandas/io/parsers/readers.py:_read then reads serially to produce the result or authoritative error.\nConstraints: This broad fallback applies to chunk engine reads. Exceptions outside them retain separate handling; pandas/io/parsers/readers.py:_read catches ParserError, UnicodeDecodeError and OverflowError from the parallel helper, while other exceptions propagate.",
+  "applies": "Parallel read_csv chunk parsing and conversion, including quoted multiline fields and genuine invalid values.",
+  "tags": [
+    "read_csv",
+    "parallel",
+    "serial-fallback",
+    "error-parity"
+  ],
+  "deps": [
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read_csv_chunks",
+      "hash": "sha256:486a30748c334a57cb0c7578",
+      "line": 828,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pandas/io/parsers/readers.py",
+      "symbol": "_read",
+      "hash": "sha256:318fb6cbaef72af479e0bbe4",
+      "line": 352,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70404"
+  },
+  "created": "2026-10-07T00:25:37.245Z",
+  "verified": "2026-10-07T00:25:37.245Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "reject-bare-cr-near-the-parallel-csv-data-boundary"
+  ]
+}

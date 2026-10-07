@@ -1,0 +1,108 @@
+{
+  "id": "inherited-populate-by-name-leaked-into-subclasses-because-co",
+  "title": "Inherited populate_by_name leaked into subclasses because ConfigWrapper mutated model_config",
+  "kind": "rule",
+  "answers": [
+    "child model populate_by_name=False still accepts field names",
+    "model_config contains validate_by_name/validate_by_alias I never set",
+    "parent populate_by_name overrides child config",
+    "why is my ConfigDict mutated after defining a model"
+  ],
+  "body": "Symptom: a subclass setting `populate_by_name=False` still validated by field name when its parent had `populate_by_name=True`. `Model.model_config` (and a user's ConfigDict passed to a TypeAdapter, dataclass, validate_call or validate_arguments) also showed `validate_by_alias`/`validate_by_name` keys the user never set.\nRoot cause: `ConfigWrapper.core_config` in pydantic/_internal/_config.py wrote the derived `validate_by_*` keys straight into `config_dict`. That dict is the user's own object and it gets merged into subclasses, so the derived `validate_by_name=True` beat the child's explicit `populate_by_name`.\nFix pattern: work out derived settings in a non-mutating `_build_effective_config` (returns `{**config, ...}`) and store the result on `ConfigWrapper.effective_config`. `prepare_config` now copies any dict it receives.\nConstraints: user-visible change. `model_config` now shows only what the user declared. Tests that assert derived keys in `model_config` must check validation behaviour instead (see tests/test_config.py:test_dynamic_default).",
+  "applies": "pydantic config handling: ConfigWrapper, model_config inheritance, alias/name validation settings",
+  "tags": [
+    "config",
+    "model_config",
+    "populate_by_name",
+    "validate_by_name",
+    "inheritance",
+    "mutation"
+  ],
+  "deps": [
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "_build_effective_config",
+      "hash": "sha256:f65e03c4519e724974fe4eed",
+      "line": 314,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "prepare_config",
+      "hash": "sha256:4acce7ad9d033de1bc4f0f2a",
+      "line": 335,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper",
+      "hash": "sha256:261e55a6ac2fc90e1b06ad73",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 18,
+        "refs": 56
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "symbol": "test_dynamic_default",
+      "hash": "sha256:f2cbcf86ea996f2ceb041ad1",
+      "line": 1029,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/test_config.py",
+      "symbol": "Model.model_config",
+      "hash": "sha256:a57d7686b451ec786f76c90b",
+      "line": 137,
+      "missing": false,
+      "fanout": {
+        "files": 78,
+        "sites": 0,
+        "refs": 607
+      }
+    },
+    {
+      "path": "pydantic/_internal/_config.py",
+      "symbol": "ConfigWrapper.core_config",
+      "hash": "sha256:a81ebb40b4b239e586967546",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13825"
+  },
+  "created": "2026-10-07T00:35:17.941Z",
+  "verified": "2026-10-07T00:35:17.941Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "configwrapper-config-dict-is-declared-only-and-must-not-be-m"
+  ]
+}

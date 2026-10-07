@@ -1,0 +1,49 @@
+{
+  "id": "testing-spmatrix-vs-sparray-parity-with-config-context-spars",
+  "title": "Testing spmatrix vs sparray parity with config_context(sparse_interface=...)",
+  "kind": "howto",
+  "answers": [
+    "how to test an estimator with sparse arrays instead of sparse matrices",
+    "regression test for sparse_interface sparray",
+    "compare results between spmatrix and sparray backends"
+  ],
+  "body": "To check that an estimator behaves the same under both sparse backends, fit it twice inside `sklearn.config_context(sparse_interface=\"spmatrix\")` and `sklearn.config_context(sparse_interface=\"sparray\")` and compare outputs. Internal sparse objects (e.g. kneighbors_graph results) then follow the configured interface, which surfaces sparray-only issues like int64 indices.\nExample: sklearn/manifold/tests/test_spectral_embedding.py:test_spectral_embedding_sparse_interface_sparray uses make_blobs(n_samples=30), fixed random_state and eigen_tol, then compares with _assert_equal_with_sign_flipping(..., tol=1e-5) because eigenvectors are only defined up to sign.\nA bug fix needs a changelog fragment at doc/whats_new/upcoming_changes/<module>/<PR number>.fix.rst, named with the real PR number.",
+  "applies": "Writing non-regression tests for estimators that build or consume sparse data internally",
+  "tags": [
+    "testing",
+    "sparse",
+    "sparray",
+    "config_context",
+    "changelog"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/manifold/tests/test_spectral_embedding.py",
+      "symbol": "test_spectral_embedding_sparse_interface_sparray",
+      "hash": "sha256:7d3b34c4a434c7224b8f5f08",
+      "line": 551,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "doc/whats_new/upcoming_changes/sklearn.manifold/34965.fix.rst",
+      "hash": "sha256:9000df46742b05ef19aeaf26",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34965"
+  },
+  "created": "2026-10-07T00:28:44.914Z",
+  "verified": "2026-10-07T00:28:44.914Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

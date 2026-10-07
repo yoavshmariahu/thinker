@@ -1,0 +1,56 @@
+{
+  "id": "preserve-1d-series-for-extension-dtype-bounds-in-dataframe-c",
+  "title": "Preserve 1D Series for extension-dtype bounds in DataFrame.clip to prevent object dtype degradation",
+  "kind": "rule",
+  "answers": [
+    "Why does DataFrame.clip turn columns into object dtype when using an ExtensionArray bound?",
+    "How do I clip a DataFrame using an Int64 or extension-dtype array bound without degrading dtypes?",
+    "Why does DataFrame.clip raise TypeError or ValueError: Must specify axis=0 or 1 with an array bound?"
+  ],
+  "body": "Symptom: DataFrame.clip with an extension-dtype array or Index bound converts columns to object dtype, raises TypeError on inplace=True, or raises ValueError: Must specify axis=0 or 1 when axis is None.\nRoot cause: pandas/core/frame.py:DataFrame._align_for_op broadcasts 1D Series operands to 2D DataFrames via _maybe_align_series_as_frame, but DataFrame.where only supports EA operands along 1D, and pandas/core/generic.py:NDFrame._clip_with_one_bound passed axis=None to where.\nFix pattern: Skip 2D frame broadcasting in _align_for_op when flex=None to keep the operand 1D, and normalize axis to 1 in _clip_with_one_bound when where receives an aligned Series with axis=None.\nConstraints: Applies to DataFrame.clip and alignment callers passing flex=None; flex binary arithmetic and comparison operations require flex=True/False and must continue broadcasting to 2D frames.",
+  "applies": "pandas DataFrame.clip and _align_for_op when aligning non-Series bounds with flex=None",
+  "tags": [
+    "clip",
+    "extension-array",
+    "alignment",
+    "dataframe",
+    "where"
+  ],
+  "deps": [
+    {
+      "path": "pandas/core/frame.py",
+      "symbol": "DataFrame._align_for_op",
+      "hash": "sha256:58cda7a7ead5adf6bf69d4d3",
+      "line": 10327,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pandas/core/generic.py",
+      "symbol": "NDFrame._clip_with_one_bound",
+      "hash": "sha256:034ccae315879cd76ee1d42e",
+      "line": 8910,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#68929"
+  },
+  "created": "2026-10-07T00:40:46.329Z",
+  "verified": "2026-10-07T00:40:46.329Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

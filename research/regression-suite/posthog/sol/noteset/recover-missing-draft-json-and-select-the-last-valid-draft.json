@@ -1,0 +1,94 @@
+{
+  "id": "recover-missing-draft-json-and-select-the-last-valid-draft",
+  "title": "Recover missing draft JSON and select the last valid draft",
+  "kind": "rule",
+  "answers": [
+    "Why did the support reply use example JSON?",
+    "What happens when the draft agent only says it is waiting?",
+    "How should support draft agent text be parsed?"
+  ],
+  "body": "Symptom: A support reply uses an example instead of the final answer, or the agent returns a status sentence without a draft.\nRoot cause: Agent text can contain example or ticket JSON before the answer, or no usable draft object; products/conversations/backend/temporal/ai_reply/activities/draft.py:_parse_draft and _draft_from_session handle these cases.\nFix pattern: Scan JSON objects and validate candidates in reverse order, accepting the last valid draft; if none exists, send one JSON-only follow-up and parse it the same way.\nConstraints: A valid first response needs no follow-up. An empty first turn raises before a session is available, so it cannot be nudged; failed or unusable follow-ups go through _give_up.\nTiming invariant: _DRAFT_NUDGE_POLL_SECONDS allows two 90-second nudge polls; these and the initial poll must fit within the draft activity's 20-minute timeout in products/conversations/backend/temporal/pipeline.py:SupportReplyWorkflow.",
+  "applies": "Parsing and recovering raw agent responses for support reply drafts.",
+  "tags": [
+    "conversations",
+    "support-drafts",
+    "json-parsing",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_parse_draft",
+      "hash": "sha256:78a03c99859f120b00671770",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_from_session",
+      "hash": "sha256:4a73c2839f265c623658cb84",
+      "line": 110,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_DRAFT_NUDGE_POLL_SECONDS",
+      "hash": "sha256:a892b67ec3354f0c1a6546d4",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 25
+      }
+    },
+    {
+      "path": "products/conversations/backend/temporal/pipeline.py",
+      "symbol": "SupportReplyWorkflow",
+      "hash": "sha256:037234a7bf27b8099f55c5e4",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 1,
+        "refs": 47
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-10-07T00:19:31.145Z",
+  "verified": "2026-10-07T00:19:31.145Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "exhausted-support-draft-retries-must-return-a-blocked-result",
+    "keep-support-draft-recovery-local-and-omit-task-output-schem"
+  ]
+}

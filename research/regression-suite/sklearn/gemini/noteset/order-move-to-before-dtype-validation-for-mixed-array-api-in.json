@@ -1,0 +1,52 @@
+{
+  "id": "order-move-to-before-dtype-validation-for-mixed-array-api-in",
+  "title": "Order move_to before dtype validation for mixed array API inputs in GLMs",
+  "kind": "rule",
+  "answers": [
+    "Why does PoissonRegressor fail when y and X use different array API namespaces or devices?",
+    "TypeError: 'dtype' must be a dtype, not torch.dtype in PoissonRegressor fit or score",
+    "How to handle mixed namespace or device array API inputs in GeneralizedLinearRegressor?",
+    "When should move_to be called relative to check_array in scikit-learn estimators?"
+  ],
+  "body": "Symptom: Fitting or scoring PoissonRegressor with y or sample_weight from a different array API namespace or device than X fails with TypeError: 'dtype' must be a dtype, not torch.dtype.\nRoot cause: sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.fit and sklearn/linear_model/_glm/glm.py:_GeneralizedLinearRegressor.score validated y and sample_weight against X's dtype before transferring them to X's namespace and device via move_to.\nFix pattern: Call move_to(y, sample_weight, xp=xp, device=device) before dtype-coupled validation (check_array and _check_sample_weight) so all inputs share X's namespace and device prior to validation.\nConstraints: Applies when estimators support mixed array API inputs across X, y, and sample_weight; move_to is a no-op when inputs already share the same namespace and device.",
+  "applies": "Generalized linear models in sklearn.linear_model._glm supporting mixed array API inputs.",
+  "tags": [
+    "array-api",
+    "glm",
+    "linear-model",
+    "poisson-regressor",
+    "input-validation"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.fit",
+      "hash": "sha256:c732dc5b49af2b191b492668",
+      "line": 250,
+      "missing": false
+    },
+    {
+      "path": "sklearn/linear_model/_glm/glm.py",
+      "symbol": "_GeneralizedLinearRegressor.score",
+      "hash": "sha256:7ba6daa0dacb924c04ea008c",
+      "line": 486,
+      "missing": false,
+      "fanout": {
+        "files": 249,
+        "sites": 461,
+        "refs": 1951
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34480"
+  },
+  "created": "2026-10-07T00:43:32.170Z",
+  "verified": "2026-10-07T00:43:32.170Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,58 @@
+{
+  "id": "testing-the-parallel-read-csv-path-force-parallel-and-compar",
+  "title": "Testing the parallel read_csv path: force parallel and compare to serial, or assert fallback returns None",
+  "kind": "howto",
+  "answers": [
+    "how to test parallel read_csv against serial",
+    "how to force the parallel csv reader in tests",
+    "how to assert read_csv falls back to serial"
+  ],
+  "body": "Tests are in pandas/tests/io/parser/test_parallel_read.py.\n- Equivalence: write the raw bytes to tmp_path. Get `result = _read_forced_parallel(path, monkeypatch, **kwargs)` and `expected = pd.read_csv(io.BytesIO(raw), **kwargs)`, then `tm.assert_frame_equal`. A BytesIO input is not a local file path, so it gets the serial reader. Assert on specific rows too (e.g. `result.iloc[0]`), because a dropped row can still produce a frame that looks valid.\n- Fallback: in TestReadCsvParallel, build `kwds = self._base_kwds(path)` and assert `_read_csv_parallel(str(path), kwds, 4) is None` for inputs that must go serial. Also assert `is not None` for a near-miss input that should stay parallel (e.g. CRLF).\n- Bodies use a few hundred to 5_000 generated rows so the file is big enough to split into chunks.",
+  "applies": "tests for the parallel read_csv path in pandas/tests/io/parser/test_parallel_read.py",
+  "tags": [
+    "testing",
+    "read_csv",
+    "parallel",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "TestReadCsvParallel.test_bare_cr_before_data_returns_none",
+      "hash": "sha256:d04175efd696d0714a7e0ed1",
+      "line": 688,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pandas/tests/io/parser/test_parallel_read.py",
+      "symbol": "test_parallel_bare_cr_before_data_matches_serial",
+      "hash": "sha256:3c01f488ddc9ffb366d7677f",
+      "line": 1069,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pandas-dev/pandas#70403"
+  },
+  "created": "2026-10-07T00:24:03.000Z",
+  "verified": "2026-10-07T00:24:03.000Z",
+  "verifiedCommit": "63651d6717faa0fb850c2723c0183194255d6e1c",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-read-csv-must-fall-back-to-serial-when-byte-level-l",
+    "testing-the-parallel-read-csv-path-force-it-place-chunk-boun"
+  ]
+}

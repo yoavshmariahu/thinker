@@ -1,0 +1,326 @@
+{
+  "repo": "grafana/grafana",
+  "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "grafana-132418",
+      "pr": 132418,
+      "sha": "a28ada17ad879a24aafe451b947bf1c12faa832d",
+      "parent": "85414ce65e084951aa75a5708284be9d2ee318c8",
+      "subject": "FieldOverrides: Don't write panel field config onto shared source frames (#132418)",
+      "codeLines": 10,
+      "totalLines": 62,
+      "files": [
+        "packages/grafana-data/src/field/fieldOverrides.test.ts",
+        "packages/grafana-data/src/field/fieldOverrides.ts"
+      ],
+      "production": [
+        "packages/grafana-data/src/field/fieldOverrides.ts"
+      ],
+      "target": "FieldOverrides: Don't write panel field config onto shared source frames (#132418)",
+      "assignmentKey": "14b4d6538dd81ccfd3ad5063d5a6970ddd47526d678a8a06b2cea27caef1f5aa",
+      "cohort": "opus",
+      "caseIndex": 0
+    },
+    {
+      "id": "grafana-133093",
+      "pr": 133093,
+      "sha": "39afd1bcd157b23d1b13c3d04ddf1d78da02df46",
+      "parent": "9e0fda30ccc556bef032c1f00dcf8e901e39ac0a",
+      "subject": "Dashboards: Preserve Dashboard datasource references in v2 exports (#133093)",
+      "codeLines": 6,
+      "totalLines": 175,
+      "files": [
+        "public/app/features/dashboard-scene/scene/export/exporters.test.ts",
+        "public/app/features/dashboard-scene/scene/export/exporters.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/scene/export/exporters.ts"
+      ],
+      "target": "Dashboards: Preserve Dashboard datasource references in v2 exports (#133093)",
+      "assignmentKey": "faa46ab9042321014a6b5783353809b458d98653a347ef2a53df72ed1291f9bb",
+      "cohort": "gemini",
+      "caseIndex": 1
+    },
+    {
+      "id": "grafana-133023",
+      "pr": 133023,
+      "sha": "24a0b5be4da0ca1e1ff2ff0e073bd74b656307a6",
+      "parent": "49459d943306667173792bbf50c108b1a49756c7",
+      "subject": "Alerting: Support missing-series resolution counts above the SMALLINT limit (#133023)",
+      "codeLines": 12,
+      "totalLines": 43,
+      "files": [
+        "pkg/services/ngalert/store/alert_rule_test.go",
+        "pkg/services/sqlstore/migrations/migrations.go",
+        "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+        "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go"
+      ],
+      "production": [
+        "pkg/services/sqlstore/migrations/migrations.go",
+        "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go"
+      ],
+      "target": "Alerting: Support missing-series resolution counts above the SMALLINT limit (#133023)",
+      "assignmentKey": "a887606d707536dda9765b1e2c14f0e978ba24df1fa5bbdeefcd86d604fda191",
+      "cohort": "gemini",
+      "caseIndex": 2
+    },
+    {
+      "id": "grafana-133033",
+      "pr": 133033,
+      "sha": "37d8dfc381d01552dc75a4498233d48856c0d8fe",
+      "parent": "cf7a3c674fbc3bf97f99742ec5654e82bfdd8403",
+      "subject": "OpenFeature: Don't let wildcard namespace override eval context (#133033)",
+      "codeLines": 5,
+      "totalLines": 71,
+      "files": [
+        "pkg/services/contexthandler/contexthandler.go",
+        "pkg/services/contexthandler/contexthandler_test.go"
+      ],
+      "production": [
+        "pkg/services/contexthandler/contexthandler.go"
+      ],
+      "target": "OpenFeature: Don't let wildcard namespace override eval context (#133033)",
+      "assignmentKey": "4dd61b62599bc864c4ca69835eed4cbdf5003b9f464158a01cd2bcff9d3d03ab",
+      "cohort": "sol",
+      "caseIndex": 3
+    },
+    {
+      "id": "grafana-132979",
+      "pr": 132979,
+      "sha": "f085524b1c939cb040779223dfb27c367ac3500c",
+      "parent": "d8d06830b5e833fa5214384cd1dfacbf784c7962",
+      "subject": "Modals: Fixes cut focus (#132979)",
+      "codeLines": 42,
+      "totalLines": 42,
+      "files": [
+        "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx"
+      ],
+      "production": [
+        "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx"
+      ],
+      "target": "Modals: Fixes cut focus (#132979)",
+      "assignmentKey": "cdce81b1d424594be73718dc07eabe4b863ff714c32fa38dcb253b24c1f471e5",
+      "cohort": "gemini",
+      "caseIndex": 4
+    },
+    {
+      "id": "grafana-132877",
+      "pr": 132877,
+      "sha": "339c8161461b7d3aeefe1fea9d0a32b2d6806dea",
+      "parent": "91fd9516e910c9692897dc5b7fd55c5396f70022",
+      "subject": "Combobox: Ensure useComboboxFloat does not cause excessive rerenders (#132877)",
+      "codeLines": 23,
+      "totalLines": 124,
+      "files": [
+        "packages/grafana-ui/src/components/Combobox/Combobox.test.tsx",
+        "packages/grafana-ui/src/components/Combobox/MultiCombobox.test.tsx",
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.test.ts",
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts"
+      ],
+      "production": [
+        "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts"
+      ],
+      "target": "Combobox: Ensure useComboboxFloat does not cause excessive rerenders (#132877)",
+      "assignmentKey": "0e40120a6fe82f3b19b90514d48057038e4020c65e64b59af0286d2d43601a86",
+      "cohort": "gemini",
+      "caseIndex": 5
+    },
+    {
+      "id": "grafana-132966",
+      "pr": 132966,
+      "sha": "3bdabb21d49f27cdb62a3ff97c560ca695b5a706",
+      "parent": "bf10a75099d75e06ee2346a48cc2cf51225ac4d4",
+      "subject": "router: handle aggregate discovery format from apiextensions (#132966)",
+      "codeLines": 55,
+      "totalLines": 85,
+      "files": [
+        "pkg/router/aggregate_discovery.go",
+        "pkg/router/aggregate_discovery_test.go"
+      ],
+      "production": [
+        "pkg/router/aggregate_discovery.go"
+      ],
+      "target": "router: handle aggregate discovery format from apiextensions (#132966)",
+      "assignmentKey": "2cc443e3eed4aaf867cc3ccdafdcfb356837bcc45a70ef285bb2f6b4faf755ff",
+      "cohort": "gemini",
+      "caseIndex": 6
+    },
+    {
+      "id": "grafana-132940",
+      "pr": 132940,
+      "sha": "d0e5844a9290c1329fd14160c348ce77a4f32e2d",
+      "parent": "042a372678e6cb6482eed2617e4b5ea584ca2ccb",
+      "subject": "Dashboards: Fix v2 save failing with resourceVersion set on create (#132940)",
+      "codeLines": 5,
+      "totalLines": 17,
+      "files": [
+        "public/app/features/dashboard/api/v2.test.ts",
+        "public/app/features/dashboard/api/v2.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard/api/v2.ts"
+      ],
+      "target": "Dashboards: Fix v2 save failing with resourceVersion set on create (#132940)",
+      "assignmentKey": "00a684cbc1240ebf5e54b8d99e531711ce0606702143fb4d193f18623dbf46c5",
+      "cohort": "opus",
+      "caseIndex": 7
+    },
+    {
+      "id": "grafana-132860",
+      "pr": 132860,
+      "sha": "d9e458c09e38027cb6bc74d5cc2206901ebbcef9",
+      "parent": "efeddb7176bba72f2fd074a17a3b23e6bcd462e2",
+      "subject": "fix(logs): remove \\B alternation from key regex to prevent catastrophic backtracking (#132860)",
+      "codeLines": 2,
+      "totalLines": 11,
+      "files": [
+        "public/app/features/logs/components/panel/grammar.test.ts",
+        "public/app/features/logs/components/panel/grammar.ts"
+      ],
+      "production": [
+        "public/app/features/logs/components/panel/grammar.ts"
+      ],
+      "target": "fix(logs): remove \\B alternation from key regex to prevent catastrophic backtracking (#132860)",
+      "assignmentKey": "e1ddad9633d7d4f062a0ac72b9a13eda58b51c1e1799f318c6dc90162f971ef0",
+      "cohort": "opus",
+      "caseIndex": 8
+    },
+    {
+      "id": "grafana-131837",
+      "pr": 131837,
+      "sha": "916b6b3f89de0b6f2fa61b0799901b85a0673bf3",
+      "parent": "185645e58870a71abc62392bf1aae0f09604b4cc",
+      "subject": "Dashboards: Fix query variable refresh reset to onDashboardLoad on v2 UI import (#131837)",
+      "codeLines": 4,
+      "totalLines": 61,
+      "files": [
+        "public/app/features/manage-dashboards/import/utils/inputs.test.ts",
+        "public/app/features/manage-dashboards/import/utils/inputs.ts"
+      ],
+      "production": [
+        "public/app/features/manage-dashboards/import/utils/inputs.ts"
+      ],
+      "target": "Dashboards: Fix query variable refresh reset to onDashboardLoad on v2 UI import (#131837)",
+      "assignmentKey": "b0a818bafc99a0f668045e766d0ae51d929fac08e580de9295fedf5b07e5100e",
+      "cohort": "opus",
+      "caseIndex": 9
+    },
+    {
+      "id": "grafana-132572",
+      "pr": 132572,
+      "sha": "4f3a18aad9c3ffbc6f81621c854fcb8060c3b7c1",
+      "parent": "abd388a2147863985af0e52a2fe62a8f44796630",
+      "subject": "Flamegraph: Fix NaN/undefined diff tooltip in sandwich view (#132572)",
+      "codeLines": 19,
+      "totalLines": 70,
+      "files": [
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.test.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.test.ts",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts"
+      ],
+      "production": [
+        "packages/grafana-flamegraph/src/FlameGraph/FlameGraphTooltip.tsx",
+        "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts"
+      ],
+      "target": "Flamegraph: Fix NaN/undefined diff tooltip in sandwich view (#132572)",
+      "assignmentKey": "263f325ae7ab2738c4aeeab7c077c3036908c4f7b1dceadbf01899f46365122a",
+      "cohort": "sol",
+      "caseIndex": 10
+    },
+    {
+      "id": "grafana-132648",
+      "pr": 132648,
+      "sha": "8d38599e07d370e23da9da440de58225383895de",
+      "parent": "f58512f20b4d411482d2572150170593728603bc",
+      "subject": "Frontend: Fix MutableDataFrame for ESM strict mode (#132648)",
+      "codeLines": 8,
+      "totalLines": 18,
+      "files": [
+        "packages/grafana-data/src/dataframe/MutableDataFrame.test.ts",
+        "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+        "public/app/features/explore/PrometheusListView/RawListContainer.tsx"
+      ],
+      "production": [
+        "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+        "public/app/features/explore/PrometheusListView/RawListContainer.tsx"
+      ],
+      "target": "Frontend: Fix MutableDataFrame for ESM strict mode (#132648)",
+      "assignmentKey": "0c0b8a321b4173b843a7d3c7bc677db361b2906a9edbaebdcb1e1e8324334cdb",
+      "cohort": "sol",
+      "caseIndex": 11
+    },
+    {
+      "id": "grafana-131464",
+      "pr": 131464,
+      "sha": "afbdc71e12d5a269bc5b5bde85ab19432d6af582",
+      "parent": "7050cfa249423447b2b2e66d35132471b9673fbc",
+      "subject": "Annotations: fix ensureTags never deleting removed tag links (#131464)",
+      "codeLines": 2,
+      "totalLines": 13,
+      "files": [
+        "pkg/services/annotations/annotationsimpl/xorm_store.go",
+        "pkg/services/annotations/annotationsimpl/xorm_store_test.go"
+      ],
+      "production": [
+        "pkg/services/annotations/annotationsimpl/xorm_store.go"
+      ],
+      "target": "Annotations: fix ensureTags never deleting removed tag links (#131464)",
+      "assignmentKey": "4554995c77a9050be484b4c276fd66ea371a5ad9172f2cc81c906dcbc0b412cf",
+      "cohort": "opus",
+      "caseIndex": 12
+    },
+    {
+      "id": "grafana-132082",
+      "pr": 132082,
+      "sha": "e210f56df0d36b3b64a8471e122eff48a3596f15",
+      "parent": "ad08cb76c53daf707f01928dc4ee8d297588bbda",
+      "subject": "Dashboards: Fix for panels with lower min height than row height (#132082)",
+      "codeLines": 47,
+      "totalLines": 229,
+      "files": [
+        "devenv/dev-dashboards/dashboard-auto-grid/content-fit-scenarios.json",
+        "e2e-playwright/dashboard-new-layouts/dashboards-auto-grid-content-fit.spec.ts",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.test.ts",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.test.ts",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts"
+      ],
+      "production": [
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridItemRenderer.tsx",
+        "public/app/features/dashboard-scene/scene/layout-auto-grid/AutoGridLayoutManager.tsx",
+        "public/app/features/dashboard-scene/serialization/layoutSerializers/AutoGridLayoutSerializer.ts"
+      ],
+      "target": "Dashboards: Fix for panels with lower min height than row height (#132082)",
+      "assignmentKey": "f1f18b5e3d6b8464a5f6c0c8df62ce78977a929bc7c54675e10dba39c46d7afb",
+      "cohort": "sol",
+      "caseIndex": 13
+    },
+    {
+      "id": "grafana-130358",
+      "pr": 130358,
+      "sha": "2a5bd25ae7bbd3e873cbad6ab4ce0ac07a5d619f",
+      "parent": "a018e97b87e98ce5c66f9b8502c28eb451fefc6e",
+      "subject": "Explore: Preserve datasource type in trace-to-logs and trace-to-metrics queries (#130358)",
+      "codeLines": 8,
+      "totalLines": 86,
+      "files": [
+        "public/app/features/explore/TraceView/createSpanLink.test.ts",
+        "public/app/features/explore/TraceView/createSpanLink.tsx"
+      ],
+      "production": [
+        "public/app/features/explore/TraceView/createSpanLink.tsx"
+      ],
+      "target": "Explore: Preserve datasource type in trace-to-logs and trace-to-metrics queries (#130358)",
+      "assignmentKey": "b804ad3e56e26170f0a3768c67dbdca54be2840b44b5c42edb782e867756bd74",
+      "cohort": "sol",
+      "caseIndex": 14
+    }
+  ],
+  "frozenAt": "2026-10-06",
+  "assignment": "Sort SHA256(regression-suite-2026-10-06:<slug>:<fix-sha>), then cycle opus/sol/gemini; five per model, frozen before scored outputs.",
+  "excludedBeforeFreeze": "Documentation, examples, typing-only changes, warning-only cleanup, performance-only hash collision cleanup and unrelated feature work. Selection is compact reversible historical fixes, not representative random sampling."
+}

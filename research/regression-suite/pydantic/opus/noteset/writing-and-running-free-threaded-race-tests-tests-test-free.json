@@ -1,0 +1,63 @@
+{
+  "id": "writing-and-running-free-threaded-race-tests-tests-test-free",
+  "title": "Writing and running free-threaded race tests (tests/test_freethreaded.py)",
+  "kind": "howto",
+  "answers": [
+    "how to test pydantic thread safety on no-GIL Python",
+    "where are free-threaded tests",
+    "why are test_freethreaded tests skipped",
+    "reproduce a race condition in pydantic tests"
+  ],
+  "body": "Race tests go in tests/test_freethreaded.py. The module-level `pytestmark` skips them unless `tests/conftest.py:is_free_threaded` is true (`not sys._is_gil_enabled()`, which is False on older Pythons) and also skips on emscripten. On a normal GIL build they are reported as skipped. To actually run them, use a free-threaded interpreter such as python3.14t.\nUse the `run_concurrently(setup, target, rounds=100, threads=8)` helper. `setup()` builds a fresh class for each round, and `target(ctx, index)` runs in all threads at once, released together by a threading.Barrier. Use `index` to give one thread a different role, for example index 0 rebuilds while the others instantiate.\nTricks for making a race show up reliably: add thousands of attributes to the class (setattr in a loop) so iterating it takes longer. Leave a forward ref undefined at class creation so no annotations cache gets set, then define it with `monkeypatch.setitem(globals(), ...)` so that ForwardRef.evaluate reads the namespace.",
+  "applies": "Tests for concurrency/thread-safety of pydantic schema building",
+  "tags": [
+    "testing",
+    "free-threading",
+    "pytest",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "run_concurrently",
+      "hash": "sha256:a608de55d4345750177b38bf",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "is_free_threaded",
+      "hash": "sha256:d6690dd30a256333901aa1a9",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/test_freethreaded.py",
+      "symbol": "setup",
+      "hash": "sha256:ad9e57e70c1bc352f3b8939d",
+      "line": 39,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pydantic/pydantic#13785"
+  },
+  "created": "2026-10-07T00:35:49.926Z",
+  "verified": "2026-10-07T00:35:49.926Z",
+  "verifiedCommit": "895c0c285c5cb4c0c7c7a4619a80941c12f2c75f",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

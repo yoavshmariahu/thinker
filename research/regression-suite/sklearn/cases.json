@@ -1,0 +1,318 @@
+{
+  "repo": "scikit-learn/scikit-learn",
+  "base": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "rule": "Newest first-parent fix-like commits with 1\u2013120 production code lines, <=250 total lines, <=10 files, clean full reverse application at fixed base. Manually validate bug semantics before freezing 15; exclude feature/typing-only changes.",
+  "cases": [
+    {
+      "id": "scikit-learn-35042",
+      "pr": 35042,
+      "sha": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+      "parent": "9ac73fe26b92e21aca14a9551e683bf23fc7c49e",
+      "subject": "FIX Fix `from sklearn.model_selection import *` (#35042)",
+      "codeLines": 4,
+      "totalLines": 40,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.model_selection/35042.fix.rst",
+        "sklearn/model_selection/__init__.py",
+        "sklearn/tests/test_common.py"
+      ],
+      "production": [
+        "sklearn/model_selection/__init__.py"
+      ],
+      "target": "FIX Fix `from sklearn.model_selection import *` (#35042)",
+      "assignmentKey": "9fffb43cce12d7e77adf3c52f1404763f378e201f68ba372416f04ca4d7f226e",
+      "cohort": "gemini",
+      "caseIndex": 0
+    },
+    {
+      "id": "scikit-learn-34965",
+      "pr": 34965,
+      "sha": "a97ae018a23ca4389356358142da40e5f2f83f2e",
+      "parent": "9bbd3371ddb5094cbfe435d0e71d7b213ac0ce42",
+      "subject": "FIX SpectralEmbedding to work with sparse array backend with large indices  (#34965)",
+      "codeLines": 7,
+      "totalLines": 34,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.manifold/34965.fix.rst",
+        "sklearn/manifold/_spectral_embedding.py",
+        "sklearn/manifold/tests/test_spectral_embedding.py"
+      ],
+      "production": [
+        "sklearn/manifold/_spectral_embedding.py"
+      ],
+      "target": "FIX SpectralEmbedding to work with sparse array backend with large indices  (#34965)",
+      "assignmentKey": "16bdcd2fa4124bdbab6378a6b02f7ab346f8cf91567edf11a84c3feab1f67865",
+      "cohort": "opus",
+      "caseIndex": 1
+    },
+    {
+      "id": "scikit-learn-35043",
+      "pr": 35043,
+      "sha": "5a9cf4c0f0bb23215007a71ecc8c2501e463cd65",
+      "parent": "c4c4f8ce77f2aa842102cae6b76d63c564a79902",
+      "subject": "FIX divide by zero in linesearch of newton solver (#35043)",
+      "codeLines": 11,
+      "totalLines": 11,
+      "files": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_glm/_newton_solver.py"
+      ],
+      "target": "FIX divide by zero in linesearch of newton solver (#35043)",
+      "assignmentKey": "601278d0e36500e512267fb610b26ab2fe690d50d03a343502e5a7b15d47eaf8",
+      "cohort": "sol",
+      "caseIndex": 2
+    },
+    {
+      "id": "scikit-learn-34513",
+      "pr": 34513,
+      "sha": "5f2263132d0cef0bf8ea147162c9326c1470eec1",
+      "parent": "ff9a412cc29c4df25470d51b01a23cb1684693b1",
+      "subject": "Fix Pandas output path fails to reject infinite values during transform   (#34513)",
+      "codeLines": 6,
+      "totalLines": 44,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.feature_selection/34513.fix.rst",
+        "sklearn/feature_selection/_base.py",
+        "sklearn/feature_selection/tests/test_base.py",
+        "sklearn/feature_selection/tests/test_variance_threshold.py"
+      ],
+      "production": [
+        "sklearn/feature_selection/_base.py"
+      ],
+      "target": "Fix Pandas output path fails to reject infinite values during transform   (#34513)",
+      "assignmentKey": "b95216690cb5e730c8f04dc4e5a447ceb280cdcdba9c239188c78b49c761b719",
+      "cohort": "opus",
+      "caseIndex": 3
+    },
+    {
+      "id": "scikit-learn-34959",
+      "pr": 34959,
+      "sha": "0f1488a12daacc54893bcb43d1fc2738ca0ad222",
+      "parent": "7ed8c95c0ed0475ca7df95989e00f4f4467146d0",
+      "subject": "MNT Fix _weighted_percentile with nans and average=True (#34959)",
+      "codeLines": 2,
+      "totalLines": 14,
+      "files": [
+        "sklearn/utils/stats.py",
+        "sklearn/utils/tests/test_stats.py"
+      ],
+      "production": [
+        "sklearn/utils/stats.py"
+      ],
+      "target": "MNT Fix _weighted_percentile with nans and average=True (#34959)",
+      "assignmentKey": "4da52dacf590b692a43b244e8ac08c892f39656eb54bde5ea8f046d8f2bc599d",
+      "cohort": "opus",
+      "caseIndex": 4
+    },
+    {
+      "id": "scikit-learn-34837",
+      "pr": 34837,
+      "sha": "88552088fad33d6ec70e1aaf633389d08fffb970",
+      "parent": "f2e0b2330932e0c08d2d0de66b5427e3e0f7167c",
+      "subject": "MNT Don't cache the signature of the bound callback hook (#34837)",
+      "codeLines": 10,
+      "totalLines": 19,
+      "files": [
+        "sklearn/callback/_callback_context.py",
+        "sklearn/callback/tests/test_scoring_monitor.py"
+      ],
+      "production": [
+        "sklearn/callback/_callback_context.py"
+      ],
+      "target": "MNT Don't cache the signature of the bound callback hook (#34837)",
+      "assignmentKey": "bda547ec3c7bede4d1a9ed886b6f6001ad2cf9eb71e37df4d2c43d18140d76d0",
+      "cohort": "sol",
+      "caseIndex": 5
+    },
+    {
+      "id": "scikit-learn-34779",
+      "pr": 34779,
+      "sha": "d3ad3637748e8b593a5b8bec68054aa99728037b",
+      "parent": "a456b324bc68cf86ef4394f36debe83d829fb124",
+      "subject": "FIX array API classification metrics with pandas  labels (#34779)",
+      "codeLines": 27,
+      "totalLines": 75,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34779.fix.rst",
+        "sklearn/metrics/tests/test_common.py",
+        "sklearn/utils/_array_api.py"
+      ],
+      "production": [
+        "sklearn/utils/_array_api.py"
+      ],
+      "target": "FIX array API classification metrics with pandas  labels (#34779)",
+      "assignmentKey": "9cf149ae042954813751bbc693f16d51c28d629f46dfa4c9cc996e153f0abd38",
+      "cohort": "sol",
+      "caseIndex": 6
+    },
+    {
+      "id": "scikit-learn-34746",
+      "pr": 34746,
+      "sha": "53302ff996818d108851e31d38a421425026bba5",
+      "parent": "b589cc5ca4084b6a46725e8368d97c2b342f67f8",
+      "subject": "FIX Have progressbar timers stop when task is finished in meta-estimators. (#34746)",
+      "codeLines": 2,
+      "totalLines": 2,
+      "files": [
+        "sklearn/callback/_progressbar.py"
+      ],
+      "production": [
+        "sklearn/callback/_progressbar.py"
+      ],
+      "target": "FIX Have progressbar timers stop when task is finished in meta-estimators. (#34746)",
+      "assignmentKey": "09addb86e2e0808f673344efcedb562b753aba35279991bf60bd23a545076c6c",
+      "cohort": "gemini",
+      "caseIndex": 7
+    },
+    {
+      "id": "scikit-learn-34475",
+      "pr": 34475,
+      "sha": "07d7c6f519c92433e9cb1a35fb3d29f254df4620",
+      "parent": "845eaf3b5d4ee56d45c83f652cb3af14a7f836e1",
+      "subject": "FIX LinearDiscriminantAnalysis support for mixed namespace/device array API inputs (#34475)",
+      "codeLines": 106,
+      "totalLines": 122,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34475.fix.rst",
+        "doc/whats_new/upcoming_changes/sklearn.discriminant_analysis/34475.efficiency.rst",
+        "sklearn/discriminant_analysis.py",
+        "sklearn/utils/_test_common/instance_generator.py"
+      ],
+      "production": [
+        "sklearn/discriminant_analysis.py"
+      ],
+      "target": "FIX LinearDiscriminantAnalysis support for mixed namespace/device array API inputs (#34475)",
+      "assignmentKey": "21f09fd877fbe61bb04d56c9cbda68d0fe5baaf32bb43a34e94a38c38409af94",
+      "cohort": "sol",
+      "caseIndex": 8
+    },
+    {
+      "id": "scikit-learn-34605",
+      "pr": 34605,
+      "sha": "4347a16712cb2bfe51c376ff60ad9c033a689abf",
+      "parent": "63f2abff4003210103a0569664982ce384487dfa",
+      "subject": "FIX indexable with dataframes (#34605)",
+      "codeLines": 2,
+      "totalLines": 35,
+      "files": [
+        "sklearn/model_selection/tests/test_validation.py",
+        "sklearn/utils/tests/test_validation.py",
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ],
+      "target": "FIX indexable with dataframes (#34605)",
+      "assignmentKey": "e133c9e28e5b8ec2e56c93af3aa014c315a04bfda6b317ffd6dd34f4a4495961",
+      "cohort": "gemini",
+      "caseIndex": 9
+    },
+    {
+      "id": "scikit-learn-34480",
+      "pr": 34480,
+      "sha": "372c786e346dc40bee7aea553ec1e30a8076ecb9",
+      "parent": "371195050ca4242f653e91d12991e6a2ba1a4e56",
+      "subject": "FIX PoissonRegressor mixed namespace/device array API inputs (#34480)",
+      "codeLines": 11,
+      "totalLines": 15,
+      "files": [
+        "doc/whats_new/upcoming_changes/array-api/34480.fix.rst",
+        "sklearn/linear_model/_glm/glm.py",
+        "sklearn/utils/_test_common/instance_generator.py"
+      ],
+      "production": [
+        "sklearn/linear_model/_glm/glm.py"
+      ],
+      "target": "FIX PoissonRegressor mixed namespace/device array API inputs (#34480)",
+      "assignmentKey": "6c41bd77afd79c2cc9124dd37853d78e2711f34214f15616ea4a9b22690a1999",
+      "cohort": "gemini",
+      "caseIndex": 10
+    },
+    {
+      "id": "scikit-learn-34263",
+      "pr": 34263,
+      "sha": "70241a5094dfe97ce1d373604b5f57cf704373d9",
+      "parent": "7ba6d383dc4d2bc9f9c613c0a48ff821405b79ba",
+      "subject": "FIX Set default transform_input of Pipeline to [\"X_val\"] (#34263)",
+      "codeLines": 34,
+      "totalLines": 53,
+      "files": [
+        "doc/whats_new/upcoming_changes/sklearn.pipeline/34263.fix.rst",
+        "sklearn/pipeline.py",
+        "sklearn/tests/test_pipeline.py",
+        "sklearn/utils/tests/test_pprint.py"
+      ],
+      "production": [
+        "sklearn/pipeline.py"
+      ],
+      "target": "FIX Set default transform_input of Pipeline to [\"X_val\"] (#34263)",
+      "assignmentKey": "8a41618141dccb0c02f00d29f8b7045e96b721940b4db0572168d489b670515d",
+      "cohort": "opus",
+      "caseIndex": 11
+    },
+    {
+      "id": "scikit-learn-34188",
+      "pr": 34188,
+      "sha": "802d917e802929dd62b9678b20e9bf021f6b1a99",
+      "parent": "a845acd351bf07d316a812152c2c0b55e35913ba",
+      "subject": "Fix metadata routed to correct consumer in `BaggingClassifier.predict_proba` (#34188)",
+      "codeLines": 6,
+      "totalLines": 6,
+      "files": [
+        "sklearn/ensemble/_bagging.py"
+      ],
+      "production": [
+        "sklearn/ensemble/_bagging.py"
+      ],
+      "target": "Fix metadata routed to correct consumer in `BaggingClassifier.predict_proba` (#34188)",
+      "assignmentKey": "066505a8b5a9c77fcc3f7d15aa783b6aa9e658831592e07e66df2f89f2cca24f",
+      "cohort": "sol",
+      "caseIndex": 12
+    },
+    {
+      "id": "scikit-learn-34051",
+      "pr": 34051,
+      "sha": "01dddb912c30e136464bb0d07718e51fc1b20fb0",
+      "parent": "39d0ad03934e24196899c01c8c5ac465cf15401a",
+      "subject": "FIX check_array with narwhals.DataFrame input (#34051)",
+      "codeLines": 15,
+      "totalLines": 31,
+      "files": [
+        "sklearn/utils/tests/test_validation.py",
+        "sklearn/utils/validation.py"
+      ],
+      "production": [
+        "sklearn/utils/validation.py"
+      ],
+      "target": "FIX check_array with narwhals.DataFrame input (#34051)",
+      "assignmentKey": "0344e789801dea279d486be7a27960f65c17debbe7e36d64443a0fe4a95c0a3c",
+      "cohort": "opus",
+      "caseIndex": 13
+    },
+    {
+      "id": "scikit-learn-33260",
+      "pr": 33260,
+      "sha": "a75111fe68986aa9f7a5f552f8b7bf7e411ac170",
+      "parent": "b42224511662fbbf40227afaeba0a64a19bcc531",
+      "subject": "MNT Fix NMF error with SciPy dev after SVD output memory layout change (#33260)",
+      "codeLines": 8,
+      "totalLines": 23,
+      "files": [
+        "sklearn/decomposition/_nmf.py",
+        "sklearn/decomposition/tests/test_nmf.py"
+      ],
+      "production": [
+        "sklearn/decomposition/_nmf.py"
+      ],
+      "target": "MNT Fix NMF error with SciPy dev after SVD output memory layout change (#33260)",
+      "assignmentKey": "3f1cf8fd383ebd6a0b3a2b962e8538d486ce124d856bf0b3d843c155184f4f4b",
+      "cohort": "gemini",
+      "caseIndex": 14
+    }
+  ],
+  "frozenAt": "2026-10-06",
+  "assignment": "Sort SHA256(regression-suite-2026-10-06:<slug>:<fix-sha>), then cycle opus/sol/gemini; five per model, frozen before scored outputs.",
+  "excludedBeforeFreeze": "Documentation, examples, typing-only changes, warning-only cleanup, performance-only hash collision cleanup and unrelated feature work. Selection is compact reversible historical fixes, not representative random sampling."
+}

@@ -1,0 +1,56 @@
+{
+  "id": "weighted-percentile-read-weights-from-sorted-weights-nan-wei",
+  "title": "_weighted_percentile: read weights from sorted_weights (NaN weights zeroed), not raw sample_weight",
+  "kind": "rule",
+  "answers": [
+    "_weighted_percentile returns nan with average=True when the data contains NaNs",
+    "weighted median / percentile 100 gives nan even though NaNs should be ignored",
+    "why does _weighted_percentile use sorted_weights instead of sample_weight"
+  ],
+  "body": "Symptom: `_weighted_percentile(..., average=True)` on an array with NaNs returns nan at percentile_rank=100. NaNs are supposed to be ignored.\nRoot cause: sklearn/utils/stats.py:_weighted_percentile ignores NaNs by setting their weight to 0 on the sorted copy `sorted_weights`. The average=True branch that looks for a zero-weight 'plus one' neighbour indexed the original `sample_weight`, where the NaN still has its nonzero weight. NaNs sort last, so only the top percentile could land on one.\nFix pattern: after sorting and masking NaNs, take every weight lookup from `sorted_weights[sorted_idx, col_indices]`. Never index back into the unsorted `sample_weight` with sorted indices.\nConstraints: this applies to any new branch added to _weighted_percentile, whether average or not. NaN bugs only appear at the extreme rank (100), so tests must parametrize percentile_rank to include 0 and 100, not only a middle value. The nan-filtered test in sklearn/utils/tests/test_stats.py:test_weighted_percentile_nan_filtered compares against the same call on NaN-filtered input.",
+  "applies": "sklearn/utils/stats.py _weighted_percentile, NaN handling and average=True interpolation",
+  "tags": [
+    "weighted_percentile",
+    "nan",
+    "sample_weight",
+    "percentile",
+    "stats"
+  ],
+  "deps": [
+    {
+      "path": "sklearn/utils/stats.py",
+      "symbol": "_weighted_percentile",
+      "hash": "sha256:9fe14945e412bec99fec41aa",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 46,
+        "refs": 68
+      }
+    },
+    {
+      "path": "sklearn/utils/tests/test_stats.py",
+      "symbol": "test_weighted_percentile_nan_filtered",
+      "hash": "sha256:2c5e66137763f5fff5c14d58",
+      "line": 366,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "scikit-learn/scikit-learn#34959"
+  },
+  "created": "2026-10-07T00:29:13.121Z",
+  "verified": "2026-10-07T00:29:13.121Z",
+  "verifiedCommit": "c95f032d2960b69ed20c1b15f7be5a8aa10595f8",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

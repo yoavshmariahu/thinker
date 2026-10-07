@@ -1,0 +1,20 @@
+{
+  "aggregate-apiserver-introspection-requires-aggregated-discov.json": "aa844694037ffb37fe39d2a5c7d027908fa5a043627ef7979cd73b343e025f37",
+  "alert-rule-schema-changes-must-mirror-between-alert-rule-and.json": "3ff3818de9481c27ce4d21bd2cbcbb5b5ef79bf0d122e07514d7d867b98ba32b",
+  "auto-grid-row-height-sizing-for-auto-fit-panels-with-lower-m.json": "53a501f9041d68bfe5440ee2513ece5705dac2fb1885ac582699e1b9f637112f",
+  "denormalized-annotation-tags-must-stay-in-sync-with-annotati.json": "9924b00c2582c050f9d2147d102458e3681006d411d4fa492d16aaa2c826ef54",
+  "ignore-wildcard-identity-namespace-when-building-openfeature.json": "bdad4953e5f00354876b88e0ce5814d99ac9668646c625ffa689923c638d0ef1",
+  "mutabledataframe-length-setter-for-strict-mode-object-clonin.json": "ea646822589ecb5da1b43e4125b4ae05329374c2a152256339ba7aac9159521f",
+  "preserve-dashboard-datasource-reference-in-v2-dashboard-expo.json": "11eac1dcad708843bc070c832a70e399608d8a643572a8f45fd3c36e674714a1",
+  "preserve-datasource-type-and-uid-in-explore-trace-link-queri.json": "247adf084e0bc107f1d5e35aa40ed3e6348e6bf857d89f8c91e08305676d8dd1",
+  "preserve-queryvariable-refresh-setting-on-v2-dashboard-impor.json": "915e339dd9b921a7e358dd2bf18dab2dce47be59983fbecdbd3496a62bd0d411",
+  "preserving-valueright-across-sandwich-view-tree-transforms-i.json": "3c3c438e388653107839e6954ed2ad0ccb7ea1c7b5adbb37d1222d9f04fd945d",
+  "prevent-applyfieldoverrides-from-mutating-shared-field-confi.json": "8b8edfd86501aa1d9208602840aca184ca1795e8525710e7c189576ff9d75e6e",
+  "prevent-catastrophic-backtracking-in-logs-grammar-key-token.json": "31534691ad98f1f6b3905242c8ad2c5d96a8749af011b5e24f1f6fc30ef82d54",
+  "prevent-clipped-focus-rings-on-modal-buttons-using-modal-but.json": "4f5138b77d78b25d40ad2e1a32b50411e696e9b539079f115e20943d064f52d7",
+  "prevent-excessive-re-renders-in-usecomboboxfloat-from-floati.json": "b92c4e45fc8e24623b8ee6554a89b2b400d5aa99ed9abb1ae2ef96c56b225680",
+  "registering-new-sql-migrations-in-ossmigrations-and-migratio.json": "5d291429677487b9eec635a9d03c527506ca0ace34abe9a465a582334b6d4086",
+  "strip-resourceversion-before-creating-or-updating-v2-dashboa.json": "8fb303877185128257cebf8fa604d9ab0c7bf8a860d229b46a0008c4df551ae8",
+  "widen-database-column-to-bigint-when-int64-alert-rule-fields.json": "c8e068a69cb0fdf7e5ee0364eb04459ced0f6884c93e866f0f5865860dfcc38e",
+  "xorm-mustcols-with-in-clause-generates-unsatisfiable-zero-va.json": "ee8702e547dcc1ad8804968c315f96086bb18b98cf988cb53b892397fff87ec2"
+}
