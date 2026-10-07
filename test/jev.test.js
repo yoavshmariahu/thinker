@@ -131,6 +131,25 @@ test('a key on the machine never switches Jev on inside the test suite', () => w
   delete process.env.THINKER_JEV;
 }));
 
+test('status says when test mode is what turned Jev off, not merely that it is off', () => withHome(() => {
+  // A run that ranks with the local fallback looks exactly like one that chose to; the reason is
+  // what tells a benchmark it is not measuring the shipped ranker.
+  saveKey('k');
+  const store = { config: () => ({}) };
+  process.env.THINKER_TEST = '1';
+  const before = process.env.THINKER_JEV;
+  delete process.env.THINKER_JEV;
+  try {
+    const off = jevStatus(store);
+    assert.equal(off.enabled, false);
+    assert.equal(off.offForTests, true, 'test mode is the reason and must be reported');
+    process.env.THINKER_JEV = 'off';
+    assert.equal(jevStatus(store).offForTests, false, 'an explicit off is a choice, not test mode');
+    process.env.THINKER_JEV = 'on';
+    assert.equal(jevStatus(store).offForTests, false, 'nothing to explain when it is on');
+  } finally { before === undefined ? delete process.env.THINKER_JEV : (process.env.THINKER_JEV = before); }
+}));
+
 test('test mode opens direct Jev only for an explicit, fully credentialed benchmark run', () => {
   // A benchmark measures the shipped ranker from the agent's own child process, where a transport
   // cannot be injected. One flag opens that path; nothing less does, so an ordinary test or a

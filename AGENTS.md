@@ -65,18 +65,23 @@ process inherits it. Never send these runs to the production telemetry endpoint
 or count them as real usage. Telemetry-specific tests may use mocked requests or
 an isolated loopback server only; they must never contact production.
 
-**Benchmark caches must come from recent PRs (MANDATORY RULE):**
-Build benchmark caches by mining recent merged pull requests through the product's
-PR-mining path. Never substitute exploration sessions, synthetic agent sessions,
-session distillation, or hand-written notes. Benchmark tasks have no prior agent
-sessions to distill. This applies to canaries and full regression/efficiency runs.
-Freeze the PR corpus before model calls, share that exact corpus across matched
-cohorts, and record PR IDs, merge commits, dates, diffs, source hashes, and build
-model/effort. Only PRs merged before and ancestral to the task's starting commit
-qualify; exclude the target fix and later changes. A missing/failed/empty PR cache
-must stop the run before coding. No alternative cache source or silent fallback.
-Historical session-learning experiments are not valid PR-cache benchmarks.
-The guarded runner enforces this in `research/performance-canary/guardrails.py`.
+**Benchmark caches come from mining, out of the task's past (MANDATORY RULE):**
+Build a benchmark cache by mining merged changes through the product's own path
+(`mine-prs`, GitHub or `--git`), and from nothing else. Exploration (`seed`) is not a
+benchmark cache source: measured on Click on 2026-10-07 it cost 3.6M tokens for 0 notes
+under Opus and 1.3M for 1 note under Sol, against 272k tokens for 9 notes by mining, so
+it buys cost and not cache. Also forbidden, none of it being the product learning from
+the repository's own past: synthetic agent sessions, distillation of a benchmark's own
+eval traces, and hand-written notes.
+Nothing from the task's future may be reachable. Build at an anchor commit at or before
+the earliest task base in that repository, give each task a copy of that cache topped up
+only with changes merged before its own base, and check that the fix commit is absent
+from the checkout the cache was built in. Record the anchor commit, what was mined, source hashes, and the model and effort of every building call -- which must
+match the coding arm's. A missing, failed or empty cache must stop the run before coding.
+No alternative cache source and no silent fallback.
+Historical session-learning experiments are not valid caches for these runs.
+`research/performance-canary/guardrails.py` enforces this for that harness
+(`cacheSource: recent-merged-prs`); `research/efficiency-simple/run.py` mines only.
 
 **Matched models in comparisons (MANDATORY RULE):**
 Compare arms only with the same exact model and reasoning effort for each

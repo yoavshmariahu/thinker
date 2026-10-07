@@ -300,7 +300,11 @@ export async function jevRerank(ranked, query, cfg = {}) {
 // What `thinker ranker` and setup report.
 export function jevStatus(store) {
   const cfg = jevConfig(store);
+  // Say why it is off when test mode is the reason: a run that silently ranks with the local
+  // fallback looks exactly like a run that chose to, and a benchmark cannot tell them apart.
+  const offForTests = !cfg.enabled && process.env.THINKER_TEST === '1' && process.env.THINKER_JEV !== 'off';
   return { enabled: !!cfg.enabled, key: !!cfg.key, mode: cfg.key ? 'direct' : 'hosted', access: cfg.access, asked: jevAsked(),
+    offForTests,
     source: process.env.THINKER_JEV_KEY || process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY ? 'environment' : cfg.key ? keyFile() : 'Thinker hosted access',
     model: cfg.model, floor: cfg.floor, maxNotes: cfg.maxNotes, timeoutMs: cfg.timeoutMs, searchTimeoutMs: cfg.searchTimeoutMs };
 }
