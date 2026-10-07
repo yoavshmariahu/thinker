@@ -138,3 +138,46 @@ test('batching respects the full UTF-8 envelope and oversized source defers with
   assert.ok(seen.length > 1);
   assert.equal(seen.flatMap(r => r.state.summaries).length, 25);
 });
+
+// A description is matched against requests and never read as guidance, so leaving a condition out
+// misleads nobody; stating the rule wider than the note, or reversing a prohibition, pulls the note
+// for the wrong request. The scope question asks about the second, not the first.
+test('scope asks whether the description distorts the rule, not whether it repeats every condition', () => {
+  const q = summaryFidelityRequest([{ note: note('a'), search: faithful }]).questions.scope0;
+  assert.match(q.instructions, /no wider than the source/);
+  assert.match(q.instructions, /may leave conditions, exceptions and details out/);
+  assert.match(q.criteria.true, /Saying less than the source is fine/);
+  assert.match(q.criteria.false, /conditional rule into a universal one/);
+  assert.match(q.criteria.false, /reverses or drops a prohibition/);
+  assert.doesNotMatch(q.criteria.false, /drops or changes a material condition/);
+});
+
+test('the rewrite is told which check refused it: claims for support, the rule\'s width for scope', async t => {
+  const prompts = [];
+  const spy = passes => { const w = writer(passes); return async opts => { prompts.push(opts.prompt); return w(opts); }; };
+  // scope refusal: the first description is judged too wide, the rewrite is fine
+  let store = fixture(t, transport((key, request) => key.startsWith('scope') && /every job/i.test(request.state.summaries[key.replace(/\D/g, '')].search) ? .2 : .95));
+  const wide = note('wide'); store.put(wide);
+  await phraseNotes(store, [wide], { completeFn: spy([['Every job, delivered or not, billing included, may retry at any time.'], [faithful]]) });
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /stated the rule wider than the note/);
+  assert.doesNotMatch(prompts[1], /claimed more than the note establishes/);
+  // support refusal: an invented mechanism
+  prompts.length = 0;
+  store = fixture(t, transport((key, request) => key.startsWith('support') && /backoff/.test(request.state.summaries[key.replace(/\D/g, '')].search) ? .2 : .95));
+  const invented = note('invented'); store.put(invented);
+  await phraseNotes(store, [invented], { completeFn: spy([['Worker retries use exponential backoff with jitter between attempts.'], [faithful]]) });
+  assert.match(prompts[1], /claimed more than the note establishes/);
+  assert.doesNotMatch(prompts[1], /stated the rule wider than the note/);
+});
+
+test('an accepted description ends an earlier refusal', async t => {
+  const store = fixture(t, transport(() => .95));
+  const n = note('again'); store.put(n);
+  const cur = store.get('again');
+  store.put({ ...cur, phraseRefused: { at: '2026-10-07T00:00:00Z', key: phraseKey(cur), support: .9, scope: .4 } });
+  const result = await phraseNotes(store, [store.get('again')], { completeFn: generated([faithful]) });
+  assert.deepEqual(result.done, ['again']);
+  assert.equal(store.get('again').phraseRefused, undefined, 'the refusal is cleared with the accepted description');
+  assert.equal(searchText(store.get('again')), faithful);
+});
