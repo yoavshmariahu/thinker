@@ -1,0 +1,77 @@
+{
+  "posthog-105793": {
+    "F1": {
+      "claim": "saved_untagged_followup_mode returns None for an unset/unrecognized preference. resolve_untagged_followup_mode returns NEVER only when no slack_user_id is supplied; for a supplied author ID it returns the saved mode or ASK. The webhook and workflow callers share this resolver. The App Home picker reads the saved helper so unset remains distinguishable from an explicit preference.",
+      "evidence": "Session event 40, final slack_settings.py diff: +if not slack_user_id: +return UntaggedFollowupMode.NEVER; +return saved_untagged_followup_mode(integration, slack_user_id) or UntaggedFollowupMode.ASK. slack_app_home.py changes its caller to saved_untagged_followup_mode.",
+      "auditReason": "Analyst source audit before note writing: original reference incorrectly claimed webhook and activity use different unset defaults, mixing deleted lines with the final patch. Raw model label is retained unchanged."
+    }
+  },
+  "posthog-106522": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst audit before writer outputs: F3 duplicates the workflow duplication mechanism already included in F1."
+    }
+  },
+  "posthog-106579": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst audit before writer outputs: F3 states a documentation update requirement without evidence of the runtime mechanism consuming it; the task already requested the documentation update."
+    }
+  },
+  "posthog-106917": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst audit before writer outputs: F3 is test/source location inventory and routine mocked test maintenance, excluded by note policy."
+    }
+  },
+  "posthog-107042": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst audit before writer outputs: F3 explicitly restates frontend AGENTS.md Rule 6, excluded by note policy."
+    }
+  },
+  "mitmproxy-8175-pr": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst reference audit before writer outputs: F3 is generic positive/negative hook test advice, not a repository discovery."
+    }
+  },
+  "mitmproxy-8176-pr": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst reference audit before writer outputs: F3 is generic positive/negative test advice and not a separate repository constraint."
+    }
+  },
+  "mitmproxy-8224-pr": {
+    "F3": {
+      "omit": true,
+      "auditReason": "Analyst reference audit before writer outputs: F3 narrates review process/scope decisions from this PR and provides no durable code mechanism."
+    }
+  },
+  "grafana-132843-pr": {
+    "F1": {
+      "omit": true,
+      "auditReason": "Analyst audit: helper and emitted event names differing does not prove an actual mismatch; a namespace wrapper may explain it. Unsupported bug inference."
+    }
+  },
+  "grafana-132938-pr": {
+    "F2": {
+      "omit": true,
+      "auditReason": "Analyst audit: claims a lost safety net without establishing a new failure mode; deriving labels and union together is already F1."
+    }
+  },
+  "posthog-106491-pr": {
+    "F1": {
+      "claim": "chartAlternativesLogic.isEditableSurface permits the chart gallery when !embedded && !inSharedMode && canEditInsight. editMode and dashboard-context flags no longer gate this visibility, so view-mode controls still retain embedded/shared/permission restrictions.",
+      "auditReason": "Restated final selector as durable scoped behavior rather than change narration."
+    },
+    "F2": {
+      "omit": true,
+      "auditReason": "Diff does not establish that editMode participates in the logic key; removing props from callers is not evidence that key identity depended on it."
+    },
+    "F3": {
+      "omit": true,
+      "auditReason": "Narrates the lack of a new test, not reusable repository knowledge."
+    }
+  }
+}

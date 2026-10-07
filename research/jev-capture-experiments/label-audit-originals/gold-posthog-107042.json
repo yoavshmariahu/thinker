@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Closing a side-panel/scene-panel state must account for two independent reducers: `sceneLayoutLogic.scenePanelOpenManual` (manual toggle) and `sidePanelStateLogic.sidePanelOpen`/`selectedTab` (the Info tab route); `sceneLayoutLogic.scenePanelOpen` is a selector combining both (`scenePanelOpenManual || (sidePanelOpen && selectedTab === SidePanelTab.Info)`). A listener that wants to force the panel closed after an action (e.g. duplicating an insight) must call both `sceneLayoutLogic.actions.setScenePanelOpen(false)` and `sidePanelStateLogic.actions.closeSidePanel()`, or it leaves the panel open through the other path.",
+        "evidence": "`frontend/src/layout/scenes/sceneLayoutLogic.tsx`: `scenePanelOpen: [(s) => [s.scenePanelOpenManual, s.sidePanelOpen, s.selectedTab], (...) => scenePanelOpenManual || (sidePanelOpen && selectedTab === SidePanelTab.Info)]`; test added at `insightLogic.test.ts` mounts both logics and asserts `scenePanelOpenManual` and `sidePanelOpen` are both false after `duplicateInsight`."
+      },
+      {
+        "id": "F2",
+        "claim": "`urls.resourceTransfer('Insight', insight.id!)` and `ResourceTransfer`'s back-link builder take the insight's numeric DB `id`, not its `short_id`; insight view/edit URLs (`urls.insightView`, `urls.insightEdit`) are keyed by `short_id`. Any back-link or navigation built from the resource-transfer scene for an Insight resource must resolve the short_id first (e.g. via `insightsApi.getByNumericId` then reading `.short_id`) before constructing `urls.insightView(...)` — passing the numeric id directly opens a nonexistent/wrong insight.",
+        "evidence": "`frontend/src/scenes/resource-transfer/ResourceTransfer.tsx` originally: `case 'Insight': return urls.insightView(resourceId as InsightShortId)` where `resourceId` was actually the numeric `insight.id`; fix added `sourceInsightShortId` loader state in `resourceTransferLogic.ts` (`loadSourceInsightShortId` via `insightsApi.getByNumericId(numericId)`) and only renders `forceBackTo` once resolved."
+      },
+      {
+        "id": "F3",
+        "claim": "Container queries (`@container`, `@min-[Nrem]`, `@max-[Nrem]`), not viewport breakpoints (`md:`/`lg:`), are the required mechanism for making a shared component adapt to a narrow parent (e.g. a modal card) per Rule 6 in `frontend/src/AGENTS.md`; `LemonBanner.tsx` and `ProductEmptyState.tsx` are the reference implementations (`@container`, `@min-[64rem]/product-empty-state:grid-cols-...`).",
+        "evidence": "`frontend/src/AGENTS.md` Rule 6: \"Break on the container, not the viewport... `lib/lemon-ui/LemonBanner/LemonBanner.tsx` is the pattern.\" Grep confirmed usage in `ProductEmptyState.tsx` (`@container/product-empty-state`, `@min-[64rem]/product-empty-state:grid-cols-...`) and `LemonBanner.tsx` (`'LemonBanner @container'`)."
+      }
+    ],
+    "reason": "Three distinct, reusable findings surfaced from non-trivial tracing in this session: (1) the two-reducer trap behind the insight scene panel's open state, which a future fix touching panel-close behavior would need to know to avoid a half-fix; (2) the numeric-id-vs-short_id bug pattern in resource-transfer navigation, a concrete root-cause/fix worth not re-discovering; (3) the container-query convention for narrow-width adaptation, confirmed by grepping the actual reference files. All three required multiple greps/reads across files to establish and are concrete enough to act on directly. Did not include file-inventory or other task-specific details.\""
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 114444,
+    "cache_read_input_tokens": 2249,
+    "output_tokens": 1511,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 114444,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 116695,
+    "outputTokens": 1511,
+    "cacheReadTokens": 2249,
+    "cacheWriteTokens": 114444,
+    "totalTokens": 118206
+  },
+  "ms": 19098,
+  "promptChars": 274035,
+  "attempts": 1
+}

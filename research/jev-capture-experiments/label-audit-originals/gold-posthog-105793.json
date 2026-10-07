@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "`UntaggedFollowupMode.NEVER` is the floor an unset/unrecognized `SlackSettings.untagged_followup_mode` resolves to in the pre-dispatch webhook gate (`products/slack_app/backend/api.py:_untagged_followups_switched_off`), but inside the Temporal workflow's `ask`-mode activity (`posthog/temporal/ai/slack_app/activities/messaging.py:request_untagged_followup_confirmation_activity`) an unset preference must resolve to `ASK` so the person gets prompted instead of being silently dropped. The repo needs two resolver functions in `products/slack_app/backend/services/slack_settings.py`: `saved_untagged_followup_mode` (returns `None` when unset, used to render the App Home picker without a false initial selection) and `resolve_untagged_followup_mode` (never returns `None`, used by the gates with different unset-floors: `NEVER` with no `slack_user_id` at all, `ASK` otherwise).",
+        "evidence": "\"NULL means the user has never picked, so an untagged reply prompts them.\" (products/slack_app/backend/models.py comment, post-change) vs. the old resolver comment \"An absent row... resolve to `NEVER`: the feature is opt-in\" (pre-change, superseded)."
+      },
+      {
+        "id": "F2",
+        "claim": "The thread follow-up preference is keyed per-(Slack workspace, Slack *reply author*), not per-thread-creator. `resolve_untagged_followup_mode(integration, slack_user_id)` must be called with the id of whoever just replied — `event.get(\"user\")` in the webhook gate, `context.get(\"slack_user_id\")` in the revoke-recheck, the activity's own `slack_user_id` param in the Temporal activity — never with `mapping.mentioning_slack_user_id` (the original thread starter). Passing the thread creator's id here was a bug fixed across three call sites in this area.",
+        "evidence": "Diff: `resolve_untagged_followup_mode(integration, mapping.mentioning_slack_user_id)` → `resolve_untagged_followup_mode(integration, event.get(\"user\"))` in `_untagged_followups_switched_off`; same substitution in `_untagged_followups_revoked_since_prompt` and in `request_untagged_followup_confirmation_activity`."
+      },
+      {
+        "id": "F3",
+        "claim": "The untagged-followup Slack prompt (`products/slack_app/backend/api.py:_post_untagged_followup_prompt`, buttons handled by `_handle_untagged_followup_run`/`_handle_untagged_followup_dismiss`) and the App Home picker (`_untagged_followups_section_blocks` in `products/slack_app/backend/services/slack_app_home.py`, action `ACTION_SET_UNTAGGED_FOLLOWUP_MODE`) both write to the same `SlackSettings.untagged_followup_mode` column keyed on `(slack_workspace_id, slack_user_id)`. A change adding a way to save a default from the prompt (new action ids `UNTAGGED_FOLLOWUP_ACTION_RUN_ALWAYS`/`..._DISMISS_ALWAYS`, `save_default` kwarg) must write the same `UntaggedFollowupMode` enum value the Home tab picker reads, or the two surfaces disagree about the stored preference.",
+        "evidence": "`SlackSettings.objects.update_or_create(slack_workspace_id=..., slack_user_id=..., defaults={\"untagged_followup_mode\": UntaggedFollowupMode.AUTO/NEVER})` appears both in `_apply_untagged_followup_mode_pick` (Home tab) and in the new `_handle_untagged_followup_run`/`_handle_untagged_followup_dismiss` save_default branches."
+      }
+    ],
+    "reason": "The trace shows three distinct, hard-won, reusable facts about the Slack untagged-followup mechanism in products/slack_app: (1) the unset-preference floor differs by call site (NEVER at the webhook gate vs ASK inside the workflow activity), requiring two resolver functions — a non-obvious invariant a future change could easily break by using the wrong resolver; (2) a real bug (thread-creator id used instead of reply-author id) was found and fixed across three call sites, which is exactly the kind of trap this codebase can reintroduce; (3) the prompt and the App Home picker are two UI surfaces over one shared settings row, and the session added a new way to write it that must stay consistent with the enum/table. All three are backed by direct file reads and diffs in the trace, are scoped to a specific, locatable mechanism (file:symbol), and are the kind of invariant/trap that costs real search time to rediscover. Limited to three since the session is one coherent feature."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 1991,
+    "cache_read_input_tokens": 262480,
+    "output_tokens": 3613,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 1991,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 264475,
+    "outputTokens": 3613,
+    "cacheReadTokens": 262480,
+    "cacheWriteTokens": 1991,
+    "totalTokens": 268088
+  },
+  "ms": 39949,
+  "promptChars": 303866,
+  "attempts": 1
+}

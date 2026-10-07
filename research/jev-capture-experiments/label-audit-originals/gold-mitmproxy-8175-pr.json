@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "The Dumper addon must implement a handler per hook name to react to each flow-lifecycle event; missing a hook (here http_connect_error) silently drops that event type from terminal output rather than erroring.",
+        "evidence": "Added `def http_connect_error(self, f): if self.match(f): self.echo_flow(f)` alongside the existing `error` handler — the addon had handlers for `error`/`websocket_message` etc. but lacked one for CONNECT failures, causing them to never be displayed."
+      },
+      {
+        "id": "F2",
+        "claim": "New hook handlers in Dumper follow a uniform match-then-echo_flow pattern, so adding support for a new flow event type is a small, mechanical addition mirroring sibling handlers.",
+        "evidence": "`http_connect_error` is implemented identically in structure to `error`: `if self.match(f): self.echo_flow(f)`."
+      },
+      {
+        "id": "F3",
+        "claim": "Dumper hook tests verify both that output is produced at a sufficient flow_detail level and suppressed at a lower one, which is the expected test shape for any new Dumper hook handler.",
+        "evidence": "test_http_connect_error configures flow_detail=1 and asserts output contains '502', then reconfigures flow_detail=0 and asserts `sio.getvalue()` is empty."
+      }
+    ],
+    "reason": "The PR demonstrates a concrete, reusable mechanism in mitmproxy's Dumper addon: hook handlers are per-event-name methods that must be explicitly added for each flow lifecycle event (otherwise events are silently unlogged), they follow a consistent match/echo_flow pattern, and their tests follow a consistent two-level flow_detail assertion pattern. These are durable, codebase-specific patterns useful for future similar fixes (e.g., other missing hook handlers in dumper.py)."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6453,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 712,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6453,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 6455,
+    "outputTokens": 712,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 6453,
+    "totalTokens": 7167
+  },
+  "ms": 9017,
+  "promptChars": 2431,
+  "attempts": 1
+}

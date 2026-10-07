@@ -1,0 +1,59 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Broadcast launch (products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts) activates a draft and creates a schedule via POST hog_flows/{id}/schedules, but relaunching a broadcast whose audience was edited leaves a pre-existing PAUSED schedule in place (schedules are never listed/deleted before creating a new one), so the broadcast shows 'Broadcast scheduled' / goes active but never actually sends.",
+        "evidence": "broadcastWizardLogic.ts launchBroadcast listener: `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' }) ... await hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any); lemonToast.success('Broadcast scheduled')` with no prior listing/deletion of existing schedules; backend `_pause_schedules_on_audience_change` in products/workflows/backend/api/hog_flow.py sets schedules to HogFlowSchedule.Status.PAUSED on an audience-widening edit, and HogFlowSchedule.status has no API-writable path (HogFlowScheduleSerializer `read_only_fields = [\"id\", \"status\", \"next_run_at\", ...]`)."
+      },
+      {
+        "id": "F2",
+        "claim": "The Broadcasts UI (BroadcastScene.tsx/BroadcastSummary.tsx) renders a read-only summary for any non-draft broadcast with no way to move it back to draft; backend PATCH to status='draft' on an active HogFlow is already a supported transition (used as an error-recovery fallback in launchBroadcast's catch block).",
+        "evidence": "BroadcastScene.tsx: `if (broadcast.status !== 'draft') { return <BroadcastSummary /> }` (summary had no mutating actions before this change); broadcastWizardLogic.ts catch block already does `await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'draft' })` to recover a stranded active broadcast, confirming status='draft' PATCH is a valid, already-used transition."
+      },
+      {
+        "id": "F3",
+        "claim": "PostHog's workflows schedule sub-resource API exposes GET/POST at hog_flows/{id}/schedules/ and PATCH/DELETE at hog_flows/{id}/schedules/{schedule_id}/, with generated frontend clients hogFlowsSchedulesList and hogFlowsSchedulesDestroy available for listing and deleting a HogFlow's schedules before creating a fresh one.",
+        "evidence": "products/workflows/backend/api/hog_flow.py: `@action(detail=True, methods=[\"GET\", \"POST\"], ...) def schedules(...)` and `@action(detail=True, methods=[\"PATCH\", \"DELETE\"], url_path=\"schedules/(?P<schedule_id>[^/.]+)\") def schedule_detail(...)`; products/workflows/frontend/generated/api.ts exports `hogFlowsSchedulesList`, `hogFlowsSchedulesCreate`, `hogFlowsSchedulesPartialUpdate`, `hogFlowsSchedulesDestroy`."
+      }
+    ],
+    "reason": "These three facts capture reusable, source-grounded knowledge about PostHog's Broadcasts/HogFlow schedule subsystem (the bug mechanism, the existing UI/API transition precedent, and the exact API surface) that would help any future task touching broadcast launch/relaunch, schedule lifecycle, or the Broadcasts UI in this repo. They are scoped to this specific codebase's behavior, not generic advice, and each is backed by exact code evidence from the session."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 172176,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1330,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 172176,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 172178,
+    "outputTokens": 1330,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 172176,
+    "totalTokens": 173508
+  },
+  "ms": 16016,
+  "promptChars": 400855
+}

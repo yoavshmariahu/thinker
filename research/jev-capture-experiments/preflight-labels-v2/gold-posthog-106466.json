@@ -1,0 +1,54 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "In PostHog's workflows product, HogFlow.schedules (HogFlowSchedule rows) can be left PAUSED when a live workflow's audience/trigger is edited (see `_pause_schedules_on_audience_change` in products/workflows/backend/api/hog_flow.py), and the schedule API has no way to set status directly (HogFlowScheduleSerializer.update only auto-resets to ACTIVE when rrule/starts_at/timezone change, and only if not already PAUSED). Any UI or logic that (re)activates a workflow and wants its schedule to actually fire must delete existing schedules via hogFlowsSchedulesList + hogFlowsSchedulesDestroy and create a fresh one with hogFlowsSchedulesCreate, rather than relying on PATCH to revive a paused schedule.",
+        "evidence": "\"if instance.status != HogFlowSchedule.Status.PAUSED: instance.status = HogFlowSchedule.Status.ACTIVE\" (hog_flow.py HogFlowScheduleSerializer.update); test_live_audience_change_pauses_schedules confirms audience edits pause schedules with next_run_at=None."
+      },
+      {
+        "id": "F2",
+        "claim": "In the Broadcasts wizard (products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts), a HogFlow of origin_product 'broadcasts' becomes read-only in the UI (BroadcastScene renders BroadcastSummary instead of BroadcastWizard) as soon as status !== 'draft'. The only way back to the editable wizard is a status PATCH to 'draft' via hogFlowsPartialUpdate(projectId, id, {status: 'draft'}) — there is no dedicated 'unschedule' endpoint; this is the same status field used for activation.",
+        "evidence": "BroadcastScene.tsx: \"if (broadcast.status !== 'draft') { return <BroadcastSummary /> }\"; broadcastWizardLogic's launchBroadcast catch block already used `hogFlowsPartialUpdate(projectId, broadcastId, { status: 'draft' })` as its rollback-on-failure path."
+      }
+    ],
+    "reason": "Two durable, reusable facts about the workflows/Broadcasts schedule mechanics were established through non-trivial tracing (API serializer, pause logic, status gating in frontend scene). F1 documents a trap (schedule PAUSE/resume asymmetry) that any future schedule-related change in this area must respect. F2 documents the status-field mechanism controlling Broadcasts editability that a future agent would otherwise have to re-derive. No file-inventory or task-news notes included; the session's own edits are not restated as facts, only the underlying code behavior they depended on."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 171509,
+    "cache_read_input_tokens": 2249,
+    "output_tokens": 1002,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 171509,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 173760,
+    "outputTokens": 1002,
+    "cacheReadTokens": 2249,
+    "cacheWriteTokens": 171509,
+    "totalTokens": 174762
+  },
+  "ms": 15010,
+  "promptChars": 400855
+}

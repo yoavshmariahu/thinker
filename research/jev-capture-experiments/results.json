@@ -1,0 +1,2829 @@
+{
+  "models": {
+    "selector": "jev-1.13.0",
+    "writer": "claude-sonnet-5",
+    "judge": "claude-sonnet-5",
+    "effort": "medium",
+    "thinkingTokens": 0,
+    "provider": "claude CLI, no tools, empty cwd, no fallback",
+    "structuredRetries": 3,
+    "outerRetries": "at most 2, only structured tool_use failures; preserve failed usage",
+    "sourceSessions": {
+      "model": "gpt-6-sol",
+      "effort": "not recorded in archived per-run metadata",
+      "intervention": "none: exact frozen bytes reused in every arm; no exploration or coding re-run"
+    },
+    "writerConcurrency": 1
+  },
+  "sessionSummary": {
+    "recorded": {
+      "sessions": 6,
+      "facts": 13,
+      "arms": {
+        "full": {
+          "notes": 10,
+          "covered": 8,
+          "unsupported": 4,
+          "reusable": 6,
+          "writerTokens": 185602,
+          "selectorTokens": 0,
+          "ms": 129072,
+          "traceChars": 204554
+        },
+        "local": {
+          "notes": 9,
+          "covered": 10,
+          "unsupported": 2,
+          "reusable": 6,
+          "writerTokens": 148079,
+          "selectorTokens": 0,
+          "ms": 132300,
+          "traceChars": 69092
+        },
+        "jev": {
+          "notes": 7,
+          "covered": 0,
+          "unsupported": 2,
+          "reusable": 2,
+          "writerTokens": 89740,
+          "selectorTokens": 397648,
+          "ms": 97403,
+          "traceChars": 70128
+        }
+      },
+      "gates": {
+        "local": {
+          "selected": 6,
+          "valuableMissed": [],
+          "factsRetained": 8,
+          "writerTokens": 185602,
+          "selectorTokens": 0,
+          "probabilityRange": [
+            {
+              "id": "posthog-105793",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106466",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106522",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106579",
+              "p": [
+                0.94,
+                0.94
+              ]
+            },
+            {
+              "id": "posthog-106917",
+              "p": [
+                0.96,
+                0.96
+              ]
+            },
+            {
+              "id": "posthog-107042",
+              "p": [
+                0.95,
+                0.95
+              ]
+            }
+          ]
+        },
+        "0.2": {
+          "selected": 6,
+          "valuableMissed": [],
+          "factsRetained": 8,
+          "writerTokens": 185602,
+          "selectorTokens": 996214,
+          "probabilityRange": [
+            {
+              "id": "posthog-105793",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106466",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106522",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106579",
+              "p": [
+                0.94,
+                0.94
+              ]
+            },
+            {
+              "id": "posthog-106917",
+              "p": [
+                0.96,
+                0.96
+              ]
+            },
+            {
+              "id": "posthog-107042",
+              "p": [
+                0.95,
+                0.95
+              ]
+            }
+          ]
+        },
+        "0.5": {
+          "selected": 6,
+          "valuableMissed": [],
+          "factsRetained": 8,
+          "writerTokens": 185602,
+          "selectorTokens": 996214,
+          "probabilityRange": [
+            {
+              "id": "posthog-105793",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106466",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106522",
+              "p": [
+                0.95,
+                0.95
+              ]
+            },
+            {
+              "id": "posthog-106579",
+              "p": [
+                0.94,
+                0.94
+              ]
+            },
+            {
+              "id": "posthog-106917",
+              "p": [
+                0.96,
+                0.96
+              ]
+            },
+            {
+              "id": "posthog-107042",
+              "p": [
+                0.95,
+                0.95
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "constructed": {
+      "sessions": 6,
+      "facts": 3,
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 94720,
+          "selectorTokens": 0,
+          "ms": 23540,
+          "traceChars": 142454
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 54004,
+          "selectorTokens": 0,
+          "ms": 20860,
+          "traceChars": 31565
+        },
+        "jev": {
+          "notes": 1,
+          "covered": 1,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 58821,
+          "selectorTokens": 106660,
+          "ms": 30293,
+          "traceChars": 20934
+        }
+      },
+      "gates": {
+        "local": {
+          "selected": 2,
+          "valuableMissed": [
+            "short-discovery",
+            "buried-discovery",
+            "late-correction"
+          ],
+          "factsRetained": 0,
+          "writerTokens": 14204,
+          "selectorTokens": 0,
+          "probabilityRange": [
+            {
+              "id": "short-discovery",
+              "p": [
+                0.8,
+                0.8
+              ]
+            },
+            {
+              "id": "buried-discovery",
+              "p": [
+                0.6,
+                0.59
+              ]
+            },
+            {
+              "id": "late-correction",
+              "p": [
+                0.8,
+                0.79
+              ]
+            },
+            {
+              "id": "routine-work",
+              "p": [
+                0.08,
+                0.08
+              ]
+            },
+            {
+              "id": "machine-failure",
+              "p": [
+                0.07,
+                0.07
+              ]
+            },
+            {
+              "id": "unsupported-guess",
+              "p": [
+                0.05,
+                0.04
+              ]
+            }
+          ]
+        },
+        "0.2": {
+          "selected": 3,
+          "valuableMissed": [],
+          "factsRetained": 0,
+          "writerTokens": 69942,
+          "selectorTokens": 108152,
+          "probabilityRange": [
+            {
+              "id": "short-discovery",
+              "p": [
+                0.8,
+                0.8
+              ]
+            },
+            {
+              "id": "buried-discovery",
+              "p": [
+                0.6,
+                0.59
+              ]
+            },
+            {
+              "id": "late-correction",
+              "p": [
+                0.8,
+                0.79
+              ]
+            },
+            {
+              "id": "routine-work",
+              "p": [
+                0.08,
+                0.08
+              ]
+            },
+            {
+              "id": "machine-failure",
+              "p": [
+                0.07,
+                0.07
+              ]
+            },
+            {
+              "id": "unsupported-guess",
+              "p": [
+                0.05,
+                0.04
+              ]
+            }
+          ]
+        },
+        "0.5": {
+          "selected": 3,
+          "valuableMissed": [],
+          "factsRetained": 0,
+          "writerTokens": 69942,
+          "selectorTokens": 108152,
+          "probabilityRange": [
+            {
+              "id": "short-discovery",
+              "p": [
+                0.8,
+                0.8
+              ]
+            },
+            {
+              "id": "buried-discovery",
+              "p": [
+                0.6,
+                0.59
+              ]
+            },
+            {
+              "id": "late-correction",
+              "p": [
+                0.8,
+                0.79
+              ]
+            },
+            {
+              "id": "routine-work",
+              "p": [
+                0.08,
+                0.08
+              ]
+            },
+            {
+              "id": "machine-failure",
+              "p": [
+                0.07,
+                0.07
+              ]
+            },
+            {
+              "id": "unsupported-guess",
+              "p": [
+                0.05,
+                0.04
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sessionRows": [
+    {
+      "id": "posthog-105793",
+      "cohort": "recorded",
+      "facts": 3,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.62,
+            0.95,
+            0.89,
+            0.79,
+            0.79,
+            0.71,
+            0.8,
+            0.79,
+            0.77,
+            0.86,
+            0.82,
+            0.88,
+            0.89,
+            0.89,
+            0.85,
+            0.87,
+            0.89,
+            0.87,
+            0.86,
+            0.81,
+            0.88,
+            0.87,
+            0.81,
+            0.91,
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 155470
+          },
+          "ms": 3049,
+          "callCount": 25,
+          "unicodeRepairs": 4
+        },
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.63,
+            0.95,
+            0.89,
+            0.79,
+            0.79,
+            0.7,
+            0.8,
+            0.8,
+            0.77,
+            0.85,
+            0.82,
+            0.87,
+            0.89,
+            0.89,
+            0.86,
+            0.87,
+            0.9,
+            0.87,
+            0.87,
+            0.82,
+            0.89,
+            0.86,
+            0.82,
+            0.91,
+            0.79
+          ],
+          "tokens": {
+            "totalTokens": 155470
+          },
+          "ms": 2823,
+          "callCount": 25,
+          "unicodeRepairs": 4
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.79,
+          "tokens": {
+            "totalTokens": 3526
+          },
+          "ms": 181,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.78,
+          "tokens": {
+            "totalTokens": 3526
+          },
+          "ms": 80,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 2,
+          "covered": 1,
+          "unsupported": 2,
+          "reusable": 0,
+          "writerTokens": 21945,
+          "selectorTokens": 0,
+          "ms": 20442,
+          "traceChars": 32143
+        },
+        "local": {
+          "notes": 2,
+          "covered": 3,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 27552,
+          "selectorTokens": 0,
+          "ms": 32039,
+          "traceChars": 11505
+        },
+        "jev": {
+          "notes": 2,
+          "covered": 0,
+          "unsupported": 1,
+          "reusable": 0,
+          "writerTokens": 13000,
+          "selectorTokens": 67193,
+          "ms": 18805,
+          "traceChars": 11499
+        }
+      }
+    },
+    {
+      "id": "posthog-106466",
+      "cohort": "recorded",
+      "facts": 2,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.27,
+            0.66,
+            0.23,
+            0.4,
+            0.33,
+            0.39,
+            0.69,
+            0.92,
+            0.94,
+            0.92,
+            0.91,
+            0.92,
+            0.95,
+            0.93,
+            0.86,
+            0.87,
+            0.87,
+            0.84,
+            0.85,
+            0.79,
+            0.91,
+            0.9,
+            0.84,
+            0.9,
+            0.86,
+            0.85,
+            0.7,
+            0.89,
+            0.89,
+            0.81,
+            0.84,
+            0.74
+          ],
+          "tokens": {
+            "totalTokens": 205993
+          },
+          "ms": 3781,
+          "callCount": 32,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.3,
+            0.69,
+            0.25,
+            0.42,
+            0.33,
+            0.38,
+            0.73,
+            0.91,
+            0.94,
+            0.92,
+            0.91,
+            0.92,
+            0.95,
+            0.93,
+            0.86,
+            0.87,
+            0.87,
+            0.83,
+            0.84,
+            0.78,
+            0.91,
+            0.9,
+            0.84,
+            0.9,
+            0.88,
+            0.85,
+            0.71,
+            0.89,
+            0.9,
+            0.81,
+            0.84,
+            0.74
+          ],
+          "tokens": {
+            "totalTokens": 205993
+          },
+          "ms": 3746,
+          "callCount": 32,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.85,
+          "tokens": {
+            "totalTokens": 3882
+          },
+          "ms": 84,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.85,
+          "tokens": {
+            "totalTokens": 3882
+          },
+          "ms": 110,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 2,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 2,
+          "writerTokens": 21276,
+          "selectorTokens": 0,
+          "ms": 18750,
+          "traceChars": 28380
+        },
+        "local": {
+          "notes": 1,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 12757,
+          "selectorTokens": 0,
+          "ms": 11335,
+          "traceChars": 11561
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 11866,
+          "selectorTokens": 69849,
+          "ms": 6587,
+          "traceChars": 11588
+        }
+      }
+    },
+    {
+      "id": "posthog-106522",
+      "cohort": "recorded",
+      "facts": 2,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.52,
+            0.87,
+            0.77,
+            0.66,
+            0.74,
+            0.95,
+            0.93,
+            0.9,
+            0.75,
+            0.82,
+            0.78,
+            0.89,
+            0.87,
+            0.89,
+            0.85,
+            0.88,
+            0.85,
+            0.87,
+            0.84,
+            0.81,
+            0.88,
+            0.9,
+            0.9,
+            0.86,
+            0.84,
+            0.75,
+            0.81,
+            0.66
+          ],
+          "tokens": {
+            "totalTokens": 166678
+          },
+          "ms": 3266,
+          "callCount": 28,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.49,
+            0.87,
+            0.78,
+            0.67,
+            0.73,
+            0.95,
+            0.93,
+            0.9,
+            0.75,
+            0.84,
+            0.78,
+            0.89,
+            0.87,
+            0.89,
+            0.86,
+            0.87,
+            0.87,
+            0.86,
+            0.84,
+            0.8,
+            0.89,
+            0.9,
+            0.9,
+            0.85,
+            0.83,
+            0.75,
+            0.82,
+            0.65
+          ],
+          "tokens": {
+            "totalTokens": 166678
+          },
+          "ms": 3321,
+          "callCount": 28,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.85,
+          "tokens": {
+            "totalTokens": 3542
+          },
+          "ms": 112,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.85,
+          "tokens": {
+            "totalTokens": 3542
+          },
+          "ms": 85,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 1,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 26417,
+          "selectorTokens": 0,
+          "ms": 13625,
+          "traceChars": 43955
+        },
+        "local": {
+          "notes": 1,
+          "covered": 1,
+          "unsupported": 1,
+          "reusable": 0,
+          "writerTokens": 26447,
+          "selectorTokens": 0,
+          "ms": 20634,
+          "traceChars": 11578
+        },
+        "jev": {
+          "notes": 2,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 2,
+          "writerTokens": 27478,
+          "selectorTokens": 64370,
+          "ms": 33463,
+          "traceChars": 11949
+        }
+      }
+    },
+    {
+      "id": "posthog-106579",
+      "cohort": "recorded",
+      "facts": 2,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.65,
+            0.94,
+            0.91,
+            0.78,
+            0.82,
+            0.9,
+            0.74,
+            0.83,
+            0.92,
+            0.9,
+            0.88,
+            0.83,
+            0.76,
+            0.77,
+            0.89,
+            0.82,
+            0.87,
+            0.88,
+            0.85,
+            0.35,
+            0.28,
+            0.3,
+            0.52,
+            0.37,
+            0.4,
+            0.48,
+            0.57
+          ],
+          "tokens": {
+            "totalTokens": 165779
+          },
+          "ms": 3254,
+          "callCount": 27,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.65,
+            0.94,
+            0.91,
+            0.78,
+            0.81,
+            0.91,
+            0.73,
+            0.82,
+            0.91,
+            0.9,
+            0.88,
+            0.84,
+            0.75,
+            0.78,
+            0.89,
+            0.82,
+            0.87,
+            0.86,
+            0.85,
+            0.35,
+            0.26,
+            0.3,
+            0.47,
+            0.38,
+            0.39,
+            0.42,
+            0.55
+          ],
+          "tokens": {
+            "totalTokens": 165779
+          },
+          "ms": 3225,
+          "callCount": 27,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.78,
+          "tokens": {
+            "totalTokens": 3562
+          },
+          "ms": 89,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.78,
+          "tokens": {
+            "totalTokens": 3562
+          },
+          "ms": 91,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 2,
+          "covered": 0,
+          "unsupported": 2,
+          "reusable": 0,
+          "writerTokens": 50113,
+          "selectorTokens": 0,
+          "ms": 38689,
+          "traceChars": 36034
+        },
+        "local": {
+          "notes": 1,
+          "covered": 0,
+          "unsupported": 1,
+          "reusable": 0,
+          "writerTokens": 25589,
+          "selectorTokens": 0,
+          "ms": 16438,
+          "traceChars": 11506
+        },
+        "jev": {
+          "notes": 1,
+          "covered": 0,
+          "unsupported": 1,
+          "reusable": 0,
+          "writerTokens": 12653,
+          "selectorTokens": 64416,
+          "ms": 12438,
+          "traceChars": 11886
+        }
+      }
+    },
+    {
+      "id": "posthog-106917",
+      "cohort": "recorded",
+      "facts": 2,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.96,
+          "probabilities": [
+            0.68,
+            0.93,
+            0.91,
+            0.93,
+            0.94,
+            0.92,
+            0.88,
+            0.96,
+            0.8,
+            0.84,
+            0.85,
+            0.88,
+            0.89,
+            0.88,
+            0.84,
+            0.94,
+            0.93,
+            0.9,
+            0.93,
+            0.91,
+            0.93,
+            0.88,
+            0.9,
+            0.89,
+            0.89,
+            0.85
+          ],
+          "tokens": {
+            "totalTokens": 160003
+          },
+          "ms": 2871,
+          "callCount": 26,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.96,
+          "probabilities": [
+            0.74,
+            0.92,
+            0.92,
+            0.94,
+            0.94,
+            0.93,
+            0.88,
+            0.96,
+            0.81,
+            0.86,
+            0.85,
+            0.88,
+            0.89,
+            0.87,
+            0.83,
+            0.94,
+            0.94,
+            0.91,
+            0.92,
+            0.92,
+            0.93,
+            0.88,
+            0.9,
+            0.88,
+            0.9,
+            0.85
+          ],
+          "tokens": {
+            "totalTokens": 160003
+          },
+          "ms": 2955,
+          "callCount": 26,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.9,
+          "tokens": {
+            "totalTokens": 3382
+          },
+          "ms": 83,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.89,
+          "tokens": {
+            "totalTokens": 3382
+          },
+          "ms": 79,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 1,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 22244,
+          "selectorTokens": 0,
+          "ms": 11203,
+          "traceChars": 35276
+        },
+        "local": {
+          "notes": 2,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 2,
+          "writerTokens": 13248,
+          "selectorTokens": 0,
+          "ms": 19125,
+          "traceChars": 11417
+        },
+        "jev": {
+          "notes": 1,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 12224,
+          "selectorTokens": 62375,
+          "ms": 14121,
+          "traceChars": 11462
+        }
+      }
+    },
+    {
+      "id": "posthog-107042",
+      "cohort": "recorded",
+      "facts": 2,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.9,
+            0.93,
+            0.92,
+            0.95,
+            0.79,
+            0.44,
+            0.64,
+            0.95,
+            0.9,
+            0.87,
+            0.89,
+            0.67,
+            0.58,
+            0.46,
+            0.61,
+            0.78,
+            0.72,
+            0.71,
+            0.75,
+            0.77,
+            0.65,
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 142291
+          },
+          "ms": 2597,
+          "callCount": 22,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.9,
+            0.93,
+            0.92,
+            0.95,
+            0.79,
+            0.4,
+            0.64,
+            0.95,
+            0.9,
+            0.88,
+            0.9,
+            0.66,
+            0.6,
+            0.47,
+            0.6,
+            0.79,
+            0.74,
+            0.71,
+            0.75,
+            0.77,
+            0.66,
+            0.81
+          ],
+          "tokens": {
+            "totalTokens": 142291
+          },
+          "ms": 2527,
+          "callCount": 22,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.82,
+          "tokens": {
+            "totalTokens": 3791
+          },
+          "ms": 137,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.83,
+          "tokens": {
+            "totalTokens": 3791
+          },
+          "ms": 81,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 2,
+          "covered": 1,
+          "unsupported": 0,
+          "reusable": 2,
+          "writerTokens": 43607,
+          "selectorTokens": 0,
+          "ms": 26363,
+          "traceChars": 28766
+        },
+        "local": {
+          "notes": 2,
+          "covered": 2,
+          "unsupported": 0,
+          "reusable": 2,
+          "writerTokens": 42486,
+          "selectorTokens": 0,
+          "ms": 32729,
+          "traceChars": 11525
+        },
+        "jev": {
+          "notes": 1,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 12519,
+          "selectorTokens": 69445,
+          "ms": 11989,
+          "traceChars": 11744
+        }
+      }
+    },
+    {
+      "id": "short-discovery",
+      "cohort": "constructed",
+      "facts": 1,
+      "localEligible": false,
+      "gates": [
+        {
+          "probability": 0.8,
+          "probabilities": [
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 691
+          },
+          "ms": 100,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.8,
+          "probabilities": [
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 691
+          },
+          "ms": 89,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.81,
+          "tokens": {
+            "totalTokens": 542
+          },
+          "ms": 102,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.81,
+          "tokens": {
+            "totalTokens": 542
+          },
+          "ms": 80,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7388,
+          "selectorTokens": 0,
+          "ms": 4569,
+          "traceChars": 422
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7273,
+          "selectorTokens": 0,
+          "ms": 3240,
+          "traceChars": 525
+        },
+        "jev": {
+          "notes": 1,
+          "covered": 1,
+          "unsupported": 0,
+          "reusable": 1,
+          "writerTokens": 16203,
+          "selectorTokens": 1010,
+          "ms": 13131,
+          "traceChars": 888
+        }
+      }
+    },
+    {
+      "id": "buried-discovery",
+      "cohort": "constructed",
+      "facts": 1,
+      "localEligible": false,
+      "gates": [
+        {
+          "probability": 0.6,
+          "probabilities": [
+            0.06,
+            0.07,
+            0.07,
+            0.6,
+            0.07,
+            0.07,
+            0.07,
+            0.07
+          ],
+          "tokens": {
+            "totalTokens": 49275
+          },
+          "ms": 951,
+          "callCount": 8,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.59,
+          "probabilities": [
+            0.06,
+            0.07,
+            0.07,
+            0.59,
+            0.07,
+            0.07,
+            0.07,
+            0.07
+          ],
+          "tokens": {
+            "totalTokens": 49275
+          },
+          "ms": 865,
+          "callCount": 8,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.05,
+          "tokens": {
+            "totalTokens": 3222
+          },
+          "ms": 86,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.06,
+          "tokens": {
+            "totalTokens": 3222
+          },
+          "ms": 84,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 31302,
+          "selectorTokens": 0,
+          "ms": 5219,
+          "traceChars": 66065
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 11374,
+          "selectorTokens": 0,
+          "ms": 4720,
+          "traceChars": 11562
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 11254,
+          "selectorTokens": 46594,
+          "ms": 3942,
+          "traceChars": 11562
+        }
+      }
+    },
+    {
+      "id": "late-correction",
+      "cohort": "constructed",
+      "facts": 1,
+      "localEligible": false,
+      "gates": [
+        {
+          "probability": 0.8,
+          "probabilities": [
+            0.29,
+            0.07,
+            0.07,
+            0.07,
+            0.06,
+            0.07,
+            0.07,
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 49434
+          },
+          "ms": 916,
+          "callCount": 8,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.79,
+          "probabilities": [
+            0.25,
+            0.07,
+            0.07,
+            0.06,
+            0.07,
+            0.07,
+            0.07,
+            0.79
+          ],
+          "tokens": {
+            "totalTokens": 49434
+          },
+          "ms": 912,
+          "callCount": 8,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.83,
+          "tokens": {
+            "totalTokens": 3237
+          },
+          "ms": 84,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.84,
+          "tokens": {
+            "totalTokens": 3237
+          },
+          "ms": 142,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 31252,
+          "selectorTokens": 0,
+          "ms": 4761,
+          "traceChars": 66089
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 11306,
+          "selectorTokens": 0,
+          "ms": 3979,
+          "traceChars": 11579
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7325,
+          "selectorTokens": 46694,
+          "ms": 4042,
+          "traceChars": 585
+        }
+      }
+    },
+    {
+      "id": "routine-work",
+      "cohort": "constructed",
+      "facts": 0,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.08,
+          "probabilities": [
+            0.08
+          ],
+          "tokens": {
+            "totalTokens": 639
+          },
+          "ms": 133,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.08,
+          "probabilities": [
+            0.08
+          ],
+          "tokens": {
+            "totalTokens": 639
+          },
+          "ms": 85,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.07,
+          "tokens": {
+            "totalTokens": 496
+          },
+          "ms": 77,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.07,
+          "tokens": {
+            "totalTokens": 496
+          },
+          "ms": 79,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7062,
+          "selectorTokens": 0,
+          "ms": 1626,
+          "traceChars": 153
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7109,
+          "selectorTokens": 0,
+          "ms": 2383,
+          "traceChars": 256
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7165,
+          "selectorTokens": 958,
+          "ms": 2893,
+          "traceChars": 256
+        }
+      }
+    },
+    {
+      "id": "machine-failure",
+      "cohort": "constructed",
+      "facts": 0,
+      "localEligible": true,
+      "gates": [
+        {
+          "probability": 0.07,
+          "probabilities": [
+            0.07
+          ],
+          "tokens": {
+            "totalTokens": 645
+          },
+          "ms": 85,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.07,
+          "probabilities": [
+            0.07
+          ],
+          "tokens": {
+            "totalTokens": 645
+          },
+          "ms": 84,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.06,
+          "tokens": {
+            "totalTokens": 499
+          },
+          "ms": 120,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.06,
+          "tokens": {
+            "totalTokens": 499
+          },
+          "ms": 110,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7142,
+          "selectorTokens": 0,
+          "ms": 3829,
+          "traceChars": 181
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7145,
+          "selectorTokens": 0,
+          "ms": 2652,
+          "traceChars": 284
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 7108,
+          "selectorTokens": 964,
+          "ms": 2349,
+          "traceChars": 284
+        }
+      }
+    },
+    {
+      "id": "unsupported-guess",
+      "cohort": "constructed",
+      "facts": 0,
+      "localEligible": false,
+      "gates": [
+        {
+          "probability": 0.05,
+          "probabilities": [
+            0.04,
+            0.05
+          ],
+          "tokens": {
+            "totalTokens": 7468
+          },
+          "ms": 247,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.04,
+          "probabilities": [
+            0.04,
+            0.04
+          ],
+          "tokens": {
+            "totalTokens": 7468
+          },
+          "ms": 269,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ],
+      "compactGates": [
+        {
+          "probability": 0.04,
+          "tokens": {
+            "totalTokens": 2190
+          },
+          "ms": 115,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.04,
+          "tokens": {
+            "totalTokens": 2190
+          },
+          "ms": 83,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ],
+      "arms": {
+        "full": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 10574,
+          "selectorTokens": 0,
+          "ms": 3536,
+          "traceChars": 9544
+        },
+        "local": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 9797,
+          "selectorTokens": 0,
+          "ms": 3886,
+          "traceChars": 7359
+        },
+        "jev": {
+          "notes": 0,
+          "covered": 0,
+          "unsupported": 0,
+          "reusable": 0,
+          "writerTokens": 9766,
+          "selectorTokens": 10440,
+          "ms": 3936,
+          "traceChars": 7359
+        }
+      }
+    }
+  ],
+  "gateComparisons": {
+    "recorded": [
+      {
+        "method": "all",
+        "threshold": null,
+        "repeat": null,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 0,
+        "totalTokens": 185602,
+        "ms": 129072
+      },
+      {
+        "method": "local",
+        "threshold": null,
+        "repeat": null,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 0,
+        "totalTokens": 185602,
+        "ms": 129072
+      },
+      {
+        "method": "gates",
+        "threshold": 0.2,
+        "repeat": 0,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 996214,
+        "totalTokens": 1181816,
+        "ms": 147890
+      },
+      {
+        "method": "gates",
+        "threshold": 0.2,
+        "repeat": 1,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 996214,
+        "totalTokens": 1181816,
+        "ms": 147669
+      },
+      {
+        "method": "gates",
+        "threshold": 0.5,
+        "repeat": 0,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 996214,
+        "totalTokens": 1181816,
+        "ms": 147890
+      },
+      {
+        "method": "gates",
+        "threshold": 0.5,
+        "repeat": 1,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 996214,
+        "totalTokens": 1181816,
+        "ms": 147669
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.2,
+        "repeat": 0,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 21685,
+        "totalTokens": 207287,
+        "ms": 129758
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.2,
+        "repeat": 1,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 21685,
+        "totalTokens": 207287,
+        "ms": 129598
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.5,
+        "repeat": 0,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 21685,
+        "totalTokens": 207287,
+        "ms": 129758
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.5,
+        "repeat": 1,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 8,
+        "referenceFactsRetained": 13,
+        "writerTokens": 185602,
+        "selectorTokens": 21685,
+        "totalTokens": 207287,
+        "ms": 129598
+      }
+    ],
+    "constructed": [
+      {
+        "method": "all",
+        "threshold": null,
+        "repeat": null,
+        "selected": 6,
+        "valuableMissed": [],
+        "factsRetained": 0,
+        "referenceFactsRetained": 3,
+        "writerTokens": 94720,
+        "selectorTokens": 0,
+        "totalTokens": 94720,
+        "ms": 23540
+      },
+      {
+        "method": "local",
+        "threshold": null,
+        "repeat": null,
+        "selected": 2,
+        "valuableMissed": [
+          "short-discovery",
+          "buried-discovery",
+          "late-correction"
+        ],
+        "factsRetained": 0,
+        "referenceFactsRetained": 0,
+        "writerTokens": 14204,
+        "selectorTokens": 0,
+        "totalTokens": 14204,
+        "ms": 5455
+      },
+      {
+        "method": "gates",
+        "threshold": 0.2,
+        "repeat": 0,
+        "selected": 3,
+        "valuableMissed": [],
+        "factsRetained": 0,
+        "referenceFactsRetained": 3,
+        "writerTokens": 69942,
+        "selectorTokens": 108152,
+        "totalTokens": 178094,
+        "ms": 16981
+      },
+      {
+        "method": "gates",
+        "threshold": 0.2,
+        "repeat": 1,
+        "selected": 3,
+        "valuableMissed": [],
+        "factsRetained": 0,
+        "referenceFactsRetained": 3,
+        "writerTokens": 69942,
+        "selectorTokens": 108152,
+        "totalTokens": 178094,
+        "ms": 16853
+      },
+      {
+        "method": "gates",
+        "threshold": 0.5,
+        "repeat": 0,
+        "selected": 3,
+        "valuableMissed": [],
+        "factsRetained": 0,
+        "referenceFactsRetained": 3,
+        "writerTokens": 69942,
+        "selectorTokens": 108152,
+        "totalTokens": 178094,
+        "ms": 16981
+      },
+      {
+        "method": "gates",
+        "threshold": 0.5,
+        "repeat": 1,
+        "selected": 3,
+        "valuableMissed": [],
+        "factsRetained": 0,
+        "referenceFactsRetained": 3,
+        "writerTokens": 69942,
+        "selectorTokens": 108152,
+        "totalTokens": 178094,
+        "ms": 16853
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.2,
+        "repeat": 0,
+        "selected": 2,
+        "valuableMissed": [
+          "buried-discovery"
+        ],
+        "factsRetained": 0,
+        "referenceFactsRetained": 2,
+        "writerTokens": 38640,
+        "selectorTokens": 10186,
+        "totalTokens": 48826,
+        "ms": 9914
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.2,
+        "repeat": 1,
+        "selected": 2,
+        "valuableMissed": [
+          "buried-discovery"
+        ],
+        "factsRetained": 0,
+        "referenceFactsRetained": 2,
+        "writerTokens": 38640,
+        "selectorTokens": 10186,
+        "totalTokens": 48826,
+        "ms": 9908
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.5,
+        "repeat": 0,
+        "selected": 2,
+        "valuableMissed": [
+          "buried-discovery"
+        ],
+        "factsRetained": 0,
+        "referenceFactsRetained": 2,
+        "writerTokens": 38640,
+        "selectorTokens": 10186,
+        "totalTokens": 48826,
+        "ms": 9914
+      },
+      {
+        "method": "compactGates",
+        "threshold": 0.5,
+        "repeat": 1,
+        "selected": 2,
+        "valuableMissed": [
+          "buried-discovery"
+        ],
+        "factsRetained": 0,
+        "referenceFactsRetained": 2,
+        "writerTokens": 38640,
+        "selectorTokens": 10186,
+        "totalTokens": 48826,
+        "ms": 9908
+      }
+    ]
+  },
+  "prQueues": [
+    {
+      "policy": "all",
+      "ids": [
+        "mitmproxy-8175",
+        "mitmproxy-8176",
+        "mitmproxy-8196",
+        "mitmproxy-8214",
+        "mitmproxy-8224",
+        "mitmproxy-8288",
+        "posthog-105793",
+        "posthog-105871",
+        "posthog-105887",
+        "posthog-106322",
+        "posthog-106466",
+        "posthog-106491",
+        "grafana-132843",
+        "grafana-132859",
+        "grafana-132938",
+        "grafana-132983",
+        "grafana-133011",
+        "grafana-133090"
+      ],
+      "facts": 46,
+      "covered": 41,
+      "reusable": 27,
+      "unsupported": 0,
+      "writerTokens": 338225,
+      "selectorTokens": 0,
+      "ms": 318253
+    },
+    {
+      "policy": "pickPrs",
+      "ids": [
+        "mitmproxy-8175",
+        "mitmproxy-8214",
+        "mitmproxy-8224",
+        "posthog-105793",
+        "posthog-105871",
+        "posthog-105887",
+        "grafana-132859",
+        "grafana-132938",
+        "grafana-133011"
+      ],
+      "facts": 24,
+      "covered": 21,
+      "reusable": 14,
+      "unsupported": 0,
+      "writerTokens": 164071,
+      "selectorTokens": 0,
+      "ms": 158034
+    },
+    {
+      "policy": "jev-0",
+      "ids": [
+        "mitmproxy-8214",
+        "mitmproxy-8196",
+        "mitmproxy-8288",
+        "posthog-106466",
+        "posthog-105887",
+        "posthog-105871",
+        "grafana-133011",
+        "grafana-132938",
+        "grafana-132983"
+      ],
+      "facts": 25,
+      "covered": 22,
+      "reusable": 14,
+      "unsupported": 0,
+      "writerTokens": 157615,
+      "selectorTokens": 90047,
+      "ms": 157755
+    },
+    {
+      "policy": "jev-1",
+      "ids": [
+        "mitmproxy-8214",
+        "mitmproxy-8196",
+        "mitmproxy-8288",
+        "posthog-106466",
+        "posthog-105887",
+        "posthog-105871",
+        "grafana-133011",
+        "grafana-132938",
+        "grafana-132983"
+      ],
+      "facts": 25,
+      "covered": 22,
+      "reusable": 14,
+      "unsupported": 0,
+      "writerTokens": 157615,
+      "selectorTokens": 90047,
+      "ms": 157735
+    }
+  ],
+  "prRows": [
+    {
+      "id": "mitmproxy-8175",
+      "repo": "mitmproxy",
+      "number": 8175,
+      "title": "fix: display failed CONNECT requests in mitmdump",
+      "facts": 2,
+      "reusable": 1,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 7891,
+      "ms": 9467,
+      "gates": [
+        {
+          "probability": 0.85,
+          "probabilities": [
+            0.85
+          ],
+          "tokens": {
+            "totalTokens": 1285
+          },
+          "ms": 77,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.85,
+          "probabilities": [
+            0.85
+          ],
+          "tokens": {
+            "totalTokens": 1285
+          },
+          "ms": 73,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "mitmproxy-8176",
+      "repo": "mitmproxy",
+      "number": 8176,
+      "title": "load pending scripts before dumping options",
+      "facts": 2,
+      "reusable": 1,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 8196,
+      "ms": 8339,
+      "gates": [
+        {
+          "probability": 0.89,
+          "probabilities": [
+            0.89
+          ],
+          "tokens": {
+            "totalTokens": 1475
+          },
+          "ms": 102,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.89,
+          "probabilities": [
+            0.89
+          ],
+          "tokens": {
+            "totalTokens": 1475
+          },
+          "ms": 123,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "mitmproxy-8196",
+      "repo": "mitmproxy",
+      "number": 8196,
+      "title": "fix: avoid IndexError in is_mostly_bin for short tails",
+      "facts": 2,
+      "reusable": 1,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 16564,
+      "ms": 18209,
+      "gates": [
+        {
+          "probability": 0.9,
+          "probabilities": [
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 1445
+          },
+          "ms": 101,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.92,
+          "probabilities": [
+            0.92
+          ],
+          "tokens": {
+            "totalTokens": 1445
+          },
+          "ms": 117,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "mitmproxy-8214",
+      "repo": "mitmproxy",
+      "number": 8214,
+      "title": "Copy issuer's SubjectKeyIdentifier into leaf AuthorityKeyIdentifier (RFC 5280 §4.2.1.2)",
+      "facts": 3,
+      "reusable": 1,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 12159,
+      "ms": 10434,
+      "gates": [
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.94
+          ],
+          "tokens": {
+            "totalTokens": 4057
+          },
+          "ms": 112,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.94
+          ],
+          "tokens": {
+            "totalTokens": 4057
+          },
+          "ms": 82,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "mitmproxy-8224",
+      "repo": "mitmproxy",
+      "number": 8224,
+      "title": "Rename mitmweb XSRF cookie to `_mitmproxy_xsrf` to recover broken Firefox sessions",
+      "facts": 2,
+      "reusable": 1,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 16620,
+      "ms": 16247,
+      "gates": [
+        {
+          "probability": 0.87,
+          "probabilities": [
+            0.87
+          ],
+          "tokens": {
+            "totalTokens": 1189
+          },
+          "ms": 89,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.87,
+          "probabilities": [
+            0.87
+          ],
+          "tokens": {
+            "totalTokens": 1189
+          },
+          "ms": 81,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "mitmproxy-8288",
+      "repo": "mitmproxy",
+      "number": 8288,
+      "title": "mitmweb: honor view_order_reversed for live flows",
+      "facts": 3,
+      "reusable": 1,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 12007,
+      "ms": 9881,
+      "gates": [
+        {
+          "probability": 0.9,
+          "probabilities": [
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 4092
+          },
+          "ms": 120,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.91,
+          "probabilities": [
+            0.91
+          ],
+          "tokens": {
+            "totalTokens": 4092
+          },
+          "ms": 89,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-105793",
+      "repo": "posthog",
+      "number": 105793,
+      "title": "feat(slack_app): ask before picking up unset thread follow-ups",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 33616,
+      "ms": 29892,
+      "gates": [
+        {
+          "probability": 0.91,
+          "probabilities": [
+            0.91,
+            0.82
+          ],
+          "tokens": {
+            "totalTokens": 6964
+          },
+          "ms": 219,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.91,
+          "probabilities": [
+            0.91,
+            0.82
+          ],
+          "tokens": {
+            "totalTokens": 6964
+          },
+          "ms": 188,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-105871",
+      "repo": "posthog",
+      "number": 105871,
+      "title": "fix(flags): skip non-v1 configs in cross-team flag jobs",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 20183,
+      "ms": 14387,
+      "gates": [
+        {
+          "probability": 0.92,
+          "probabilities": [
+            0.92,
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 9305
+          },
+          "ms": 222,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.93,
+          "probabilities": [
+            0.93,
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 9305
+          },
+          "ms": 208,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-105887",
+      "repo": "posthog",
+      "number": 105887,
+      "title": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 15396,
+      "ms": 17392,
+      "gates": [
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.94,
+            0.89
+          ],
+          "tokens": {
+            "totalTokens": 5979
+          },
+          "ms": 171,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.94,
+          "probabilities": [
+            0.94,
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 5979
+          },
+          "ms": 207,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-106322",
+      "repo": "posthog",
+      "number": 106322,
+      "title": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 15230,
+      "ms": 17685,
+      "gates": [
+        {
+          "probability": 0.91,
+          "probabilities": [
+            0.91,
+            0.82
+          ],
+          "tokens": {
+            "totalTokens": 6043
+          },
+          "ms": 194,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.92,
+          "probabilities": [
+            0.92,
+            0.82
+          ],
+          "tokens": {
+            "totalTokens": 6043
+          },
+          "ms": 191,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-106466",
+      "repo": "posthog",
+      "number": 106466,
+      "title": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 18820,
+      "ms": 24134,
+      "gates": [
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.95,
+            0.91
+          ],
+          "tokens": {
+            "totalTokens": 8251
+          },
+          "ms": 180,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.95,
+          "probabilities": [
+            0.95,
+            0.92
+          ],
+          "tokens": {
+            "totalTokens": 8251
+          },
+          "ms": 201,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "posthog-106491",
+      "repo": "posthog",
+      "number": 106491,
+      "title": "fix(insights): show the chart gallery on the insight page in view mode",
+      "facts": 1,
+      "reusable": 1,
+      "covered": 1,
+      "unsupported": 0,
+      "writerTokens": 11970,
+      "ms": 8939,
+      "gates": [
+        {
+          "probability": 0.8,
+          "probabilities": [
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 3844
+          },
+          "ms": 81,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.8,
+          "probabilities": [
+            0.8
+          ],
+          "tokens": {
+            "totalTokens": 3844
+          },
+          "ms": 84,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-132843",
+      "repo": "grafana",
+      "number": 132843,
+      "title": "Text: Track feature usage on dashboard load",
+      "facts": 2,
+      "reusable": 1,
+      "covered": 1,
+      "unsupported": 0,
+      "writerTokens": 11042,
+      "ms": 9967,
+      "gates": [
+        {
+          "probability": 0.83,
+          "probabilities": [
+            0.83
+          ],
+          "tokens": {
+            "totalTokens": 3235
+          },
+          "ms": 79,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.83,
+          "probabilities": [
+            0.83
+          ],
+          "tokens": {
+            "totalTokens": 3235
+          },
+          "ms": 76,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-132859",
+      "repo": "grafana",
+      "number": 132859,
+      "title": "Notebooks: Fix duplicate cell controls and the clipped collapsed query row",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 32493,
+      "ms": 31650,
+      "gates": [
+        {
+          "probability": 0.87,
+          "probabilities": [
+            0.87,
+            0.82
+          ],
+          "tokens": {
+            "totalTokens": 6171
+          },
+          "ms": 201,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.87,
+          "probabilities": [
+            0.87,
+            0.83
+          ],
+          "tokens": {
+            "totalTokens": 6171
+          },
+          "ms": 187,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-132938",
+      "repo": "grafana",
+      "number": 132938,
+      "title": "CodeMirror: Add shared language registry and lazy INI support",
+      "facts": 2,
+      "reusable": 2,
+      "covered": 2,
+      "unsupported": 0,
+      "writerTokens": 15084,
+      "ms": 16122,
+      "gates": [
+        {
+          "probability": 0.91,
+          "probabilities": [
+            0.91
+          ],
+          "tokens": {
+            "totalTokens": 5585
+          },
+          "ms": 90,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.9,
+          "probabilities": [
+            0.9
+          ],
+          "tokens": {
+            "totalTokens": 5585
+          },
+          "ms": 102,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-132983",
+      "repo": "grafana",
+      "number": 132983,
+      "title": "IAM: Implement AuthInfo delete for legacy storage",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 36773,
+      "ms": 32231,
+      "gates": [
+        {
+          "probability": 0.89,
+          "probabilities": [
+            0.89,
+            0.81
+          ],
+          "tokens": {
+            "totalTokens": 7586
+          },
+          "ms": 195,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.88,
+          "probabilities": [
+            0.88,
+            0.81
+          ],
+          "tokens": {
+            "totalTokens": 7586
+          },
+          "ms": 203,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-133011",
+      "repo": "grafana",
+      "number": 133011,
+      "title": "Text panel: Keep editor view mode stable across remounts",
+      "facts": 3,
+      "reusable": 1,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 10629,
+      "ms": 12443,
+      "gates": [
+        {
+          "probability": 0.92,
+          "probabilities": [
+            0.92
+          ],
+          "tokens": {
+            "totalTokens": 2973
+          },
+          "ms": 86,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.92,
+          "probabilities": [
+            0.92
+          ],
+          "tokens": {
+            "totalTokens": 2973
+          },
+          "ms": 98,
+          "callCount": 1,
+          "unicodeRepairs": 0
+        }
+      ]
+    },
+    {
+      "id": "grafana-133090",
+      "repo": "grafana",
+      "number": 133090,
+      "title": "Datasources: Add utility for getting the default datasource",
+      "facts": 3,
+      "reusable": 2,
+      "covered": 3,
+      "unsupported": 0,
+      "writerTokens": 43552,
+      "ms": 30834,
+      "gates": [
+        {
+          "probability": 0.86,
+          "probabilities": [
+            0.85,
+            0.86
+          ],
+          "tokens": {
+            "totalTokens": 10568
+          },
+          "ms": 203,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        },
+        {
+          "probability": 0.86,
+          "probabilities": [
+            0.86,
+            0.86
+          ],
+          "tokens": {
+            "totalTokens": 10568
+          },
+          "ms": 192,
+          "callCount": 2,
+          "unicodeRepairs": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "grade-posthog-105793": {
+    "candidate0": {
+      "notes": {
+        "1": {
+          "reusable": false,
+          "auditReason": "This note restates repository skill instructions. The predeclared policy explicitly excludes repository docs/skill restatements even when factually correct."
+        }
+      }
+    },
+    "candidate1": {
+      "notes": {
+        "1": {
+          "reusable": false,
+          "auditReason": "This note copies testing conventions already in posthog/temporal/README.md. Excluded by the same repository-docs rule applied to every arm."
+        }
+      }
+    }
+  },
+  "grade-posthog-106522": {
+    "candidate0": {
+      "coveredFacts": [
+        "F1"
+      ],
+      "notes": {
+        "0": {
+          "supported": false,
+          "auditReason": "The note specifically instructs reading run.state.get('sandbox_backend') for continuation. The final patch threads ResumedSandboxState.sandbox_backend into _restore_resumed_state instead. The raw judge acknowledged this wrong mechanism but called it slight; the declared support criterion requires every material claim to be supported. F2 requires this continuation mechanism, so it is not fully covered."
+        }
+      }
+    }
+  },
+  "grade-posthog-106917": {
+    "candidate1": {
+      "notes": {
+        "0": {
+          "reusable": false,
+          "auditReason": "The note explicitly summarizes implementing-warehouse-sources/SKILL.md and supplies no discovery beyond that document. Excluded by the predeclared repository-docs rule."
+        }
+      }
+    }
+  },
+  "grade-posthog-107042": {
+    "candidate1": {
+      "notes": {
+        "0": {
+          "reusable": false,
+          "auditReason": "The note explicitly restates frontend AGENTS.md and writing UI/tests skills, which the note policy excludes from automatic capture."
+        }
+      }
+    },
+    "candidate2": {
+      "coveredFacts": [
+        "F2"
+      ],
+      "auditReason": "Raw grader acknowledges the note omits the sidePanelStateLogic half. F1 explicitly requires closing BOTH independent reducers; a correct but partial sceneLayoutLogic pointer is not full fact coverage."
+    }
+  },
+  "grade-posthog-106579": {
+    "candidate1": {
+      "coveredFacts": [],
+      "notes": {
+        "0": {
+          "supported": false,
+          "auditReason": "Source events 11 and 25 locate prepare_issue_lifecycle_event in logic/lifecycle_events.py and BOTH alert_delivery_inputs and produce_issue_lifecycle_internal_event in temporal/lifecycle/side_effects.py. The note incorrectly locates the latter in logic/lifecycle_events.py and conflates manual-vs-ingestion with alert-vs-internal producers. It also omits F1 filtering synchronization; raw grader admits partial coverage. Essential mechanism and pointers are wrong/incomplete."
+        }
+      }
+    },
+    "candidate2": {
+      "coveredFacts": [],
+      "auditReason": "The raw grader credits F1/F2 but explicitly explains that the notes get both producer architecture and assignee wire format wrong. Neither complete reference fact is preserved."
+    }
+  },
+  "grade-posthog-105871-pr": {
+    "candidate0": {
+      "coveredFacts": [
+        "F1",
+        "F3"
+      ],
+      "auditReason": "The raw grader says F2 is merely implied by a pointer and not spelled out. The actual note omits the essential pre-skip versus post-skip id-set distinction, so this is not full fact coverage."
+    }
+  },
+  "grade-posthog-105887-pr": {
+    "candidate0": {
+      "noteIndexBase": 1,
+      "auditReason": "Formatting only: the grader used indices 1 and 2 for a two-note array. Normalize these to 0 and 1; no judgments change."
+    }
+  }
+}

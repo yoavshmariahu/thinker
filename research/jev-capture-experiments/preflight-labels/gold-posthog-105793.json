@@ -1,0 +1,59 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "In the Slack app's untagged thread follow-up flow, the preference must be resolved per reply author (not per thread creator), and an unset preference should be distinguished from an explicit NEVER so the user can still be prompted with a save-default option. The source model comment was updated accordingly.",
+        "evidence": "products/slack_app/backend/models.py: \"# NULL means the user has never picked, so an untagged reply prompts them.\" and products/slack_app/backend/services/slack_settings.py introduced `saved_untagged_followup_mode` (returns None when unset) separate from `resolve_untagged_followup_mode` (which now defaults unset to ASK, not NEVER, for the prompt path), replacing the old behavior where `resolve_untagged_followup_mode` returned NEVER for an absent row and was keyed off `mapping.mentioning_slack_user_id` (the thread creator) rather than the actual replying user (`event.get(\"user\")` / `slack_user_id` param)."
+      },
+      {
+        "id": "F2",
+        "claim": "This repo's `.agents/skills/writing-user-facing-copy/SKILL.md` and `.agents/skills/writing-code-comments/SKILL.md` and `.agents/skills/writing-tests/SKILL.md` are operational gates that must be consulted before writing/editing any user-facing copy, code comments, or tests respectively, and are located at that fixed path for reuse in future tasks in this repo.",
+        "evidence": "Bash tool output: `cat .agents/skills/writing-user-facing-copy/SKILL.md && cat .agents/skills/writing-tests/SKILL.md && cat .agents/skills/writing-code-comments/SKILL.md` returned full skill definitions used to guide the Slack copy/comment/test changes in this task."
+      },
+      {
+        "id": "F3",
+        "claim": "The Slack app's App Home tab rendering function `render_home_view` in products/slack_app/backend/services/slack_app_home.py gained a `show_untagged_followups` boolean parameter so the thread follow-ups picker section can be shown even when no mode has been chosen yet (distinct from `untagged_followup_mode is not None` which previously gated visibility entirely on an existing stored value).",
+        "evidence": "git diff shown in transcript: \"- if untagged_followup_mode is not None:\\n+ if show_untagged_followups or untagged_followup_mode is not None:\" and \"+ show_untagged_followups: bool = False,\" added to `render_home_view` signature in products/slack_app/backend/services/slack_app_home.py."
+      }
+    ],
+    "reason": "The transcript is a single implementation task in the PostHog monorepo touching the Slack app's untagged-thread-followup preference logic and App Home rendering. I extracted facts that are durable, reusable repository knowledge: (1) the semantic fix that the preference must be read per-reply-author with an unset-vs-NEVER distinction, since this is a non-obvious invariant a future task touching this code path needs to preserve; (2) the fixed-path existence and purpose of the three operational skill gates in .agents/skills/, which any future task writing copy/comments/tests in this repo should consult; (3) the new `show_untagged_followups` parameter shape on `render_home_view`, a stable API surface change future callers/tests need to know about. I excluded ordinary task narration (the back-and-forth tool calls, the specific diff mechanics, the final summary to the user) and generic advice (the skill file contents themselves, which are general style rules not scoped facts about this change)."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 129658,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1245,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 129658,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 129660,
+    "outputTokens": 1245,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 129658,
+    "totalTokens": 130905
+  },
+  "ms": 16660,
+  "promptChars": 303866
+}

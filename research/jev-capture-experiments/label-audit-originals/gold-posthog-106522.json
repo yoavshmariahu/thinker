@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "A task-run failure event must carry `sandbox_backend` in every emitter: the per-run status activity (`update_task_run_status._capture_terminal_analytics`), the workflow-level `task_run_failed` metrics/log event in both `process_task/workflow.py` (`ProcessTaskWorkflow.run` exception handler) and the duplicated `execute_sandbox/workflow.py` (`ExecuteSandboxWorkflow.run`), the agent-reported PATCH path (`facade/api.py:update_task_run`), and the direct model helper (`models.py:TaskRun.mark_failed`). These are five independent emission points for the same logical event (`task_run_failed`/terminal analytics) that must be kept in sync whenever a new attribution field is added, because the activity-based emitter is skipped on an already-terminal transition (the PATCH/mark_failed paths own the capture in that case) — so the field has to be added to all paths, not just the 'canonical' one.",
+        "evidence": "\"This activity performs the DB status transition, so it is the single canonical emitter of the terminal analytics events for workflow-driven runs\" (update_task_run_status.py:_capture_terminal_analytics docstring) combined with \"This PATCH performed the DB transition, so it owns the task_run_failed capture. The workflow's status-update activity sees the row already FAILED and skips its own capture\" (facade/api.py comment) — i.e. three+ mutually-exclusive emitters for the same event."
+      },
+      {
+        "id": "F2",
+        "claim": "`TaskProcessingContext.sandbox_backend` (set once per run by `_resolve_sandbox_backend` in `get_task_processing_context.py`) is NOT automatically preserved across a Temporal `continue_as_new` hand-off — the continuation re-fetches `TaskProcessingContext` via `_get_task_processing_context`, which would re-resolve the backend from scratch and could disagree with the backend the sandbox was actually created on. To keep it stable, the chosen backend must be threaded explicitly through `ResumedSandboxState` (added field `sandbox_backend`), written in `_build_resumed_input`, and re-applied onto `self._context.sandbox_backend` in `ProcessTaskWorkflow.run` right after `_get_task_processing_context` returns, when `input.resumed_sandbox is not None`.",
+        "evidence": "workflow.py: `self._context = await self._get_task_processing_context(input)` followed by `if input.resumed_sandbox is not None and input.resumed_sandbox.sandbox_backend is not None: self._context.sandbox_backend = input.resumed_sandbox.sandbox_backend`; also `TaskRun.prepare_for_cloud_resume` explicitly does `state.pop(\"sandbox_backend\", None)` with the comment \"the resumed run re-resolves its backend from scratch, so a stale `hogland` must not survive...\" — confirming the backend is not naturally sticky across resumes/continuations."
+      },
+      {
+        "id": "F3",
+        "claim": "`execute_sandbox/workflow.py` (`ExecuteSandboxWorkflow`) is a deliberate near-duplicate of `process_task/workflow.py` (`ProcessTaskWorkflow`), created to allow a traffic cutover without patching the original Temporal workflow; it is slated for deletion in a later PR. Any change to `process_task`'s failure/event-emission logic (progress emission, `task_run_failed` properties, `_update_task_run_status`) likely needs the mirrored change in `execute_sandbox/workflow.py` until that deletion happens.",
+        "evidence": "execute_sandbox/workflow.py module docstring: \"This file is based on `process_task`, most of it is duplicated with a few changes to support communication between the parent workflow (`TaskManagementWorkflow`) and itself. The duplication is used so we don't need to handle patching the original workflow — the two coexist while we cut traffic over, and `process_task` is deleted in a later PR.\""
+      }
+    ],
+    "reason": "The transcript establishes a concrete, reusable map of how/where sandbox-failure events are emitted across this product (five emitter sites that must stay in sync, F1), a non-obvious continuation/context-propagation gotcha for TaskProcessingContext fields (F2), and an explicit duplication relationship between two workflow files that a future change must account for (F3). All three took multiple greps/reads to establish, are stated as durable present-tense facts with file:symbol pointers, and are clearly reusable for any future task touching task-run failure events, sandbox backend selection, or either process_task/execute_sandbox workflow."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 146724,
+    "output_tokens": 1627,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 146726,
+    "outputTokens": 1627,
+    "cacheReadTokens": 146724,
+    "cacheWriteTokens": 0,
+    "totalTokens": 148353
+  },
+  "ms": 22634,
+  "promptChars": 345586,
+  "attempts": 1
+}
