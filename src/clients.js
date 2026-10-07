@@ -24,6 +24,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { guidance } from './integrations/runner.js';
+import { agentWorkflow } from './cache-guidance.js';
+import { updateInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
@@ -151,20 +153,6 @@ export function takePending(storeDir, session) {
   try { const j = JSON.parse(fs.readFileSync(f, 'utf8')); fs.unlinkSync(f); return Date.now() - j.at < 30 * 60_000 ? j.text : ''; } catch { return ''; }
 }
 
-const CURSOR_RULE = `---
-description: Use the thinker cache of notes about this repository before exploring it
-alwaysApply: true
----
-This repository has a cache of verified notes from earlier sessions, served by the \`thinker\` MCP server.
-
-- At the start of a task, call the \`orient\` tool with the request before searching or reading files.
-- Follow the file:symbol pointers it returns instead of re-deriving them; search only to fill gaps.
-- \`orient\` takes a \`budget\` and lists the relevant notes it did not show. Before searching for something one of those titles covers, call \`lookup\` with its id.
-- Use \`lookup\` for a specific question mid-task. Treat notes marked STALE as unverified.
-- To see the code behind a pointer, call \`drilldown\` with it (\`path:Symbol\`): the definition with its lines, callers and callees, and the notes on it, instead of reading the file and grepping for the name.
-- Context wrapped in \`<thinker-cache>\` comes from the same cache.
-`;
-
 const TOML_START = '# thinker:start (managed by thinker, do not edit)';
 const TOML_END = '# thinker:end';
 const tomlStr = s => JSON.stringify(String(s));
@@ -259,6 +247,17 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
     default: return {};
   }
 }
+// Candidate files include Codex's override so refresh snapshots and uninstall cover
+// both. Never create an override that would hide the user's existing AGENTS.md.
+function instructionFiles(client, { scope = 'repo', repo } = {}) {
+  const user = scope === 'user';
+  if (client === 'claude') return [user ? path.join(claudeDir(), 'CLAUDE.md') : path.join(repo, 'CLAUDE.local.md')];
+  if (client === 'codex') return ['AGENTS.override.md', 'AGENTS.md'].map(f => path.join(user ? codexHome() : repo, f));
+  if (client === 'gemini') return [user ? home('.gemini', 'GEMINI.md') : path.join(repo, 'GEMINI.md')];
+  if (client === 'opencode' && !user) return [path.join(repo, '.opencode/thinker.md')];
+  return [];
+}
+
 // the JSON files of a client that hold hook groups or an MCP entry
 function jsonWiring(client, o) {
   const f = wiringFiles(client, o);
@@ -271,7 +270,7 @@ function jsonWiring(client, o) {
 const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => {
   const f = wiringFiles(c, o);
   const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || [])].map(x => path.join(o.repo, x)) : [];
-  return [...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...extra];
+  return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...extra];
 }))];
 // how a file is named to the user: relative to the checkout, or under ~
 const label = (file, { scope, repo }) => scope === 'user' ? file.replace(os.homedir(), '~') : path.relative(repo, file);
@@ -448,6 +447,10 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
       r.clients.push(client);
     }
     if (scope === 'repo') {
+      if (clients.includes('cursor') && !inferWiring(repo, 'cursor') && fs.existsSync(path.join(repo, '.thinker'))) {
+        const w = inferWiring(null, 'cursor', { scope: 'user' });
+        if (w?.mcp && w.scripts.every(ours) && !w.custom.length) installCursorRule(repo, { learn: w.learn });
+      }
       const gitCli = gitHooksOurs(repo);
       if (gitCli && ours(gitCli)) {
         const learn = /maintain/.test(readText(gitHookPath(repo, 'post-commit')));
@@ -696,7 +699,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if ((client === 'windsurf' && (hooks || mcp)) || (client === 'copilot' && mcp)) {
       const file = client === 'windsurf' ? (fs.existsSync(path.join(repo, '.devin/rules')) ? '.devin/rules/thinker.md' : '.windsurf/rules/thinker.md') : '.github/instructions/thinker.instructions.md';
       const front = client === 'windsurf' ? 'trigger: always_on' : 'applyTo: "**"';
-      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo })}\n`;
+      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo, learn })}\n`;
       const before = readText(path.join(repo, file));
       if (before && !before.includes('<!-- thinker -->')) throw new Error(`Refusing to overwrite ${file}`);
       fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
@@ -773,7 +776,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (mcp) {
       mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
       generated.push(f.mcp);
-      if (f.rule) { installCursorRule(repo); generated.push(f.rule); }
+      if (f.rule) { installCursorRule(repo, { learn }); generated.push(f.rule); }
       done.push(`Cursor: registered MCP server in ${rel(f.mcp)}${f.rule ? ` and added the rule ${rel(f.rule)}` : ''}`);
     }
     if (hooks) {
@@ -791,15 +794,26 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     }
     localFiles(generated);
   }
+  if (hooks || mcp) {
+    const candidates = instructionFiles(client, o);
+    const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
+    if (file) {
+      const existed = fs.existsSync(file);
+      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp, learn: !!learn }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
+      // Do not hide an existing user instruction file from version control.
+      if (!existed) localFiles([file]);
+    }
+  }
   return done;
 }
 
 // The always-applied rule that points Cursor's agent at the MCP tools: a checkout file, since
 // Cursor keeps user rules in its settings, not in a file.
-export function installCursorRule(repo) {
+export function installCursorRule(repo, { learn = true } = {}) {
   const rule = wiringFiles('cursor', { repo }).rule;
+  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ learn })}\n`;
   fs.mkdirSync(path.dirname(rule), { recursive: true });
-  if (readText(rule) !== CURSOR_RULE) fs.writeFileSync(rule, CURSOR_RULE);
+  if (readText(rule) !== text) fs.writeFileSync(rule, text);
   return rule;
 }
 
@@ -826,6 +840,7 @@ function stripThinkerHooks(file, { keepVersion = false, mcp = false } = {}) {
 export function uninstallWiring({ scope = 'repo', repo } = {}) {
   const o = { scope, repo };
   const claude = wiringFiles('claude', o), codex = wiringFiles('codex', o), gemini = wiringFiles('gemini', o), cursor = wiringFiles('cursor', o);
+  for (const file of new Set(CLIENTS.flatMap(c => instructionFiles(c, o)))) updateInstructions(file, null);
   untrustCodexHooks(codex.hooks);
   if (scope === 'repo') {
     for (const f of [...HOOK_FILES.windsurf, ...HOOK_FILES.copilot]) stripThinkerHooks(path.join(repo, f), { keepVersion: true });

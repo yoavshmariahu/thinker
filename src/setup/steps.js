@@ -61,7 +61,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
       if (repo && USER_SCOPE_CLIENTS.includes(client)) {
         const moved = stripRepoWiring(repo, { cli: cliPath, clients: [client] });
         if (moved.length) logs.push(`${(clientMeta[client]?.name || client)}: moved thinker's entries out of ${moved.join(', ')}: they run from your own settings now`);
-        if (client === 'cursor' && mcp) installCursorRule(repo);
+        if (client === 'cursor' && mcp) installCursorRule(repo, { learn });
       }
 
       // Special handling for Codex trust

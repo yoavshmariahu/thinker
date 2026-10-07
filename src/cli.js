@@ -114,6 +114,7 @@ const HELP = `thinker — knowledge cache for coding agents
   list [--stale] [--all] [--json]  list notes; JSON includes unreadable-note warnings
   show <id>                      print a note
   rm <id>
+  feedback [file.json]           report note accuracy (JSON: id, useful, optional correction; stdin or file)
   add [file.json]                add a human-written note (JSON on stdin or file)
   check                          re-hash dependencies, mark stale notes
   archive [--dry] [--list] [--restore] [ids...] [--kinds a,b] [--days n]
@@ -175,7 +176,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome'];
+const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };

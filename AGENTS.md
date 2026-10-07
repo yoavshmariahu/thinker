@@ -1,3 +1,18 @@
+<!-- thinker:workflow:start -->
+## Using Thinker while working
+
+Apply this workflow only in a repository set up with Thinker (.thinker/ exists). Respect disabled-tool and learning controls, including THINKER_MCP=off and THINKER_NO_LEARN=1.
+
+Use the Thinker MCP tools. If deferred, discover/load them with the host tool-search facility before code exploration. If unavailable, continue with ordinary tools.
+
+- Read relevant injected <thinker-cache> notes first; otherwise call `orient` once for the task. An injected bundle replaces that call, not the rest of this workflow.
+- Use `lookup` for a specific unanswered question. Ignore unrelated notes; verify STALE claims against code.
+- Follow known file:symbol pointers with `drilldown`. When no note maps the code, use `find` and then drilldown before broad code searches or file reads. Fall back to ordinary search/read tools when unavailable, insufficient, or contradicted by the code. Direct reads of known non-code files and exact-text searches remain appropriate.
+- Once the entry point and constraints are clear, edit and test. Do not keep retrieving notes just to increase tool use.
+- Save reusable discoveries as soon as investigation establishes them, while the evidence is available: call `remember`. Include the reason, constraints and concrete file:symbol dependencies. Do not save task summaries or rely on background distillation to capture everything.
+- When evidence contradicts a note, call `feedback` with its id, useful: false and the corrected body.
+<!-- thinker:workflow:end -->
+
 # thinker: internals and working context
 
 Reference for agents and contributors working on this repository. The

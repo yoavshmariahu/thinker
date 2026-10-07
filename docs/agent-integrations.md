@@ -8,9 +8,62 @@ thinker setup --clients pi,windsurf,copilot,opencode --no-build
 ```
 
 Restart the host agent after setup so it discovers the generated hooks/extensions.
-Project trust and hook enablement remain controlled by the host. Generated files
-are locally excluded from git. `thinker uninstall`
+Project trust and hook enablement remain controlled by the host. New generated project files
+are locally excluded from git; existing instruction files retain their visibility. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
+
+## Instructions available before exploration
+
+Setup and `connect` install a short workflow alongside the tools: use injected notes
+or `orient`, ask specific questions with `lookup`, navigate code with `find` and
+`drilldown`, save reusable discoveries, and correct wrong notes. An injected bundle
+replaces only the initial `orient` call. Ordinary searches and reads remain available
+when Thinker's tools cannot answer the question.
+
+| Client | Persistent workflow location |
+| --- | --- |
+| Claude Code | `~/.claude/CLAUDE.md` (respects `CLAUDE_CONFIG_DIR`) |
+| Codex | `$CODEX_HOME/AGENTS.md`, or existing `AGENTS.override.md` (`CODEX_HOME` defaults to `~/.codex`) |
+| Gemini/Agy | `~/.gemini/GEMINI.md` |
+| Cursor | `.cursor/rules/thinker.mdc`, always applied |
+| Pi | Native extension supplies the workflow before the agent starts |
+| Windsurf Cascade | `.windsurf/rules/thinker.md`, or the existing `.devin/rules/` location |
+| Copilot CLI | `.github/instructions/thinker.instructions.md` |
+| OpenCode | `.opencode/thinker.md`, added to `instructions` by the plugin |
+
+Claude, Codex and Gemini instructions live at user scope, like their hooks and MCP
+configuration, so fresh worktrees also receive them. They apply only in repositories
+set up with Thinker. Legacy project wiring receives equivalent local instruction
+blocks. OpenCode uses an additional instruction file so it does not mask an existing
+`AGENTS.md` or `CLAUDE.md` fallback. These locations follow the hosts' native
+[Claude memory](https://code.claude.com/docs/en/memory),
+[Codex instructions](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
+[Gemini context](https://geminicli.com/docs/cli/gemini-md/), and
+[OpenCode rules](https://opencode.ai/docs/rules/) mechanisms.
+
+Thinker prepends a marked block to shared instruction files, preserving the user's
+text. Reinstalling or upgrading replaces only that block; uninstall removes it.
+Symlinked instruction files are left alone with a setup error rather than edited
+through the link. Custom host settings that disable or replace native instruction
+loading can prevent this workflow from loading.
+
+`thinker update` refreshes existing wiring and its instructions; `thinker rewire`
+does it explicitly. Prompt hooks also refresh connected installations. Restart the
+host afterward to reload persistent instructions. `thinker uninstall --user` removes
+the user-scope blocks; repository uninstall removes project instructions.
+
+Pi, Windsurf and Copilot receive CLI commands rather than unavailable MCP tool
+names. They save notes with `thinker add note.json --source agent` and correct notes
+with `thinker feedback feedback.json` (or JSON on stdin):
+
+```json
+{"id":"note-id","useful":false,"correction":"Corrected body with file:Symbol pointers."}
+```
+
+The workflow respects disabled learning and tool controls. Installation tests cover
+all eight delivery paths, preservation of existing text, repeated installs, upgrade
+refresh, dry runs and removal. This verifies delivery, not that every model will
+follow every instruction.
 
 ## Coverage
 
