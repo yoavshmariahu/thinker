@@ -139,9 +139,12 @@ def lift_daily_cap(repo):
     checks -- 16 of 60 commits on the first deep mining run, reported only as
     `note catalog unavailable: dailyTokens`. The guarded harness set the same override.
     """
+    # The cache directory does not exist until a build command creates it, and returning early here
+    # left the cap in force for the whole build: mining failed 16 of 60 changes on one run, and on
+    # another the phrasing judge refused all 21 notes with reason `dailyTokens` while still spending
+    # 41k tokens. The directory is created so the override is in place before the first call.
     config = repo / '.thinker/config.json'
-    if not config.parent.exists():
-        return
+    config.parent.mkdir(parents=True, exist_ok=True)
     current = json.loads(config.read_text()) if config.exists() else {}
     current['maintain'] = {**current.get('maintain', {}), 'dailyTokens': 1_000_000_000}
     config.write_text(json.dumps(current, indent=2) + '\n')
@@ -155,7 +158,11 @@ def build(cohort):
     print(f'building {cohort} cache at {anchor["id"]} ({anchor["base"][:10]})', flush=True)
     # Mining only. Exploration was measured on Click and is not part of a benchmark cache: it cost
     # 3.6M tokens for 0 notes under Opus and 1.3M for 1 under Sol, against 272k for 9 by mining.
-    for args, label in [(['mine-prs', '--git', '--limit', '20'], f'{cohort}-mine'),
+    # 20 is the product's own default for a single run, and too shallow to measure anything here:
+    # the first Click caches held 9 and 11 notes and covered 0 of 6 task-cohort pairs, where ~80
+    # commits held 48 and 38 and covered 3 of 3 and 2 of 3. THINKER_EFF_MINE overrides.
+    limit = os.environ.get('THINKER_EFF_MINE', '60')
+    for args, label in [(['mine-prs', '--git', '--limit', limit], f'{cohort}-mine'),
                         (['phrase'], f'{cohort}-phrase'),
                         (['relink'], f'{cohort}-relink')]:
         if thinker(args, repo, env, label).returncode != 0:
