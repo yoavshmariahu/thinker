@@ -29,7 +29,10 @@ def run(t,m,arm):
  env.pop('MAX_THINKING_TOKENS',None)
  if m=='sol':
   home=STATE/('home-'+name);home.mkdir(exist_ok=True);auth=home/'auth.json'
-  if not auth.exists():auth.symlink_to('/Users/yoavshmariahu/src/thinker/bench/codex-home/auth.json')
+  if not auth.exists():
+   source=Path(os.environ.get('THINKER_CODEX_AUTH','')).expanduser()
+   if not source.is_file():raise SystemExit('Set THINKER_CODEX_AUTH to the Codex auth.json to use for this run')
+   auth.symlink_to(source)
   env['CODEX_HOME']=str(home)
   cmd=['codex','exec','--json','--ephemeral','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
  elif m=='opus':

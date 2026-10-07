@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {Store} from '../../src/store.js';
 import {minePrs} from '../../src/commands/learn.js';
-import {orient,lookup} from '../../src/ops.js';
+import {orient} from '../../src/ops.js';
 import {execFileSync} from 'node:child_process';
 import {jevKey,JEV_ENDPOINT} from '../../src/jev.js';
 if(process.env.THINKER_TEST!=='1')throw Error('THINKER_TEST=1 required');
@@ -27,10 +27,10 @@ function storeFor(repo){
  }};
  store.config=()=>({...original(),jev:cfg,maintain:{...original().maintain,dailyTokens:1e9}});return store;
 }
-const [mode,cohort,...query]=process.argv.slice(2);
-if(mode==='lookup'){
- const store=storeFor(process.cwd());const r=await lookup(store,{query:[cohort,...query].join(' '),budget:1500,maxNotes:3});console.log(r.text||'(no matching notes)');
-}else if(mode==='build'){
+// `build` only. The arm reaches the cache through the product's own hook and MCP server, so the
+// shell `lookup` helper the pasted-retrieval arm needed is gone rather than left to be found.
+const [mode,cohort]=process.argv.slice(2);
+if(mode==='build'){
  const execution=read(path.join(OUT,'execution.json')),corpus=read(path.join(OUT,'prs.json'));
  if(execution.cacheSource!=='recent-merged-prs'||execution.cacheBuildPath!=='minePrs')throw Error('Only recent PR mining is allowed; session distillation is forbidden');
  const model=execution.models[cohort];if(!model)throw Error('Unknown model cohort');

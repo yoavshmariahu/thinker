@@ -1,12 +1,12 @@
 import json,os,subprocess,sys,time,shutil,xml.etree.ElementTree as ET
 from pathlib import Path
-from guardrails import run_dir, supervised, guarded_env, checked_execution
+from guardrails import run_dir, supervised, guarded_env, checked_execution, cohorts
 assert os.environ.get('THINKER_TEST')=='1'
 ROOT=Path(__file__).resolve().parents[2];OUT=run_dir();STATE=OUT/'state';RAW=OUT/'raw';PY=ROOT/'.venv-perf/bin/python'
 checked_execution(OUT)
-TASKS=json.loads((OUT/'tasks.json').read_text())
+TASKS=json.loads((OUT/'tasks.json').read_text());COHORTS=list(cohorts(OUT))
 for t in TASKS:
- arms=['verify-base','verify-gold'] if sys.argv[1]=='preflight' else [f'{m}-{a}' for m in ['opus','sol','gemini'] for a in ['baseline','thinker']]
+ arms=['verify-base','verify-gold'] if sys.argv[1]=='preflight' else [f'{m}-{a}' for m in COHORTS for a in ['baseline','thinker']]
  for arm in arms:
   name=t['id']+'-'+arm;dest=RAW/(name+'-validation.json')
   if dest.exists():continue
