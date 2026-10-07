@@ -21,7 +21,7 @@ test('session integration retains retries and queues contradictions without modi
     process.env.THINKER_LLM = 'command'; process.env.THINKER_LLM_CMD = `node "${script}"`;
     const store = new Store(dir).init(); store.put(old);
     let mode = 'catalog-failure';
-    store.config = () => ({ learn: { auditRate: 0, quietExplore: 0 }, maintain: { dailyTokens: 0 }, jev: {
+    store.config = () => ({ learn: { auditRate: 0, quietExplore: 0 }, maintain: { dailyTokens: 0, dailyJevTokens: 0 }, jev: {
       enabled: true, key: 'test', fetchImpl: async (_url, options) => {
         const { questions } = JSON.parse(options.body);
         const ids = Object.keys(questions);

@@ -49,6 +49,17 @@ export function logModelUsage(store, { purpose, phase = 'maintenance', store: _s
   if (recorded && calls) calls.push(recorded);
 }
 
+// Jev's typed decisions are not spending of the same kind as a generative call. A Noul or a Choice
+// is a bounded typed request answered by TypeSafe, many of them per note written, reached through the
+// hosted proxy and bounded by its own per-minute and per-day request quotas; a distillation or a
+// verification is one long generative answer on the agent's own subscription. Summing both into one
+// daily token budget let the cheaper, more numerous side close the budget for the other: on
+// 2026-10-07 the note-catalog scan alone reported 3.03M of the day's 5.28M tokens on this
+// repository, and generative learning stopped before noon. Jev usage stays in the log and in the
+// report, under its own total (`usage.js`), and against its own cap (`maintain.js:withinJevDailyCap`).
+export const JEV_PROVIDER = 'typesafe';
+export const isJevUsage = e => (e?.provider || '') === JEV_PROVIDER;
+
 // The tokens a model answer reported (llm.js puts them on every answer as `tokens`); null when the
 // provider gave no counters, which is never read as zero.
 export const tokensOf = res => { const t = res?.tokens?.totalTokens; return typeof t === 'number' && Number.isFinite(t) ? t : null; };

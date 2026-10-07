@@ -16,7 +16,7 @@ function fixture(t, fetchImpl, enabled = true) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-summary-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const store = new Store(dir).init();
-  store.config = () => ({ jev: { enabled, key: 'test', fetchImpl }, maintenance: { dailyTokens: 0 } });
+  store.config = () => ({ jev: { enabled, key: 'test', fetchImpl }, maintenance: { dailyTokens: 0, dailyJevTokens: 0 } });
   return store;
 }
 function transport(decide, seen = []) {
