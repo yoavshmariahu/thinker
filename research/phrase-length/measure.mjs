@@ -38,7 +38,13 @@ for (const dir of process.argv.slice(2)) {
       if (Number.isFinite(c)) scope.push(c);
     });
   }
-  const pass = support.filter((s, i) => s >= 0.9 && (scope[i] ?? 0) >= 0.9).length;
+  const rates = {};
+  for (const floor of [0.5, 0.6, 0.7, 0.8, 0.9]) {
+    rates[floor] = support.filter((s, i) => s >= floor && (scope[i] ?? 0) >= floor).length;
+  }
   console.log(JSON.stringify({ dir: path.basename(dir), notes: notes.length, scored: support.length,
-    supportMedian: median(support), scopeMedian: median(scope), bothAtLeast0_9: pass }));
+    supportMedian: median(support), scopeMedian: median(scope), passAtFloor: rates,
+    supportMin: Math.min(...support), scopeMin: Math.min(...scope) }));
+  fs.writeFileSync(path.join('research/phrase-length', `scores-${path.basename(dir)}.json`),
+    JSON.stringify(notes.map((n, i) => ({ id: n.id, support: support[i], scope: scope[i] })), null, 1) + '\n');
 }

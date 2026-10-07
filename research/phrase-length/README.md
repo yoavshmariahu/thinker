@@ -27,11 +27,23 @@ Support is the question "is every claim in the description supported by the note
 one repetition per arm, on the same 38 notes and the same writer model: a directional measurement,
 not a calibrated estimate. `measure.mjs` runs them as a diagnostic.
 
-Two conclusions, independent of each other. The prompt was asking for more than the notes
-support, which this fixes. And the removed fidelity gate (PR #122) required 0.9 on both: it would
-still reject 34 of these 38 descriptions, because scope sits at 0.86 whatever the length. A gate
-that strict in front of a text that only ranks candidates, and that no agent is ever shown, costs
-far more in lost descriptions than it saves.
+Two causes, independent of each other. The prompt asked for more than the notes support, which the
+proportional length fixes. And 0.9 was above where this judge sits on faithful text: scope stays
+near 0.86 whatever the length, so that floor would still reject 35 of these 38.
+
+The settled design, chosen by the user on 2026-10-07: keep the check, at 0.7, and write a refused
+description again once before giving up on it.
+
+| arm | descriptions kept | refused | tokens for 38 notes |
+| --- | ---: | ---: | ---: |
+| floor 0.9, no retry | 0 of 38 | 38 | ~64k |
+| no check at all | 38 of 38 | 0 | ~24k |
+| floor 0.7, one retry | 37 of 38 | 1 | ~54k |
+
+The one refusal scored support 0.54 after its rewrite. `phraseRefused` records the key and the
+scores, so maintenance does not offer that note to the writer again until the note itself changes;
+without that record the same refusal is paid for on every later run. A note with no accepted
+description ranks on its body, which is what Jev reads when a description is absent.
 
 Reproduce: strip `search`, `says` and `saysFor` from a cache's notes, run `thinker phrase`, then
 `node research/phrase-length/measure.mjs <cache dir>`. Needs a personal Jev key.
