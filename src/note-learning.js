@@ -28,7 +28,11 @@ async function ask(store, request, { judge = defaultJudge, accounting = {} } = {
 
 // Every eligible catalog card is inspected. Descriptions find candidates; only full bodies
 // establish relationships. Partial catalog failure cannot authorize a new duplicate note.
-export async function selectLearningNotes(store, observation, { max = 12, floor = 0.35, ...options } = {}) {
+// Defaults measured on this repository's cache, 2026-10-07: at floor 0.35 every one of five probed notes
+// came back with the full twelve, so the cap was deciding, not the judgment, and each candidate is one
+// more relation judgment the note must survive below. 0.6 and four keep the scan selective and the
+// relation stage short; the writer's own context list (commands/learn.js) may still ask for more.
+export async function selectLearningNotes(store, observation, { max = 4, floor = 0.6, ...options } = {}) {
   const live = store.list().filter(n => n.status !== 'invalid');
   const matches = [];
   const request = notes => ({ purpose: 'jev-reconcile-search', state: { observation, notes: notes.map(card) }, questions: Object.fromEntries(notes.map((_, i) => [`n${i}`, {
@@ -57,12 +61,29 @@ export async function selectLearningNotes(store, observation, { max = 12, floor 
   return { status: 'ok', notes: matches.sort((a, b) => b.p - a.p).slice(0, max).map(x => x.note) };
 }
 
+// What one pairing licenses. Only a verdict the model holds at ACT or above may act on an existing
+// note: merge into it (`extends`), skip for it (`covered`) or stop for it (`contradicts`). Short of that
+// the pairing is `unrelated` and the next candidate is judged. A note is never discarded because the
+// model was merely fairly sure two notes had nothing to do with each other: discarding is the
+// invisible outcome here, so it is not what uncertainty produces (the same asymmetry gates.js states).
+// Measured on five deferred notes against this cache, 60 pairings: 46 said unrelated, 24 were under
+// 0.85, 11 of those unrelated at 0.57-0.84, and all five notes were lost; under this rule four are
+// written and one is merged. `hint`: `extends` is the first choice at HINT or above but under ACT,
+// which the repair round puts to the writer (merge, or keep separate). null: a malformed answer.
+const ACT = .85, HINT = .6;
 function relation(answer) {
   if (!Object.hasOwn(NOTE_RELATIONS, answer?.choice)) return null;
   const ps = Object.keys(NOTE_RELATIONS).map(k => answer.probabilities?.[k]);
   if (!ps.every(probability) || Math.abs(ps.reduce((a, b) => a + b, 0) - 1) > .01) return null;
-  return answer.probabilities[answer.choice] >= .85 ? answer.choice : null;
+  const p = answer.probabilities;
+  for (const k of ['contradicts', 'covered', 'extends']) if (p[k] >= ACT) return { verdict: k };
+  return { verdict: 'unrelated', hint: answer.choice === 'extends' && p.extends >= HINT };
 }
+// A body line is supported when the source shows it at SUPPORT or above, and never when the source
+// contradicts it at CONFLICT or above; the two are independent. 0.9 was the bar for support until
+// 2026-10-07; it is the weaker signal of the two (missing evidence is not a conflict) and fell with
+// the relation bar for the same reason, while the conflict ceiling stays where it was.
+const SUPPORT = .7, CONFLICT = .2;
 
 // Copy evidence into bounded chunks without silently dropping the middle of a transcript/diff.
 function chunks(text, maxBytes = 10000) {
@@ -76,7 +97,11 @@ function chunks(text, maxBytes = 10000) {
   return out;
 }
 
-export async function prepareNotes(store, proposed, { evidence = '', kinds = KINDS, ...options } = {}) {
+// `repair`: the caller runs a repair round over deferrals that carry diagnostics (commands/learn.js
+// for pull requests), so a likely extension may be deferred to it with its target. `repaired`: this
+// is that round's recheck, and the writer's answer settles every hint; without a repair round a hint
+// is unrelated, since deferring it would lose the note.
+export async function prepareNotes(store, proposed, { evidence = '', kinds = KINDS, repair = false, repaired = false, ...options } = {}) {
   const accepted = [], skipped = [], deferred = [];
   let reconciled = true;
   for (const note of proposed) {
@@ -86,14 +111,14 @@ export async function prepareNotes(store, proposed, { evidence = '', kinds = KIN
     const catalog = { ...store, list: () => [...store.list(), ...accepted] };
     // Preserve class methods/configuration on real Store instances.
     Object.setPrototypeOf(catalog, Object.getPrototypeOf(store));
-    const found = await selectLearningNotes(catalog, full(note), { ...options, max: Infinity });
+    const found = await selectLearningNotes(catalog, full(note), options);
     if (found.status === 'disabled') { reconciled = false; accepted.push(note); continue; }
     if (found.status !== 'ok') { defer(found.reason || 'catalog unavailable', 'unavailable'); continue; }
     const candidates = found.notes;
     const named = note.extends && store.list().find(n => n.id === note.extends);
     if (note.extends && !named) { defer('requested extension target is missing'); continue; }
     if (named && !candidates.some(n => n.id === named.id)) candidates.push(named);
-    let target = null, covered = false, reason = '', status = 'uncertain';
+    let target = null, covered = false, reason = '', status = 'uncertain', relationDiagnostics, hints = [];
     for (const existing of candidates) {
       const preservesLiterally = Boolean(existing.body?.trim()) && (note.body || '').includes(existing.body) && (note.applies || '') === (existing.applies || '');
       const r = await ask(store, { purpose: 'jev-reconcile', state: { proposed_note: full(note), existing_note: full(existing) }, questions: {
@@ -102,17 +127,24 @@ export async function prepareNotes(store, proposed, { evidence = '', kinds = KIN
       } }, options);
       if (r.status !== 'ok') { reason = r.reason || 'relationship unavailable'; status = 'unavailable'; break; }
       const rel = relation(r.answers?.relation);
-      if (!rel) { reason = 'uncertain relationship'; break; }
-      if (rel === 'contradicts') { reason = `contradicts ${existing.id}; investigate before changing either note`; status = 'contradiction'; break; }
-      if (rel === 'covered') covered = true;
-      if (rel === 'extends') {
+      if (!rel) { reason = 'malformed relationship judgment'; status = 'unavailable'; break; }
+      if (rel.verdict === 'contradicts') { reason = `contradicts ${existing.id}; investigate before changing either note`; status = 'contradiction'; break; }
+      if (rel.verdict === 'covered') covered = true;
+      if (rel.verdict === 'extends') {
         if (kindOf(existing.kind) === 'behavior') { reason = `human behavior ${existing.id} cannot be rewritten by learning`; break; }
         if (!existing.id || (target && target.id !== existing.id)) { reason = 'extension requires reconciling multiple existing notes'; break; }
-        if (!preservesLiterally && !(r.answers?.preserves?.noul >= .9)) { reason = `extension of ${existing.id} needs a complete merged body`; break; }
+        // The target travels with the deferral so the repair round can ask the writer for the merged body.
+        if (!preservesLiterally && !(r.answers?.preserves?.noul >= .9)) { reason = `extension of ${existing.id} needs a complete merged body`; relationDiagnostics = { extensionTarget: full(existing) }; break; }
         target = existing;
       }
+      if (rel.hint && kindOf(existing.kind) !== 'behavior') hints.push(existing);
     }
-    if (reason) { defer(reason, status); continue; }
+    // A likely extension the writer never saw (the writer's context was chosen for the whole change,
+    // this scan for the note) goes back to the writer once, with the target: merge, or keep separate.
+    if (!reason && !target && !covered && hints.length && repair && !repaired) {
+      reason = `likely extends ${hints[0].id}; the writer decides on a merged body`; relationDiagnostics = { extensionTarget: full(hints[0]), hint: true };
+    }
+    if (reason) { defer(reason, status, relationDiagnostics); continue; }
     if (covered) { skipped.push({ title: note.title, reason: 'already covered by an existing note' }); continue; }
     if (note.extends && target?.id !== note.extends) { defer('requested extension was not established'); continue; }
     const claims = (note.body || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -139,8 +171,8 @@ export async function prepareNotes(store, proposed, { evidence = '', kinds = KIN
           const support = r.answers?.[`s${i}`]?.noul, conflict = r.answers?.[`x${i}`]?.noul;
           diagnostics.push({ claim: claims[i], index: i, part, supported: support, contradicted: conflict });
           if (!probability(support) || !probability(conflict)) { failed = 'incomplete grounding judgments'; groundingStatus = 'unavailable'; break; }
-          if (conflict >= .2) { failed = 'source evidence conflicts with a proposed claim'; break; }
-          if (support >= .9) supported.add(i);
+          if (conflict >= CONFLICT) { failed = 'source evidence conflicts with a proposed claim'; break; }
+          if (support >= SUPPORT) supported.add(i);
         }
         if (failed) break;
       }

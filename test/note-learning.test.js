@@ -57,18 +57,75 @@ test('grounded novel notes are accepted and every source chunk is checked', asyn
   assert.ok(seen.filter(q => q.purpose === 'jev-grounding').length >= 2);
 });
 
-test('covered notes skip while contradictions and uncertain relationships defer without writes', async () => {
+// A judge whose relation answer depends on which existing note is being paired.
+const pairwise = (byId, rest = {}) => async (s, r) => {
+  const response = await judge(rest)(s, r);
+  if (r.purpose === 'jev-reconcile') { const a = byId[r.state.existing_note.id]; if (a) response.answers.relation = choice(a.choice, Object.keys(NOTE_RELATIONS), a.p); }
+  return response;
+};
+
+test('covered notes skip and contradictions defer, at 0.85 or above', async () => {
   const s = store([note()]);
   const covered = await prepareNotes(s, [note('new')], { evidence, judge: judge({ relation: 'covered' }) });
   assert.equal(covered.notes.length, 0); assert.equal(covered.skipped.length, 1);
   const conflict = await prepareNotes(s, [note('new')], { evidence, judge: judge({ relation: 'contradicts' }) });
   assert.equal(conflict.notes.length, 0); assert.equal(conflict.deferred[0].status, 'contradiction');
-  const uncertain = await prepareNotes(s, [note('new')], { evidence, judge: async (s, r) => {
-    const response = await judge()(s, r);
-    if (r.purpose === 'jev-reconcile') response.answers.relation = choice('extends', Object.keys(NOTE_RELATIONS), .6);
-    return response;
-  } });
-  assert.equal(uncertain.deferred[0].status, 'uncertain');
+});
+
+// Only a verdict at 0.85 may act on an existing note. Short of that the pairing is unrelated and the
+// loop goes on: a note is not lost because the model was fairly sure two notes were unrelated, nor
+// because a weak `extends` or `contradicts` led the distribution.
+test('an uncertain pairing counts as unrelated and the remaining candidates are still judged', async () => {
+  const a = note('a', { title: 'Rule A' }), b = note('b', { title: 'Rule B' }), c = note('c', { title: 'Rule C' });
+  const fairlyUnrelated = await prepareNotes(store([a]), [note('new')], { evidence, judge: pairwise({ a: { choice: 'unrelated', p: .6 } }) });
+  assert.equal(fairlyUnrelated.notes.length, 1); assert.equal(fairlyUnrelated.deferred.length, 0);
+  const weakConflict = await prepareNotes(store([a]), [note('new')], { evidence, judge: pairwise({ a: { choice: 'contradicts', p: .4 } }) });
+  assert.equal(weakConflict.notes.length, 1);
+  // the first candidate is uncertain, the third says covered with confidence: the loop must reach it
+  const laterCovered = await prepareNotes(store([a, b, c]), [note('new')], { evidence, judge: pairwise({ a: { choice: 'extends', p: .5 }, b: { choice: 'unrelated', p: .7 }, c: { choice: 'covered', p: .95 } }) });
+  assert.equal(laterCovered.notes.length, 0); assert.equal(laterCovered.skipped.length, 1);
+  const laterConflict = await prepareNotes(store([a, b]), [note('new')], { evidence, judge: pairwise({ a: { choice: 'unrelated', p: .6 }, b: { choice: 'contradicts', p: .9 } }) });
+  assert.equal(laterConflict.deferred[0].status, 'contradiction');
+});
+
+// `extends` leading the distribution at 0.6 or above but under 0.85 is a hint. With a repair round
+// behind the caller it goes to the writer once, with the target; the writer's answer settles it.
+// Without one, deferring would lose the note, so the hint is unrelated.
+test('a likely extension goes to the writer with its target when a repair round follows, else writes', async () => {
+  const old = note();
+  const hint = pairwise({ lease: { choice: 'extends', p: .7 } });
+  const noRepair = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint });
+  assert.equal(noRepair.notes.length, 1); assert.equal(noRepair.notes[0].extends, '');
+  const toWriter = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint, repair: true });
+  assert.equal(toWriter.notes.length, 0);
+  assert.equal(toWriter.deferred[0].status, 'uncertain');
+  assert.match(toWriter.deferred[0].reason, /likely extends lease/);
+  assert.equal(toWriter.deferred[0].diagnostics.extensionTarget.id, old.id);
+  assert.equal(toWriter.deferred[0].diagnostics.hint, true);
+  const settled = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint, repair: true, repaired: true });
+  assert.equal(settled.notes.length, 1);
+  const behavior = await prepareNotes(store([note('lease', { kind: 'behavior' })]), [note('new')], { evidence, judge: hint, repair: true });
+  assert.equal(behavior.notes.length, 1, 'a human behavior is never offered as a merge target');
+});
+
+test('the catalog scan is selective by default: floor 0.6, four candidates', async () => {
+  const notes = Array.from({ length: 20 }, (_, i) => note(`n${i}`, { title: `Rule ${i}` }));
+  const many = await selectLearningNotes(store(notes), 'leases', { judge: judge({ catalog: .95 }) });
+  assert.equal(many.notes.length, 4);
+  const none = await selectLearningNotes(store(notes), 'leases', { judge: judge({ catalog: .5 }) });
+  assert.equal(none.status, 'ok'); assert.equal(none.notes.length, 0);
+});
+
+test('a body line is supported at 0.7 and a conflict still blocks at 0.2', async () => {
+  const at = (support, conflict = .01) => async (s, q) => {
+    const r = await judge()(s, q);
+    if (q.purpose === 'jev-grounding') for (const k of Object.keys(r.answers)) r.answers[k] = { noul: k.startsWith('x') ? conflict : support };
+    return r;
+  };
+  assert.equal((await prepareNotes(store([]), [note()], { evidence, judge: at(.75) })).notes.length, 1);
+  assert.equal((await prepareNotes(store([]), [note()], { evidence, judge: at(.65) })).notes.length, 0);
+  const conflict = await prepareNotes(store([]), [note()], { evidence, judge: at(.95, .25) });
+  assert.equal(conflict.notes.length, 0); assert.match(conflict.deferred[0].reason, /conflicts/);
 });
 
 test('extension preserves full old text and refuses lossy merging or human behavior rewrites', async () => {
@@ -81,6 +138,7 @@ test('extension preserves full old text and refuses lossy merging or human behav
   assert.equal(seen.find(r => r.purpose === 'jev-reconcile').state.existing_note.body, old.body);
   const lossy = await prepareNotes(store([old]), [{ ...next, body: 'The release token must match the commit token.' }], { evidence, judge: judge({ relation: 'extends', preserve: .5 }) });
   assert.equal(lossy.notes.length, 0); assert.match(lossy.deferred[0].reason, /complete merged body/);
+  assert.equal(lossy.deferred[0].diagnostics.extensionTarget.id, old.id, 'the target travels with the deferral so the repair round can ask for the merged body');
   const behavior = await prepareNotes(store([note('lease', { kind: 'behavior' })]), [next], { evidence, judge: judge({ relation: 'extends' }) });
   assert.equal(behavior.notes.length, 0); assert.match(behavior.deferred[0].reason, /human behavior/);
 });
