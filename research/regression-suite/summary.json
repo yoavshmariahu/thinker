@@ -383,5 +383,82 @@
     "Historical runs use earlier Thinker revisions",
     "Single sample per arm",
     "Gemini/Codex identity pinned by invocation; provider does not consistently echo it"
-  ]
+  ],
+  "failureInclusive": {
+    "rule": "User-requested post-run scoring: posthog-104706 Gemini baseline provider failure counts as failure to detect; its valid Thinker finding counts as a hit. Original valid-pair analysis remains separate.",
+    "newByRepo": {
+      "grafana": {
+        "cases": 15,
+        "baselineHits": 9,
+        "thinkerHits": 12,
+        "wins": 4,
+        "losses": 1
+      },
+      "posthog": {
+        "cases": 15,
+        "baselineHits": 8,
+        "thinkerHits": 13,
+        "wins": 6,
+        "losses": 1
+      },
+      "pandas": {
+        "cases": 15,
+        "baselineHits": 12,
+        "thinkerHits": 15,
+        "wins": 3,
+        "losses": 0
+      },
+      "sklearn": {
+        "cases": 15,
+        "baselineHits": 10,
+        "thinkerHits": 13,
+        "wins": 3,
+        "losses": 0
+      },
+      "pydantic": {
+        "cases": 15,
+        "baselineHits": 14,
+        "thinkerHits": 14,
+        "wins": 1,
+        "losses": 1
+      }
+    },
+    "newByModel": {
+      "opus": {
+        "cases": 25,
+        "baselineHits": 18,
+        "thinkerHits": 23,
+        "wins": 6,
+        "losses": 1
+      },
+      "sol": {
+        "cases": 25,
+        "baselineHits": 18,
+        "thinkerHits": 24,
+        "wins": 6,
+        "losses": 0
+      },
+      "gemini": {
+        "cases": 25,
+        "baselineHits": 17,
+        "thinkerHits": 20,
+        "wins": 5,
+        "losses": 2
+      }
+    },
+    "newTotal": {
+      "cases": 75,
+      "baselineHits": 53,
+      "thinkerHits": 67,
+      "wins": 17,
+      "losses": 3
+    },
+    "sevenRepoTotal": {
+      "cases": 100,
+      "baselineHits": 67,
+      "thinkerHits": 91,
+      "wins": 28,
+      "losses": 4
+    }
+  }
 }

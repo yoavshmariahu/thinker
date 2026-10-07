@@ -606,6 +606,14 @@ updates that landed during the experiment were kept out of this cohort.
 | sol | 18/25 | 24/25 | 6 / 0 |
 | gemini | 17/24 | 19/24 | 4 / 2 |
 
+The updated headline counts provider failure as failure to detect, at the user's
+post-run request: **53/75 without Thinker versus 67/75 with it** in the expansion,
+and **67/100 versus 91/100** across seven repositories (+24 percentage points).
+The valid Thinker hit on PostHog #104706 is credited; its failed Gemini baseline
+counts as a miss. The new model cohorts under this rule are Opus 18/25 → 23/25,
+Sol 18/25 → 24/25, and Gemini Flash 17/25 → 20/25. The original valid-pair
+analysis remains below, and its token/latency totals remain separate.
+
 The expansion totals **53/74 without Thinker versus 66/74 with it**: sixteen
 gains and three losses. Model cohorts contain different bugs, so their rates
 do not rank the models. One Gemini/PostHog pair remains invalid after three
