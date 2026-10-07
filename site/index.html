@@ -821,12 +821,11 @@
       <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
         <div class="metric-kicker">Bug detection · 7 repositories</div>
         <div class="metric-num gain">73% fewer bugs</div>
-        <div class="metric-label">Across a 100-bug benchmark set<br>Left undetected: 33 missed &rarr; 9 missed</div>
+        <div class="metric-label">Across a 100-bug benchmark set</div>
         <ul class="metric-models">
-          <li><span>Claude Opus 5.5</span><span><span class="before">7 &rarr;</span> 2 missed</span></li>
-          <li><span>GPT-6.1 Sol</span><span><span class="before">7 &rarr;</span> 1 missed</span></li>
-          <li><span>Gemini 3.8 Flash</span><span><span class="before">8 &rarr;</span> 5 missed</span></li>
-          <li><span>GPT-6.1 Sol · earlier runs</span><span><span class="before">11 &rarr;</span> 1 missed</span></li>
+          <li><span>Claude Opus 5.5</span><span>71% fewer</span></li>
+          <li><span>GPT-6.1 Sol</span><span>89% fewer</span></li>
+          <li><span>Gemini 3.8 Flash</span><span>38% fewer</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
@@ -864,47 +863,39 @@
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Historical regression recall</div>
           <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">Bugs left undetected fell from 33 without Thinker to 9 with Thinker: 73% fewer missed bugs (rounded). Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points). Bugs missed by model (lower is better); reductions are rounded:</p>
+          <p class="bench-lede">The share of bugs left undetected fell from 33% without Thinker to 9% with Thinker: 73% fewer missed bugs (rounded). Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points). Percentage of bugs missed by model (lower is better); reductions are rounded:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">25 cases · high effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
-                <div class="bar after"><i style="--w: 8%"></i>2 missed</div>
+                <div class="bar before"><i style="--w: 28%"></i>28% missed</div>
+                <div class="bar after"><i style="--w: 8%"></i>8% missed</div>
               </div>
               <div class="bench-delta">&minus;71%</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">25 cases · high effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
-                <div class="bar after"><i style="--w: 4%"></i>1 missed</div>
+                <div class="bar before"><i style="--w: 36%"></i>36% missed</div>
+                <div class="bar after"><i style="--w: 4%"></i>4% missed</div>
               </div>
-              <div class="bench-delta">&minus;86%</div>
+              <div class="bench-delta">&minus;89%</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">25 cases · high effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 32%"></i>8 missed</div>
-                <div class="bar after"><i style="--w: 20%"></i>5 missed</div>
+                <div class="bar before"><i style="--w: 32%"></i>32% missed</div>
+                <div class="bar after"><i style="--w: 20%"></i>20% missed</div>
               </div>
               <div class="bench-delta">&minus;38%</div>
             </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol · earlier runs</div><div class="bench-model-sub">25 cases · separate cohort</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 44%"></i>11 missed</div>
-                <div class="bar after"><i style="--w: 4%"></i>1 missed</div>
-              </div>
-              <div class="bench-delta">&minus;91%</div>
-            </div>
           </div>
-          <p class="bench-lede">Grafana, PostHog, pandas, scikit-learn and Pydantic: 22 → 8 bugs missed across 75 cases. Earlier Sol runs on Autoscaler and mitmproxy add 11 → 1 missed across 25 cases. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
-          <p class="bench-lede">The cache learned these historical fixes. This measures recall, not unseen-bug detection; false-positive rates were not measured. One failed Gemini baseline counts as a miss and its valid Thinker result as a hit, under a post-run scoring change. Excluding that pair gives 32 → 9 missed across 99 cases. Runs span pinned Thinker revisions.</p>
+          <p class="bench-lede">Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
+          <p class="bench-lede">The cache learned these historical fixes. This measures recall, not unseen-bug detection; false-positive rates were not measured. One failed Gemini baseline counts as a miss and its valid Thinker result as a hit, under a post-run scoring change. Excluding that pair gives 72% fewer missed bugs (rounded). Runs span pinned Thinker revisions.</p>
         </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
