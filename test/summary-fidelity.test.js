@@ -77,6 +77,19 @@ test('a refused description is written again once, and the second refusal is fin
   assert.ok(refused.support <= 0.7 || refused.scope <= 0.7, 'and the scores that refused it');
 });
 
+test('a check that could not run leaves the note for a later run, not refused for good', async t => {
+  // The daily token cap, a quota or a transport failure all arrive as `unavailable`. Recording that
+  // as a refusal would stop maintenance describing the note ever again.
+  const store = fixture(t, async () => ({ ok: false, status: 429, json: async () => ({ error: 'dailyTokens' }) }));
+  const n = note('capped');
+  store.put(n);
+  const result = await phraseNotes(store, [n], { completeFn: generated([faithful]) });
+  assert.deepEqual(result.done, [], 'nothing is stored when the check could not run');
+  assert.equal(result.deferred[0].status, 'unavailable');
+  assert.equal(store.get('capped').phraseRefused, undefined, 'and the note is not refused for good');
+  assert.equal(searchText(store.get('capped')), n.body);
+});
+
 test('a rewritten description that satisfies the check is kept', async t => {
   const store = fixture(t, transport((key, request) => {
     const i = key.replace(/\D/g, '');
