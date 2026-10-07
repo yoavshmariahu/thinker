@@ -13,6 +13,7 @@ parser.add_argument('--tasks', type=Path, required=True)
 parser.add_argument('--prs', type=Path, required=True)
 parser.add_argument('--source', type=Path, required=True, help='Read-only upstream clone for ancestry validation')
 parser.add_argument('--agent-seconds', type=int, default=600)
+parser.add_argument('--cohorts', default=','.join(MODELS), help='Model cohorts to compare, e.g. opus,sol')
 a = parser.parse_args()
 require_running(a.out)
 if not (ROOT / '.git').is_file():
@@ -32,6 +33,9 @@ if key.returncode != 0:
 adapter = (ROOT / 'src/llm.js').read_text()
 if not all(x in adapter for x in ['THINKER_CLAUDE_EFFORT', 'THINKER_CODEX_REASONING_EFFORT', 'THINKER_GEMINI_EFFORT']):
     raise SystemExit('Apply the reviewed exact-model/high-effort adapter before freezing; no silent default effort')
+cohort_names = [c.strip() for c in a.cohorts.split(',') if c.strip()]
+if not cohort_names or any(c not in MODELS for c in cohort_names) or len(set(cohort_names)) != len(cohort_names):
+    raise SystemExit(f'--cohorts must be a unique subset of {",".join(MODELS)}')
 tasks = json.loads(a.tasks.read_text())
 if not tasks or len({t['id'] for t in tasks}) != len(tasks):
     raise SystemExit('Nonempty unique tasks required')
@@ -52,7 +56,7 @@ a.out.mkdir(parents=True)
 (a.out / 'prs.json').write_text(json.dumps(corpus, indent=2) + '\n')
 (a.out / 'tasks.json').write_text(json.dumps(tasks, indent=2) + '\n')
 e = {'guardrailsVersion': 3, 'thinkerCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
-     'models': MODELS, 'effort': 'high', 'fallback': False, 'testMode': True, 'jev': 'jev-1.13.0',
+     'models': {c: MODELS[c] for c in cohort_names}, 'effort': 'high', 'fallback': False, 'testMode': True, 'jev': 'jev-1.13.0',
      # The arm is wired by the product itself; the guidance text it delivers is pinned by hash, so an
      # edit to cache-guidance.js after freezing fails the gate instead of changing the measurement.
      'wiring': {'mode': WIRING_MODE, 'guidanceSha256': digest(GUIDANCE), 'instructionsLimit': 2048, 'ranker': 'jev'},
