@@ -13,7 +13,7 @@ from unittest.mock import patch
 from pr_cache import validate_pr_manifest
 from frozen_gh import replay
 from collect_prs import collect
-from guardrails import HERE, MODELS, GUIDANCE, WIRING_MODE, GuardError, assert_ready, assert_served_by_jev, checked_ready, digest, guarded_env, isolated_env, supervised, validate_execution, source_hashes, ROOT
+from guardrails import HERE, MODELS, GUIDANCE, WIRING_MODE, GuardError, assert_ready, assert_served_by_jev, checked_ready, cohorts, digest, guarded_env, isolated_env, supervised, validate_execution, source_hashes, ROOT
 
 
 class Guards(unittest.TestCase):
@@ -27,6 +27,8 @@ class Guards(unittest.TestCase):
             'mergedAt':'2026-01-01T00:00:00Z', 'updatedAt':'2026-01-01T00:00:00Z',
             'mergeCommit':{'oid':'c'*40}, 'diff':'+ public source', 'comments':[], 'files':[{'path':'src/file.py'}], 'additions':3}]}}}
         (self.out / 'prs.json').write_text(json.dumps(self.corpus))
+        # The gate takes its cohorts from the frozen protocol, so every fixture carries one.
+        (self.out / 'execution.json').write_text(json.dumps({'models': MODELS}))
         self.raw = self.out / 'raw'; self.raw.mkdir()
         for arm in ['base', 'gold']:
             g = {'returncode': 1 if arm == 'base' else 0, 'tests': 1, 'passed': 0 if arm == 'base' else 1,
@@ -288,6 +290,26 @@ class Guards(unittest.TestCase):
         with self.assertRaisesRegex(GuardError, 'not agent-authored'):
             assert_ready(self.out, self.tasks)
 
+    def test_a_run_gates_only_the_cohorts_it_froze(self):
+        """Dropping a cohort from the comparison must not require a cache it will never build."""
+        (self.out / 'execution.json').write_text(json.dumps({'models': {'opus': MODELS['opus'], 'sol': MODELS['sol']}}))
+        self.assertEqual(list(cohorts(self.out)), ['opus', 'sol'])
+        for leftover in (self.raw / 'task-gemini-pr-build.json', self.raw / 'task-gemini-thinker-retrieval.json',
+                         self.raw / 'task-gemini-pr-note-hashes.json'):
+            leftover.unlink()
+        assert_ready(self.out, self.tasks)
+        # A frozen cohort with no cache still blocks every arm.
+        self.save('task-sol-pr-build.json', {'valid': False, 'setupError': 'no corpus'})
+        with self.assertRaises(GuardError): assert_ready(self.out, self.tasks)
+
+    def test_frozen_cohorts_must_be_known_models_at_their_exact_versions(self):
+        for bad in [{}, {'opus': 'claude-opus-4'}, {'gpt': MODELS['sol']}, [], None]:
+            with self.subTest(models=bad):
+                (self.out / 'execution.json').write_text(json.dumps({'models': bad}))
+                with self.assertRaises(GuardError): cohorts(self.out)
+        (self.out / 'execution.json').unlink()
+        with self.assertRaisesRegex(GuardError, 'No frozen cohorts'): cohorts(self.out)
+
     def test_protocol_rejects_changed_source_and_model(self):
         (self.out / '.git').write_text('gitdir: fixture')
         (self.out / 'tasks.json').write_text(json.dumps(self.tasks))
@@ -299,7 +321,7 @@ class Guards(unittest.TestCase):
             (self.out / 'execution.json').write_text(json.dumps(config))
             validate_execution(self.out)
             for key, bad in [('effort','medium'),('thinkerCommit','other'),('sourceHashes',{}),('tasksSha256','changed'),('agentSeconds',99999),('cacheSource','session'),('cacheBuildPath','distillFile'),('prsSha256','changed'),
-                             ('guardrailsVersion',2),('wiring',{'mode':'pasted-retrieval','guidanceSha256':digest(GUIDANCE)}),
+                             ('guardrailsVersion',2),('models',{}),('models',{'opus':'claude-opus-4'}),('wiring',{'mode':'pasted-retrieval','guidanceSha256':digest(GUIDANCE)}),
                              ('wiring',{'mode':WIRING_MODE,'guidanceSha256':'edited'})]:
                 value = config[key]; config[key] = bad
                 (self.out / 'execution.json').write_text(json.dumps(config))

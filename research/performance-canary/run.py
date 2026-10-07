@@ -9,7 +9,8 @@ if len(sys.argv) < 3 or sys.argv[1] != 'solve':
 ROOT=Path(__file__).resolve().parents[2];OUT=run_dir();RAW=OUT/'raw';STATE=OUT/'state'
 if (OUT/'STOPPED.json').exists():raise SystemExit('Canary stopped as invalid for efficiency. Preserve these results; use a reviewed fresh protocol for another run.')
 EXECUTION=checked_execution(OUT)
-TASKS=json.loads((OUT/'tasks.json').read_text());MODELS={'opus':'claude-opus-5-5','sol':'gpt-6.1-sol','gemini':'gemini-3.8-flash-high'}
+# The cohorts and their exact models come from the frozen protocol, never from a literal here.
+TASKS=json.loads((OUT/'tasks.json').read_text());MODELS=EXECUTION['models']
 ENV={**os.environ,'THINKER_TEST':'1','THINKER_TELEMETRY':'off','THINKER_LOG':'local','THINKER_NO_LEARN':'1','THINKER_NO_BG_VERIFY':'1','THINKER_MCP':'off','THINKER_NO_AUTO_UPDATE':'1','PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1','CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC':'1'}
 ENV.pop('MAX_THINKING_TOKENS',None)
 def run(t,m,arm):
@@ -28,7 +29,10 @@ def run(t,m,arm):
  env.pop('MAX_THINKING_TOKENS',None)
  if m=='sol':
   home=STATE/('home-'+name);home.mkdir(exist_ok=True);auth=home/'auth.json'
-  if not auth.exists():auth.symlink_to('/Users/yoavshmariahu/src/thinker/bench/codex-home/auth.json')
+  if not auth.exists():
+   source=Path(os.environ.get('THINKER_CODEX_AUTH','')).expanduser()
+   if not source.is_file():raise SystemExit('Set THINKER_CODEX_AUTH to the Codex auth.json to use for this run')
+   auth.symlink_to(source)
   env['CODEX_HOME']=str(home)
   cmd=['codex','exec','--json','--ephemeral','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
  elif m=='opus':
@@ -71,6 +75,7 @@ def run(t,m,arm):
  out.write_text(json.dumps(r,indent=2)+'\n');print('DONE',name,'valid='+str(r['valid']),'tokens='+str(r['tokens']),'seconds='+str(r['wallMs']/1000),flush=True);return r
 if __name__=='__main__':
  mode,m=sys.argv[1:3]
+ if m not in MODELS:raise SystemExit(f"run.py solve {'|'.join(MODELS)}")
  checked_ready(OUT,TASKS)
  for i,t in enumerate(TASKS):
   for arm in (['baseline','thinker'] if (i+list(MODELS).index(m))%2==0 else ['thinker','baseline']):

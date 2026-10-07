@@ -64,8 +64,8 @@ Use an isolated Thinker git worktree and a **new output directory**. Do not remo
    python3 research/performance-canary/prepare.py
    python3 research/performance-canary/verify.py preflight
    ```
-4. Run `pipeline.py build MODEL` for each of `opus`, `sol`, `gemini`. Building does **not** launch coding. Check cache quality and coverage before solving. There are no exploration sessions or session-distillation commands in this workflow.
-5. Only after all nine PR caches pass, explicitly run `pipeline.py solve MODEL`. Direct `run.py solve` has the same global readiness gate. No model/effort fallback is permitted. A source, task, PR corpus or harness change after freezing fails the gate.
+4. Run `pipeline.py build MODEL` for each cohort the protocol froze (`--cohorts opus,sol` compares two; the default is all three). A cohort left out is never built, gated or solved, and a frozen cohort without a passing cache blocks every arm. Building does **not** launch coding. Check cache quality and coverage before solving. There are no exploration sessions or session-distillation commands in this workflow.
+5. Only after every frozen cohort's PR caches pass (one per task and cohort), explicitly run `pipeline.py solve MODEL`. Direct `run.py solve` has the same global readiness gate. No model/effort fallback is permitted. A source, task, PR corpus or harness change after freezing fails the gate.
 
 Authentication must already exist. The canary's scripts still use the recorded machine's Codex credential symlink and local Python interpreter; credentials are never copied into reports. Use `verify.py score` for frozen executable grades. The historical `summarize.py`/`report.py` continue to describe the archived batch; a new experiment needs its own report based on its saved records.
 

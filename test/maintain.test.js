@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
+import { phraseKey } from '../src/note-search.js';
 import { maintain, maintenanceNotice, renderMaintain, spentToday, jevSpentToday, withinDailyCap, withinJevDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
@@ -32,6 +33,33 @@ function withEnv(fn) {
   for (const [k, v] of Object.entries(env)) { prev[k] = process.env[k]; process.env[k] = v; }
   return Promise.resolve().then(fn).finally(() => { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
 }
+
+test('a note whose description was refused twice is not phrased again until it changes', () => withEnv(async () => {
+  // Without this the writer and the judge are paid on every run for the same refusal.
+  const { dir, store, a, b } = staleRepo();
+  const refused = store.get(b.id);
+  store.put({ ...refused, phraseRefused: { at: new Date().toISOString(), key: phraseKey(refused), support: 0.2, scope: 0.9 } });
+  const phrased = [];
+  await maintain(store, dir, { fns: {
+    spentToday: () => 0,
+    verify: async () => ({ verdict: 'still_valid', tokens: 0 }),
+    phrase: async (s, notes) => { phrased.push(...notes.map(n => n.id)); return { done: notes, tokens: 0 }; },
+    minePrs: async () => ({ saved: 0 }),
+  } });
+  assert.deepEqual(phrased, [a.id], 'the refused note is left alone, the unphrased one is not');
+  // An edit moves the key on, and the note is offered to the writer again.
+  const edited = store.get(b.id);
+  store.put({ ...edited, body: edited.body + '\nAnd one more line that changes the key.' });
+  const again = [];
+  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.json'), { force: true });
+  await maintain(store, dir, { fns: {
+    spentToday: () => 0,
+    verify: async () => ({ verdict: 'still_valid', tokens: 0 }),
+    phrase: async (s, notes) => { again.push(...notes.map(n => n.id)); return { done: notes, tokens: 0 }; },
+    minePrs: async () => ({ saved: 0 }),
+  } });
+  assert.ok(again.includes(b.id), 'an edited note is described again');
+}));
 
 test('maintain verifies stale notes, phrases unphrased ones, and reports once', () => withEnv(async () => {
   const { dir, store, a, b } = staleRepo();

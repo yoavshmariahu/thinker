@@ -1,8 +1,12 @@
 import { judgeWithJev } from './jev-decisions.js';
 import { jevConfig } from './jev.js';
 
-// These are conservative acceptance thresholds, not estimates of factual truth.
-export const SUMMARY_FIDELITY_FLOOR = 0.9;
+// An acceptance threshold, not an estimate of factual truth. 0.9 rejected 38 of 38 descriptions
+// written by a pinned Opus from mined notes, and even with the length of the description fixed it
+// would reject 35 of 38, since scope sits near 0.86 whatever the length. At 0.7 the fixed prompt
+// keeps 33 of 38 and the padding the old prompt produced (support down to 0.23) still fails.
+// Measured in research/phrase-length; chosen by the user on 2026-10-07.
+export const SUMMARY_FIDELITY_FLOOR = 0.7;
 const MAX_BYTES = 28000;
 const MAX_SUMMARIES = 16; // two independent questions per note
 

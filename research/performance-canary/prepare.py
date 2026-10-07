@@ -1,10 +1,11 @@
-import io,json,os,subprocess,tarfile,shlex
+import io,json,os,subprocess,tarfile
 from pathlib import Path
-from guardrails import run_dir, checked_execution
+from guardrails import run_dir, checked_execution, cohorts, cohorts
 assert os.environ.get('THINKER_TEST')=='1'
-ROOT=Path(__file__).resolve().parents[2]; OUT=run_dir(); STATE=OUT/'state'; RAW=OUT/'raw'; SOURCE=Path('/Users/yoavshmariahu/src/thinker/bench/repos/click')
-checked_execution(OUT)
-TASKS=json.loads((OUT/'tasks.json').read_text())
+ROOT=Path(__file__).resolve().parents[2]; OUT=run_dir(); STATE=OUT/'state'; RAW=OUT/'raw'; SOURCE=Path(os.environ.get('THINKER_BENCH_SOURCE','')).expanduser()
+EXECUTION=checked_execution(OUT)
+if not SOURCE.is_dir():raise SystemExit('Set THINKER_BENCH_SOURCE to the read-only upstream clone')
+TASKS=json.loads((OUT/'tasks.json').read_text());COHORTS=list(cohorts(OUT));COHORTS=list(cohorts(OUT))
 def git(*args,cwd=SOURCE):return subprocess.check_output(['git',*args],cwd=cwd)
 STATE.mkdir(exist_ok=True);RAW.mkdir(exist_ok=True)
 for t in TASKS:
@@ -18,7 +19,8 @@ for t in TASKS:
    data=archive.extractfile(m).read() if m.isfile() else m.linkname.encode();mode='120000' if m.issym() else '100755' if m.mode&0o111 else '100644'
    stream+=f'M {mode} inline {json.dumps(m.name)}\ndata {len(data)}\n'.encode()+data+b'\n'
   subprocess.run(['git','fast-import','--quiet'],cwd=bare,input=stream+b'\ndone\n',check=True)
- for suffix in ['verify-base','verify-gold']+[f'{m}-{a}' for m in ['opus','sol','gemini'] for a in ['pr-cache','baseline','thinker','baseline-score','thinker-score']]:
+ # Only the cohorts this run froze get checkouts; a dropped cohort leaves no stray worktree.
+ for suffix in ['verify-base','verify-gold']+[f'{m}-{a}' for m in COHORTS for a in ['pr-cache','baseline','thinker','baseline-score','thinker-score']]:
   wt=STATE/(t['id']+'-'+suffix)
   if not wt.exists():subprocess.run(['git','worktree','add','-q','--detach',str(wt),'base'],cwd=bare,check=True)
  gold=RAW/(t['id']+'-gold');gold.mkdir(exist_ok=True)
@@ -27,7 +29,6 @@ for t in TASKS:
  (gold/'LICENSE.txt').write_bytes(git('show',t['fixed']+':LICENSE.txt'))
  print(t['id'],git('rev-parse','base',cwd=bare).decode().strip())
 
-# The helper is created by setup, not by an unrecorded manual shell step.
-helper=STATE/'bin'/'thinker_lookup';helper.parent.mkdir(exist_ok=True)
-helper.write_text('#!/bin/sh\nexec node '+shlex.quote(str(Path(__file__).resolve().parent/'memory.mjs'))+' lookup "$@"\n')
-helper.chmod(0o755)
+# Live wiring gives the arm the product's own `lookup` over MCP, so the shell helper that the pasted
+# retrieval needed is gone: leaving it in the agent's PATH would offer a route nothing describes.
+(STATE/'bin').mkdir(exist_ok=True)

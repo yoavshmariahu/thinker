@@ -12,6 +12,8 @@ import wiring
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+# Every cohort this harness knows how to drive. A run freezes the subset it compares, since a
+# cohort left out of the comparison must not be required to have a cache before the others may code.
 MODELS = {'opus': 'claude-opus-5-5', 'sol': 'gpt-6.1-sol', 'gemini': 'gemini-3.8-flash-high'}
 SOURCES = ['run.py', 'pipeline.py', 'memory.mjs', 'verify.py', 'guardrails.py', 'thinker_bench_pytest.py', 'prepare.py', 'freeze.py', 'pr_cache.py', 'collect_prs.py', 'frozen_gh.py', 'wire.mjs', 'wiring.py']
 GUIDANCE = ROOT / 'src/cache-guidance.js'
@@ -63,7 +65,10 @@ def validate_execution(out):
     if not (ROOT / '.git').is_file():
         raise GuardError('Use an isolated git worktree')
     e = read(Path(out) / 'execution.json')
-    if e.get('guardrailsVersion') != 3 or e.get('models') != MODELS or e.get('effort') != 'high' or e.get('fallback') is not False:
+    frozen = e.get('models')
+    if (e.get('guardrailsVersion') != 3 or not isinstance(frozen, dict) or not frozen
+            or any(MODELS.get(name) != model for name, model in frozen.items())
+            or e.get('effort') != 'high' or e.get('fallback') is not False):
         raise GuardError('Missing or mismatched frozen model/effort protocol')
     # The thinker arm must receive the cache through the product's own transports (hooks, MCP server,
     # instruction file). Schema 2 pasted an offline retrieval into the prompt and is rejected here.
@@ -112,10 +117,22 @@ def assert_preflight(out, tasks):
                     raise GuardError(f'{task["id"]} {arm} {kind}: expected real failing base and passing gold')
 
 
-def assert_ready(out, tasks, models=MODELS):
+def cohorts(out):
+    """The model cohorts this run froze, by name. Nothing outside them is built, gated or solved."""
+    try:
+        frozen = read(Path(out) / 'execution.json')['models']
+    except Exception as error:
+        raise GuardError(f'No frozen cohorts to gate: {error}') from error
+    if not isinstance(frozen, dict) or not frozen or any(MODELS.get(k) != v for k, v in frozen.items()):
+        raise GuardError('Frozen cohorts must be a nonempty subset of the known models')
+    return frozen
+
+
+def assert_ready(out, tasks, models=None):
     """Validate all caches before either arm; do not trust counts or exit status alone."""
     out = Path(out)
     require_running(out)
+    models = cohorts(out) if models is None else models
     if not tasks or not models:
         raise GuardError('Nonempty tasks and model cohorts required')
     assert_preflight(out, tasks)
@@ -126,7 +143,7 @@ def assert_ready(out, tasks, models=MODELS):
             build = read(out / 'raw' / (name + '-pr-build.json'))
             if (build.get('setupError') or build.get('cacheBuildPath') != CACHE_BUILD_PATH
                     or build.get('cacheSource') != CACHE_SOURCE or build.get('valid') is not True
-                    or build.get('model') != MODELS[model] or build.get('effort') != 'high'
+                    or build.get('model') != models[model] or build.get('effort') != 'high'
                     or build.get('prsSha256') != digest(out / 'prs.json')):
                 raise GuardError(f'{name}: invalid PR cache provenance, model or build outcome')
             allowed = {f"{corpus['tasks'][task['id']]['repository']}#{p['number']}" for p in corpus['tasks'][task['id']]['prs']}
@@ -185,7 +202,7 @@ def assert_ready(out, tasks, models=MODELS):
                 raise GuardError(f'{name}: baseline must have no wiring receipt')
 
 
-def checked_ready(out, tasks, models=MODELS):
+def checked_ready(out, tasks, models=None):
     try:
         assert_ready(out, tasks, models)
     except Exception as e:

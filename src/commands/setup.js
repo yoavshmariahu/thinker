@@ -81,6 +81,7 @@ async function rankerCommand(ctx) {
   const j = jev.jevStatus(store);
   out(`jev: ${j.enabled ? 'on' : 'off'} (${j.mode === 'hosted' ? 'Thinker hosted access; no API key needed' : `personal key from ${j.source}`}); ${j.model}, floor ${j.floor}, ${j.maxNotes} note${j.maxNotes === 1 ? '' : 's'}`);
   if (j.enabled) out(`  the local ranker takes over on errors, invalid responses or after ${j.timeoutMs} ms; THINKER_JEV=off uses local only`);
+  if (j.offForTests) out('  off because THINKER_TEST=1, not by choice: a run here ranks locally. To measure the shipped ranker, set THINKER_JEV=on with THINKER_JEV_ALLOW_NETWORK=1 and a personal key');
   out(`  access: ${j.asked ? `${j.access} (chosen)` : 'not chosen yet; hosted access is the default until you pick'} — --jev-key <key> for your own, --no-jev-key to go back to hosted`);
 }
 

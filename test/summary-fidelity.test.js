@@ -29,6 +29,13 @@ function transport(decide, seen = []) {
   };
 }
 const generated = entries => async () => ({ json: { notes: entries.map((search, i) => ({ n: i + 1, says: ['Please retry failed worker jobs'], search })) }, tokens: { totalTokens: 100 } });
+// One writer whose answers differ per call, so a retry is visible: each call describes the notes it
+// was given, taking the next entry of `passes` for each.
+const writer = passes => { let call = 0; return async ({ prompt }) => {
+  const count = (prompt.match(/^\[\d+\] kind=/gm) || []).length;
+  const texts = passes[Math.min(call++, passes.length - 1)];
+  return { json: { notes: Array.from({ length: count }, (_, i) => ({ n: i + 1, says: ['Please retry failed worker jobs'], search: texts[i] ?? texts[texts.length - 1] })) }, tokens: { totalTokens: 100 } };
+}; };
 
 test('fidelity state retains full source, applicability and symbol pointers with separate support and scope checks', () => {
   const n = note('a', { body: 'Detail.\n'.repeat(200) + 'Never retry after delivery.' });
@@ -49,18 +56,52 @@ test('summary judgment accepts faithful descriptions and rejects invented or bro
   assert.equal(seen.length, 1);
 });
 
-test('phrase writes only accepted summaries and does not stamp rejected summaries current', async t => {
-  const store = fixture(t, transport(key => key === 'scope1' ? .1 : .98));
+test('a refused description is written again once, and the second refusal is final', async t => {
+  // The judge refuses whatever claims billing jobs retry, whichever attempt wrote it.
+  const store = fixture(t, transport((key, request) => {
+    const i = key.replace(/\D/g, '');
+    return /billing jobs may retry/.test(request.state.summaries[i].search) ? .2 : .95;
+  }));
   const good = note('good'), bad = note('bad', { search: 'Obsolete description.', saysFor: 'old-key' });
   for (const n of [good, bad]) store.put(n);
-  const result = await phraseNotes(store, [good, bad], { completeFn: generated([faithful, 'All worker and billing jobs may retry after delivery.']) });
-  assert.deepEqual(result.done, ['good']);
-  assert.equal(store.get('good').saysFor, phraseKey(good));
+  const result = await phraseNotes(store, [good, bad], {
+    completeFn: writer([[faithful, 'All worker and billing jobs may retry after delivery.'],
+                        ['All worker and billing jobs may retry after delivery, every time.']]) });
+  assert.deepEqual(result.done, ['good'], 'only the faithful description is stored');
   assert.equal(searchText(store.get('good')), faithful);
-  assert.equal(store.get('bad').saysFor, 'old-key');
-  assert.equal(searchText(store.get('bad')), bad.body);
+  assert.equal(store.get('bad').saysFor, 'old-key', 'a refused description never stamps the key current');
+  assert.equal(searchText(store.get('bad')), bad.body, 'the note falls back to its body');
   assert.equal(result.deferred[0].status, 'rejected');
-  assert.equal(result.tokens, 124);
+  const refused = store.get('bad').phraseRefused;
+  assert.equal(refused.key, phraseKey(store.get('bad')), 'the refusal records the key it was for');
+  assert.ok(refused.support <= 0.7 || refused.scope <= 0.7, 'and the scores that refused it');
+});
+
+test('a check that could not run leaves the note for a later run, not refused for good', async t => {
+  // The daily token cap, a quota or a transport failure all arrive as `unavailable`. Recording that
+  // as a refusal would stop maintenance describing the note ever again.
+  const store = fixture(t, async () => ({ ok: false, status: 429, json: async () => ({ error: 'dailyTokens' }) }));
+  const n = note('capped');
+  store.put(n);
+  const result = await phraseNotes(store, [n], { completeFn: generated([faithful]) });
+  assert.deepEqual(result.done, [], 'nothing is stored when the check could not run');
+  assert.equal(result.deferred[0].status, 'unavailable');
+  assert.equal(store.get('capped').phraseRefused, undefined, 'and the note is not refused for good');
+  assert.equal(searchText(store.get('capped')), n.body);
+});
+
+test('a rewritten description that satisfies the check is kept', async t => {
+  const store = fixture(t, transport((key, request) => {
+    const i = key.replace(/\D/g, '');
+    return /billing jobs may retry/.test(request.state.summaries[i].search) ? .2 : .95;
+  }));
+  const n = note('fixable');
+  store.put(n);
+  const result = await phraseNotes(store, [n], {
+    completeFn: writer([['All worker and billing jobs may retry after delivery.'], [faithful]]) });
+  assert.deepEqual(result.done, ['fixable'], 'the retry is what gets stored');
+  assert.equal(searchText(store.get('fixable')), faithful);
+  assert.equal(store.get('fixable').phraseRefused, undefined, 'nothing is recorded as refused');
 });
 
 test('a failed check preserves an existing valid summary; disabled Jev retains legacy phrasing', async t => {
