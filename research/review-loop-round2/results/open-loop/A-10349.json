@@ -1,0 +1,81 @@
+{
+  "id": "A-10349",
+  "hashes": {
+    "run.mjs": "0c6b1401e36a7a3fceb73262221c00ff4b1ec2334fbf42cc14744bf06dcd6f2a",
+    "clients.mjs": "0fb48c0ca975d1254bda84d90829d9e39b8b124656ada953b58b5cc92f2312d4",
+    "policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20",
+    "protocol.json": "3d49b7898b2f80d75b857d988ae359c162c6853f2b4394d4ddf013064780ba05"
+  },
+  "stateHash": "87b43e532416d327bfa13a7d9519a34b76f08111e512d4a3932dbdabaa5ccc85",
+  "valid": true,
+  "elapsedMs": 296,
+  "requestHash": "2ebcc96e12cdd991c4b9cd95d100fd4b3f83348239253ada2839497fb704a24a",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "overclaimed",
+        "confidence": 0.29,
+        "probabilities": {
+          "supported": 0.33,
+          "overclaimed": 0.47000000000000003,
+          "contradicted": 0.19,
+          "insufficient": 0.01
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.28,
+        "probabilities": {
+          "accounted_for": 0.52,
+          "gap": 0.47,
+          "unknown": 0.01
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "verify_existing",
+        "confidence": 0.41,
+        "probabilities": {
+          "inspect_callers": 0.07,
+          "finalize": 0.15,
+          "manual_review": 0.01,
+          "verify_existing": 0.53,
+          "investigate_remaining": 0.24
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.9,
+        "probabilities": {
+          "settled": 0.95,
+          "needs_human": 0.05
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 2765,
+      "output_tokens": 193
+    }
+  },
+  "decisions": {
+    "v2": {
+      "action": "verify_existing",
+      "reason": "Action preference only (unresolved judgments are observational).",
+      "unresolved": [
+        "Claim support: overclaimed"
+      ]
+    },
+    "v3": {
+      "action": "verify_existing",
+      "reason": "Resolve or qualify unsupported claims before finalizing.",
+      "unresolved": [
+        "Claim support: overclaimed"
+      ]
+    }
+  }
+}

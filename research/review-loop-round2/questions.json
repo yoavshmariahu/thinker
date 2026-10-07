@@ -1,0 +1,40 @@
+{
+  "claim_support": {
+    "type": "choice",
+    "instructions": "Assess all current findings against source actually supplied. Are their causal and impact claims supported? A correct local observation does not by itself establish a broader operational consequence. A contract is an expectation, not evidence that a downstream path was inspected. If findings is empty, no defect claims have been asserted: use supported for that empty set. Judge whether defects were missed separately in coverage.",
+    "criteria": {
+      "supported": "All stated claims are supported by supplied source/evidence or explicitly qualified.",
+      "overclaimed": "At least one asserted consequence goes beyond the inspected evidence; retain supported local claims but qualify or investigate the broader claim.",
+      "contradicted": "Supplied evidence contradicts at least one reported defect.",
+      "insufficient": "Cannot determine support from supplied evidence."
+    }
+  },
+  "coverage": {
+    "type": "choice",
+    "instructions": "Within the supplied changed source and explicit contracts, do the findings account for the apparent distinct defects? This is not a claim about uninspected code. Check every finding, including secondary findings flattened into the list.",
+    "criteria": {
+      "accounted_for": "Apparent contract violations in the supplied changed source are represented in current findings; no specific uncovered path is apparent.",
+      "gap": "A specific distinct potentially defective changed behavior remains unaddressed by current findings.",
+      "unknown": "Evidence is too limited to assess coverage even for this bounded scope."
+    }
+  },
+  "next_action": {
+    "type": "choice",
+    "instructions": "Choose the most useful next action to finish this bounded review. Preserve distinct supported findings. Additional work should resolve an identifiable uncertainty or obtain new evidence. Do not repeat a check whose evidence and findings are unchanged. Finalize when remaining limits can be accurately stated. These are independent questions; do not assume access to other answers.",
+    "criteria": {
+      "verify_existing": "Correct, challenge or qualify existing claims using the currently supplied evidence.",
+      "inspect_callers": "Fetch available caller/control-flow source to settle an unsupported downstream consequence.",
+      "investigate_remaining": "Examine supplied source/diff for a distinct unreported behavior violation.",
+      "finalize": "Return current findings with scope limits; no additional action is justified.",
+      "manual_review": "Required intent or evidence is unavailable, so state the unresolved question for a human."
+    }
+  },
+  "intent_status": {
+    "type": "choice",
+    "instructions": "Do the supplied requirements define a consistent intended behavior for this review, or is an unresolved human intent/precedence decision necessary? Missing downstream implementation evidence alone is not an intent conflict. Do not infer intended behavior merely from what the code currently does.",
+    "criteria": {
+      "settled": "Applicable requirements are mutually consistent and adequate for this bounded review; evidence gathering or qualifying impact does not require choosing product intent.",
+      "needs_human": "Requirements contradict one another without authority/precedence, or a necessary product-intent choice cannot be resolved from the supplied requirements."
+    }
+  }
+}

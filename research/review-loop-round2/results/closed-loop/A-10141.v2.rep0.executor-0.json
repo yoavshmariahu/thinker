@@ -1,0 +1,45 @@
+{
+  "valid": true,
+  "elapsedMs": 18061,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "warnings": [
+    "clamping SessionEnd hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json",
+    "clamping Interrupt hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json"
+  ],
+  "usage": [
+    {
+      "input_tokens": 16245,
+      "cached_input_tokens": 12288,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 538,
+      "reasoning_output_tokens": 121
+    }
+  ],
+  "result": {
+    "findings": [
+      {
+        "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "line": 151,
+        "severity": "error",
+        "message": "The readiness guard rejects DaemonSets with desired scheduled pods but no ready pods. With five desired pods and zero ready pods, this function returns an error instead of the required replica count of five. Restore the DesiredNumberScheduled zero guard.",
+        "evidence": "Lines 151–152 check ds.Status.NumberReady == 0 and return an error. The supplied contract requires desired scheduled counts even when none are ready."
+      },
+      {
+        "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "line": 154,
+        "severity": "error",
+        "message": "When some pods are ready, the function returns the ready count instead of the desired scheduled count. A DaemonSet with five desired pods and three ready pods returns three, violating the replica-count contract. Return DesiredNumberScheduled.",
+        "evidence": "Line 154 returns int(ds.Status.NumberReady), nil; the diff replaces the previous return of int(ds.Status.DesiredNumberScheduled), nil."
+      }
+    ],
+    "coverage": "Verified the existing finding against the supplied diff and source lines 138–159, including the distinct guard and return-value defects. Coverage is limited to this excerpt.",
+    "limitations": [
+      "Caller and recovery control flow were not supplied, so downstream recovery failure is unverified.",
+      "No test diff was supplied, so removal of a zero-ready regression test cannot be verified.",
+      "No tools were used and no tests were run."
+    ],
+    "contribution": "Preserved the demonstrated zero-ready error and separately identified the incorrect count when readiness is positive. Replaced the unsupported recovery-failure claim with the demonstrated local failure and removed the unsupported test-removal claim."
+  }
+}

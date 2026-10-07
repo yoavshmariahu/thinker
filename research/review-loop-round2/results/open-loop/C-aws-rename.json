@@ -1,0 +1,77 @@
+{
+  "id": "C-aws-rename",
+  "hashes": {
+    "run.mjs": "0c6b1401e36a7a3fceb73262221c00ff4b1ec2334fbf42cc14744bf06dcd6f2a",
+    "clients.mjs": "0fb48c0ca975d1254bda84d90829d9e39b8b124656ada953b58b5cc92f2312d4",
+    "policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20",
+    "protocol.json": "3d49b7898b2f80d75b857d988ae359c162c6853f2b4394d4ddf013064780ba05"
+  },
+  "stateHash": "4c2b99be7487c49e2fa99de695d8acc1e3b8095fdfbd7e0051e874edea90e6bf",
+  "valid": true,
+  "elapsedMs": 118,
+  "requestHash": "7d8d07145efbb4a45b9755fdf74ff1706fddcb6b82bb5baa60a7b14aa48775c0",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "supported",
+        "confidence": 0.99,
+        "probabilities": {
+          "supported": 0.99,
+          "overclaimed": 0,
+          "insufficient": 0.01,
+          "contradicted": 0
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.76,
+        "probabilities": {
+          "gap": 0.16,
+          "accounted_for": 0.84,
+          "unknown": 0
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "finalize",
+        "confidence": 0.71,
+        "probabilities": {
+          "finalize": 0.77,
+          "manual_review": 0,
+          "verify_existing": 0.01,
+          "investigate_remaining": 0.17,
+          "inspect_callers": 0.05
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.98,
+        "probabilities": {
+          "settled": 0.99,
+          "needs_human": 0.01
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 2117,
+      "output_tokens": 191
+    }
+  },
+  "decisions": {
+    "v2": {
+      "action": "finalize",
+      "reason": "Action preference only (unresolved judgments are observational).",
+      "unresolved": []
+    },
+    "v3": {
+      "action": "finalize",
+      "reason": "No blocking semantic judgment; use action preference.",
+      "unresolved": []
+    }
+  }
+}

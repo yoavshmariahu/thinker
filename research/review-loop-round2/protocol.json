@@ -1,0 +1,32 @@
+{
+  "status": "Frozen before round-two model calls",
+  "date": "2026-10-07",
+  "thinkerRevision": "d4d469d",
+  "purpose": "Experimental reconciliation of review decisions; no production integration",
+  "scope": "No cache is built or served. Explicit task contracts are scenario inputs, not hand-authored benchmark notes. This is a controller study, not a PR-cache performance benchmark or unseen-bug discovery evaluation.",
+  "models": {"routing":"jev-1.13.0","executor":"gpt-6.1-sol","executorReasoningEffort":"high","codexCLI":"0.160.1","fallback":false,"judging":"Manual full-report audit plus source-extraction checks, no model judge"},
+  "cases": ["A-10349","A-10141","A-10178","C-aws-rename","U-conflicting-contracts"],
+  "cohorts": {"developmentReplays":["A-10349","A-10141","A-10178"],"newControls":["C-aws-rename","U-conflicting-contracts"]},
+  "selection": "Three previous checkpoints plus a behavior-preserving rename of the fixed public parser and the same source with explicit conflicting equally authoritative requirements. These engineered controls are not representative held-out tasks.",
+  "hypothesis": "Consuming support, coverage, and intent judgments before next-action preference prevents unsupported finalization without inventing defects on a clean change or resolving human intent autonomously.",
+  "openLoop": "One fresh judgment per frozen scenario, replayed through both policies; no execution controlled by these calls.",
+  "closedLoop": {
+    "policies":["v2","v3"],"repetitions":2,"maxExecutorActions":2,"maxJevCallsPerArm":3,
+    "maxExecutorCallSeconds":180,"maxJevCallSeconds":30,"maxModeSeconds":1800,
+    "armOrder":"Alternate by scenario index plus repetition; all cases repeated, no outcome-based selection or prompt revisions.",
+    "v2":"Use next_action choice; log other judgments but do not reconcile them.",
+    "v3":"Intent needing a human wins. Otherwise manual_review remains allowed. Non-supported claims route to verification (or selected caller inspection); with no claims, investigate. Coverage gap/unknown routes to investigation (or selected caller inspection). Only then use action preference. At exhaustion preserve unresolved concerns in an incomplete outcome.",
+    "thresholds":"Use categorical choices, no confidence cutoff. This conservative reconciliation can over-investigate or misroute if Jev is wrong; controls measure that risk.",
+    "comparison":"Same exact models/effort, questions, state, action menu, executor prompts, and ceilings across arms. Both receive the new intent question and an explicit empty-findings instruction. Compare arms within this round, not round-one totals."
+  },
+  "successCriteria": {
+    "A-10349":"Preserve both known prefix and slash defects, using supplied evidence rather than unavailable tests.",
+    "A-10141":"Preserve ready-versus-desired defect and qualify recovery impact unless new caller evidence establishes it.",
+    "A-10178":"Preserve both known mechanisms; qualify deletion-impact claims or explicitly leave them unresolved.",
+    "C-aws-rename":"No actionable defect invented; finalize within supplied scope without manual escalation.",
+    "U-conflicting-contracts":"Manual review naming conflicting intent; no definitive bug verdict based on choosing a requirement."
+  },
+  "reporting":"Separate semantic quality, completion/escalation, calls, per-provider tokens, latency, and invalid attempts. A clean outcome requires full manual assessment, not agreement with the controller alone.",
+  "telemetry":"All preparation, tests, calls and children inherit THINKER_TEST=1, THINKER_TELEMETRY=off, THINKER_NO_LEARN=1, THINKER_LOG=off. Personal-key direct TypeSafe transport only, no enrollment or production telemetry.",
+  "invalid":"Model mismatch, malformed output, unexpected tool use, or transport failures stop and preserve the arm as invalid. No provider/model fallback, no outcome-based retries."
+}
