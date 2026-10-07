@@ -270,9 +270,9 @@ Rules:
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
-export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [], repair = null } = {}) {
+export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [] } = {}) {
   let diff = pr.diff || '';
-  if (!repair && !diff && repo && pr.hash) {
+  if (!diff && repo && pr.hash) {
     try {
       diff = execFileSync('git', ['show', '-m', '--first-parent', '--format=', pr.hash], {
         cwd: repo,
@@ -282,21 +282,17 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, 
       });
     } catch {}
   }
-  if (!repair && !diff && slug && pr.number && !pr.isGitCommit) {
+  if (!diff && slug && pr.number && !pr.isGitCommit) {
     try {
       diff = gh('pr', 'diff', String(pr.number), '--repo', slug);
     } catch {}
   }
   diff = (diff || '').slice(0, 45000);
   // review comments: as given (CI sends them with the diff), else from GitHub
-  const comments = repair ? [] : Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
+  const comments = Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
-  const evidence = repair?.evidence ?? `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
-  // A finding with `extensionTarget` is an existing note the reconciliation judged this one extends,
-  // or likely extends, which the writer never saw: the writer's context was chosen for the whole
-  // change, the reconciliation scan for the note. The writer merges or keeps the note separate.
-  const feedback = repair ? '\n\nGROUNDING FEEDBACK (not source evidence):\n' + JSON.stringify(repair.findings.map(f => ({ note: f.note, reason: f.reason, unsupported: f.diagnostics?.unsupported, extensionTarget: f.diagnostics?.extensionTarget }))) + '\nReturn only revised notes for these findings. Remove unsupported claims and overly broad scope, including from titles. Keep a narrow, independently useful supported fact if possible; return no note when none remains. Do not add new claims. For a finding with extensionTarget, either return the note with extends set to that id and a complete merged body preserving every claim, scope limit and exception of the target, or return it unchanged when it is a distinct rule; no other extension is allowed. The source evidence above is the only authority; feedback is not proof. Prefer just 1-2 directly supported body lines. Omit historical commentary and reviewer opinions unless they are the reusable rule. Use a short topic label for the title and a precise file or symbol scope; do not restate extra facts in metadata. Each body line should make one fact easy to check. These revisions will be grounded again.' : '';
-  const prompt = evidence + feedback + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
+  const evidence = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
+  const prompt = evidence + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
   return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r), evidence };
 }

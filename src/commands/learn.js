@@ -482,37 +482,12 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       // must not let legacy note-source inference turn a partial PR into a success.
       recordMinedPrs(store, scopeKey, [], { failed: [pr] });
       if (directories) recordMinedPrs(store, recSlug, [], { failed: [pr] });
-      let prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting, repair: true });
+      // No repair round: one bounded rewrite of deferred proposals with the same evidence was measured
+      // on 2026-10-07 at 39 rounds, 92 revised notes, 10 saved, for about a third of the mining tokens,
+      // and removed at the user's decision. A deferral is a record in learning-pending for a person.
+      const prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
       const s2 = saveNotes(store, prepared.notes, { source, kinds: distillKinds(store), reconciled: prepared.reconciled });
       s2.skipped.push(...prepared.skipped);
-      // One bounded revision of new discoveries, using the exact same PR evidence/model: unsupported
-      // claims to drop, and extensions to merge or keep separate (note-learning.js carries the target
-      // in the diagnostics). Never retry an unavailable judge as a content repair or rewrite an
-      // existing note to resolve a contradiction. No revised claim bypasses grounding/reconciliation.
-      const repairable = prepared.deferred.filter(d => d.status === 'uncertain' && d.diagnostics);
-      if (repairable.length && (phase === 'init' || withinDailyCap(store).ok)) {
-        try {
-          const revised = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo,
-            existing: store.list(), repair: { evidence: r.evidence, findings: repairable },
-            accounting: { ...accounting, purpose: 'mine-prs-repair' } });
-          tokens += revised.tokens || 0;
-          const checked = await prepareNotes(store, revised.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting, repair: true, repaired: true });
-          const savedRevision = saveNotes(store, checked.notes, { source, kinds: distillKinds(store), reconciled: checked.reconciled });
-          s2.saved.push(...savedRevision.saved); s2.merged.push(...savedRevision.merged);
-          s2.skipped.push(...checked.skipped, ...savedRevision.skipped);
-          s2.deferred.push(...(savedRevision.deferred || []));
-          s2.retryable ||= savedRevision.retryable;
-          // An unavailable recheck remains retryable even if other notes were saved.
-          prepared = { ...prepared, deferred: [...prepared.deferred.filter(d => !repairable.includes(d)), ...checked.deferred],
-            retryable: prepared.retryable || checked.retryable };
-          store.log({ op: 'mine-prs-repair', pr: pr.number, proposed: revised.notes.length,
-            saved: savedRevision.saved.length + savedRevision.merged.length, deferred: checked.deferred.length,
-            metered: true, phase });
-        } catch (error) {
-          failed.add(pr.number);
-          store.log({ op: 'mine-prs-repair', pr: pr.number, failed: true, error: String(error.message).slice(0, 300), phase });
-        }
-      }
       const pending = deferLearning(store, [...prepared.deferred, ...(s2.deferred || [])], { source, evidenceRef: pr.url || refId });
       if (pending.length) out(`        Deferred ${pending.length} findings: ${path.join(store.dir, 'state', 'learning-pending')}`);
       if (prepared.retryable || s2.retryable) failed.add(pr.number);

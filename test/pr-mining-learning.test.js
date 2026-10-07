@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 
-for (const mode of ['repair', 'reject', 'unavailable']) test(`PR mining ${mode}: grounded revision, bounded work and retry receipts`, t => {
+// No repair round since 2026-10-07: a rejected proposal is deferred once, with no second writer call.
+for (const mode of ['reject', 'unavailable']) test(`PR mining ${mode}: one grounded pass, bounded work and retry receipts`, t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-pr-learning-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const repo = path.join(dir, 'repo'), bin = path.join(dir, 'bin');
@@ -20,8 +21,8 @@ for (const mode of ['repair', 'reject', 'unavailable']) test(`PR mining ${mode}:
   fs.writeFileSync(path.join(bin, 'claude'), `#!/usr/bin/env node
 let prompt='';process.stdin.on('data',d=>prompt+=d);process.stdin.on('end',()=>{
  const fs=require('fs');fs.appendFileSync(${JSON.stringify(path.join(dir,'prompts.jsonl'))},JSON.stringify(prompt)+'\\n');
- const good=${JSON.stringify(good)},mode=${JSON.stringify(mode)},first=prompt.startsWith('PR #123:'),repair=prompt.includes('GROUNDING FEEDBACK');
- const notes=first ? mode==='unavailable' ? [good,{...good,title:'Another fact',body:'UNAVAILABLE'}] : [{...good,body:repair&&mode==='repair'?good.body:'UNSUPPORTED'}] : [];
+ const good=${JSON.stringify(good)},mode=${JSON.stringify(mode)},first=prompt.startsWith('PR #123:');
+ const notes=first ? mode==='unavailable' ? [good,{...good,title:'Another fact',body:'UNAVAILABLE'}] : [{...good,body:'UNSUPPORTED'}] : [];
  console.log(JSON.stringify({structured_output:{notes},usage:{input_tokens:10,output_tokens:2},model:'claude-opus-5-5'}));
 });`, {mode:0o755});
   const script = `import fs from 'node:fs';import path from 'node:path';
@@ -44,14 +45,11 @@ console.log(JSON.stringify({result,notes:store.list(),mined:[...minedPrs(store,'
   assert.equal(run.status,0,run.stderr);
   const actual=JSON.parse(run.stdout.trim().split('\n').at(-1));
   const prompts=fs.readFileSync(path.join(dir,'prompts.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(prompts.filter(p=>p.includes('GROUNDING FEEDBACK')).length, mode==='unavailable'?0:1);
+  assert.equal(prompts.filter(p=>p.includes('GROUNDING FEEDBACK')).length, 0, 'no second writer call: the repair round is gone');
+  assert.equal(prompts.length, 2, 'one writer call per pull request');
   assert.equal(actual.result.failed,mode==='unavailable'?1:0);
   assert.ok(actual.mined.includes(124),'later PR completes despite first PR failure');
-  if(mode==='repair'){
-    assert.equal(actual.result.saved,1);assert.equal(actual.notes[0].body,good.body);
-    assert.deepEqual(actual.notes[0].source,{type:'pr',ref:'o/r#123'});
-    assert.equal(prompts[1].split('\n\nGROUNDING FEEDBACK')[0],prompts[0]);
-  }else if(mode==='reject'){
+  if(mode==='reject'){
     assert.equal(actual.result.saved,0);assert.ok(actual.mined.includes(123));
     assert.equal(fs.readdirSync(path.join(repo,'.thinker/state/learning-pending')).length,1);
   }else{

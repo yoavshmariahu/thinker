@@ -68,16 +68,15 @@ export async function selectLearningNotes(store, observation, { max = 4, floor =
 // invisible outcome here, so it is not what uncertainty produces (the same asymmetry gates.js states).
 // Measured on five deferred notes against this cache, 60 pairings: 46 said unrelated, 24 were under
 // 0.85, 11 of those unrelated at 0.57-0.84, and all five notes were lost; under this rule four are
-// written and one is merged. `hint`: `extends` is the first choice at HINT or above but under ACT,
-// which the repair round puts to the writer (merge, or keep separate). null: a malformed answer.
-const ACT = .85, HINT = .6;
+// written and one is merged. null: a malformed answer.
+const ACT = .85;
 function relation(answer) {
   if (!Object.hasOwn(NOTE_RELATIONS, answer?.choice)) return null;
   const ps = Object.keys(NOTE_RELATIONS).map(k => answer.probabilities?.[k]);
   if (!ps.every(probability) || Math.abs(ps.reduce((a, b) => a + b, 0) - 1) > .01) return null;
   const p = answer.probabilities;
   for (const k of ['contradicts', 'covered', 'extends']) if (p[k] >= ACT) return { verdict: k };
-  return { verdict: 'unrelated', hint: answer.choice === 'extends' && p.extends >= HINT };
+  return { verdict: 'unrelated' };
 }
 // A body line is supported when the source shows it at SUPPORT or above, and never when the source
 // contradicts it at CONFLICT or above; the two are independent. 0.9 was the bar for support until
@@ -97,11 +96,7 @@ function chunks(text, maxBytes = 10000) {
   return out;
 }
 
-// `repair`: the caller runs a repair round over deferrals that carry diagnostics (commands/learn.js
-// for pull requests), so a likely extension may be deferred to it with its target. `repaired`: this
-// is that round's recheck, and the writer's answer settles every hint; without a repair round a hint
-// is unrelated, since deferring it would lose the note.
-export async function prepareNotes(store, proposed, { evidence = '', kinds = KINDS, repair = false, repaired = false, ...options } = {}) {
+export async function prepareNotes(store, proposed, { evidence = '', kinds = KINDS, ...options } = {}) {
   const accepted = [], skipped = [], deferred = [];
   let reconciled = true;
   for (const note of proposed) {
@@ -118,7 +113,7 @@ export async function prepareNotes(store, proposed, { evidence = '', kinds = KIN
     const named = note.extends && store.list().find(n => n.id === note.extends);
     if (note.extends && !named) { defer('requested extension target is missing'); continue; }
     if (named && !candidates.some(n => n.id === named.id)) candidates.push(named);
-    let target = null, covered = false, reason = '', status = 'uncertain', relationDiagnostics, hints = [];
+    let target = null, covered = false, reason = '', status = 'uncertain', relationDiagnostics;
     for (const existing of candidates) {
       const preservesLiterally = Boolean(existing.body?.trim()) && (note.body || '').includes(existing.body) && (note.applies || '') === (existing.applies || '');
       const r = await ask(store, { purpose: 'jev-reconcile', state: { proposed_note: full(note), existing_note: full(existing) }, questions: {
@@ -133,16 +128,10 @@ export async function prepareNotes(store, proposed, { evidence = '', kinds = KIN
       if (rel.verdict === 'extends') {
         if (kindOf(existing.kind) === 'behavior') { reason = `human behavior ${existing.id} cannot be rewritten by learning`; break; }
         if (!existing.id || (target && target.id !== existing.id)) { reason = 'extension requires reconciling multiple existing notes'; break; }
-        // The target travels with the deferral so the repair round can ask the writer for the merged body.
+        // The target travels with the deferral, so the pending record names the note this one would have extended.
         if (!preservesLiterally && !(r.answers?.preserves?.noul >= .9)) { reason = `extension of ${existing.id} needs a complete merged body`; relationDiagnostics = { extensionTarget: full(existing) }; break; }
         target = existing;
       }
-      if (rel.hint && kindOf(existing.kind) !== 'behavior') hints.push(existing);
-    }
-    // A likely extension the writer never saw (the writer's context was chosen for the whole change,
-    // this scan for the note) goes back to the writer once, with the target: merge, or keep separate.
-    if (!reason && !target && !covered && hints.length && repair && !repaired) {
-      reason = `likely extends ${hints[0].id}; the writer decides on a merged body`; relationDiagnostics = { extensionTarget: full(hints[0]), hint: true };
     }
     if (reason) { defer(reason, status, relationDiagnostics); continue; }
     if (covered) { skipped.push({ title: note.title, reason: 'already covered by an existing note' }); continue; }
