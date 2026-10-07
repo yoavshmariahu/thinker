@@ -5,7 +5,7 @@ so no cache can hold knowledge of the fix its own task is about. Each task works
 cache, topped up with the changes merged between the anchor and its own base and re-checked for
 staleness -- what a repository's cache actually looks like when someone sits down to work.
 
-  build <cohort>     the anchor cache, mined and explored by that cohort's own model
+  build <cohort>     the anchor cache, mined by that cohort's own model
   preflight          the acceptance test must fail at base and pass on the upstream fix
   solve <cohort>     both arms of every task: with the cache and without it
   score <cohort>     the acceptance test against each arm's work, upstream tests restored
@@ -98,8 +98,9 @@ def build(cohort):
     repo = snapshot(anchor['base'], OUT / f'cache-{cohort}')
     env = env_for(cohort, learning=True, cache=True)
     print(f'building {cohort} cache at {anchor["id"]} ({anchor["base"][:10]})', flush=True)
+    # Mining only. Exploration was measured on Click and is not part of a benchmark cache: it cost
+    # 3.6M tokens for 0 notes under Opus and 1.3M for 1 under Sol, against 272k for 9 by mining.
     for args, label in [(['mine-prs', '--git', '--limit', '20'], f'{cohort}-mine'),
-                        (['seed'], f'{cohort}-seed'),
                         (['relink'], f'{cohort}-relink')]:
         if thinker(args, repo, env, label).returncode != 0:
             raise SystemExit(f'{label} failed; see raw/{label}.log')
@@ -162,8 +163,12 @@ def preflight():
     results = {}
     for task in TASKS:
         base = snapshot(task['base'], OUT / f'{task["id"]}-verify-base')
+        git(['reset', '--hard', '-q', 'HEAD'], base)
+        git(['clean', '-fdq'], base)
         at_base = acceptance(base, task, f'{task["id"]}-base')
         fixed = snapshot(task['base'], OUT / f'{task["id"]}-verify-gold')
+        git(['reset', '--hard', '-q', 'HEAD'], fixed)   # repeatable: solve() preflights again
+        git(['clean', '-fdq'], fixed)
         patch, _ = gold(task)
         if patch.stat().st_size:
             git(['apply', str(patch)], fixed)
@@ -220,7 +225,11 @@ def measure(cohort, arm, task):
             raise SystemExit(f'{label}: wiring failed')
     if MODELS[cohort][0] == 'codex':
         env['CODEX_HOME'] = str(codex_home(cohort, label, arm == 'thinker'))
-    prompt = RULES + '\n\nREQUEST:\n' + task['prompt']
+    # The request comes first because the prompt hook retrieves against the whole prompt: with the
+    # constraints in front, Jev scored this repository's notes against boilerplate about not
+    # inspecting directories and served nothing (jevTop 0.25/0.11/0.10 against a floor of 0.5).
+    # Both arms get the same text either way; only retrieval is affected.
+    prompt = task['prompt'] + '\n\nCONSTRAINTS:\n' + RULES
     argv, stdin = agent_argv(cohort, repo, arm, prompt)
     print(f'{label}: {notes} notes, starting', flush=True)
     start = time.monotonic()
