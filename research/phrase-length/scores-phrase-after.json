@@ -1,0 +1,192 @@
+[
+ {
+  "id": "bash-completion-version-diagnostics-are-nonfatal",
+  "support": 0.91,
+  "scope": 0.81
+ },
+ {
+  "id": "boolean-flag-defaults",
+  "support": 0.91,
+  "scope": 0.85
+ },
+ {
+  "id": "borrowed-stream-buffers",
+  "support": 0.75,
+  "scope": 0.83
+ },
+ {
+  "id": "briefcase-commands",
+  "support": 0.94,
+  "scope": 0.88
+ },
+ {
+  "id": "briefcase-console-setup",
+  "support": 0.91,
+  "scope": 0.89
+ },
+ {
+  "id": "callback-unset-masking",
+  "support": 0.9,
+  "scope": 0.78
+ },
+ {
+  "id": "choice-option-metavars-with-hidden-choices",
+  "support": 0.92,
+  "scope": 0.86
+ },
+ {
+  "id": "click-directives-in-myst-examples",
+  "support": 0.69,
+  "scope": 0.82
+ },
+ {
+  "id": "completion-regex-flags",
+  "support": 0.86,
+  "scope": 0.8
+ },
+ {
+  "id": "custom-paramtype-typing",
+  "support": 0.86,
+  "scope": 0.73
+ },
+ {
+  "id": "debugger-streams-and-patch-lifetime-in-clirunner-isolation",
+  "support": 0.92,
+  "scope": 0.93
+ },
+ {
+  "id": "default-short-help-helper-is-private-api",
+  "support": 0.92,
+  "scope": 0.82
+ },
+ {
+  "id": "editor-filename-arguments",
+  "support": 0.9,
+  "scope": 0.77
+ },
+ {
+  "id": "fish-completion-partial-word-normalization",
+  "support": 0.93,
+  "scope": 0.77
+ },
+ {
+  "id": "help-option-caching",
+  "support": 0.91,
+  "scope": 0.68
+ },
+ {
+  "id": "import-allowlist",
+  "support": 0.9,
+  "scope": 0.79
+ },
+ {
+  "id": "incomplete-option-identification",
+  "support": 0.93,
+  "scope": 0.85
+ },
+ {
+  "id": "lifecycle-stress-test-selection",
+  "support": 0.5,
+  "scope": 0.82
+ },
+ {
+  "id": "markdown-wrapping",
+  "support": 0.85,
+  "scope": 0.87
+ },
+ {
+  "id": "missing-defaults-and-explicit-none-entries",
+  "support": 0.89,
+  "scope": 0.9
+ },
+ {
+  "id": "nested-group-completion-uses-the-fresh-context-s-arguments",
+  "support": 0.73,
+  "scope": 0.85
+ },
+ {
+  "id": "option-envvar-hint-guard",
+  "support": 0.74,
+  "scope": 0.92
+ },
+ {
+  "id": "parameter-decorator-class-selection",
+  "support": 0.92,
+  "scope": 0.87
+ },
+ {
+  "id": "parameter-error-hints-accept-string-sequences",
+  "support": 0.8,
+  "scope": 0.87
+ },
+ {
+  "id": "portable-sed-fixtures-in-test-edit",
+  "support": 0.9,
+  "scope": 0.87
+ },
+ {
+  "id": "preserve-context-color-settings-for-exception-output",
+  "support": 0.51,
+  "scope": 0.73
+ },
+ {
+  "id": "preserve-symlink-identity-when-locating-pager-executables",
+  "support": 0.78,
+  "scope": 0.78
+ },
+ {
+  "id": "progress-bar-width-guard",
+  "support": 0.91,
+  "scope": 0.87
+ },
+ {
+  "id": "prompt-final-character-handoff",
+  "support": 0.88,
+  "scope": 0.82
+ },
+ {
+  "id": "pyright-verification-command",
+  "support": 0.66,
+  "scope": 0.89
+ },
+ {
+  "id": "rejected-directory-paths-use-repr-formatting-in-errors",
+  "support": 0.84,
+  "scope": 0.76
+ },
+ {
+  "id": "release-job-dependencies",
+  "support": 0.89,
+  "scope": 0.88
+ },
+ {
+  "id": "rootless-podman-surrogate-errors",
+  "support": 0.94,
+  "scope": 0.85
+ },
+ {
+  "id": "run-randomized-parallel-tests",
+  "support": 0.9,
+  "scope": 0.82
+ },
+ {
+  "id": "tests-push-branches",
+  "support": 0.94,
+  "scope": 0.88
+ },
+ {
+  "id": "tuple-and-alias-version-notices",
+  "support": 0.93,
+  "scope": 0.91
+ },
+ {
+  "id": "type-guard-for-empty-string-defaults-in-option-help",
+  "support": 0.92,
+  "scope": 0.89
+ },
+ {
+  "id": "zsh-completion-colon-escaping",
+  "support": 0.95,
+  "scope": 0.92
+ }
+]

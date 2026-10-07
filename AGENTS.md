@@ -1332,11 +1332,19 @@ evidence. Session and PR commands call this before `saveNotes`; reconciled write
 never fall back to lexical merging. Contradictions are deferred, not overwritten.
 Human behavior notes cannot be authored or replaced by these learning paths.
 
-A note's search description is kept as the model wrote it: the Jev fidelity gate that stood in
-front of `phraseNotes` was removed on 2026-10-07, having rejected 38 of 38 mined notes (support
-0.18 to 0.81 against a floor of 0.9) and left this repository's own cache with descriptions on 69
-of 362 notes. The description is a retrieval surface Jev reads and no agent is shown, so an
-unsupported sentence costs ranking precision rather than correctness. `refineLearningPlan` in
+A note's search description is checked against the note before it is kept
+(`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
+conditions and prohibitions survive"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since
+2026-10-07. A refused description is written again once, told to stay inside the note; a second
+refusal is final, and `phraseRefused` records the key and the scores so maintenance leaves the note
+alone until its text changes, rather than paying the writer and the judge for the same refusal every
+run. The note keeps no description and ranks on its body, which is Jev's documented fallback.
+The floor was 0.9 and kept nothing: 0 of 38 descriptions written by a pinned Opus from mined notes,
+support 0.18 to 0.81. Two causes, measured in `research/phrase-length`. `phraseNotes` asked for
+"3 to 6 plain sentences" of notes whose bodies are one to three lines, so the writer padded, and
+padding is unsupported text; the length is proportional to the note now, and support rose from 0.625
+to 0.90 at the median. And 0.9 is above where this judge sits on faithful text anyway: scope stays
+near 0.86 whatever the length. At 0.7 with the retry, 37 of 38 are kept. `refineLearningPlan` in
 `src/learning-evidence.js` selects numbered source passages across eligible
 sessions; audit samples retain the full trace, failures retain local selection,
 and omitted evidence cannot become an unused assessment.
