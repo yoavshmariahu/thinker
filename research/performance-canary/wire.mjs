@@ -19,8 +19,17 @@ if (!path.isAbsolute(repo) || !fs.existsSync(path.join(repo, '.thinker'))) throw
 if (client === 'codex' && !process.env.CODEX_HOME) throw new Error('CODEX_HOME must be the run-local Codex home');
 
 const cli = path.join(ROOT, 'src/cli.js');
-// The repo-scope entry the product writes: this copy's server, pinned at the task checkout.
-const mcpEntry = { command: 'node', args: [path.join(ROOT, 'src/mcp.js')], env: { THINKER_REPO: repo } };
+// The repo-scope entry the product writes: this copy's server, pinned at the task checkout. The
+// server also carries the run's isolation explicitly, because Codex starts MCP servers with its own
+// environment rather than the parent's: without THINKER_LOG the server's store init adopted the
+// checkout's local log into the machine's log (176 rows of one run, including the servings the
+// runner then read as zero) and ran outside test mode. Claude Code passes the environment through,
+// which is why only the Codex cohort was affected. The Jev key lands in the run's own CODEX_HOME,
+// beside the auth.json that already lives there.
+const isolation = Object.fromEntries(['THINKER_TEST', 'THINKER_LOG', 'THINKER_TELEMETRY', 'THINKER_NO_LEARN', 'THINKER_NO_AUTO_UPDATE',
+  'THINKER_HOLDOUT', 'THINKER_JEV', 'THINKER_JEV_ALLOW_NETWORK', 'THINKER_JEV_KEY', 'THINKER_LLM', 'THINKER_LLM_MODEL']
+  .filter(k => process.env[k] !== undefined).map(k => [k, process.env[k]]));
+const mcpEntry = { command: 'node', args: [path.join(ROOT, 'src/mcp.js')], env: { ...isolation, THINKER_REPO: repo } };
 const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const done = [];
 
