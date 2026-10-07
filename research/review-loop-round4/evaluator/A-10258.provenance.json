@@ -1,0 +1,9 @@
+{
+  "repo": "kubernetes/autoscaler",
+  "base": "40889a675092c0939c59160fc5270273db4e0555",
+  "fix": "e557c6d03a02da023146263f2a6ebe2dbfaf21a5",
+  "parent": "67f7a418c248086f145df2d599496c31fdecc145",
+  "paths": [
+    "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go"
+  ]
+}

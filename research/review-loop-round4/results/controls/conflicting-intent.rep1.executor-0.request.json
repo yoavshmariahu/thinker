@@ -1,0 +1,28 @@
+{
+  "action": "initial",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "args": [
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
+    "--strict-config",
+    "--model",
+    "gpt-6.1-sol",
+    "--config",
+    "model_reasoning_effort=\"high\"",
+    "--config",
+    "project_doc_max_bytes=0",
+    "--config",
+    "approval_policy=\"never\"",
+    "-"
+  ],
+  "prompt": "You are a code reviewer in a controlled research trial. Perform the review from scratch. Inspect the actual changed source. Find distinct actionable defects and challenge your own candidates.\nYou may use read-only shell tools within this task directory to inspect TASK.json, CHANGE.diff, and the staged production source. Do not read outside this directory, use network, edit files, or run tests. Test results will be checked independently; never claim tests ran. No historical reports or labels are available. Pick your own useful follow-up action, or finalize if the report is ready. There is no requirement to use all available rounds. Each finding must be individually actionable, tied to source lines, and limited to evidenced impact.\nReturn only JSON with findings (array of {file,line,severity,message,evidence}), coverage (string), limitations (array of strings), contribution (string describing actual new evidence or corrections), and next_action (verify_existing, inspect_callers, investigate_remaining, finalize, or manual_review). This is a report, not a patch.\n{\"task\":\"Review this retention change. Do not choose precedence between equally authoritative requirements. If an intent decision is required, use manual_review and name the exact conflicting requirements. No network, edits, tests, or outside reads.\",\"contracts\":[\"Requirement A: delete records after seven days.\",\"Requirement B: retain all records for at least thirty days.\",\"A and B apply to the same records and have equal authority; there is no approved precedence or exception.\"],\"diff\":\"- export const retentionDays = 30;\\n+ export const retentionDays = 7;\\n\",\"findings\":[],\"coverage\":\"No review performed yet.\",\"limitations\":[\"Only the staged source files are available; external implementations and upstream integration tests are not supplied.\"],\"history\":[],\"roundsUsed\":0,\"maxRounds\":3,\"availableActions\":{\"verify_existing\":\"Check existing findings against the supplied source; correct or limit unsupported claims.\",\"inspect_callers\":\"Fetch the predeclared additional source excerpt and inspect the caller/control flow.\",\"investigate_remaining\":\"Inspect the current diff and source for distinct unreported contract violations.\",\"finalize\":\"Finish with supported findings and explicit scope limits.\",\"manual_review\":\"Stop with an unresolved question that requires human intent or unavailable evidence.\"},\"sourceFiles\":[\"src/retention.js\"]}",
+  "timeoutMs": 150000,
+  "toolRemaining": 24
+}

@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 20436,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 74923,
+      "cached_input_tokens": 64640,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 511,
+      "reasoning_output_tokens": 29
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Reviewed TASK.json, CHANGE.diff, staged extractNodeLabels and setLabelIfNotEmpty (lines 641–667), and the template-label caller (lines 390–465). The change consistently renames a local map variable; allocation, control flow, copied keys, and returned values remain identical. Stable and legacy zone extraction calls remain present at lines 657–658.",
+    "limitations": [
+      "External label constants and JoinStringMaps implementation are not supplied, so their definitions and merge behavior were not independently verified.",
+      "No tests were run."
+    ],
+    "contribution": "Confirmed from staged source that both zone-label calls target the returned map and that buildTemplateLabels consumes it. Challenged potential label-loss and empty-value concerns: neither behavior changes in this diff, so no actionable defect is supported.",
+    "next_action": "finalize"
+  }
+}
