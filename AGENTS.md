@@ -1332,8 +1332,11 @@ evidence. Session and PR commands call this before `saveNotes`; reconciled write
 never fall back to lexical merging. Contradictions are deferred, not overwritten.
 Human behavior notes cannot be authored or replaced by these learning paths.
 
-`src/summary-fidelity.js` checks support and preservation of scope/exceptions
-before `phraseNotes` marks a description current. `refineLearningPlan` in
+A note's search description is kept as the model wrote it: the Jev fidelity gate that stood in
+front of `phraseNotes` was removed on 2026-10-07, having rejected 38 of 38 mined notes (support
+0.18 to 0.81 against a floor of 0.9) and left this repository's own cache with descriptions on 69
+of 362 notes. The description is a retrieval surface Jev reads and no agent is shown, so an
+unsupported sentence costs ranking precision rather than correctness. `refineLearningPlan` in
 `src/learning-evidence.js` selects numbered source passages across eligible
 sessions; audit samples retain the full trace, failures retain local selection,
 and omitted evidence cannot become an unused assessment.
