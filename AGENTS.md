@@ -534,8 +534,20 @@ Each session both consumes and improves the cache:
    learning and maintenance reported are summed from the machine's log and a run stops
    at `dailyTokens` (default 2M tokens a day, about 80 distillations; until 2026-10-04
    the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
-   cap). `maintain` in `.thinker/config.json`
-   overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
+   cap). Since 2026-10-07 that budget covers generative answers alone: Jev's typed
+   decisions are summed apart, against `dailyJevTokens` (default 10M), and
+   `jev-decisions.js:judgeWithJev` asks that cap, never the generative one
+   (`model-usage.js:isJevUsage` tells the two sides apart by provider;
+   `maintain.js:spentToday` and `jevSpentToday` sum them). One call of each is nothing
+   alike: a Noul is a bounded typed request answered through the proxy under its own
+   request quotas, a distillation one long answer on the agent's subscription, and there
+   are many of the first per note written. Summed together the cheap, numerous side closed
+   the day for the other — on 2026-10-07 on this repository the note-catalog scan reported
+   3.03M of the day's 5.28M tokens, 454 calls, and generative learning stopped before noon
+   while the cap had been exceeded on six of the previous eight days. `thinker usage`
+   reports the two totals separately under the build and maintenance table. `maintain` in
+   `.thinker/config.json`
+   overrides `enabled`, `dailyTokens`, `dailyJevTokens`, `verifyPerRun`, `verifyServedDays`,
    `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;

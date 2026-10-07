@@ -14,8 +14,10 @@ export async function judgeWithJev(store, { state, questions, purpose, phase = '
     let response;
     try {
       if (phase !== 'init') {
-        const { withinDailyCap } = await import('./maintain.js');
-        if (!withinDailyCap(store).ok) return { status: 'unavailable', reason: 'dailyTokens' };
+        // The Jev budget, not the generative one: a day of distillation must not stop the checks
+        // that decide whether a note may be written (maintain.js:withinJevDailyCap).
+        const { withinJevDailyCap } = await import('./maintain.js');
+        if (!withinJevDailyCap(store).ok) return { status: 'unavailable', reason: 'dailyJevTokens' };
       }
       response = await jevEvaluate(state, questions, {
         ...cfg, timeoutMs: cfg.learningTimeoutMs ?? cfg.searchTimeoutMs ?? cfg.timeoutMs,

@@ -29,7 +29,7 @@ test('oversized UTF-8 payloads and too many questions never reach the transport'
 
 test('learning judgments distinguish disabled and validated responses, and meter failures', async () => {
   const events = [];
-  const store = { config: () => ({ jev: false, maintain: { dailyTokens: 0 } }), log: e => events.push(e) };
+  const store = { config: () => ({ jev: false, maintain: { dailyTokens: 0, dailyJevTokens: 0 } }), log: e => events.push(e) };
   const request = { state: {}, questions, purpose: 'jev-reconcile' };
   assert.equal((await judgeWithJev(store, request)).status, 'disabled');
   const cfg = { enabled: true, key: 'test', fetchImpl: transport(valid) };
@@ -45,25 +45,41 @@ test('learning judgments distinguish disabled and validated responses, and meter
   assert.equal(events[1].state, undefined);
 });
 
-test('the next judgment stops after reported learning usage reaches the daily cap', async () => {
+test('the next judgment stops after reported Jev usage reaches the Jev cap', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-jev-cap-'));
   try {
     const store = new Store(dir).init();
-    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 25 } }));
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyJevTokens: 25 } }));
     let calls = 0;
     const cfg = { enabled: true, key: 'test', fetchImpl: async (...args) => { calls++; return transport(valid)(...args); } };
     const request = { state: {}, questions, purpose: 'jev-grounding' };
     assert.equal((await judgeWithJev(store, request, cfg)).status, 'ok');
     const result = await judgeWithJev(store, request, cfg);
     assert.equal(result.status, 'unavailable');
-    assert.equal(result.reason, 'dailyTokens');
+    assert.equal(result.reason, 'dailyJevTokens');
+    assert.equal(calls, 1);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// A typed decision is what licenses writing a note at all, so a day of distillation must not stop it:
+// the two budgets are counted apart (maintain.js:spentToday / jevSpentToday).
+test('a spent generative budget does not stop a typed decision', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-jev-split-cap-'));
+  try {
+    const store = new Store(dir).init();
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 1, dailyJevTokens: 10_000 } }));
+    store.log({ op: 'model', phase: 'learning', purpose: 'distill', provider: 'claude', model: 'sonnet', tokens: { totalTokens: 500_000 } });
+    let calls = 0;
+    const cfg = { enabled: true, key: 'test', fetchImpl: async (...args) => { calls++; return transport(valid)(...args); } };
+    const result = await judgeWithJev(store, { state: {}, questions, purpose: 'jev-grounding' }, cfg);
+    assert.equal(result.status, 'ok');
     assert.equal(calls, 1);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('test mode prohibits automatic production transport even when explicitly enabled', async () => {
   const events = [];
-  const store = { config: () => ({ maintain: { dailyTokens: 0 } }), log: e => events.push(e) };
+  const store = { config: () => ({ maintain: { dailyTokens: 0, dailyJevTokens: 0 } }), log: e => events.push(e) };
   const result = await judgeWithJev(store, { state: {}, questions, purpose: 'test' }, { enabled: true, key: 'test' });
   assert.equal(result.status, 'unavailable');
   assert.match(result.reason, /network disabled in tests/);
@@ -116,12 +132,12 @@ test('external cancellation and daily budget prevent retries', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-retry-cap-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const store = new Store(dir).init();
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 25 } }));
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyJevTokens: 25 } }));
   calls = 0;
   const capped = await judgeWithJev(store, { state: {}, questions, purpose: 'test' }, {
     enabled: true, key: 'test', fetchImpl: async () => { calls++; return transport(undefined)(); },
   });
-  assert.equal(capped.reason, 'dailyTokens'); assert.equal(calls, 1);
+  assert.equal(capped.reason, 'dailyJevTokens'); assert.equal(calls, 1);
 });
 
 test('invalid JSON retries but errors retain their type and no source payload reaches logs', async () => {
