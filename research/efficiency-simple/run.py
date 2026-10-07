@@ -361,6 +361,11 @@ def servings(repo):
     reading the wrong key reported "0 servings" for a run that was served two notes at 0.58.
     """
     log = repo / '.thinker/log.jsonl'
+    # A migrated log means a thinker process ran without THINKER_LOG and moved this checkout's log
+    # into the machine's: the servings are then elsewhere and the machine's history is polluted.
+    # Codex did this through its MCP server until the wiring carried the environment explicitly.
+    if (repo / '.thinker/state/log-before-shared.jsonl').exists():
+        raise SystemExit(f'{repo.name}: the usage log was migrated out of the checkout; a thinker process ran without THINKER_LOG')
     if not log.exists():
         return 0
     rows = [json.loads(l) for l in log.read_text().splitlines() if l.strip()]
