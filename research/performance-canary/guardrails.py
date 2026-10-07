@@ -7,11 +7,12 @@ import signal
 import subprocess
 import tempfile
 import time
+from pr_cache import CACHE_SOURCE, CACHE_BUILD_PATH, validate_pr_manifest
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 MODELS = {'opus': 'claude-opus-5-5', 'sol': 'gpt-6.1-sol', 'gemini': 'gemini-3.8-flash-high'}
-SOURCES = ['run.py', 'pipeline.py', 'memory.mjs', 'verify.py', 'guardrails.py', 'thinker_bench_pytest.py', 'prepare.py', 'freeze.py']
+SOURCES = ['run.py', 'pipeline.py', 'memory.mjs', 'verify.py', 'guardrails.py', 'thinker_bench_pytest.py', 'prepare.py', 'freeze.py', 'pr_cache.py', 'collect_prs.py', 'frozen_gh.py']
 
 
 class GuardError(RuntimeError):
@@ -59,10 +60,15 @@ def validate_execution(out):
     if not (ROOT / '.git').is_file():
         raise GuardError('Use an isolated git worktree')
     e = read(Path(out) / 'execution.json')
-    if e.get('guardrailsVersion') != 1 or e.get('models') != MODELS or e.get('effort') != 'high' or e.get('fallback') is not False:
+    if e.get('guardrailsVersion') != 2 or e.get('models') != MODELS or e.get('effort') != 'high' or e.get('fallback') is not False:
         raise GuardError('Missing or mismatched frozen model/effort protocol')
     if e.get('tasksSha256') != digest(Path(out) / 'tasks.json'):
         raise GuardError('Task manifest changed')
+    if e.get('cacheSource') != CACHE_SOURCE or e.get('cacheBuildPath') != CACHE_BUILD_PATH:
+        raise GuardError('Only recent-PR cache builds are permitted; session distillation is forbidden')
+    if e.get('prsSha256') != digest(Path(out) / 'prs.json'):
+        raise GuardError('PR corpus changed')
+    validate_pr_manifest(read(Path(out) / 'prs.json'), read(Path(out) / 'tasks.json'))
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if head != e.get('thinkerCommit'):
         raise GuardError('Thinker revision changed')
@@ -105,30 +111,38 @@ def assert_ready(out, tasks, models=MODELS):
     if not tasks or not models:
         raise GuardError('Nonempty tasks and model cohorts required')
     assert_preflight(out, tasks)
+    corpus = validate_pr_manifest(read(out / 'prs.json'), tasks)
     for model in models:
         for task in tasks:
             name = f'{task["id"]}-{model}'
-            learned = read(out / 'raw' / (name + '-learn.json'))
-            if learned.get('valid') is not True or learned.get('model') != MODELS[model] or learned.get('effort') != 'high':
-                raise GuardError(f'{name}: invalid exploration identity or outcome')
-            build = read(out / 'raw' / (name + '-learn-build.json'))
-            if build.get('setupError') or build.get('cacheBuildPath') != 'distillFile' or build.get('valid') is not True:
-                raise GuardError(f'{name}: failed or unsupported cache-building path')
+            build = read(out / 'raw' / (name + '-pr-build.json'))
+            if (build.get('setupError') or build.get('cacheBuildPath') != CACHE_BUILD_PATH
+                    or build.get('cacheSource') != CACHE_SOURCE or build.get('valid') is not True
+                    or build.get('model') != MODELS[model] or build.get('effort') != 'high'
+                    or build.get('prsSha256') != digest(out / 'prs.json')):
+                raise GuardError(f'{name}: invalid PR cache provenance, model or build outcome')
+            allowed = {f"{corpus['tasks'][task['id']]['repository']}#{p['number']}" for p in corpus['tasks'][task['id']]['prs']}
+            processed = build.get('processedPrs', [])
+            if not processed or not set(processed) <= allowed:
+                raise GuardError(f'{name}: no valid PR mining receipt')
             retrieval = read(out / 'raw' / (name + '-thinker-retrieval.json'))
-            hashes = read(out / 'raw' / (name + '-learn-note-hashes.json'))
+            hashes = read(out / 'raw' / (name + '-pr-note-hashes.json'))
             if not hashes or retrieval.get('noteCount') != len(hashes) or not retrieval.get('text', '').strip() or not retrieval.get('included'):
                 raise GuardError(f'{name}: empty cache or retrieval')
             ids = set()
             for filename, checksum in hashes.items():
                 if Path(filename).name != filename or not filename.endswith('.json'):
                     raise GuardError('Invalid cache filename')
-                source = out / 'raw' / (name + '-learn-notes') / filename
+                source = out / 'raw' / (name + '-pr-notes') / filename
                 target = out / 'state' / (name + '-thinker') / '.thinker/notes' / filename
                 if digest(source) != checksum or digest(target) != checksum:
                     raise GuardError(f'{name}: cache hash mismatch')
                 note = read(source)
                 if not note.get('deps') or not note.get('body', '').strip() or note.get('status') != 'fresh':
                     raise GuardError(f'{name}: unusable note')
+                provenance = note.get('source', {})
+                if provenance.get('type') != 'pr' or provenance.get('ref') not in processed:
+                    raise GuardError(f'{name}: note is not from the frozen PR corpus')
                 ids.add(note['id'])
             if not set(retrieval['included']) <= ids:
                 raise GuardError(f'{name}: retrieval references missing notes')

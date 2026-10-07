@@ -10,6 +10,8 @@ import time
 import unittest
 from unittest.mock import patch
 
+from pr_cache import validate_pr_manifest
+from frozen_gh import replay
 from guardrails import HERE, MODELS, GuardError, assert_ready, checked_ready, digest, guarded_env, supervised, validate_execution, source_hashes, ROOT
 
 
@@ -17,7 +19,13 @@ class Guards(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='.guard-test-', dir=HERE)
         self.out = Path(self.temp.name)
-        self.tasks = [{'id': 'task'}]
+        self.tasks = [{'id': 'task', 'base': 'a'*40, 'fixed': 'b'*40, 'upstream': 'https://github.com/pallets/click/pull/2'}]
+        self.corpus = {'version':1, 'cacheSource':'recent-merged-prs', 'tasks': {'task': {
+            'repository':'pallets/click', 'base':'a'*40, 'before':'2026-01-02T00:00:00Z',
+            'selection':'recent-merged-before-base', 'limit':20, 'prs':[{'number':1, 'title':'Fix fixture',
+            'mergedAt':'2026-01-01T00:00:00Z', 'updatedAt':'2026-01-01T00:00:00Z',
+            'mergeCommit':{'oid':'c'*40}, 'diff':'+ public source', 'comments':[], 'files':[{'path':'src/file.py'}], 'additions':3}]}}}
+        (self.out / 'prs.json').write_text(json.dumps(self.corpus))
         self.raw = self.out / 'raw'; self.raw.mkdir()
         for arm in ['base', 'gold']:
             g = {'returncode': 1 if arm == 'base' else 0, 'tests': 1, 'passed': 0 if arm == 'base' else 1,
@@ -25,12 +33,11 @@ class Guards(unittest.TestCase):
             self.save(f'task-verify-{arm}-validation.json', {'module': g, 'acceptance': g})
         for model in MODELS:
             name = f'task-{model}'
-            self.save(name + '-learn.json', {'valid': True, 'model': MODELS[model], 'effort': 'high'})
-            self.save(name + '-learn-build.json', {'valid': True, 'cacheBuildPath': 'distillFile', 'setupError': None})
-            note = {'id': 'note', 'body': 'supported fact', 'deps': [{'path': 'src/file.py'}], 'status': 'fresh'}
-            source = self.raw / (name + '-learn-notes') / 'note.json'; source.parent.mkdir(); source.write_text(json.dumps(note))
+            self.save(name + '-pr-build.json', {'valid': True, 'cacheSource':'recent-merged-prs', 'cacheBuildPath':'minePrs', 'model':MODELS[model], 'effort':'high', 'prsSha256':digest(self.out/'prs.json'), 'processedPrs':['pallets/click#1'], 'setupError': None})
+            note = {'id': 'note', 'body': 'supported fact', 'deps': [{'path': 'src/file.py'}], 'status': 'fresh', 'source': {'type':'pr', 'ref':'pallets/click#1'}}
+            source = self.raw / (name + '-pr-notes') / 'note.json'; source.parent.mkdir(); source.write_text(json.dumps(note))
             target = self.out / 'state' / (name + '-thinker') / '.thinker/notes/note.json'; target.parent.mkdir(parents=True); target.write_bytes(source.read_bytes())
-            self.save(name + '-learn-note-hashes.json', {'note.json': digest(source)})
+            self.save(name + '-pr-note-hashes.json', {'note.json': digest(source)})
             self.save(name + '-thinker-retrieval.json', {'noteCount': 1, 'text': 'supported fact', 'included': ['note']})
 
     def tearDown(self):
@@ -48,17 +55,17 @@ class Guards(unittest.TestCase):
         assert_ready(self.out, self.tasks)
 
     def test_one_failed_cohort_blocks_all_coding(self):
-        self.save('task-gemini-learn-build.json', {'valid': False, 'setupError': 'missing tags'})
+        self.save('task-gemini-pr-build.json', {'valid': False, 'setupError': 'missing tags'})
         with self.assertRaises(GuardError): checked_ready(self.out, self.tasks)
         self.assertTrue((self.out / 'STOPPED.json').exists())
 
     def test_gate_rejects_empty_unserved_missing_and_mutated_cache(self):
         for file, bad in [
-            ('task-sol-learn-note-hashes.json', {}),
+            ('task-sol-pr-note-hashes.json', {}),
             ('task-sol-thinker-retrieval.json', {'noteCount': 1, 'text': '', 'included': []}),
             ('task-sol-thinker-retrieval.json', {'noteCount': 1, 'text': 'x', 'included': ['missing']}),
-            ('task-sol-learn.json', {'valid': True, 'model': 'wrong', 'effort': 'high'}),
-            ('task-sol-learn-build.json', {'valid': True, 'cacheBuildPath': 'prototype'}),
+            ('task-sol-pr-build.json', {'valid': True, 'model': 'wrong', 'effort': 'high'}),
+            ('task-sol-pr-build.json', {'valid': True, 'cacheBuildPath': 'prototype'}),
         ]:
             with self.subTest(file=file, bad=bad):
                 original = (self.raw / file).read_text(); self.save(file, bad)
@@ -75,6 +82,59 @@ class Guards(unittest.TestCase):
     def test_collection_error_is_not_base_failure(self):
         self.save('task-verify-base-validation.json', {'acceptance': {'returncode': 2, 'passed': 0, 'failures': 0, 'errors': 1}})
         with self.assertRaises(GuardError): assert_ready(self.out, self.tasks)
+
+    def test_session_notes_cannot_pass_even_with_valid_hashes(self):
+        source = self.raw / 'task-sol-pr-notes/note.json'
+        target = self.out / 'state/task-sol-thinker/.thinker/notes/note.json'
+        for provenance in [{'type':'agent','ref':'session'}, {'type':'pr','ref':'pallets/click#999'}]:
+            note = json.loads(source.read_text()); note['source'] = provenance
+            source.write_text(json.dumps(note)); target.write_bytes(source.read_bytes())
+            self.save('task-sol-pr-note-hashes.json', {'note.json':digest(source)})
+            with self.assertRaisesRegex(GuardError, 'frozen PR corpus'):
+                assert_ready(self.out, self.tasks)
+
+    def test_pr_receipt_cannot_be_empty_or_outside_corpus(self):
+        path = self.raw / 'task-sol-pr-build.json'
+        build = json.loads(path.read_text())
+        for processed in [[], ['pallets/click#999']]:
+            build['processedPrs'] = processed; path.write_text(json.dumps(build))
+            with self.assertRaisesRegex(GuardError, 'mining receipt'):
+                assert_ready(self.out, self.tasks)
+
+    def test_future_target_and_session_pr_inputs_rejected(self):
+        validate_pr_manifest(self.corpus, self.tasks)
+        pr = self.corpus['tasks']['task']['prs'][0]
+        for key, bad in [('mergedAt','2026-01-03T00:00:00Z'),('updatedAt','2026-01-03T00:00:00Z'),
+                         ('mergeCommit',{'oid':'b'*40}),('number',2),('diff',''),('isGitCommit',True)]:
+            with self.subTest(key=key):
+                original = dict(pr); pr[key] = bad
+                with self.assertRaises(ValueError): validate_pr_manifest(self.corpus, self.tasks)
+                pr.clear(); pr.update(original)
+        self.corpus['cacheSource'] = 'exploration'
+        with self.assertRaisesRegex(ValueError, 'session distillation is forbidden'):
+            validate_pr_manifest(self.corpus, self.tasks)
+
+    def test_pr_ancestry_must_be_verified_at_freeze(self):
+        with patch('pr_cache.subprocess.check_output',return_value='2026-01-02T00:00:00Z'), patch('pr_cache.subprocess.run') as run:
+            run.return_value.returncode=1
+            with self.assertRaisesRegex(ValueError, 'ancestor'): validate_pr_manifest(self.corpus, self.tasks, self.out)
+            run.return_value.returncode=0
+            validate_pr_manifest(self.corpus, self.tasks, self.out)
+
+    def test_github_replay_blocks_unfrozen_requests(self):
+        corpus = self.corpus['tasks']['task']
+        args = ['pr','list','--repo','pallets/click','--state','merged','--limit','60','--search',
+                'merged:<2026-01-02T00:00:00Z','--json','number,title,body,mergedAt,additions,files']
+        self.assertEqual(json.loads(replay(args,corpus)), corpus['prs'])
+        for bad in [['pr','diff','2'], ['api','repos/private/repo'], args[:-1]+['other-fields']]:
+            with self.assertRaisesRegex(ValueError, 'Unfrozen'): replay(bad,corpus)
+
+    def test_exploration_entrypoint_is_rejected_before_any_setup(self):
+        env = {**os.environ, 'THINKER_TEST':'1', 'THINKER_PERF_DIR':str(self.out/'nonexistent')}
+        r = subprocess.run([sys.executable,str(HERE/'run.py'),'learn','opus'],env=env,text=True,capture_output=True)
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('exploration/session distillation is forbidden',r.stderr)
+        self.assertFalse((self.out/'nonexistent').exists())
 
     def execute(self, code, seconds=3, **kwargs):
         return supervised([sys.executable, '-u', '-c', code], cwd=self.out, env=os.environ,
@@ -123,14 +183,14 @@ class Guards(unittest.TestCase):
 
     def test_protocol_rejects_changed_source_and_model(self):
         (self.out / '.git').write_text('gitdir: fixture')
-        (self.out / 'tasks.json').write_text('[]')
-        config = {'guardrailsVersion':1,'models':MODELS,'effort':'high','fallback':False,
+        (self.out / 'tasks.json').write_text(json.dumps(self.tasks))
+        config = {'guardrailsVersion':2, 'cacheSource':'recent-merged-prs', 'cacheBuildPath':'minePrs', 'prsSha256':digest(self.out/'prs.json'),'models':MODELS,'effort':'high','fallback':False,
                   'tasksSha256':digest(self.out / 'tasks.json'),'thinkerCommit':'head',
                   'sourceHashes':{'file':'hash'},'agentSeconds':600}
         with patch('guardrails.ROOT',self.out), patch('guardrails.source_hashes',return_value={'file':'hash'}), patch('guardrails.subprocess.check_output',return_value='head'):
             (self.out / 'execution.json').write_text(json.dumps(config))
             validate_execution(self.out)
-            for key, bad in [('effort','medium'),('thinkerCommit','other'),('sourceHashes',{}),('tasksSha256','changed'),('agentSeconds',99999)]:
+            for key, bad in [('effort','medium'),('thinkerCommit','other'),('sourceHashes',{}),('tasksSha256','changed'),('agentSeconds',99999),('cacheSource','session'),('cacheBuildPath','distillFile'),('prsSha256','changed')]:
                 value = config[key]; config[key] = bad
                 (self.out / 'execution.json').write_text(json.dumps(config))
                 with self.assertRaises(GuardError): validate_execution(self.out)

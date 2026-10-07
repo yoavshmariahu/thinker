@@ -4,11 +4,14 @@ import json
 import re
 from pathlib import Path
 import subprocess
-from guardrails import HERE, ROOT, SOURCES, MODELS, digest, require_running, source_hashes
+from pr_cache import CACHE_SOURCE, CACHE_BUILD_PATH, validate_pr_manifest
+from guardrails import HERE, ROOT, MODELS, digest, require_running, source_hashes
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--out', type=Path, required=True)
 parser.add_argument('--tasks', type=Path, required=True)
+parser.add_argument('--prs', type=Path, required=True)
+parser.add_argument('--source', type=Path, required=True, help='Read-only upstream clone for ancestry validation')
 parser.add_argument('--agent-seconds', type=int, default=600)
 a = parser.parse_args()
 require_running(a.out)
@@ -34,13 +37,17 @@ for t in tasks:
     test_path=Path(t.get('test_file',''))
     if test_path.is_absolute() or '..' in test_path.parts or not str(test_path).startswith('tests/') or test_path.suffix != '.py':
         raise SystemExit('Test module must be a relative Python file under tests/')
-    if any(not isinstance(t.get(k),str) or not t[k].strip() for k in ['prompt','learning','acceptance']):
+    if any(not isinstance(t.get(k),str) or not t[k].strip() for k in ['prompt','acceptance']):
         raise SystemExit('Task prompts and acceptance selector are required')
+corpus = validate_pr_manifest(json.loads(a.prs.read_text()), tasks, a.source)
+for task in tasks:
+    task.pop('learning', None)
 a.out.mkdir(parents=True)
+(a.out / 'prs.json').write_text(json.dumps(corpus, indent=2) + '\n')
 (a.out / 'tasks.json').write_text(json.dumps(tasks, indent=2) + '\n')
-e = {'guardrailsVersion': 1, 'thinkerCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+e = {'guardrailsVersion': 2, 'thinkerCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
      'models': MODELS, 'effort': 'high', 'fallback': False, 'testMode': True, 'jev': 'jev-1.13.0',
      'tasksSha256': digest(a.out / 'tasks.json'), 'agentSeconds': a.agent_seconds,
-     'cacheBuildPath': 'distillFile', 'sourceHashes': source_hashes()}
+     'cacheSource': CACHE_SOURCE, 'cacheBuildPath': CACHE_BUILD_PATH, 'prsSha256': digest(a.out / 'prs.json'), 'sourceHashes': source_hashes()}
 (a.out / 'execution.json').write_text(json.dumps(e, indent=2) + '\n')
 print(a.out.resolve())

@@ -2,6 +2,8 @@
 
 Authors: Yoav Shmariahu and Codex. Run date: 2026-10-06, America/Los_Angeles (UTC artifacts extend into October 7).
 
+**Methodology correction (October 6):** The intended benchmark cache source is recent merged PRs. This historical run used exploration/session distillation instead and is invalid for that intended methodology. Future runs must follow the enforced PR-only [guardrails](GUARDRAILS.md); the historical protocol and evidence below are preserved.
+
 **Decision: stop and invalidate this efficiency experiment.** The user challenged the empty caches and task execution; all active benchmark process trees were stopped at 2026-10-07 05:48:59 UTC. Nine coding runs completed, two were interrupted, and seven never started. None will be silently resumed or replaced. The stop marker prevents the current runner, pipeline and cache builder from restarting this batch.
 
 On Thinker `3db79d2a969ccbf18821925acb3b2af2b76da3ed`, all nine fresh session-learning caches were empty. Eight distillations completed: one proposed no notes, and seven proposed nine notes that grounding deferred. The ninth distillation failed Opus's required output schema. No coding run received a note. These were new isolated caches, not deleted or overwritten historical caches. This canary cannot establish a cache efficiency benefit or show that recent changes caused a performance regression; there is no matched older-revision arm.

@@ -16,10 +16,6 @@ try:
     tasks = json.loads((out / 'tasks.json').read_text())
     assert_preflight(out, tasks)
     if phase == 'build':
-        for task in tasks:
-            learned = json.loads((out / 'raw' / f'{task["id"]}-{model}-learn.json').read_text())
-            if learned.get('valid') is not True or learned.get('model') != MODELS[model] or learned.get('effort') != 'high':
-                raise ValueError('Invalid exploration; no cache-building call allowed')
         result = supervised(['node', str(HERE / 'memory.mjs'), 'build', model], cwd=HERE.parents[1], env=os.environ,
                             prefix=out / 'raw' / f'build-{model}', seconds=3600, batch=out)
         if result['reason']:

@@ -1,0 +1,10 @@
+{
+  "thinkerTest": true,
+  "liveInference": false,
+  "pythonGuardTestsPassed": 23,
+  "nodeTests": 502,
+  "nodePassed": 497,
+  "nodeSkipped": 5,
+  "nodeFailed": 0,
+  "offlinePrMiningIntegration": "passed"
+}

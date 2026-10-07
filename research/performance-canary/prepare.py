@@ -18,7 +18,7 @@ for t in TASKS:
    data=archive.extractfile(m).read() if m.isfile() else m.linkname.encode();mode='120000' if m.issym() else '100755' if m.mode&0o111 else '100644'
    stream+=f'M {mode} inline {json.dumps(m.name)}\ndata {len(data)}\n'.encode()+data+b'\n'
   subprocess.run(['git','fast-import','--quiet'],cwd=bare,input=stream+b'\ndone\n',check=True)
- for suffix in ['verify-base','verify-gold']+[f'{m}-{a}' for m in ['opus','sol','gemini'] for a in ['learn','baseline','thinker','baseline-score','thinker-score']]:
+ for suffix in ['verify-base','verify-gold']+[f'{m}-{a}' for m in ['opus','sol','gemini'] for a in ['pr-cache','baseline','thinker','baseline-score','thinker-score']]:
   wt=STATE/(t['id']+'-'+suffix)
   if not wt.exists():subprocess.run(['git','worktree','add','-q','--detach',str(wt),'base'],cwd=bare,check=True)
  gold=RAW/(t['id']+'-gold');gold.mkdir(exist_ok=True)
