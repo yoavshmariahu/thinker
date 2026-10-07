@@ -1,0 +1,59 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "In PostHog's tasks product, TaskRun.state carries a 'sandbox_backend' key ('modal' or 'hogland') resolved by `_resolve_sandbox_backend` in get_task_processing_context.py; it is a mutable state flag distinct from any host-based authorization check, and `prepare_for_cloud_resume` deliberately pops it from state so a resumed run re-resolves its backend from scratch (a stale 'hogland' must not survive to outrank the EU guard, Modal-only fallbacks, or the flag kill switch).",
+        "evidence": "\"products/tasks/backend/logic/services/agent_command.py:189: authorizes attaching an account-wide credential — ``sandbox_backend`` /\" and \"products/tasks/backend/models.py:2516: state.pop(\\\"sandbox_backend\\\", None)\" with comment: \"Drop the provider stamp because the resumed run re-resolves its backend from scratch, so a stale `hogland` must not survive to outrank the EU guard, the Modal-only fallbacks, or the flag kill switch on the next context resolution.\""
+      },
+      {
+        "id": "F2",
+        "claim": "task_run_failed analytics events for PostHog TaskRun are emitted from multiple distinct code paths that must stay single-emitted via old_status != new_status transition guards: the Temporal update_task_run_status activity (DB-transition owner), the workflow's _track_workflow_event (metrics/logs only, capture_analytics=False), the PATCH-driven facade.update_task_run path for agent-reported failures, TaskRun.mark_failed(), and temporal/client.py's _terminalize_unstarted_task_run for runs that never start a workflow.",
+        "evidence": "\"# This PATCH performed the DB transition, so it owns the task_run_failed capture. The workflow's status-update activity sees the row already FAILED and skips its own capture, keeping the event single-emitted.\" (products/tasks/backend/facade/api.py) and \"# Metrics and logs only: the status-update activity below owns the task_run_failed analytics capture, keyed on the DB transition.\" (workflow.py) and \"This activity performs the DB status transition, so it is the single canonical emitter of the terminal analytics events for workflow-driven runs\" (update_task_run_status.py)"
+      },
+      {
+        "id": "F3",
+        "claim": "PostHog has two parallel Temporal workflows implementing task sandbox execution with duplicated logic: process_task/workflow.py (ProcessTaskWorkflow, legacy, supports continue_as_new via ResumedSandboxState) and execute_sandbox/workflow.py (ExecuteSandboxWorkflow, newer per-sandbox child workflow coordinated by TaskManagementWorkflow); execute_sandbox is explicitly a duplicate of process_task pending a later deletion of process_task.",
+        "evidence": "\"\\\"\\\"\\\"Per-sandbox workflow.\\n\\nThis file is based on `process_task`, most of it is duplicated with a few\\nchanges to support communication between the parent workflow\\n(`TaskManagementWorkflow`) and itself.\\n\\nThe duplication is used so we don't need to handle patching the original\\nworkflow — the two coexist while we cut traffic over, and `process_task`\\nis deleted in a later PR.\\n\\\"\\\"\\\"\" (products/tasks/backend/temporal/execute_sandbox/workflow.py)"
+      }
+    ],
+    "reason": "Selected facts capture durable, non-obvious repository structure/conventions evidenced directly in the source that a future task touching PostHog's tasks/sandbox system would need: (1) the sandbox_backend state-flag semantics and its reset-on-resume invariant, (2) the single-emission guard pattern spanning multiple emitters of task_run_failed, and (3) the existence of two parallel/duplicated workflow implementations mid-migration. These are scope/exception constraints and architectural facts, not task-specific news or styling advice, and each is grounded in exact quoted source evidence with stable IDs."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 145142,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1453,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 145142,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 145144,
+    "outputTokens": 1453,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 145142,
+    "totalTokens": 146597
+  },
+  "ms": 17941,
+  "promptChars": 345586
+}

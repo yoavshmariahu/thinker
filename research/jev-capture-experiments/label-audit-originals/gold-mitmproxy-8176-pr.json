@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Addon scripts register their options lazily in Script.loadscript(), which the watcher defers, so any code path that dumps/inspects options before scripts load (e.g. --options) will silently miss addon-contributed options unless it explicitly forces pending scripts to load first.",
+        "evidence": "\"Addon scripts register their options in Script.loadscript(), which is deferred by Script.watcher(). When --options is passed, we now load pending scripts before dumping options\""
+      },
+      {
+        "id": "F2",
+        "claim": "The fix identifies not-yet-loaded script addons via the scriptloader's child addons having `ns is None`, and forces loading by calling `s.loadscript()` on each before the dump — a reusable pattern for forcing deferred addon initialization prior to introspection.",
+        "evidence": "if sl := master.addons.get(\"scriptloader\"):\n    for s in sl.addons:\n        if s.ns is None:\n            s.loadscript()"
+      },
+      {
+        "id": "F3",
+        "claim": "Tests for this kind of deferred-loading bug need both a positive case (an addon script registering a custom option appears in --options output) and a negative control (plain --options without scripts does not spuriously include that option), since a single positive test alone wouldn't prove the fix is addon-specific rather than accidental.",
+        "evidence": "test_options_includes_addon_options asserts \"custom_addon_option\" in output; test_options_without_scripts asserts \"custom_addon_option\" not in output"
+      }
+    ],
+    "reason": "The PR fixes a concrete deferred-initialization bug (scripts register options only on loadscript(), which --options ran before triggering) and introduces a reusable mechanism (iterating scriptloader.addons, checking s.ns is None, calling loadscript()) plus a paired positive/negative test pattern to validate the fix's specificity. These are durable, mechanism-level lessons about addon lifecycle and test design, not styling or narration."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6749,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 745,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6749,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 6751,
+    "outputTokens": 745,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 6749,
+    "totalTokens": 7496
+  },
+  "ms": 9538,
+  "promptChars": 3478,
+  "attempts": 1
+}

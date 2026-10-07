@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "The reportInteraction event name diverges from the DashboardInteractions method/property name: the helper is `textPanelUsage` emitting `text_panel_usage`, but tests assert on `dashboards_text_panel_usage`, indicating the actual shipped event name differs from what's declared in interactions.ts.",
+        "evidence": "`reportDashboardInteraction('text_panel_usage', properties);` in interactions.ts vs `expect(reportInteraction).toHaveBeenCalledWith('dashboards_text_panel_usage', ...)` in tracking.test.ts"
+      },
+      {
+        "id": "F2",
+        "claim": "Feature-usage tracking for text panel features must be gated behind both relevant feature flags (new text panel v2 AND new text features) since usage counting logic (mermaid/handlebars/etc.) only applies meaningfully when both are enabled; omitting either flag check would misattribute usage from the old panel or unreleased features.",
+        "evidence": "`flags.getBooleanValue(FlagKeys.GrafanaNewTextPanel, false) && flags.getBooleanValue(FlagKeys.TextNewFeatures, false)` and test cases `it.each([['the v2 panel is off', ...], ['the new features are off', ...], ['both flags are off', {}]])` that all assert no reporting occurs"
+      },
+      {
+        "id": "F3",
+        "claim": "Mermaid/handlebars pattern detection must be skipped when the text panel is in `TextMode.Code`, because code mode renders raw text without interpreting markdown/mermaid syntax, so counting matches there would overcount features that never actually render.",
+        "evidence": "`if (options.mode !== TextMode.Code) { if (MERMAID_PATTERN.test(content)) ... if (HANDLEBARS_PATTERN.test(content)) ... }` and test `'does not count diagrams or templates in code mode, where neither one renders'`"
+      }
+    ],
+    "reason": "The PR adds a non-trivial, non-obvious tracking mechanism with specific constraints: dual feature-flag gating logic, mode-dependent pattern matching (code mode suppresses detection), and a naming mismatch between the interactions.ts event string and what the tests actually assert, which is a concrete, reusable discrepancy worth flagging for future reviewers/maintainers of this file."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 9431,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 881,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 9431,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 9433,
+    "outputTokens": 881,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 9431,
+    "totalTokens": 10314
+  },
+  "ms": 10411,
+  "promptChars": 8899,
+  "attempts": 1
+}

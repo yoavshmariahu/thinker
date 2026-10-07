@@ -3,6 +3,12 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## Jev capture selection (2026-10-06)
+
+[Capture experiments and reproducible artifacts](../research/jev-capture-experiments/README.md): six frozen PostHog sessions, six separately reported constructed cases, and 18 saved PRs across three projects. Pinned `jev-1.13.0` (two repeats); identical `claude-sonnet-5` writer/grader model, medium effort and zero thinking budget across arms. One writer draw per input/arm; quality is model-assisted and audited, not downstream task correctness.
+
+For real-session passages, deterministic selection retained 10/13 reference facts and six supported reusable notes for 148,079 tokens; Jev retained 0/13 and two useful neighboring-topic notes for 487,388 tokens including selection. Whole-session gates kept all six real sessions; the compact gate added 11.7% tokens and missed a buried source discovery in the constructed cases. At the same quota of three PRs per project, both queue policies yielded 14 useful notes; Jev retained 22 versus 21 reference facts for 51.0% more tokens. Both Jev repeats selected the same PR queue. The passage run required a documented research-only Unicode transport repair after a real request failed. Production capture is unchanged; these designs do not yet establish a capture benefit.
+
 ## Current Jev versus historical cached runs (2026-10-06)
 
 [Five Opus coding tasks and five Sol reviews](../research/jev-sol-opus-ten/README.md), with exact matched models and reasoning effort. Opus: tool calls −6.2%, input tokens −3.1%, elapsed time +0.3%, unchanged essential-criteria scores. Sol: the same 4/5 target bugs caught with 26 → 6 notes, but verification doubled model calls, increasing total tokens 86.2% and time 53.5%. Separate cohorts, one historical/new run per task; these results do not establish a general causal benefit.

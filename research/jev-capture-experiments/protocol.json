@@ -1,0 +1,763 @@
+{
+  "date": "2026-10-06",
+  "author": "Codex",
+  "base": "ad85060",
+  "corpusSha256": "5d72b59db3bbcb6a65c1a3aaa1214f2516bb79dd4e5bea95137e1f166cee438c",
+  "models": {
+    "selector": "jev-1.13.0",
+    "writer": "claude-sonnet-5",
+    "judge": "claude-sonnet-5",
+    "effort": "medium",
+    "thinkingTokens": 0,
+    "provider": "claude CLI, no tools, empty cwd, no fallback",
+    "structuredRetries": 3,
+    "outerRetries": "at most 2, only structured tool_use failures; preserve failed usage",
+    "sourceSessions": {
+      "model": "gpt-6-sol",
+      "effort": "not recorded in archived per-run metadata",
+      "intervention": "none: exact frozen bytes reused in every arm; no exploration or coding re-run"
+    },
+    "writerConcurrency": 1
+  },
+  "design": {
+    "sessions": "six fixed nocache sessions from one PostHog coding cohort; paired inputs, no new exploration",
+    "passages": [
+      "condense (70k character cap)",
+      "deterministic evidencePacket (12k)",
+      "production refineLearningPlan (12k, 96 candidates, floor .7)"
+    ],
+    "sessionGate": "independent Noul on chronological source batches; max batch probability; compare threshold .5 and conservative .2 to local learningPlan auditRate=0",
+    "prs": "first six numeric IDs with saved diffs per project; equal quota THREE PER REPOSITORY (nine total), existing pickPrs vs semantic probability; source order breaks baseline ties, ID breaks Jev ties",
+    "repeats": "two independent Jev runs; first-run selected evidence used for writing; one writer draw per arm initially",
+    "grading": "derive up to three source-grounded reusable facts before writing; blind arm names; separate support, fact coverage and reusable note count; constructed expected facts fixed by author",
+    "scope": "empty starting cache; no novelty/reconciliation/assessment, no production note writes; selection experiment only",
+    "limitations": [
+      "PR pool was originally benchmark-selected, not representative intake",
+      "recorded sessions share one project and coding model",
+      "LLM grading is a proxy, not downstream task correctness",
+      "full baseline uses production condensation and is not all raw source text"
+    ],
+    "acceptance": "retain useful knowledge and unsupported-note rate before treating reduced writer input as a saving; total tokens include selector; no tuning on held-out results",
+    "prWriterSchema": "Production session note schema (same fields as PR schema, max three enforced, applies optional) with production PR system prompt; all queue policies reuse identical outputs."
+  },
+  "sessions": [
+    {
+      "id": "posthog-105793",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR105793-hard-nocache-0.jsonl",
+      "eventCount": 48
+    },
+    {
+      "id": "posthog-106466",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR106466-hard-nocache-0.jsonl",
+      "eventCount": 39
+    },
+    {
+      "id": "posthog-106522",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR106522-hard-nocache-0.jsonl",
+      "eventCount": 57
+    },
+    {
+      "id": "posthog-106579",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR106579-hard-nocache-0.jsonl",
+      "eventCount": 53
+    },
+    {
+      "id": "posthog-106917",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR106917-hard-nocache-0.jsonl",
+      "eventCount": 63
+    },
+    {
+      "id": "posthog-107042",
+      "cohort": "recorded",
+      "source": "bench/runs/posthog-codex-gpt6-sol-trace/events/PR107042-hard-nocache-0.jsonl",
+      "eventCount": 41
+    },
+    {
+      "id": "short-discovery",
+      "expected": [
+        "existing readers retain the old snapshot; new readers see the refreshed snapshot"
+      ],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 3
+    },
+    {
+      "id": "buried-discovery",
+      "expected": [
+        "existing readers retain the old snapshot; new readers see the refreshed snapshot"
+      ],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 73
+    },
+    {
+      "id": "late-correction",
+      "expected": [
+        "GET alone retries up to three times; other methods are sent once"
+      ],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 75
+    },
+    {
+      "id": "routine-work",
+      "expected": [],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 3
+    },
+    {
+      "id": "machine-failure",
+      "expected": [],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 3
+    },
+    {
+      "id": "unsupported-guess",
+      "expected": [],
+      "cohort": "constructed",
+      "source": "hand-authored stress case",
+      "eventCount": 12
+    }
+  ],
+  "prs": [
+    {
+      "id": "mitmproxy-8175",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8175,
+      "title": "fix: display failed CONNECT requests in mitmdump",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "additions": 2,
+          "deletions": 0
+        },
+        {
+          "path": "mitmproxy/addons/dumper.py",
+          "additions": 4,
+          "deletions": 0
+        },
+        {
+          "path": "test/mitmproxy/addons/test_dumper.py",
+          "additions": 16,
+          "deletions": 0
+        }
+      ],
+      "diffChars": 1918,
+      "bodyChars": 425
+    },
+    {
+      "id": "mitmproxy-8176",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8176,
+      "title": "load pending scripts before dumping options",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "additions": 2,
+          "deletions": 0
+        },
+        {
+          "path": "mitmproxy/tools/main.py",
+          "additions": 5,
+          "deletions": 0
+        },
+        {
+          "path": "test/mitmproxy/data/addonscripts/custom_option.py",
+          "additions": 14,
+          "deletions": 0
+        },
+        {
+          "path": "test/mitmproxy/tools/test_main.py",
+          "additions": 25,
+          "deletions": 0
+        }
+      ],
+      "diffChars": 3008,
+      "bodyChars": 387
+    },
+    {
+      "id": "mitmproxy-8196",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8196,
+      "title": "fix: avoid IndexError in is_mostly_bin for short tails",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "additions": 3,
+          "deletions": 0
+        },
+        {
+          "path": "mitmproxy/utils/strutils.py",
+          "additions": 1,
+          "deletions": 1
+        },
+        {
+          "path": "test/mitmproxy/utils/test_strutils.py",
+          "additions": 5,
+          "deletions": 0
+        }
+      ],
+      "diffChars": 1821,
+      "bodyChars": 816
+    },
+    {
+      "id": "mitmproxy-8214",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8214,
+      "title": "Copy issuer's SubjectKeyIdentifier into leaf AuthorityKeyIdentifier (RFC 5280 \u00a74.2.1.2)",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "additions": 4,
+          "deletions": 0
+        },
+        {
+          "path": "mitmproxy/certs.py",
+          "additions": 20,
+          "deletions": 4
+        },
+        {
+          "path": "test/mitmproxy/test_certs.py",
+          "additions": 85,
+          "deletions": 0
+        }
+      ],
+      "diffChars": 7140,
+      "bodyChars": 4532
+    },
+    {
+      "id": "mitmproxy-8224",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8224,
+      "title": "Rename mitmweb XSRF cookie to `_mitmproxy_xsrf` to recover broken Firefox sessions",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "mitmproxy/tools/web/app.py",
+          "additions": 3,
+          "deletions": 0
+        },
+        {
+          "path": "web/src/js/utils.ts",
+          "additions": 1,
+          "deletions": 1
+        }
+      ],
+      "diffChars": 1081,
+      "bodyChars": 1250
+    },
+    {
+      "id": "mitmproxy-8288",
+      "cohort": "recorded",
+      "repo": "mitmproxy",
+      "number": 8288,
+      "title": "mitmweb: honor view_order_reversed for live flows",
+      "mergedAt": null,
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "additions": 4,
+          "deletions": 0
+        },
+        {
+          "path": "web/src/js/__tests__/ducks/flows/indexSpec.tsx",
+          "additions": 70,
+          "deletions": 0
+        },
+        {
+          "path": "web/src/js/__tests__/ducks/tutils.ts",
+          "additions": 1,
+          "deletions": 0
+        },
+        {
+          "path": "web/src/js/ducks/flows/_utils.ts",
+          "additions": 13,
+          "deletions": 1
+        },
+        {
+          "path": "web/src/js/ducks/flows/index.ts",
+          "additions": 48,
+          "deletions": 6
+        }
+      ],
+      "diffChars": 11048,
+      "bodyChars": 1583
+    },
+    {
+      "id": "posthog-105793",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 105793,
+      "title": "feat(slack_app): ask before picking up unset thread follow-ups",
+      "mergedAt": "2026-09-24T13:55:57Z",
+      "files": [
+        {
+          "path": "posthog/temporal/ai/slack_app/activities/billing.py",
+          "additions": 21,
+          "deletions": 2,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/temporal/ai/slack_app/helpers.py",
+          "additions": 13,
+          "deletions": 10,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/temporal/tests/ai/slack_app/activities/test_billing_quota_activity.py",
+          "additions": 63,
+          "deletions": 0,
+          "changeType": "ADDED"
+        },
+        {
+          "path": "products/slack_app/backend/api.py",
+          "additions": 9,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/models.py",
+          "additions": 3,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/services/slack_app_home.py",
+          "additions": 2,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/services/slack_settings.py",
+          "additions": 5,
+          "deletions": 3,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/tests/services/test_slack_settings.py",
+          "additions": 5,
+          "deletions": 9,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/tests/test_posthog_code_event_handler.py",
+          "additions": 25,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/slack_app/backend/tests/test_thread_message_routing.py",
+          "additions": 1,
+          "deletions": 2,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 17630,
+      "bodyChars": 3505
+    },
+    {
+      "id": "posthog-105871",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 105871,
+      "title": "fix(flags): skip non-v1 configs in cross-team flag jobs",
+      "mergedAt": "2026-09-25T10:44:04Z",
+      "files": [
+        {
+          "path": "posthog/management/commands/fix_invalid_flag_property_types.py",
+          "additions": 0,
+          "deletions": 87,
+          "changeType": "DELETED"
+        },
+        {
+          "path": "posthog/management/commands/reencrypt_flag_payloads.py",
+          "additions": 20,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt",
+          "additions": 0,
+          "deletions": 2,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/test/repo_invariants/test_feature_flag_gated_writes.py",
+          "additions": 0,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/flag_status.py",
+          "additions": 6,
+          "deletions": 8,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+          "additions": 13,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/management/commands/test/test_audit_flag_filters.py",
+          "additions": 13,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+          "additions": 24,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/temporal/health_checks/tests/test_stale_flags.py",
+          "additions": 37,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/feature_flags/backend/test/test_reencrypt_flag_payloads.py",
+          "additions": 56,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 27712,
+      "bodyChars": 4038
+    },
+    {
+      "id": "posthog-105887",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 105887,
+      "title": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
+      "mergedAt": "2026-09-24T13:55:29Z",
+      "files": [
+        {
+          "path": "posthog/temporal/experiments/activities.py",
+          "additions": 6,
+          "deletions": 6,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/facade/timeseries.py",
+          "additions": 6,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+          "additions": 4,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/presentation/serializers.py",
+          "additions": 6,
+          "deletions": 3,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/temporal/metric_resolution.py",
+          "additions": 8,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/temporal/test_discovery_fingerprints.py",
+          "additions": 16,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/experiments/backend/test/test_presentation_api.py",
+          "additions": 61,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 16139,
+      "bodyChars": 4013
+    },
+    {
+      "id": "posthog-106322",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 106322,
+      "title": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
+      "mergedAt": "2026-09-24T23:42:02Z",
+      "files": [
+        {
+          "path": "posthog/dags/person_tombstone_queue.py",
+          "additions": 20,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/dags/tests/test_person_tombstone_queue.py",
+          "additions": 10,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/models/person/bulk_delete.py",
+          "additions": 18,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/models/person/deletion.py",
+          "additions": 1,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/models/person/test/test_bulk_delete_helpers.py",
+          "additions": 15,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "posthog/models/person/util.py",
+          "additions": 32,
+          "deletions": 8,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 14848,
+      "bodyChars": 4395
+    },
+    {
+      "id": "posthog-106466",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 106466,
+      "title": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+      "mergedAt": "2026-09-25T14:16:08Z",
+      "files": [
+        {
+          "path": "products/workflows/backend/api/hog_flow.py",
+          "additions": 15,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/workflows/backend/test/test_hog_flow_schedule.py",
+          "additions": 19,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+          "additions": 41,
+          "deletions": 5,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+          "additions": 96,
+          "deletions": 14,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/workflows/frontend/Broadcasts/broadcastWorkflowEdits.test.ts",
+          "additions": 45,
+          "deletions": 2,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/workflows/frontend/Broadcasts/broadcastsLogic.ts",
+          "additions": 27,
+          "deletions": 0,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 22446,
+      "bodyChars": 6630
+    },
+    {
+      "id": "posthog-106491",
+      "cohort": "recorded",
+      "repo": "posthog",
+      "number": 106491,
+      "title": "fix(insights): show the chart gallery on the insight page in view mode",
+      "mergedAt": "2026-09-25T10:18:33Z",
+      "files": [
+        {
+          "path": "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+          "additions": 0,
+          "deletions": 1,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx",
+          "additions": 4,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.tsx",
+          "additions": 1,
+          "deletions": 4,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/product_analytics/frontend/insights/chartAlternatives/ChartGallery.tsx",
+          "additions": 1,
+          "deletions": 3,
+          "changeType": "MODIFIED"
+        },
+        {
+          "path": "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts",
+          "additions": 5,
+          "deletions": 36,
+          "changeType": "MODIFIED"
+        }
+      ],
+      "diffChars": 10221,
+      "bodyChars": 1985
+    },
+    {
+      "id": "grafana-132843",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 132843,
+      "title": "Text: Track feature usage on dashboard load",
+      "mergedAt": "2026-09-22T18:43:02Z",
+      "files": [
+        "public/app/features/dashboard-scene/utils/interactions.ts",
+        "public/app/features/dashboard-scene/utils/tracking.ts"
+      ],
+      "diffChars": 8816,
+      "bodyChars": 0
+    },
+    {
+      "id": "grafana-132859",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 132859,
+      "title": "Notebooks: Fix duplicate cell controls and the clipped collapsed query row",
+      "mergedAt": "2026-09-22T12:58:22Z",
+      "files": [
+        "public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx",
+        "public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts",
+        "public/app/features/query/components/QueryEditorRowHeader.tsx"
+      ],
+      "diffChars": 17905,
+      "bodyChars": 0
+    },
+    {
+      "id": "grafana-132938",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 132938,
+      "title": "CodeMirror: Add shared language registry and lazy INI support",
+      "mergedAt": "2026-09-24T14:51:17Z",
+      "files": [
+        "packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx",
+        "packages/grafana-ui/src/components/CodeMirror/languageLoader.ts",
+        "packages/grafana-ui/src/components/CodeMirror/languages.ts",
+        "packages/grafana-ui/src/components/CodeMirror/types.ts",
+        "packages/grafana-ui/src/unstable.ts",
+        "public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts"
+      ],
+      "diffChars": 15866,
+      "bodyChars": 0
+    },
+    {
+      "id": "grafana-132983",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 132983,
+      "title": "IAM: Implement AuthInfo delete for legacy storage",
+      "mergedAt": "2026-09-22T07:42:32Z",
+      "files": [
+        "pkg/registry/apis/iam/authinfo/store.go",
+        "pkg/services/login/authinfo.go",
+        "pkg/services/login/authinfoimpl/store.go",
+        "pkg/services/login/authinfoimpl/templates.go",
+        "pkg/services/login/authinfok8s/authinfo.go",
+        "pkg/services/login/authinfotest/auth_info_store_mock.go"
+      ],
+      "diffChars": 19796,
+      "bodyChars": 0
+    },
+    {
+      "id": "grafana-133011",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 133011,
+      "title": "Text panel: Keep editor view mode stable across remounts",
+      "mergedAt": "2026-09-24T20:20:42Z",
+      "files": [
+        "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+        "public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx",
+        "public/app/plugins/panel/text/v2/editor/viewMode.ts"
+      ],
+      "diffChars": 8079,
+      "bodyChars": 0
+    },
+    {
+      "id": "grafana-133090",
+      "cohort": "recorded",
+      "repo": "grafana",
+      "number": 133090,
+      "title": "Datasources: Add utility for getting the default datasource",
+      "mergedAt": "2026-09-22T06:24:53Z",
+      "files": [
+        "packages/grafana-data/src/types/datasource.ts",
+        "packages/grafana-plugin-compat/src/datasources.ts",
+        "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.ts",
+        "packages/grafana-plugin-compat/src/datasources/useDefaultDataSourceInstanceListItem.ts",
+        "packages/grafana-plugin-compat/src/utils/mocks.ts",
+        "packages/grafana-runtime/src/services/dataSource/hooks.ts",
+        "packages/grafana-runtime/src/services/dataSource/settings.ts"
+      ],
+      "diffChars": 29682,
+      "bodyChars": 0
+    }
+  ],
+  "preflight": {
+    "failure": "First production passage request rejected HTTP 400: Request contains invalid Unicode text.",
+    "amendment": "Research adapter normalizes lone surrogate code units with String.toWellFormed before HTTP serialization; every repaired string field is counted. No production code changed. Applies to all Jev arms.",
+    "timing": "Before any successful selection, writing or grading."
+  },
+  "labelAmendment": "Before writer outputs, initial gold audit found source skills restated and pre-fix code treated as current. Excluded initial labels retained under preflight-labels; labeling prompt now applies production note policy and explicit chronological corrections. Model/effort unchanged.",
+  "followup": "After full-source gate token counts, before note writing/grading: add compact gate on identical deterministic 12k evidencePacket, same question, model and two repeats. Exploratory arm; evaluate missed facts separately.",
+  "queueAmendment": "Before any PR writing/grading: quotas applied within repositories, matching production pickPrs scope rather than a pooled cross-repository queue.",
+  "labelRetryAmendment": "Gold extraction repeatedly failed with structured retry limit 1. Before note writing/grading, set uniform limit 3 and restart labels; previous attempts retained. Initial failed preflight usage unavailable except saved log.",
+  "referenceAudit": "Before any writer outputs, analyst checked session references against source: corrected one mixed pre/post-change claim, removed a duplicate and three docs/test-inventory references forbidden by note policy. label-corrections.json records rationale; original model outputs under label-audit-originals.",
+  "sourceHashes": {
+    "src/learning-evidence.js": "119163961086f3eaccb0bf1221f2c14f3553569ae2c7550cd4e9bbab5daccbf4",
+    "src/distill.js": "f45fcc96b8cb23b0b6e344909c8a8f71b5634864d5705e104f2f86f387dacb79",
+    "src/prs.js": "a2b3427ce70f38eb244c080ed60fd69f5244b465e1baab5c58ec351da84ae2ff",
+    "src/jev.js": "5ca462ff887c0ed58df97c688a48542d05ab54407c86a3918cdc7a2dc76e9e10",
+    "src/jev-decisions.js": "53f8452ba1dd5d09cc9936f2e0005559ff1729d7747c62924c9f9327d38bf4df",
+    "src/model-usage.js": "b7a6875fe0777446018172ddfbd1d2f95f32f2c12380d019d767c85b539132af",
+    "src/transcripts.js": "5d102763a9ec9b737dd32fa4d7f07473aa6134ffc43f732e5b4a1b0d896c97b9"
+  },
+  "emptyOutputGrading": "When every compared writer output is empty, support and coverage are deterministically zero; no grading model needed. Applies uniformly to all cohorts.",
+  "gradeAudit": "Post-output analyst audit applies predeclared criteria: docs/skill restatements are not reusable; wrong continuation mechanism or function location is unsupported; partial/contradicted facts are not full coverage. Source event evidence and rationale are in grade-corrections.json. Raw model grades remain untouched. No model/prompt/selection threshold was tuned after grading.",
+  "evaluationFailure": "One PR grading request (mitmproxy-8196) timed out after 240s with no final usage response; resumed same model/effort/input. Excluded from runtime comparison because grading is evaluation overhead; its unknown usage prevents an exact total experiment-spend claim."
+}

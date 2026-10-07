@@ -1,0 +1,54 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Untagged Slack thread follow-ups are governed per reply author, not per thread creator: `resolve_untagged_followup_mode`/`saved_untagged_followup_mode` (products/slack_app/backend/services/slack_settings.py) read `SlackSettings` by the author's `slack_user_id`, and the webhook/activity call sites (`_untagged_followups_switched_off`, `request_untagged_followup_confirmation_activity` in posthog/temporal/ai/slack_app/activities/messaging.py) must pass the replying user's id (`event.get(\"user\")`), not `mapping.mentioning_slack_user_id`. An unset preference now resolves to `ASK` (prompt-and-offer-to-save-default) rather than `NEVER`, so a brand-new user is prompted instead of silently dropped.",
+        "evidence": "\"resolve_untagged_followup_mode(integration, event.get(\\\"user\\\")) != UntaggedFollowupMode.NEVER\" and \"def resolve_untagged_followup_mode(...): ... return saved_untagged_followup_mode(integration, slack_user_id) or UntaggedFollowupMode.ASK\""
+      },
+      {
+        "id": "F2",
+        "claim": "The App Home 'Thread follow-ups' picker (`_untagged_followups_section_blocks` in products/slack_app/backend/services/slack_app_home.py) must render even when no preference is saved yet: pass `show_untagged_followups=True` from `_build_home_view` and `saved_untagged_followup_mode` (which returns None when unset) rather than the resolving helper, and omit `initial_option` (use a `placeholder` instead) when mode is None — otherwise the card is hidden entirely for users who never chose, or it falsely preselects a value.",
+        "evidence": "\"if show_untagged_followups or untagged_followup_mode is not None: blocks.append(...)\" and \"if mode is not None: select['initial_option'] = ... else: select['placeholder'] = {'type': 'plain_text', 'text': 'Choose a default'}\""
+      }
+    ],
+    "reason": "Both facts capture non-obvious, durable invariants in products/slack_app that a future change to Slack thread-reply routing or the App Home settings card must respect: which user's settings row is the source of truth for untagged-followup mode, and how the App Home picker must handle the 'never chosen' state. These took many greps/reads across api.py, slack_app_home.py, slack_settings.py, and the Temporal activity to establish, and are directly actionable for anyone touching this area again."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 131240,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 932,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 131240,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 131242,
+    "outputTokens": 932,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 131240,
+    "totalTokens": 132174
+  },
+  "ms": 14088,
+  "promptChars": 303866
+}

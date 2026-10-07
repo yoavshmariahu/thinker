@@ -1,0 +1,13 @@
+{
+  "tests": {
+    "passed": 495,
+    "skipped": 5,
+    "failed": 0
+  },
+  "archiveFiles": 222,
+  "archiveHashesVerified": true,
+  "offlineArchiveReplayIdentical": true,
+  "resultsSha256": "19f3bb605ae97307c9ba873da8f57b5c3b84522e5e5d7e1b4223c3fea6106610",
+  "productionChanges": false,
+  "resolvedModelMismatches": 0
+}

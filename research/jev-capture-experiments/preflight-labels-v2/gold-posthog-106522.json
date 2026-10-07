@@ -1,0 +1,59 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Task-run failure events in products/tasks/backend have multiple independent emission points that must all stay in sync: workflow.py's run() exception handler (_track_workflow_event 'task_run_failed'), update_task_run_status.py's _capture_terminal_analytics, models.py TaskRun.mark_failed, facade/api.py update_task_run's agent-reported PATCH path, temporal/client.py's _terminalize_unstarted_task_run, and execute_sandbox/workflow.py's parallel exception handler (the newer per-sandbox workflow duplicating process_task). Each independently calls capture_event/track_workflow_event with 'task_run_failed' and its own property dict, and whichever path performs the actual DB transition 'owns' the capture — others explicitly skip it (see 'the status-update activity below owns the task_run_failed analytics capture, keyed on the DB transition').",
+        "evidence": "'# Metrics and logs only: the status-update activity below owns the task_run_failed analytics capture, keyed on the DB transition.' and '# This PATCH performed the DB transition, so it owns the task_run_failed capture. The workflow's status-update activity sees the row already FAILED and skips its own capture, keeping the event single-emitted.'"
+      },
+      {
+        "id": "F2",
+        "claim": "sandbox_backend is resolved once per run (via _resolve_sandbox_backend in get_task_processing_context.py) into TaskProcessingContext.sandbox_backend and persisted into TaskRun.state['sandbox_backend'] at provision time (sandbox_connection.py persist_sandbox_connection). It must be carried explicitly through continue_as_new (ResumedSandboxState.sandbox_backend) and restored into self._context.sandbox_backend on resume, because TaskProcessingContext is reloaded fresh via get_task_processing_context on every continuation and would otherwise re-resolve (defaulting to 'modal') rather than reusing the run's actual backend. TaskRun.prepare_for_cloud_resume() also explicitly pops state['sandbox_backend'] so a new cloud resume re-resolves from scratch rather than inheriting a stale value.",
+        "evidence": "'# Drop the provider stamp because the resumed run re-resolves its backend from scratch, so a stale `hogland` must not survive to outrank the EU guard...' (models.py prepare_for_cloud_resume); 'sandbox_backend: str = \"modal\"  # ... Captured at workflow start and persisted into TaskRun.state at provision time, so activities and out-of-band consumers route deterministically for the run's whole life.' (TaskProcessingContext)"
+      },
+      {
+        "id": "F3",
+        "claim": "products/tasks/backend/temporal/execute_sandbox/workflow.py is a newer, deliberately duplicated rewrite of process_task/workflow.py ('per-sandbox workflow... based on process_task, most of it is duplicated...process_task is deleted in a later PR'). Any fix to failure-event emission, status updates, or sandbox lifecycle logic in process_task/workflow.py must be mirrored in execute_sandbox/workflow.py until the migration completes, since the two coexist and neither imports the other's run() logic.",
+        "evidence": "\"\"\"Per-sandbox workflow.\\n\\nThis file is based on `process_task`, most of it is duplicated with a few\\nchanges to support communication between the parent workflow\\n(`TaskManagementWorkflow`) and itself.\\n\\nThe duplication is used so we don't need to handle patching the original\\nworkflow — the two coexist while we cut traffic over, and `process_task`\\nis deleted in a later PR.\\n\"\"\""
+      }
+    ],
+    "reason": "Session traced sandbox-backend propagation through task-run failure events across products/tasks/backend. Three durable facts emerged: (1) multiple independent 'task_run_failed' emission sites exist with an explicit single-owner-capture convention, (2) sandbox_backend resolution/persistence/continuation mechanics that a future change must respect to avoid losing the value across continue_as_new or resume, and (3) the execute_sandbox/workflow.py duplicate-of-process_task migration-in-progress fact, which is non-obvious and required direct reading of the module docstring plus cross-referencing failure paths. All three are concrete, grounded in quoted code/comments, and clearly reusable for any future task touching task-run lifecycle, sandbox backend selection, or failure telemetry in this product."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 144475,
+    "cache_read_input_tokens": 2249,
+    "output_tokens": 1586,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 144475,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 146726,
+    "outputTokens": 1586,
+    "cacheReadTokens": 2249,
+    "cacheWriteTokens": 144475,
+    "totalTokens": 148312
+  },
+  "ms": 19589,
+  "promptChars": 345586
+}

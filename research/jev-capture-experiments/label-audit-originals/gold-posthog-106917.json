@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Disabling CDC and marking a CDC source broken must pause each affected table's per-schema Temporal schedule (via `pause_external_data_schedule(schema_id)`), not just the source-level extraction schedule (`pause_cdc_extraction_schedule`). Before this fix, `disable_cdc` (change_data_capture.py) cleared `should_sync=False` via a bulk queryset `.update()` without pausing the Temporal schedule, and `mark_cdc_broken` (cdc/broken.py) only paused the source's extraction schedule, leaving every CDC table's own schedule firing and recording failed/billed runs. Recovery (`clear_recovered_self_managed_lag`) must symmetrically resume only non-streaming (snapshot-mode) schedules per-table, since a streaming schedule's steady state is paused (owned by CDCExtractionWorkflow).",
+        "evidence": "`mark_cdc_broken` only called `_pause_schedule(source, log)` (source-level) before the fix; `ExternalDataSchemaQuerySet.update()` in external_data_schema.py is documented as the 'Chokepoint for bulk writes that stop a schema from syncing' but only dispatches sync teardown for running jobs, not schedule pausing — `disable_cdc`'s bulk `.update(sync_type=None, should_sync=False)` never calls `pause_external_data_schedule`."
+      },
+      {
+        "id": "F2",
+        "claim": "`ExternalDataSchema.should_sync=False` being set does not by itself pause the table's Temporal schedule — pausing requires an explicit call to `pause_external_data_schedule(schema_id)` (or `update_should_sync`, which does call it). Any code path that flips `should_sync` to False via a bulk `.update()` or direct model write (bypassing `update_should_sync`) must pair it with an explicit schedule pause, or the schedule keeps firing billed/failed runs against a table marked as not syncing.",
+        "evidence": "`update_should_sync` in models/external_data_schema.py explicitly calls `pause_external_data_schedule(schema_id)` when `should_sync is False`, but `disable_cdc`'s direct `ExternalDataSchema.objects.filter(...).update(sync_type=None, should_sync=False)` bypassed that path entirely until the fix added an explicit pause loop over `cdc_schema_ids`."
+      },
+      {
+        "id": "F3",
+        "claim": "CDC breakage/recovery bookkeeping lives in `products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py` (`mark_cdc_broken`, `clear_recovered_self_managed_lag`) and its tests in `cdc/tests/test_broken.py` and `cdc/tests/test_cleanup_orphan_slots.py`; the CDC disable flow lives in `presentation/views/external_data_source/change_data_capture.py` (`disable_cdc` action) with tests in `tests/api/test_external_data_source.py::TestDisableCDC`. Changing either broken-marking or disable behavior requires updating both the schedule-pause/unpause calls and the matching mocked-boundary assertions in these paired test files, since `_mocked_boundaries()` in test_broken.py patches the schedule pause/unpause functions at their `data_load.service` import site.",
+        "evidence": "`_mocked_boundaries()` patches `products.data_warehouse.backend.logic.data_load.service.pause_external_data_schedule` / `unpause_external_data_schedule` (lazily imported inside broken.py functions); `test_cleanup_orphan_slots.py::_run` had to add the same two patches after broken.py started calling them."
+      }
+    ],
+    "reason": "The session fixed a real bug spanning disable_cdc and mark_cdc_broken, both of which bypass the normal should_sync->schedule-pause coupling. This is a durable invariant (schedule pause must accompany any should_sync=False transition that bypasses update_should_sync) and a map of where CDC broken/disable logic and its paired tests live — both will matter to any future task touching CDC scheduling, disable, or repair flows. Kept to 3 facts; omitted narrower details (e.g. the exact streaming-vs-snapshot resume distinction) as sub-detail of F1."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 140753,
+    "cache_read_input_tokens": 2249,
+    "output_tokens": 1509,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 140753,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 143004,
+    "outputTokens": 1509,
+    "cacheReadTokens": 2249,
+    "cacheWriteTokens": 140753,
+    "totalTokens": 144513
+  },
+  "ms": 18800,
+  "promptChars": 338664,
+  "attempts": 1
+}

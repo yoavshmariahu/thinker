@@ -1,0 +1,295 @@
+[
+  {
+    "id": "posthog-105793",
+    "totalPassages": 274,
+    "candidates": 96,
+    "malformed": [
+      {
+        "id": 121,
+        "event": 13,
+        "offset": 2400,
+        "field": "text",
+        "sampled": true
+      },
+      {
+        "id": 121,
+        "event": 13,
+        "offset": 2400,
+        "field": "after",
+        "sampled": true
+      },
+      {
+        "id": 122,
+        "event": 13,
+        "offset": 3600,
+        "field": "text",
+        "sampled": false
+      },
+      {
+        "id": 122,
+        "event": 13,
+        "offset": 3600,
+        "field": "before",
+        "sampled": false
+      }
+    ],
+    "selectedFirst": [
+      262,
+      259,
+      265,
+      135,
+      132,
+      150,
+      264,
+      204
+    ],
+    "selectedSecond": [
+      262,
+      259,
+      265,
+      135,
+      132,
+      150,
+      264,
+      204
+    ],
+    "sameSelection": true,
+    "overlap": 8,
+    "union": 8,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "posthog-106466",
+    "totalPassages": 346,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      80,
+      4,
+      123,
+      84,
+      145,
+      159,
+      87,
+      207
+    ],
+    "selectedSecond": [
+      80,
+      4,
+      123,
+      84,
+      145,
+      159,
+      87,
+      207
+    ],
+    "sameSelection": true,
+    "overlap": 8,
+    "union": 8,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "posthog-106522",
+    "totalPassages": 312,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      151,
+      148,
+      163,
+      72,
+      57,
+      78,
+      85
+    ],
+    "selectedSecond": [
+      151,
+      148,
+      163,
+      69,
+      57,
+      78,
+      72
+    ],
+    "sameSelection": false,
+    "overlap": 6,
+    "union": 8,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "posthog-106579",
+    "totalPassages": 306,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      19,
+      1,
+      31,
+      161,
+      157,
+      174,
+      196,
+      193,
+      177
+    ],
+    "selectedSecond": [
+      19,
+      1,
+      31,
+      196,
+      193,
+      203,
+      58,
+      56,
+      69
+    ],
+    "sameSelection": false,
+    "overlap": 5,
+    "union": 13,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "posthog-106917",
+    "totalPassages": 318,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      43,
+      2,
+      72,
+      37,
+      40,
+      47,
+      53
+    ],
+    "selectedSecond": [
+      43,
+      2,
+      72,
+      37,
+      40,
+      47,
+      53
+    ],
+    "sameSelection": true,
+    "overlap": 7,
+    "union": 7,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "posthog-107042",
+    "totalPassages": 245,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      87,
+      78,
+      99,
+      26,
+      1,
+      46,
+      23,
+      68
+    ],
+    "selectedSecond": [
+      87,
+      78,
+      99,
+      26,
+      1,
+      46,
+      23,
+      68
+    ],
+    "sameSelection": true,
+    "overlap": 8,
+    "union": 8,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "short-discovery",
+    "totalPassages": 3,
+    "candidates": 3,
+    "malformed": [],
+    "selectedFirst": [
+      1,
+      0,
+      2
+    ],
+    "selectedSecond": [
+      1,
+      0,
+      2
+    ],
+    "sameSelection": true,
+    "overlap": 3,
+    "union": 3,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "buried-discovery",
+    "totalPassages": 143,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [],
+    "selectedSecond": [],
+    "sameSelection": true,
+    "overlap": 0,
+    "union": 0,
+    "discoveryCandidate": false
+  },
+  {
+    "id": "late-correction",
+    "totalPassages": 145,
+    "candidates": 96,
+    "malformed": [],
+    "selectedFirst": [
+      144,
+      143
+    ],
+    "selectedSecond": [
+      144,
+      143
+    ],
+    "sameSelection": true,
+    "overlap": 2,
+    "union": 2,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "routine-work",
+    "totalPassages": 3,
+    "candidates": 3,
+    "malformed": [],
+    "selectedFirst": [],
+    "selectedSecond": [],
+    "sameSelection": true,
+    "overlap": 0,
+    "union": 0,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "machine-failure",
+    "totalPassages": 3,
+    "candidates": 3,
+    "malformed": [],
+    "selectedFirst": [],
+    "selectedSecond": [],
+    "sameSelection": true,
+    "overlap": 0,
+    "union": 0,
+    "discoveryCandidate": null
+  },
+  {
+    "id": "unsupported-guess",
+    "totalPassages": 22,
+    "candidates": 22,
+    "malformed": [],
+    "selectedFirst": [],
+    "selectedSecond": [],
+    "sameSelection": true,
+    "overlap": 0,
+    "union": 0,
+    "discoveryCandidate": null
+  }
+]

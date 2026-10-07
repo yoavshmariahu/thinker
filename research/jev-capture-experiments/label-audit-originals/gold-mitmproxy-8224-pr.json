@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Tornado's XSRF cookie name must be kept in sync between backend config and frontend cookie-read logic, and renaming it fixes stale-cookie auth failures.",
+        "evidence": "Set `xsrf_cookie_name=\"_mitmproxy_xsrf\"` in the web `Application` settings ... Updated token lookup in `fetchApi` to read `_mitmproxy_xsrf` instead of `_xsrf` before sending `X-XSRFToken`."
+      },
+      {
+        "id": "F2",
+        "claim": "Changing a cookie name that overlaps with browser-default/legacy cookie names (like `_xsrf`) is a reusable fix pattern for stale-state auth bugs, since isolating the app's cookie namespace avoids collisions with previously-set cookies.",
+        "evidence": "Users with a stale HttpOnly `_xsrf` cookie could no longer update options in mitmweb (`X-XSRFToken: undefined` → 403) ... This change isolates mitmweb from legacy cookie state by migrating XSRF handling to a namespaced cookie name."
+      },
+      {
+        "id": "F3",
+        "claim": "Reviewers pushed back on scope creep (added test assertions, unrelated test file changes, committing a verification screenshot) and the fix was narrowed to only the backend/frontend cookie-naming change, with verification shared out-of-repo via PR comments.",
+        "evidence": "Reverted the added assertion in `test/mitmproxy/tools/web/test_app.py`. Reverted all changes in `web/src/js/__tests__/utilsSpec.tsx`. Kept the production fix focused to backend/frontend cookie naming only. Retested the affected backend/frontend test targets and posted the verification screenshot directly in PR comments (without adding it to the repository)."
+      }
+    ],
+    "reason": "The PR fixes a stale-cookie XSRF bug by renaming the cookie, requiring synchronized backend/frontend changes (F1), establishes a reusable namespacing pattern for avoiding legacy cookie collisions (F2), and the merged history shows reviewers trimmed the PR back to a minimal, focused diff after initial scope creep in tests and artifacts (F3). These are concrete, durable lessons tied to specific mechanisms rather than generic style or narration."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6407,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 870,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6407,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 6409,
+    "outputTokens": 870,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 6407,
+    "totalTokens": 7279
+  },
+  "ms": 10753,
+  "promptChars": 2453,
+  "attempts": 1
+}

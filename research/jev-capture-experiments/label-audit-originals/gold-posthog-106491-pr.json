@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "A mode-gated UI control's visibility logic was collapsed from a combination of multiple context flags (editMode, isInDashboardContext, editingDisabledReason) down to just embedded/inSharedMode/canEditInsight, meaning the gating was moved from an explicit prop to a derived selector over existing state.",
+        "evidence": "isEditableSurface changed from `!!editMode && !embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason` to `!embedded && !inSharedMode && canEditInsight`"
+      },
+      {
+        "id": "F2",
+        "claim": "When removing a prop threaded through a Kea logic's props (used as part of the logic's key), every call site including test findMounted lookups must be updated in lockstep, since the logic key is derived from props equality.",
+        "evidence": "chartAlternativesLogic.findMounted({ editMode: true, embedded: false, ...insightProps }) changed to chartAlternativesLogic.findMounted({ embedded: false, ...insightProps }) in ChartAlternatives.test.tsx"
+      },
+      {
+        "id": "F3",
+        "claim": "This PR deliberately ships without a new behavior test because the change is framed as 'a selector over existing inputs' rather than new logic, relying on updated existing tests for coverage instead of adding one for the new view-mode gallery display.",
+        "evidence": "\"No new behavior test: the gating is a selector over existing inputs.\""
+      }
+    ],
+    "reason": "The PR demonstrates a reusable refactor pattern (collapsing multi-flag gating into fewer derived inputs) and a concrete mechanical constraint (Kea logic prop keys must be updated consistently across all mount/lookup sites), plus a stated test-coverage rationale worth remembering for future similar refactors."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 10294,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 705,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 10294,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 10296,
+    "outputTokens": 705,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 10294,
+    "totalTokens": 11001
+  },
+  "ms": 9013,
+  "promptChars": 12316,
+  "attempts": 1
+}

@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Language identifiers/display names should live in a single parser-free registry module, derive the TypeScript union type from it, and be re-exported for all consumers (storybook, pickers, downstream features) instead of maintaining parallel hardcoded lists that must be kept in sync by hand.",
+        "evidence": "`CodeMirrorEditorLanguage = keyof typeof CODE_MIRROR_LANGUAGES` in types.ts, with languages.ts comment: 'Keep the registry free of parser imports so consumers can read language metadata without loading language code.' This replaced duplicated arrays in CodeEditor.story.tsx, languageLoader.test.ts, and codeLanguages.ts."
+      },
+      {
+        "id": "F2",
+        "claim": "Deriving downstream lists from the shared registry removes a previous compile-time exhaustiveness guard (a Record keyed by the union type) that forced a compile error when a new language was added without a label, trading that safety net for less duplication.",
+        "evidence": "Removed comment: 'A Record rather than an array so adding a ninth language to CodeMirrorEditorLanguage fails to compile here until it is given a label, instead of silently missing from the picker.' replaced by `const HIGHLIGHTED = Object.keys(CODE_MIRROR_LANGUAGES);`"
+      },
+      {
+        "id": "F3",
+        "claim": "Legacy/StreamLanguage-based CodeMirror language support (e.g. INI via @codemirror/legacy-modes) can be added as a lazy-loaded extension by combining StreamLanguage.define with a legacy mode import, following the same webpackChunkName lazy-import pattern as native @codemirror/lang-* packages, without requiring changes to the loader test's language-agnostic structure.",
+        "evidence": "`loadIni` imports `{ LanguageSupport, StreamLanguage }` from `@codemirror/language` and `{ properties }` from `@codemirror/legacy-modes/mode/properties`, returning `new LanguageSupport(StreamLanguage.define(properties))`, registered via the same `resolveLoad` switch/cacheKey pattern as other languages."
+      }
+    ],
+    "reason": "The PR demonstrates a concrete refactor pattern (single source-of-truth registry replacing duplicated hardcoded arrays/Records across multiple files), an explicit tradeoff noted in removed comments (losing a compile-time exhaustiveness check), and a reusable mechanism for adding StreamLanguage-based (legacy-mode) language support lazily alongside native CodeMirror language packages. These are durable, mechanism-level lessons about this codebase's CodeMirror language extensibility architecture, not generic styling or narration."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 12671,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1005,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 12671,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 12673,
+    "outputTokens": 1005,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 12671,
+    "totalTokens": 13678
+  },
+  "ms": 10513,
+  "promptChars": 15967,
+  "attempts": 1
+}

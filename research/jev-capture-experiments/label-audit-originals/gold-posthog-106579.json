@@ -1,0 +1,60 @@
+{
+  "json": {
+    "facts": [
+      {
+        "id": "F1",
+        "claim": "Error tracking issue lifecycle events are produced by two independent paths that must be kept in sync: manual mutations go through `products/error_tracking/backend/logic/lifecycle_events.py:prepare_issue_lifecycle_event` (which builds `properties` dict and `AlertDeliveryWorkflowInputs`), while ingestion-driven transitions (created/reopened/spiking) go through `products/error_tracking/backend/temporal/lifecycle/side_effects.py:produce_issue_lifecycle_internal_event` and `alert_delivery_inputs`. Both independently compute an `assignee` (and now `assignee_name`) property from the same compact JSON assignee string (`{\"type\":...,\"id\":...}`), and the alert filter evaluator in `products/error_tracking/backend/temporal/alerts/filtering.py` (LIFECYCLE_PROPERTY_KEYS) must also know about any new key added to this property set, or filters referencing it will silently fail closed.",
+        "evidence": "\"the triggering exception's properties are flattened under the lifecycle event's own properties\" (filtering.py docstring); `assignee_property`/`assignee_name_property` are defined once in `lifecycle_events.py` and imported into `side_effects.py` to keep both producers consistent; `LIFECYCLE_PROPERTY_KEYS` in filtering.py lists `\"assignee\"` as a decidable key."
+      },
+      {
+        "id": "F2",
+        "claim": "The error tracking alert destination's assignee property is a compact JSON string, not a structured object: `{\"type\":\"user\",\"id\":<int>}` or `{\"type\":\"role\",\"id\":\"<uuid-string>\"}`, byte-identical to cymbal's (rust) serde output so exact-match HogQL filters work across both ingestion-driven and manual transitions. It is absent entirely (not null) on unassigned issues.",
+        "evidence": "\"Wire-compatible with cymbal's `Assignee` serialization on created/reopened events (compact serde JSON, adjacently tagged, numeric user ids and string role ids)\" in `assignee_property`; test: `assert event.properties[\"assignee\"] == f'{{\"type\":\"user\",\"id\":{self.user.id}}}'`; unassign test asserts `\"assignee\" not in event.properties`."
+      },
+      {
+        "id": "F3",
+        "claim": "The `authoring-error-tracking-alerts` skill's reference doc (`references/event-triggers.md`) is the canonical place the AI assistant reads for what alert event properties templates can use; it previously didn't describe `assignee`/`assignee_name` shape at all, forcing guesses. Any new lifecycle event property intended for template use must be documented there (format, absent-when-unassigned behavior) or the authoring assistant won't know it exists.",
+        "evidence": "Skill description: \"Author error tracking alerts... Covers trigger-event selection... and shipping with the canonical message body shape.\" The 'Common to all three' section lists only `{project.url}`/`{source.url}` before this change; assignee shape had to be reverse-engineered from backend code and tests."
+      }
+    ],
+    "reason": "The session required significant cross-file tracing (Django logic, Temporal lifecycle side effects, Rust cymbal producer, filtering bytecode evaluator, and the authoring skill docs) to understand how issue lifecycle events are produced on two independent paths that must stay in sync, and the exact wire format of the assignee field. These are durable, reusable facts about the error-tracking alert system's architecture and contract. I excluded notes about the specific diff/test additions themselves (that's session news, not a durable rule) and kept only the structural facts a future task modifying alert properties or writing alert-authoring docs would need."
+  },
+  "model": "claude-sonnet-5",
+  "models": [
+    "claude-sonnet-5"
+  ],
+  "effort": "medium",
+  "thinkingTokens": 0,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 144309,
+    "output_tokens": 1341,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tokens": {
+    "inputTokens": 144311,
+    "outputTokens": 1341,
+    "cacheReadTokens": 144309,
+    "cacheWriteTokens": 0,
+    "totalTokens": 145652
+  },
+  "ms": 18823,
+  "promptChars": 339897,
+  "attempts": 1
+}
