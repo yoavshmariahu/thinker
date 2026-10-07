@@ -1,0 +1,12 @@
+{
+  "thinkerTest": true,
+  "fullSuite": {
+    "tests": 502,
+    "pass": 497,
+    "skip": 5,
+    "fail": 0
+  },
+  "pythonGuardTests": 24,
+  "queryRegression": "passed",
+  "credentialPatternScan": "passed"
+}

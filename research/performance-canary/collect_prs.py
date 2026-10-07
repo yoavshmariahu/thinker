@@ -17,7 +17,7 @@ def collect(tasks, source, limit):
         slug = '/'.join(task['upstream'].split('/')[3:5])
         before = git('show', '-s', '--format=%cI', task['base'])
         prs = json.loads(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', '250',
-                            '--search', f'merged:<{before} sort:updated-desc', '--json',
+                            '--search', f'merged:<{before} updated:<{before} sort:updated-desc', '--json',
                             'number,title,body,mergedAt,updatedAt,mergeCommit,additions,files'))
         accepted = []
         for pr in sorted(prs, key=lambda p: p['mergedAt'], reverse=True):
