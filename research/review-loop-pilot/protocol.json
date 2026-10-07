@@ -1,0 +1,44 @@
+{
+  "status": "predeclared before new model calls",
+  "purpose": "Experimental workflow discovery; no production integration or readiness claim",
+  "terminology": {
+    "open_loop": "Jev judges frozen recorded/reconstructed state without controlling execution",
+    "closed_loop": "Jev chooses an action, an executor performs it, and Jev observes the updated state",
+    "shadow": "Reserved for observing an independently running live agent; not performed in this pilot"
+  },
+  "thinkerRevision": "881ff02",
+  "cases": ["A-10349", "A-10141", "A-10178"],
+  "selection": "Purposeful development cases: secondary finding preservation, scope of downstream claims, and potentially redundant verification. No held-out inference.",
+  "models": {
+    "routing": "jev-1.13.0",
+    "executor": "gpt-6.1-sol",
+    "executorReasoningEffort": "high",
+    "codexCLI": "0.160.1",
+    "fallback": false,
+    "judging": "Manual evidence audit plus executable source-extraction probes; no model judge"
+  },
+  "openLoop": {"callsPerCase": 1, "questions": ["claim_support", "coverage", "next_action"]},
+  "closedLoop": {
+    "arms": ["fixed_verify", "jev_routed"],
+    "fixed_verify": "One executor verification of existing findings, then finalize",
+    "jev_routed": "Jev selects among the same allowed actions, up to two executor actions, re-evaluating updated state",
+    "order": {"A-10349": ["fixed_verify", "jev_routed"], "A-10141": ["jev_routed", "fixed_verify"], "A-10178": ["fixed_verify", "jev_routed"]},
+    "maxExecutorActionsPerArm": 2,
+    "maxJevCallsPerAdaptiveArm": 3,
+    "maxExecutorCallSeconds": 180,
+    "maxJevCallSeconds": 30,
+    "maxTotalSeconds": 900,
+    "repetitions": 1,
+    "routingThreshold": "Choice confidence >= 0.6; below that manual_review. Provisional, not calibrated on these cases.",
+    "stopping": "finalize, manual_review, model failure, two actions, or repeated identical action with identical findings/source",
+    "comparison": "Same initial evidence, executor model/effort, available actions, and maximum action budget. Realized action and call counts differ by policy. Historical findings are shared inputs, not a control arm."
+  },
+  "successCriteria": {
+    "A-10349": "Preserve both the unanchored prefix defect and slash truncation already present in the raw record; no credit for discovering a known finding",
+    "A-10141": "Preserve the desired-vs-ready replica-count defect; qualify broader recovery claims or anchor them to inspected caller evidence",
+    "A-10178": "Preserve both premature GC completion and shared-deadline defects; report whether further work supplies new evidence"
+  },
+  "invalidRuns": "Transport failures, model mismatch, malformed outputs, or unexpected tool use are invalid, never clean passes. No outcome-based retries.",
+  "limits": "Three reconstructed checkpoints from one repository, known fix-derived contracts, no clean controls, no patches, no full agent environment, and one run per arm. Not a prospective bug-detection or production-readiness study.",
+  "telemetry": "THINKER_TEST=1, THINKER_TELEMETRY=off, THINKER_LOG=off, THINKER_NO_LEARN=1 inherited by children. Direct TypeSafe calls use explicit opt-in transport and a personal key, never production Thinker telemetry or hosted enrollment."
+}

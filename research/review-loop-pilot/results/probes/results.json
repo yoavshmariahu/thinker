@@ -1,0 +1,58 @@
+[
+  {
+    "id": "A-10349",
+    "variant": "fixed",
+    "checks": {
+      "malformedRejected": true,
+      "providerIDPreserved": true,
+      "slashPreserved": true
+    },
+    "allChecksPass": true
+  },
+  {
+    "id": "A-10349",
+    "variant": "reversed",
+    "checks": {
+      "malformedRejected": false,
+      "providerIDPreserved": true,
+      "slashPreserved": false
+    },
+    "allChecksPass": false
+  },
+  {
+    "id": "A-10141",
+    "variant": "fixed",
+    "checks": {
+      "partialReadyReturnsDesired": true,
+      "zeroReadyReturnsDesired": true
+    },
+    "allChecksPass": true
+  },
+  {
+    "id": "A-10141",
+    "variant": "reversed",
+    "checks": {
+      "partialReadyReturnsDesired": false,
+      "zeroReadyReturnsDesired": false
+    },
+    "allChecksPass": false
+  },
+  {
+    "id": "A-10178",
+    "variant": "fixed",
+    "checks": {
+      "failureDoesNotAdvanceCompletion": true,
+      "gcStartsWithLiveContext": true
+    },
+    "allChecksPass": true
+  },
+  {
+    "id": "A-10178",
+    "variant": "reversed",
+    "checks": {
+      "failureDoesNotAdvanceCompletion": false,
+      "gcStartsWithLiveContext": false
+    },
+    "allChecksPass": false
+  }
+]
