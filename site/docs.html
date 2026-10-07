@@ -584,7 +584,7 @@
     .gh-avatar { display: inline-block; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: #1f2328 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fff' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23fff' fill-opacity='0.5'/%3E%3C/svg%3E") center / 70% no-repeat; flex: none; }
     .gh-event .gh-avatar { position: absolute; left: -2.25rem; top: -0.05rem; box-shadow: 0 0 0 3px #fff; }
     .gh-avatar-sm { width: 1.35rem; height: 1.35rem; }
-    .gh-comment, .gh-file { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
+    .gh-comment { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
     .gh-comment-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
     .gh-md { padding: 0.9rem 1rem 0.25rem; }
     .gh-md h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; color: #1f2328; margin: 0 0 0.6rem; padding-bottom: 0.35rem; border-bottom: 1px solid #d8dee4; }
@@ -613,22 +613,6 @@
     .tag-cache { color: #5a2fb5; background: #ece6ff; }
     .tag-model { color: #7d5300; background: #fff4ca; }
     .tag-reviewer { color: #3f4650; background: #eaeef2; }
-    .gh-file-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
-    .gh-file-head code { background: transparent; padding: 0; font-size: 0.8rem; }
-    .gh-file-head .gh-muted { margin-left: auto; font-size: 0.76rem; }
-    .gh-file-icon { width: 0.9rem; height: 0.9rem; border: 1.5px solid #656d76; border-radius: 2px; display: inline-block; }
-    .gh-diff { border-collapse: collapse; width: 100%; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.74rem; line-height: 1.55; }
-    .gh-diff td { padding: 0 0.6rem; white-space: pre; color: #1f2328; }
-    .gh-diff td:first-child, .gh-diff td:nth-child(2) { width: 2.4rem; min-width: 2.4rem; color: #8c959f; text-align: right; user-select: none; }
-    .gh-diff .gh-hunk td { background: #ddf4ff; color: #57606a; padding: 0.25rem 0.6rem; }
-    .gh-diff .gh-add td { background: #e6ffec; }
-    .gh-diff .gh-add td:first-child, .gh-diff .gh-add td:nth-child(2) { background: #ccffd8; color: #1f2328; }
-    .gh-diff .gh-del td { background: #ffebe9; }
-    .gh-diff .gh-del td:first-child, .gh-diff .gh-del td:nth-child(2) { background: #ffcecb; color: #1f2328; }
-    .gh-sign { display: inline-block; width: 1rem; color: #656d76; }
-    .gh-diff .gh-comment-row td { padding: 0; white-space: normal; text-align: left; width: auto; }
-    .gh-inline { margin: 0.5rem 0.75rem 0.6rem 3.1rem; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-    .gh-inline .gh-md { padding: 0.75rem 0.9rem 0.1rem; }
     .gh-caption { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; }
     .gh-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; margin: 1rem 0 1.5rem; }
     .gh-legend-item { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 10px; padding: 0.95rem 1.05rem 0.4rem; }
@@ -639,7 +623,6 @@
       .gh-timeline { padding-left: 1.6rem; }
       .gh-timeline::before { left: 0.6rem; }
       .gh-event .gh-avatar { left: -1.6rem; width: 1.5rem; height: 1.5rem; }
-      .gh-inline { margin-left: 0.75rem; }
     }
 
     /* Responsive */
@@ -983,13 +966,13 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
       <section id="proof-of-correctness">
         <h2>Proof of correctness</h2>
         <p>
-          Agent-written code arrives with a diff and a claim that it works. A reviewer has to ask three more things: <strong>what the agent set out to do and why</strong>, <strong>how that was tested</strong>, and <strong>what the repository already knows that the agent did not</strong>. Thinker posts the answers as one review on the pull request, each part marked by where it came from: the agent, the test runner, the cache, or a model's reading.
+          Agent-written code arrives with a diff and a claim that it works. A reviewer has to ask three more things: <strong>what the agent set out to do and why</strong>, <strong>how that was tested</strong>, and <strong>what the repository already knows that the agent did not</strong>. Thinker posts the answers as one comment on the pull request, from your own GitHub login, each part marked by where it came from: the agent, the test runner, the cache, or a model&#39;s reading.
         </p>
         <p>
-          The example below is a review of one change in a running app: make auto-pause react within two seconds of the runner stopping at a crossing, instead of five. Both named tests passed. The cache remembered why the old detector waited: under a bridge the GPS reports zero speed with no fix, and a year ago that paused people's runs in every tunnel.
+          The report below is a real one, produced by the command at the end of this section on a small demonstration repository. The change makes auto-pause react within two seconds of the runner stopping, instead of five. Both named tests passed. The cache remembered why the old detector waited: under a bridge the GPS reports zero speed with no fix, and that paused people&#39;s runs in every tunnel.
         </p>
 
-        <figure class="gh" aria-label="Example pull request review posted by thinker">
+        <figure class="gh" aria-label="Pull request comment posted by thinker">
           <div class="gh-pr">
             <span class="gh-pr-title">Auto-pause a run within two seconds of stopping <span class="gh-pr-num">#318</span></span>
             <span class="gh-pr-state">Open</span>
@@ -997,31 +980,31 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
           <div class="gh-timeline">
             <div class="gh-event">
               <span class="gh-avatar" aria-hidden="true"></span>
-              <span><strong>devuser</strong> reviewed 4 minutes ago</span>
+              <span><strong>devuser</strong> commented 4 minutes ago</span>
             </div>
 
             <article class="gh-comment">
-              <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>devuser</strong> <span class="gh-muted">left a review</span></div>
+              <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>devuser</strong> <span class="gh-muted">commented</span></div>
               <div class="gh-md">
                 <h1>Change review: <span class="gh-fail">failed</span></h1>
-                <p class="gh-fine"><em>Generated by Claude + Thinker.</em></p>
-                <p><strong>Requested change:</strong> Make auto-pause react faster: pause the run within two seconds of the runner stopping at a crossing, and resume by itself when they move again.</p>
+                <p class="gh-fine"><em>Generated by claude-sonnet-5 + thinker.</em></p>
+                <p><strong>Requested change:</strong> Pause a run within two seconds of the runner stopping; resume when they move</p>
 
                 <h2>Why and how <span class="gh-tag tag-agent">supplied by the agent</span></h2>
-                <p><strong>Reason for the approach (supplied by the agent):</strong> The detector waited for five consecutive one-second GPS samples under 0.5 m/s before pausing. Two samples are enough to tell a stop at a crossing from a slow stride, and resuming on the first sample above 1 m/s keeps the recorded pace honest.</p>
+                <p><strong>Reason for the approach (supplied by the agent):</strong> Two GPS samples under 0.5 m/s are enough to tell a stop from a slow stride</p>
                 <ol>
                   <li>Shorten the stop window from five samples to two
-                    <ul><li>Seen in the diff at <code>src/run/autopause.js:29</code>: <code>STOP_SAMPLES</code> goes from 5 to 2 <span class="gh-tag tag-model">model reading</span></li></ul>
+                    <ul><li>Seen in the diff at <code>src/run/autopause.js:4</code>: STOP_SAMPLES is changed from 5 to 2, shrinking the window of recent samples checked for a stop. <span class="gh-tag tag-model">model reading</span></li></ul>
                   </li>
-                  <li>Resume on the first moving sample instead of three
-                    <ul><li>Seen in the diff at <code>src/run/autopause.js:44</code>: <code>RESUME_SAMPLES</code> goes from 3 to 1 <span class="gh-tag tag-model">model reading</span></li></ul>
+                  <li>Resume on the first moving sample
+                    <ul><li>Seen in the diff at <code>src/run/autopause.js:5</code>: RESUME_SAMPLES is changed from 3 to 1, so a single moving sample is enough to trigger resume. <span class="gh-tag tag-model">model reading</span></li></ul>
                   </li>
                 </ol>
 
                 <h2>Before approving <span class="gh-tag tag-reviewer">for the reviewer</span></h2>
                 <ul>
-                  <li>Should the window stay at five samples for watches that sample GPS at 0.5 Hz? <span class="gh-tag tag-agent">the agent's own question</span></li>
-                  <li>Inspect the 1 error and 0 warning findings below.</li>
+                  <li>Should the window stay at five for watches sampling GPS at 0.5 Hz? <span class="gh-tag tag-agent">the agent&#39;s own question</span></li>
+                  <li>Inspect the 1 error and 0 warning finding below.</li>
                   <li>1 desired behavior is reported as violated: GPS loss never pauses a run.</li>
                 </ul>
 
@@ -1032,84 +1015,65 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
                   <tbody>
                     <tr>
                       <td>A run pauses within two seconds of the runner stopping</td>
-                      <td><span class="gh-pass">✓ passed</span> unit: pauses within two seconds of a stop (<code>test/autopause.test.js</code>)</td>
-                      <td><strong>direct:</strong> the test feeds two consecutive 0 m/s samples that carry a GPS fix and asserts the pause on the second (<code>test/autopause.test.js:28</code>) <span class="gh-tag tag-model">model reading</span></td>
+                      <td>unit: pauses within two seconds of a stop (<code>test/autopause.test.js</code>) <span class="gh-pass">passed</span></td>
+                      <td><strong>partial:</strong> Confirms detectStop returns true once the last two samples are below STOP_SPEED, matching the new 2-sample window, but it doesn&#39;t verify those two samples correspond to an actual two-second interval (no timestamps/sampling-rate check) (<code>test/autopause.test.js:9</code>, model reading) <span class="gh-tag tag-model">model reading</span></td>
                     </tr>
                     <tr>
                       <td>A paused run resumes when the runner moves</td>
-                      <td><span class="gh-pass">✓ passed</span> unit: resumes on the first moving sample (<code>test/autopause.test.js</code>)</td>
-                      <td><strong>partial:</strong> the assertion covers a resume after a real stop; no test feeds samples without a fix, so a pause that should not have happened is never exercised (<code>test/autopause.test.js:47</code>) <span class="gh-tag tag-model">model reading</span></td>
+                      <td>unit: resumes on the first moving sample (<code>test/autopause.test.js</code>) <span class="gh-pass">passed</span></td>
+                      <td><strong>direct:</strong> Asserts detectResume returns true as soon as the single trailing sample (2.6 m/s) exceeds RESUME_SPEED, directly matching &#39;resumes on the first moving sample&#39; with RESUME_SAMPLES=1. (<code>test/autopause.test.js:14</code>, model reading) <span class="gh-tag tag-model">model reading</span></td>
                     </tr>
                   </tbody>
                 </table>
                 </div>
                 <p class="gh-fine">The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.</p>
-                <p><strong>Desired behaviors directly in play:</strong></p>
-                <ul><li>GPS loss never pauses a run: <span class="gh-fail">violated</span> — the stop window now counts every recent sample, and a dropout reports zero speed with no fix, so two seconds under a bridge pause the run (fixed, human-authored) <span class="gh-tag tag-model">model reading</span></li></ul>
+                <p><strong>Desired behaviors directly in play (model reading):</strong></p>
+                <ul><li>GPS loss never pauses a run: <span class="gh-fail">violated</span> — detectStop no longer filters samples by accuracy before testing speed; a GPS dropout (speed 0, accuracy 0) now counts toward the stop window, so a run that is simply losing its fix while the runner keeps moving will be paused. This directly violates the fixed behavior that GPS loss must never pause a run. (human-authored). <span class="gh-tag tag-model">model reading</span></li></ul>
 
                 <h2>Checks run <span class="gh-tag tag-runner">observed by the runner</span></h2>
                 <div class="gh-scroll">
                 <table>
                   <thead><tr><th>Check</th><th>Result</th><th>Observed tests</th></tr></thead>
-                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>184 passed; 0 skipped</td></tr></tbody>
+                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>3 passed; 0 skipped</td></tr></tbody>
                 </table>
                 </div>
+                <p class="gh-fine">Full output: unit.log (stored locally; not uploaded).</p>
                 <p><strong>Gate integrity:</strong> No pattern-based weakening signals found.</p>
 
                 <h2>Code assessment <span class="gh-tag tag-cache">from the cache</span></h2>
-                <p>1 error; 0 warnings. This is a model reading of the change, not an executed check.</p>
+                <p>1 errors; 0 warnings. This is a model reading of the change, not an executed check.</p>
                 <ul>
-                  <li><code>src/run/autopause.js:32</code> — The filter that kept only samples with a GPS fix (accuracy between 0 and 20 m) is gone from the stop window, so the zero-speed samples a dropout reports count as a stop, and with a two-sample window two seconds under a bridge pause the run. <strong>Basis:</strong> Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix, <em>source PR #241</em>. <strong>Evidence:</strong> <code>samples.slice(-STOP_SAMPLES)</code> is no longer filtered, and <code>accuracy</code> is not read anywhere in the file after the change.</li>
+                  <li><code>src/run/autopause.js:9</code> — detectStop no longer filters samples by accuracy before testing speed; a GPS dropout (speed 0, accuracy 0) now counts toward the stop window, so a run that is simply losing its fix while the runner keeps moving will be paused. This directly violates the fixed behavior that GPS loss must never pause a run. <strong>Basis:</strong> GPS loss never pauses a run, human-authored; Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix, <em>source PR 241</em>. <strong>Evidence:</strong> <code>const recent = samples.slice(-STOP_SAMPLES);</code></li>
                 </ul>
-                <p class="gh-fine">1 comment on a changed line is posted inline.</p>
 
                 <details class="gh-details">
-                  <summary>Evidence source and scope</summary>
+                  <summary>Review thoroughness, and evidence source and scope</summary>
+                  <div class="gh-scroll">
+                  <table>
+                    <thead><tr><th>Decision</th><th>What happened</th><th>Basis</th></tr></thead>
+                    <tbody>
+                      <tr><td>Code assessment</td><td>assessed</td><td>Default configuration; Jev not evaluated</td></tr>
+                      <tr><td>Caller context</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
+                      <tr><td>Split review</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
+                      <tr><td>Verify findings</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
+                      <tr><td>Run tests</td><td>not-recommended</td><td>Default configuration; Jev not evaluated</td></tr>
+                    </tbody>
+                  </table>
+                  </div>
+                  <p class="gh-fine">Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.</p>
+                  <p class="gh-fine">Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.</p>
                   <ul>
-                    <li>The task framing came from the calling agent via MCP at 2026-10-06T14:02Z. The criteria and test links are the agent's interpretation.</li>
-                    <li>The checks came from the verification contract at base <code>9e4b17c0d2a5</code> and ran against frozen snapshot <code>5a0c3e8f71b9</code>. CI acceptance: not established.</li>
+                    <li>The task framing came from the calling agent via CLI at 2026-10-07T06:12:29.046Z. The criteria and test links are the agent&#39;s interpretation.</li>
+                    <li>The checks came from the verification contract at base <code>80d8440346bd</code> and ran against frozen snapshot <code>72e70ac51bc7</code>. CI acceptance: not established.</li>
                     <li>unit command: <code>node --test --test-reporter=/thinker/reporter.mjs test/*.test.js</code>.</li>
                     <li>The code assessment read the change against frozen notes. A clean model assessment does not replace a human reading of the diff.</li>
-                    <li>Run <code>4d9f2a</code>; 2026-10-06T14:02Z to 14:06Z.</li>
+                    <li>Run <code>5d750e14-e6c6-43a1-a782-5c4d457e1099</code>; 2026-10-07T06:12:29.093Z to 2026-10-07T06:15:29.670Z.</li>
                   </ul>
                 </details>
               </div>
             </article>
-
-            <div class="gh-file">
-              <div class="gh-file-head"><span class="gh-file-icon" aria-hidden="true"></span><code>src/run/autopause.js</code><span class="gh-muted">1 comment</span></div>
-              <div class="gh-scroll">
-              <table class="gh-diff" aria-label="Diff of src/run/autopause.js">
-                <tbody>
-                  <tr class="gh-hunk"><td colspan="2"></td><td>@@ -28,9 +28,7 @@ const STOP_SPEED = 0.5; // m/s</td></tr>
-                  <tr><td>28</td><td>28</td><td></td></tr>
-                  <tr class="gh-del"><td>29</td><td></td><td><span class="gh-sign">-</span>const STOP_SAMPLES = 5;</td></tr>
-                  <tr class="gh-add"><td></td><td>29</td><td><span class="gh-sign">+</span>const STOP_SAMPLES = 2;</td></tr>
-                  <tr><td>30</td><td>30</td><td></td></tr>
-                  <tr><td>31</td><td>31</td><td>export function detectStop(samples) {</td></tr>
-                  <tr class="gh-del"><td>32</td><td></td><td><span class="gh-sign">-</span>  const fixed = samples.filter(s =&gt; s.accuracy &gt; 0 &amp;&amp; s.accuracy &lt; 20);</td></tr>
-                  <tr class="gh-del"><td>33</td><td></td><td><span class="gh-sign">-</span>  const recent = fixed.slice(-STOP_SAMPLES);</td></tr>
-                  <tr class="gh-del"><td>34</td><td></td><td><span class="gh-sign">-</span>  if (recent.length &lt; STOP_SAMPLES) return false;</td></tr>
-                  <tr class="gh-del"><td>35</td><td></td><td><span class="gh-sign">-</span>  return recent.every(s =&gt; s.speed &lt; STOP_SPEED);</td></tr>
-                  <tr class="gh-add"><td></td><td>32</td><td><span class="gh-sign">+</span>  const recent = samples.slice(-STOP_SAMPLES);</td></tr>
-                  <tr class="gh-comment-row"><td colspan="3">
-                    <div class="gh-inline">
-                      <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>devuser</strong> <span class="gh-muted">commented on line 32</span></div>
-                      <div class="gh-md">
-                        <p><strong class="gh-fail">error</strong> The stop window no longer keeps only samples with a GPS fix. A dropout under a bridge reports zero speed with accuracy 0, and two such samples now pause the run.</p>
-                        <blockquote>const recent = samples.slice(-STOP_SAMPLES);</blockquote>
-                        <p class="gh-fine"><code>autopause-gps-dropout</code> · Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix · learned from PR #241, 93% <span class="gh-tag tag-cache">from the cache</span></p>
-                      </div>
-                    </div>
-                  </td></tr>
-                  <tr class="gh-add"><td></td><td>33</td><td><span class="gh-sign">+</span>  return recent.every(s =&gt; s.speed &lt; STOP_SPEED);</td></tr>
-                  <tr><td>36</td><td>34</td><td>}</td></tr>
-                </tbody>
-              </table>
-              </div>
-            </div>
           </div>
-          <figcaption class="gh-caption">Illustrative review, condensed. A real one carries every check result, every finding, and the full provenance block.</figcaption>
+          <figcaption class="gh-caption">A real report, from a run on a small demonstration repository: one pull request comment posted by <code>review --run … --post</code> through the author&#39;s own GitHub login. The text is the report&#39;s own, with its <em>(model reading)</em> parentheticals shown as badges and the thoroughness and provenance sections folded into the disclosure above.</figcaption>
         </figure>
 
         <h3>What each part rests on</h3>
@@ -1124,7 +1088,7 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-cache">from the cache</span>
-            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions, and desired behaviors written by the team are held against the change. A finding names the note and the pull request it was learned from. In the example both tests are green and the diff reads as a tidy simplification; only the cache knew that the filter it removed was the fix for runs pausing in tunnels.</p>
+            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions, and desired behaviors written by the team are held against the change. A finding names the note and the pull request it was learned from. In the report above both tests are green and the diff reads as a tidy simplification; only the cache knew that the filter it removed was the fix for runs pausing in tunnels.</p>
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-model">model reading</span>
