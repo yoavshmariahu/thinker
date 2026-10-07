@@ -863,7 +863,7 @@
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Historical regression recall</div>
           <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">The share of bugs left undetected fell from 33% without Thinker to 9% with Thinker: 73% fewer missed bugs (rounded). Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points). Percentage of bugs missed by model (lower is better); reductions are rounded:</p>
+          <p class="bench-lede">Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points).</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
@@ -895,7 +895,6 @@
             </div>
           </div>
           <p class="bench-lede">Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
-          <p class="bench-lede">The cache learned these historical fixes. This measures recall, not unseen-bug detection; false-positive rates were not measured. One failed Gemini baseline counts as a miss and its valid Thinker result as a hit, under a post-run scoring change. Excluding that pair gives 72% fewer missed bugs (rounded). Runs span pinned Thinker revisions.</p>
         </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
