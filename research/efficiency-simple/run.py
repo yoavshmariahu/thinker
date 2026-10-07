@@ -110,6 +110,23 @@ def notes_in(repo):
     return sorted((repo / '.thinker/local/notes').glob('*.json'))
 
 
+def described_in(repo):
+    """Notes carrying a description current for their own text, which is what Jev searches.
+
+    `searchText` falls back to the body when `saysFor` no longer matches the note's `phraseKey`, so
+    a note rewritten by a later mining pass stops being described without saying so.
+    """
+    script = ("const {Store} = await import('./src/store.js');"
+              "const {phraseKey} = await import('./src/note-search.js');"
+              "const s = new Store(process.argv[1]);"
+              "process.stdout.write(String(s.list().filter(n => (n.search || '').trim() && n.saysFor === phraseKey(n)).length));")
+    out = subprocess.run(['node', '--input-type=module', '-e', script, str(repo)],
+                         cwd=ROOT, capture_output=True, text=True, env={**os.environ, 'THINKER_TEST': '1'})
+    if out.returncode or not out.stdout.strip().isdigit():
+        raise SystemExit(f'cannot count described notes in {repo}: {out.stderr[:200]}')
+    return int(out.stdout.strip())
+
+
 def anchor_task():
     """The oldest task by base date: the cache is built there, so no fix is within its reach."""
     return sorted(TASKS, key=lambda t: int(git(['show', '-s', '--format=%ct', t['base']], SOURCE).strip()))[0]
@@ -139,10 +156,15 @@ def build(cohort):
     # Mining only. Exploration was measured on Click and is not part of a benchmark cache: it cost
     # 3.6M tokens for 0 notes under Opus and 1.3M for 1 under Sol, against 272k for 9 by mining.
     for args, label in [(['mine-prs', '--git', '--limit', '20'], f'{cohort}-mine'),
+                        (['phrase'], f'{cohort}-phrase'),
                         (['relink'], f'{cohort}-relink')]:
         if thinker(args, repo, env, label).returncode != 0:
             raise SystemExit(f'{label} failed; see raw/{label}.log')
     count = len(notes_in(repo))
+    described = described_in(repo)
+    print(f'{cohort}: {described} of {count} notes have a search description', flush=True)
+    if not described:
+        raise SystemExit(f'{cohort}: no note has a description; Jev would rank on bodies alone')
     print(f'{cohort}: {count} notes', flush=True)
     if not count:
         raise SystemExit(f'{cohort}: empty cache, nothing to measure')
@@ -167,6 +189,9 @@ def task_cache(cohort, task, repo):
         thinker(['mine-prs', '--git', '--limit', '5'], repo, env, label + '-topup')
     thinker(['check'], repo, env, label + '-check')          # staleness, as any working repo has
     thinker(['verify'], repo, env, label + '-verify')        # the product's own invalidation
+    # mining and verification rewrite notes, and a rewritten note's description is no longer current
+    thinker(['phrase'], repo, env, label + '-phrase')
+    print(f'  {label}: {described_in(repo)} of {len(notes_in(repo))} notes described', flush=True)
     return len(notes_in(repo))
 
 
