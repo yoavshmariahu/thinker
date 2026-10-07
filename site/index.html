@@ -820,8 +820,8 @@
     <div class="benchmark-cards">
       <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
         <div class="metric-kicker">Bug detection · 7 repositories</div>
-        <div class="metric-num gain">91/100</div>
-        <div class="metric-label">Historical bugs caught, up from 67 without thinker</div>
+        <div class="metric-num gain">+36%</div>
+        <div class="metric-label">More historical bugs caught · 67% &rarr; 91%</div>
         <ul class="metric-models">
           <li><span>Claude Opus 5.5</span><span><span class="before">18/25 &rarr;</span> 23/25</span></li>
           <li><span>GPT-6.1 Sol</span><span><span class="before">18/25 &rarr;</span> 24/25</span></li>
@@ -862,8 +862,8 @@
 
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Historical regression recall</div>
-          <h3 class="bench-headline" id="bench-bugs"><span class="gain">91 of 100</span> bugs caught, up from 67.</h3>
-          <p class="bench-lede">Seven open-source repositories, 100 reversed fixes. Thinker caught 24 more bugs (+24 percentage points). The five new repositories rotate models equally across 75 cases:</p>
+          <h3 class="bench-headline" id="bench-bugs"><span class="gain">36% more</span> historical bugs caught.</h3>
+          <p class="bench-lede">Seven open-source repositories, 100 reversed fixes. Detection rose from 67% without Thinker to 91% with Thinker: 24 more bugs caught, a 36% relative increase (rounded), or +24 percentage points. The five new repositories rotate models equally across 75 cases:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
