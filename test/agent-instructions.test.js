@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { updateInstructions } from '../src/agent-instructions.js';
-import { agentWorkflow } from '../src/cache-guidance.js';
+import { agentWorkflow, cacheInstructions, cacheBundleIntro, CACHE_LEARNING_GUIDE, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
 import { installClient, refreshWiring, uninstallClients, uninstallWiring } from '../src/clients.js';
 import { piExtension } from '../src/integrations/pi.js';
 import { opencodePlugin } from '../src/integrations/opencode.js';
@@ -25,7 +25,8 @@ const read = file => fs.readFileSync(file, 'utf8');
 function checkWorkflow(text, cliOnly = false) {
   for (const name of ['orient', 'lookup', 'find', 'drilldown', 'feedback']) assert.ok(text.includes(name), name);
   assert.ok(text.includes(cliOnly ? 'add ' : '`remember`'));
-  assert.match(text, /An injected bundle replaces that call, not the rest/);
+  assert.match(text, /replaces the initial .*orient.* call only when a note in it bears on the request/);
+  assert.match(text, /before the first grep or file read/);
   assert.match(text, /Fall back.*insufficient/);
   assert.match(text, /Do not save task summaries/);
   if (cliOnly) assert.doesNotMatch(text, /call `remember`|Use the Thinker MCP/);
@@ -155,4 +156,28 @@ test('CLI feedback corrects an existing note; invalid input and missing caches d
   const r = spawnSync('node', [cli, 'feedback', '--repo', empty], { input: '{}', encoding: 'utf8', env: process.env });
   assert.notEqual(r.status, 0);
   assert.equal(fs.existsSync(path.join(empty, '.thinker')), false);
+});
+
+// Claude Code cuts a server's instructions at INSTRUCTIONS_LIMIT and appends "… [truncated]", which
+// silently dropped the learning guide before the text was composed under the cap.
+test('MCP instructions fit the host cap whole, and the bundle header carries the two local decisions', () => {
+  const deep = '/Users/x/' + 'deep/'.repeat(60) + 'repo';
+  for (const repo of ['/r', '/Users/yoavshmariahu/src/thinker', deep]) {
+    const text = cacheInstructions({ repo });
+    assert.ok(text.length <= INSTRUCTIONS_LIMIT, `${repo}: ${text.length}`);
+    assert.ok(text.includes(repo));
+    assert.ok(text.endsWith(CACHE_LEARNING_GUIDE), `${repo} lost the learning guide`);
+    for (const name of ['orient', 'lookup', 'find', 'drilldown', 'remember', 'feedback']) assert.ok(text.includes(name), name);
+    assert.match(text, /bears on the task/);
+    assert.match(text, /before the first grep or file read/);
+  }
+  // A cap below one section drops whole sections rather than handing the host half a sentence.
+  const tight = cacheInstructions({ repo: '/r', limit: 600 });
+  assert.ok(tight.length <= 600 && !tight.includes(CACHE_LEARNING_GUIDE));
+  assert.match(cacheBundleIntro(), /match the working tree/);
+  assert.match(cacheBundleIntro({ stale: true }), /STALE/);
+  for (const t of [cacheBundleIntro(), cacheBundleIntro({ stale: true })]) {
+    assert.match(t, /If none of them bears on the task/);
+    assert.match(t, /before the first grep/);
+  }
 });
