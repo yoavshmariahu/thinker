@@ -1386,8 +1386,20 @@ recorded as mined.
 
 A note's search description is checked against the note before it is kept
 (`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
-conditions and prohibitions survive"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since
-2026-10-07. A description the judge refuses is written again once, told to stay inside the note; a second
+rule is stated no wider than the note states it"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since
+2026-10-07. Scope asks about distortion, not completeness: a description may leave conditions and
+exceptions out, and fails only when it turns a conditional rule universal, reverses or loses a
+prohibition, or attaches a condition the note does not state. A description is matched against
+requests and never read as guidance (`jev.js:searchRecord`, `dense.js:ceText`, the learning catalog
+card), so an omission misleads nobody, while an overstated rule pulls the note for the wrong request.
+Until later on 2026-10-07 omission failed too ("drops or changes a material condition"), and on this
+repository's cache that refused 96 of 103 notes at a median scope of 0.41 while support sat at 0.88:
+the writer is told to stay shorter than the note, so a one-sentence description of a six-clause,
+one-line body dropped clauses by construction, and the rewrite, aimed at support ("drop every
+consequence"), shortened it further. The rewrite now names the check that refused it: a support
+refusal is told to drop unsupported claims, a scope refusal to keep every condition and cut
+consequences first (`ops.js:phraseNotes`, `generate` with `retry` counts). An accepted description
+clears an earlier `phraseRefused`. A description the judge refuses is written again once, told to stay inside the note; a second
 refusal is final, and `phraseRefused` records the key and the scores so maintenance leaves the note
 alone until its text changes, rather than paying the writer and the judge for the same refusal every
 run. The note keeps no description and ranks on its body, which is Jev's documented fallback. A check
