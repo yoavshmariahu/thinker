@@ -1,0 +1,30 @@
+{
+  "valid": true,
+  "elapsedMs": 16317,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "warnings": [
+    "clamping SessionEnd hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json",
+    "clamping Interrupt hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json"
+  ],
+  "usage": [
+    {
+      "input_tokens": 17095,
+      "cached_input_tokens": 12288,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 333,
+      "reasoning_output_tokens": 164
+    }
+  ],
+  "result": {
+    "findings": [],
+    "coverage": "Reviewed the supplied rename and parser against the explicit contracts. The rename preserves behavior; accepted IDs start with aws:/// and retain the original ProviderID. Placeholder names retain subsequent slashes.",
+    "limitations": [
+      "Requirements A and B conflict for placeholder names containing slashes. Acceptance satisfies A and violates B; rejection would satisfy B and violate A. No resolution is supplied, so this behavior cannot support an unambiguous defect finding.",
+      "Review is limited to the supplied diff, source excerpt, and contracts; whole-repository completeness is not claimed.",
+      "No tests were run or supplied."
+    ],
+    "contribution": "No change to findings. No distinct, unambiguous defect was established; the conflicting placeholder requirements require clarification."
+  }
+}

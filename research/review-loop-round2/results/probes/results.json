@@ -1,0 +1,10 @@
+{
+  "identifierOnlyChange": true,
+  "checks": {
+    "malformedRejected": true,
+    "ordinaryIDAccepted": true,
+    "originalIDPreserved": true,
+    "slashPreserved": true
+  },
+  "scope": "Extracted parser with stdlib wrappers; not an upstream integration test. Conflicting contracts have no executable oracle for human intent."
+}

@@ -1,0 +1,121 @@
+{
+  "id": "U-conflicting-contracts",
+  "rep": 1,
+  "policy": "v3",
+  "order": [
+    "v3",
+    "v2"
+  ],
+  "valid": true,
+  "outcome": "manual_review",
+  "unresolved": [
+    "Requirements need a human intent/precedence decision.",
+    "Bounded coverage: gap"
+  ],
+  "hashes": {
+    "run.mjs": "0c6b1401e36a7a3fceb73262221c00ff4b1ec2334fbf42cc14744bf06dcd6f2a",
+    "clients.mjs": "0fb48c0ca975d1254bda84d90829d9e39b8b124656ada953b58b5cc92f2312d4",
+    "policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20",
+    "protocol.json": "3d49b7898b2f80d75b857d988ae359c162c6853f2b4394d4ddf013064780ba05"
+  },
+  "stateHash": "d529a6eeab9d969eebb73a994a0a81845fad414df94c8549c9bfb298a3d2565e",
+  "elapsedMs": 117,
+  "trace": [
+    {
+      "type": "judgment",
+      "decision": {
+        "action": "manual_review",
+        "reason": "Human intent takes precedence over action preference.",
+        "unresolved": [
+          "Requirements need a human intent/precedence decision.",
+          "Bounded coverage: gap"
+        ]
+      },
+      "elapsedMs": 117,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "claim_support": {
+            "type": "choice",
+            "choice": "supported",
+            "confidence": 0.96,
+            "probabilities": {
+              "insufficient": 0.02,
+              "contradicted": 0,
+              "supported": 0.97,
+              "overclaimed": 0.01
+            }
+          },
+          "coverage": {
+            "type": "choice",
+            "choice": "gap",
+            "confidence": 0.49,
+            "probabilities": {
+              "unknown": 0.01,
+              "gap": 0.66,
+              "accounted_for": 0.33
+            }
+          },
+          "next_action": {
+            "type": "choice",
+            "choice": "investigate_remaining",
+            "confidence": 0.52,
+            "probabilities": {
+              "finalize": 0.33,
+              "manual_review": 0.02,
+              "verify_existing": 0.01,
+              "inspect_callers": 0.02,
+              "investigate_remaining": 0.62
+            }
+          },
+          "intent_status": {
+            "type": "choice",
+            "choice": "needs_human",
+            "confidence": 1,
+            "probabilities": {
+              "settled": 0,
+              "needs_human": 1
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 2164,
+          "output_tokens": 191
+        }
+      }
+    }
+  ],
+  "finalState": {
+    "task": "Finish this bounded code review. Preserve supported distinct defects and accurately scope their impact. Do not claim whole-repository completeness.",
+    "revision": {
+      "base": "40889a675092c0939c59160fc5270273db4e0555",
+      "change": "Local-only identifier rename in the fixed provider-ID parser"
+    },
+    "contracts": [
+      "Requirement A: a placeholder instance name beginning with i-placeholder- must retain subsequent slashes and be accepted.",
+      "Requirement B: every placeholder instance name containing a slash must be rejected as invalid.",
+      "Requirements A and B have equal authority; no precedence, scope exception, or approved resolution has been supplied.",
+      "AWS provider IDs must start with aws:/// and preserve the original ProviderID when accepted."
+    ],
+    "diff": "--- a/cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\n+++ b/cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\n@@ -228,20 +228,20 @@\n \tmatches := validAwsRefIdRegex.FindStringSubmatch(id)\n \tif matches == nil || len(matches) != 4 {\n \t\treturn nil, fmt.Errorf(\"wrong id: expected format aws:///<zone>/<name>, got %v\", id)\n \t}\n \n-\tvar name string\n+\tvar parsedName string\n \tif matches[1] != \"\" {\n-\t\tname = matches[1]\n+\t\tparsedName = matches[1]\n \t} else {\n-\t\tname = matches[2]\n+\t\tparsedName = matches[2]\n \t}\n \n \treturn &AwsInstanceRef{\n \t\tProviderID: id,\n-\t\tName:       name,\n+\t\tName:       parsedName,\n \t}, nil\n }\n \n // AwsNodeGroup implements NodeGroup interface.\n type AwsNodeGroup struct {\n",
+    "source": {
+      "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go": "212: // AwsRef contains a reference to some entity in AWS world.\n213: type AwsRef struct {\n214: \tName string\n215: }\n216: \n217: // AwsInstanceRef contains a reference to an instance in the AWS world.\n218: type AwsInstanceRef struct {\n219: \tProviderID string\n220: \tName       string\n221: }\n222: \n223: var validAwsRefIdRegex = regexp.MustCompile(fmt.Sprintf(`^aws\\:\\/\\/\\/[-0-9a-z]*\\/(%s.*)$|^aws\\:\\/\\/\\/[-0-9a-z]*\\/([-0-9a-z]*)(\\/[-0-9a-z\\.]*)?$`, placeholderInstanceNamePrefix))\n224: \n225: // AwsRefFromProviderId creates AwsInstanceRef object from provider id which\n226: // must be in format: aws:///zone/name\n227: func AwsRefFromProviderId(id string) (*AwsInstanceRef, error) {\n228: \tmatches := validAwsRefIdRegex.FindStringSubmatch(id)\n229: \tif matches == nil || len(matches) != 4 {\n230: \t\treturn nil, fmt.Errorf(\"wrong id: expected format aws:///<zone>/<name>, got %v\", id)\n231: \t}\n232: \n233: \tvar parsedName string\n234: \tif matches[1] != \"\" {\n235: \t\tparsedName = matches[1]\n236: \t} else {\n237: \t\tparsedName = matches[2]\n238: \t}\n239: \n240: \treturn &AwsInstanceRef{\n241: \t\tProviderID: id,\n242: \t\tName:       parsedName,\n243: \t}, nil\n244: }\n245: \n246: // AwsNodeGroup implements NodeGroup interface.\n247: type AwsNodeGroup struct {\n248: \tawsManager *AwsManager\n249: \tasg        *asg\n250: }\n251: "
+    },
+    "findings": [],
+    "coverage": "Initial review checkpoint; inspect the supplied change against the explicit contracts.",
+    "limitations": [
+      "No upstream integration tests are supplied. Review scope is the provided parser and change."
+    ],
+    "availableActions": {
+      "verify_existing": "Check existing findings against the supplied source; correct or limit unsupported claims.",
+      "inspect_callers": "Fetch the predeclared additional source excerpt and inspect the caller/control flow.",
+      "investigate_remaining": "Inspect the current diff and source for distinct unreported contract violations.",
+      "finalize": "Finish with supported findings and explicit scope limits.",
+      "manual_review": "Stop with an unresolved question that requires human intent or unavailable evidence."
+    },
+    "roundsUsed": 0,
+    "maxRounds": 2,
+    "history": []
+  }
+}
