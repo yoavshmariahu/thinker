@@ -3,7 +3,6 @@
 import fs from 'node:fs';
 import { jevKey, JEV_ENDPOINT } from '../../src/jev.js';
 import { prepareNotes } from '../../src/note-learning.js';
-import { checkSearchSummaries } from '../../src/summary-fidelity.js';
 import { refineLearningPlan } from '../../src/learning-evidence.js';
 
 if (process.env.THINKER_TEST !== '1' || !process.argv.includes('--live')) throw new Error('THINKER_TEST=1 and --live required');
@@ -36,13 +35,6 @@ for (let repeat = 0; repeat < 2; repeat++) {
     const row = { repeat, case: c.name, expected: c.expected, actual, passed: actual === c.expected, reasons: result.deferred.map(d => d.reason) };
     rows.push(row); console.log(JSON.stringify(row));
   }
-  const note = { ...old, body: 'Cached payment receipts may be reused for the same merchant and key. Never reuse a receipt across merchants.', applies: 'Matching merchant ID and idempotency key only.' };
-  const result = await checkSearchSummaries(store, [
-    { note, search: 'Payment receipts are reused only for matching merchant IDs and idempotency keys. Reuse across merchants is forbidden.' },
-    { note, search: 'Payment receipts are reused whenever an idempotency key matches, including across different merchants.' },
-  ]);
-  const summary = { repeat, case: 'summary-fidelity', passed: result.results[0].accepted && !result.results[1].accepted, results: result.results };
-  rows.push(summary); console.log(JSON.stringify(summary));
   const transcript = [
     { t: 'prompt', text: 'Investigate duplicate charges.' },
     { t: 'say', text: 'I am starting the investigation.' },

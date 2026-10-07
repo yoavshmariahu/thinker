@@ -15,7 +15,6 @@ import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
 import { jevConfig, jevSearch } from './jev.js';
 import { phraseKey } from './note-search.js';
 import { derivedVerdict, externalSurface } from './drift.js';
-import { checkSearchSummaries } from './summary-fidelity.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 export { phraseKey };
@@ -689,17 +688,20 @@ export async function phraseNotes(store, notes, { model, max = 5, phase = 'maint
     if (phraseKey(cur) !== phraseKey(n)) continue; // a concurrent correction makes this generated description obsolete
     candidates.push({ note: n, says, search }); seen.add(n.id);
   }
-  const checked = await checkSearchSummaries(store, candidates, { phase });
-  for (const [i, { note: n, says, search }] of candidates.entries()) {
-    if (!checked.results[i].accepted) continue;
+  // The description a model just wrote from the note is kept as written. A second model's opinion of
+  // it used to gate this (two Nouls per note, both needed 0.9) and rejected almost everything: on 38
+  // mined notes every one failed, support between 0.18 and 0.81, and this repository's own cache
+  // ended up with search text on 69 of 362 notes. The text is only ever a retrieval surface -- Jev
+  // reads it to rank, no agent is ever shown it -- so an overreaching sentence costs precision, not
+  // correctness, and that is not worth losing four descriptions in five. Decided 2026-10-07.
+  for (const { note: n, says, search } of candidates) {
     const cur = store.get(n.id);
-    if (!cur || phraseKey(cur) !== phraseKey(n)) continue; // also guard edits/removal during the Jev check
+    if (!cur || phraseKey(cur) !== phraseKey(n)) continue; // the note changed while this was written
     store.put({ ...cur, ...(says.length ? { says } : {}), ...(search.length >= 40 ? { search } : {}), saysFor: phraseKey(cur) });
     done.push(n.id);
   }
-  const deferred = candidates.flatMap((c, i) => checked.results[i].accepted ? [] : [{ id: c.note.id, ...checked.results[i] }]);
-  store.log({ op: 'phrase', ids: done, deferred, cost: res.cost, metered: true });
-  return { done, deferred, cost: res.cost, tokens: tokensOf(res) === null ? null : tokensOf(res) + checked.tokens };
+  store.log({ op: 'phrase', ids: done, cost: res.cost, metered: true });
+  return { done, deferred: [], cost: res.cost, tokens: tokensOf(res) };
 }
 
 function gitDiffFor(repo, fromCommit, paths) {
