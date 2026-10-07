@@ -738,8 +738,8 @@
         <div class="outcomes">
           <a class="outcome" href="#review">
             <div class="outcome-kicker">Bug detection</div>
-            <div class="outcome-num">+36%</div>
-            <div class="outcome-label">More historical bugs caught · 67% &rarr; 91% across seven repositories</div>
+            <div class="outcome-num">&minus;73%</div>
+            <div class="outcome-label">Fewer bugs<br>Left undetected: 33 missed &rarr; 9 missed</div>
             <p class="outcome-body">A review checks a change against what the repository already learned: fixes it must not undo, conventions and behaviors it must keep.</p>
             <div class="outcome-cta">How review works &rarr;</div>
           </a>
@@ -1364,8 +1364,8 @@ export THINKER_TELEMETRY=off
 
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Historical regression recall</div>
-          <h3 class="bench-headline" id="bench-bugs"><span class="gain">36% more</span> historical bugs caught.</h3>
-          <p class="bench-lede">Seven open-source repositories, 100 reversed fixes. Detection rose from 67% without Thinker to 91% with Thinker: 24 more bugs caught, a 36% relative increase (rounded), or +24 percentage points. The five new repositories rotate models equally across 75 cases:</p>
+          <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
+          <p class="bench-lede">Bugs left undetected fell from 33 without Thinker to 9 with Thinker: 73% fewer missed bugs (rounded). Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points). The five new repositories rotate models equally across 75 cases:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
