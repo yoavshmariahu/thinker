@@ -1,0 +1,927 @@
+{
+  "execution": {
+    "thinkerCommit": "3db79d2a969ccbf18821925acb3b2af2b76da3ed",
+    "tasksSha256": "5e985339dae9ab8e4be58d05c56d89ba165ea9d03ad41b90eee2b8a0f5897655",
+    "runnerSha256": "ade2113394b379cdda290cce4854fe316a4249ed067b0bf211f28f5ba0b8601e",
+    "models": {
+      "opus": "claude-opus-5-5",
+      "sol": "gpt-6.1-sol",
+      "gemini": "gemini-3.8-flash-high"
+    },
+    "effort": "high",
+    "jev": "jev-1.13.0",
+    "codingRuns": 18,
+    "setupSessions": 9,
+    "fallback": false,
+    "testMode": true,
+    "python": "Python 3.13.14",
+    "memoryHarnessSha256": "5c7dc1a7eeaae1bd4e9ebf6ac7d51db0bdbae1ee641f1901099c8d9cdd31c3c3",
+    "testHarnessSha256": "487f7388a190a0f8c560ab6cca747643e1cd2e21c36299bf2aed1e8c69de72fe",
+    "initialMemoryHarnessSha256": "4199cddac285aa27b699cddfd52c697def24927a19d9a64ff4cda003308c085e",
+    "setupDistillations": 9,
+    "prototypeMemoryHarnessSha256": "756f704e01ae9be6e58e197180a65bb902ae48967655760b0e3179c885878352",
+    "modelPinPatchSha256": "c86de67bec1217f39f35de696cd717fbe85302d568c85733bfc125e13245cbde",
+    "status": "invalid-for-efficiency",
+    "frozenHarnessDirectory": "raw/frozen-harness",
+    "codingRunsCompleted": 9,
+    "codingRunsInterrupted": 2,
+    "codingRunsNotStarted": 7
+  },
+  "plannedCodingRuns": 18,
+  "completedCodingRuns": 9,
+  "decision": "invalid-for-efficiency",
+  "stop": {
+    "status": "invalid-for-efficiency",
+    "stoppedAt": "2026-10-07T05:48:59Z",
+    "reason": "Empty cache readiness was not enforced; interrupted task execution enabled 30000 stress iterations. Audit before any fresh run.",
+    "completed": 9,
+    "interrupted": 2,
+    "notStarted": 7
+  },
+  "reason": "All nine fresh caches are empty; readiness was not enforced and task execution was not adequately monitored. The batch was stopped.",
+  "cohorts": {
+    "opus": {
+      "baseline": {
+        "completed": 1,
+        "providerValid": 1,
+        "graded": 1,
+        "acceptancePass": 1,
+        "modulePass": 1,
+        "tokens": {
+          "knownTotal": 335986,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 326994,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 8992,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 301498,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 15,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 90154,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 1,
+        "providerValid": 1,
+        "graded": 1,
+        "acceptancePass": 1,
+        "modulePass": 1,
+        "tokens": {
+          "knownTotal": 323033,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 314176,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 8857,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 290145,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 14,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 89767,
+          "unknownRuns": 0
+        }
+      }
+    },
+    "sol": {
+      "baseline": {
+        "completed": 3,
+        "providerValid": 3,
+        "graded": 3,
+        "acceptancePass": 3,
+        "modulePass": 3,
+        "tokens": {
+          "knownTotal": 1209947,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 1188508,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 21439,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 1066112,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 46,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 495513,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 3,
+        "providerValid": 3,
+        "graded": 3,
+        "acceptancePass": 3,
+        "modulePass": 3,
+        "tokens": {
+          "knownTotal": 1035074,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 1012343,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 22731,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 896256,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 41,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 546328,
+          "unknownRuns": 0
+        }
+      }
+    },
+    "gemini": {
+      "baseline": {
+        "completed": 1,
+        "providerValid": 1,
+        "graded": 1,
+        "acceptancePass": 1,
+        "modulePass": 1,
+        "tokens": {
+          "knownTotal": 11358975,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 11242122,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 116853,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 10526771,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 113,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 575292,
+          "unknownRuns": 0
+        }
+      },
+      "thinker": {
+        "completed": 0,
+        "providerValid": 0,
+        "graded": 0,
+        "acceptancePass": 0,
+        "modulePass": 0,
+        "tokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "inputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "outputTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "cacheReadTokens": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "toolCalls": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        },
+        "wallMs": {
+          "knownTotal": 0,
+          "unknownRuns": 0
+        }
+      }
+    }
+  },
+  "builds": [
+    {
+      "task": "click-3364",
+      "cohort": "opus",
+      "explorationValid": true,
+      "explorationTokens": 160944,
+      "explorationWallMs": 50698,
+      "distillationTokens": 9030,
+      "distillationFailed": false,
+      "proposedNotes": 1,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 1,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 2.435749999998734,
+      "finalBuildAttemptMs": 12918.767875
+    },
+    {
+      "task": "click-3391",
+      "cohort": "opus",
+      "explorationValid": true,
+      "explorationTokens": 149721,
+      "explorationWallMs": 42959,
+      "distillationTokens": null,
+      "distillationFailed": true,
+      "proposedNotes": 0,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 0,
+      "deferredReasons": [],
+      "setupError": "Opus structured-output failure: notes omitted required tags; repeated same-model attempts failed. Unknown provider usage retained in local logs.",
+      "retrievalMs": 2.7763749999999874,
+      "finalBuildAttemptMs": 3.902417
+    },
+    {
+      "task": "click-3677",
+      "cohort": "opus",
+      "explorationValid": true,
+      "explorationTokens": 114123,
+      "explorationWallMs": 71568,
+      "distillationTokens": 9889,
+      "distillationFailed": false,
+      "proposedNotes": 2,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 2,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim",
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 1.5810829999991256,
+      "finalBuildAttemptMs": 16141.502042
+    },
+    {
+      "task": "click-3364",
+      "cohort": "sol",
+      "explorationValid": true,
+      "explorationTokens": 283435,
+      "explorationWallMs": 106623,
+      "distillationTokens": 19943,
+      "distillationFailed": false,
+      "proposedNotes": 1,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 1,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 2.0848750000004657,
+      "finalBuildAttemptMs": 32804.797209
+    },
+    {
+      "task": "click-3391",
+      "cohort": "sol",
+      "explorationValid": true,
+      "explorationTokens": 157292,
+      "explorationWallMs": 73190,
+      "distillationTokens": 19944,
+      "distillationFailed": false,
+      "proposedNotes": 1,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 1,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 1.1599169999972219,
+      "finalBuildAttemptMs": 25746.271333000004
+    },
+    {
+      "task": "click-3677",
+      "cohort": "sol",
+      "explorationValid": true,
+      "explorationTokens": 99059,
+      "explorationWallMs": 60996,
+      "distillationTokens": 19799,
+      "distillationFailed": false,
+      "proposedNotes": 0,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 0,
+      "deferredReasons": [],
+      "setupError": null,
+      "retrievalMs": 0.7623330000060378,
+      "finalBuildAttemptMs": 18138.210875000004
+    },
+    {
+      "task": "click-3364",
+      "cohort": "gemini",
+      "explorationValid": true,
+      "explorationTokens": 1470828,
+      "explorationWallMs": 151191,
+      "distillationTokens": 31669,
+      "distillationFailed": false,
+      "proposedNotes": 2,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 2,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim",
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 2.1052920000001905,
+      "finalBuildAttemptMs": 37517.881541
+    },
+    {
+      "task": "click-3391",
+      "cohort": "gemini",
+      "explorationValid": true,
+      "explorationTokens": 526935,
+      "explorationWallMs": 95304,
+      "distillationTokens": 32429,
+      "distillationFailed": false,
+      "proposedNotes": 1,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 1,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 0.8526669999992009,
+      "finalBuildAttemptMs": 39605.092208
+    },
+    {
+      "task": "click-3677",
+      "cohort": "gemini",
+      "explorationValid": true,
+      "explorationTokens": 1365299,
+      "explorationWallMs": 118660,
+      "distillationTokens": 28049,
+      "distillationFailed": false,
+      "proposedNotes": 1,
+      "acceptedNotes": 0,
+      "servedNotes": 0,
+      "deferredNotes": 1,
+      "deferredReasons": [
+        "source evidence does not establish every proposed claim"
+      ],
+      "setupError": null,
+      "retrievalMs": 1.0377500000031432,
+      "finalBuildAttemptMs": 25621.02975
+    }
+  ],
+  "cases": [
+    {
+      "id": "click-3364-opus-baseline",
+      "task": "click-3364",
+      "cohort": "opus",
+      "arm": "baseline",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 335986,
+      "inputTokens": 326994,
+      "outputTokens": 8992,
+      "cacheReadTokens": 301498,
+      "toolCalls": 15,
+      "wallMs": 90154,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.15092775000000003,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.133507541,
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 39
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "cd430cadc6ad3d89094440d24a3257ff898c674e96ed15b205cf0e9cfa76313e"
+    },
+    {
+      "id": "click-3364-opus-thinker",
+      "task": "click-3364",
+      "cohort": "opus",
+      "arm": "thinker",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 323033,
+      "inputTokens": 314176,
+      "outputTokens": 8857,
+      "cacheReadTokens": 290145,
+      "toolCalls": 14,
+      "wallMs": 89767,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.182044666,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.157771333,
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 39
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "d915c7495a5851a7c86f886514219a5328f95169967462692481ff70e0d9a717",
+      "noteCount": 0,
+      "servedNotes": 0
+    },
+    {
+      "id": "click-3364-sol-baseline",
+      "task": "click-3364",
+      "cohort": "sol",
+      "arm": "baseline",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 234664,
+      "inputTokens": 230878,
+      "outputTokens": 3786,
+      "cacheReadTokens": 193664,
+      "toolCalls": 12,
+      "wallMs": 87314,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.14767495800000002,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.12767475000000006,
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 39
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "25c30e32f7e219793cfdfcaea16dea1b053f7a532bfd95a2fd0957e2f1805a82"
+    },
+    {
+      "id": "click-3364-sol-thinker",
+      "task": "click-3364",
+      "cohort": "sol",
+      "arm": "thinker",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 231183,
+      "inputTokens": 226365,
+      "outputTokens": 4818,
+      "cacheReadTokens": 191232,
+      "toolCalls": 15,
+      "wallMs": 115454,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.210053833,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.125050084,
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 39
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "41ec571df44a82844ee0ca8209b8a69b9121362df07af2bc1f69987bd057db0b",
+      "noteCount": 0,
+      "servedNotes": 0
+    },
+    {
+      "id": "click-3391-sol-baseline",
+      "task": "click-3391",
+      "cohort": "sol",
+      "arm": "baseline",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 834749,
+      "inputTokens": 820525,
+      "outputTokens": 14224,
+      "cacheReadTokens": 762880,
+      "toolCalls": 25,
+      "wallMs": 339031,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.24948016699999997,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.20269716700000018,
+          "tests": 42,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 41
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "f0731d98c7d580d6e92eb0c1850348be7df1b5262da333a96166173750c225be"
+    },
+    {
+      "id": "click-3391-sol-thinker",
+      "task": "click-3391",
+      "cohort": "sol",
+      "arm": "thinker",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 639807,
+      "inputTokens": 626002,
+      "outputTokens": 13805,
+      "cacheReadTokens": 575360,
+      "toolCalls": 16,
+      "wallMs": 342978,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.24947808299999996,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.18907133300000006,
+          "tests": 42,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 41
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "2c2b9ba0b96f213a592f9d5f94ca61507e41c5c7ba1e80db8ca7998d096716d3",
+      "noteCount": 0,
+      "servedNotes": 0
+    },
+    {
+      "id": "click-3677-sol-baseline",
+      "task": "click-3677",
+      "cohort": "sol",
+      "arm": "baseline",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 140534,
+      "inputTokens": 137105,
+      "outputTokens": 3429,
+      "cacheReadTokens": 109568,
+      "toolCalls": 9,
+      "wallMs": 69168,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.274953708,
+          "tests": 99,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 99
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.14205858300000007,
+          "tests": 100,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 100
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "e80c6a600a6913eb919dc5e495b4eaee290dcf2681b1589fc61beadcc8462774"
+    },
+    {
+      "id": "click-3677-sol-thinker",
+      "task": "click-3677",
+      "cohort": "sol",
+      "arm": "thinker",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 164084,
+      "inputTokens": 159976,
+      "outputTokens": 4108,
+      "cacheReadTokens": 129664,
+      "toolCalls": 10,
+      "wallMs": 87896,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.22058208299999998,
+          "tests": 99,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 99
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.224086291,
+          "tests": 100,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 100
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "patchSha256": "db261f467647ac92f62d81abd374e740a2da906030dee5402ba6e834bb2a8dfc",
+      "noteCount": 0,
+      "servedNotes": 0
+    },
+    {
+      "id": "click-3364-gemini-baseline",
+      "task": "click-3364",
+      "cohort": "gemini",
+      "arm": "baseline",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "valid": true,
+      "returncode": 0,
+      "timedOut": false,
+      "tokens": 11358975,
+      "inputTokens": 11242122,
+      "outputTokens": 116853,
+      "cacheReadTokens": 10526771,
+      "toolCalls": 113,
+      "wallMs": 575292,
+      "error": null,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wallSeconds": 0.181190792,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "module": {
+          "returncode": 0,
+          "wallSeconds": 0.154418583,
+          "tests": 39,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 39
+        }
+      },
+      "acceptancePass": true,
+      "modulePass": true,
+      "providerReportedTotalTokens": 832204,
+      "patchSha256": "71133ee3cbfadd0102b18c7291a20035775488b8525595f652b99bbed474093f"
+    }
+  ],
+  "setupModelUsage": {
+    "prototype": {
+      "opus": {
+        "jev-grounding": {
+          "calls": 12,
+          "failedCalls": 0,
+          "knownTotal": 55928,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 4,
+          "failedCalls": 0,
+          "knownTotal": 2954,
+          "unknownRuns": 0
+        }
+      },
+      "sol": {
+        "jev-grounding": {
+          "calls": 24,
+          "failedCalls": 0,
+          "knownTotal": 123335,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 3,
+          "failedCalls": 0,
+          "knownTotal": 2119,
+          "unknownRuns": 0
+        }
+      },
+      "gemini": {
+        "jev-grounding": {
+          "calls": 15,
+          "failedCalls": 0,
+          "knownTotal": 67282,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 3,
+          "failedCalls": 0,
+          "knownTotal": 1785,
+          "unknownRuns": 0
+        }
+      }
+    },
+    "session-pipeline": {
+      "opus": {
+        "distill": {
+          "calls": 5,
+          "failedCalls": 3,
+          "knownTotal": 18919,
+          "unknownRuns": 3
+        },
+        "jev-evidence": {
+          "calls": 21,
+          "failedCalls": 1,
+          "knownTotal": 160920,
+          "unknownRuns": 1
+        },
+        "jev-grounding": {
+          "calls": 6,
+          "failedCalls": 0,
+          "knownTotal": 27269,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 3,
+          "failedCalls": 0,
+          "knownTotal": 2211,
+          "unknownRuns": 0
+        }
+      },
+      "sol": {
+        "distill": {
+          "calls": 3,
+          "failedCalls": 0,
+          "knownTotal": 59686,
+          "unknownRuns": 0
+        },
+        "jev-evidence": {
+          "calls": 22,
+          "failedCalls": 0,
+          "knownTotal": 167102,
+          "unknownRuns": 0
+        },
+        "jev-grounding": {
+          "calls": 4,
+          "failedCalls": 0,
+          "knownTotal": 13681,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 2,
+          "failedCalls": 0,
+          "knownTotal": 1046,
+          "unknownRuns": 0
+        }
+      },
+      "gemini": {
+        "distill": {
+          "calls": 3,
+          "failedCalls": 0,
+          "knownTotal": 92147,
+          "unknownRuns": 0
+        },
+        "jev-evidence": {
+          "calls": 21,
+          "failedCalls": 0,
+          "knownTotal": 177795,
+          "unknownRuns": 0
+        },
+        "jev-grounding": {
+          "calls": 8,
+          "failedCalls": 0,
+          "knownTotal": 29711,
+          "unknownRuns": 0
+        },
+        "jev-reconcile-search": {
+          "calls": 4,
+          "failedCalls": 0,
+          "knownTotal": 2324,
+          "unknownRuns": 0
+        }
+      }
+    }
+  },
+  "diagnosticUsage": {
+    "calls": 3,
+    "knownTokens": 7241
+  },
+  "limitations": [
+    "One sample per arm; only three tasks in one repository.",
+    "Both arms use matched exact frontier model and high effort; cohorts are not pooled into a ranking.",
+    "All Thinker caches are empty, including one failed Opus structured-output setup.",
+    "Correctness covers frozen upstream acceptance tests and their affected test module, not all Click tests.",
+    "Token and tool counters follow provider conventions; provider caching and concurrent system load were not reset.",
+    "Summary Gemini tokens add AGY cache_read_tokens to its input/total; original provider totals remain in raw results. Thinking is already included in output.",
+    "Setup accounting retains prototype calls, failed attempts and diagnostic probes separately; missing usage stays unknown.",
+    "Final build attempt times omit earlier failed attempts; no complete setup latency or amortization claim."
+  ]
+}

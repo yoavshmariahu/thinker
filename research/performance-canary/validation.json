@@ -1,0 +1,13 @@
+{
+  "thinkerTests": {
+    "passed": 495,
+    "skipped": 5,
+    "failed": 0,
+    "testMode": true,
+    "sandboxAttempt": "Loopback listeners blocked; rerun outside sandbox passed."
+  },
+  "archiveHashesVerified": true,
+  "offlineSummaryAndReportReproduction": true,
+  "stopEntryPointsVerified": 3,
+  "productionCodeChanges": false
+}

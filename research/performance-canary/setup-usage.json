@@ -1,0 +1,2936 @@
+[
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:22:26.338Z",
+    "eventId": "8b56d282-a934-47e0-8ef7-b9db51ee7660",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 724,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 744
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:25.825Z",
+    "eventId": "255ac2e9-dd92-421a-964a-c55cda226edc",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 704,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 724
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.025Z",
+    "eventId": "c7113477-6a96-418f-bbd0-218cce598d06",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4532,
+      "outputTokens": 402,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4934
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.161Z",
+    "eventId": "fcea5f37-8229-4824-b26e-dd38c75af166",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4636,
+      "outputTokens": 399,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5035
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.296Z",
+    "eventId": "9c8fbcc8-da6c-4717-8410-500eae948947",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4762,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5170
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.464Z",
+    "eventId": "2d694c9a-bc4a-445d-aaf3-754940a2f433",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3048,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3456
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.588Z",
+    "eventId": "da3e6843-8379-4329-87fe-3d1c974bde70",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 706,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 726
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.775Z",
+    "eventId": "a61990a3-431c-4d29-90d8-1027a5ea50db",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4534,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4942
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:26.903Z",
+    "eventId": "bd8fa651-3c78-4e62-883b-0b605cad5e65",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4638,
+      "outputTokens": 393,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5031
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.025Z",
+    "eventId": "744c23fe-fcf9-4bda-98bd-cc028d116f13",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4764,
+      "outputTokens": 399,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5163
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.136Z",
+    "eventId": "447934c3-261a-4ee7-95ec-1c2875174dab",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3050,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3458
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.303Z",
+    "eventId": "b2e3aa97-971b-4aee-9a9d-95272ae71a0d",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 740,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 760
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.415Z",
+    "eventId": "0efd2341-9699-4cf5-bc39-e2868b5cbf72",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4568,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4976
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.518Z",
+    "eventId": "6d754a0d-1c6f-4235-97ab-d602518fae63",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4672,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5080
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.628Z",
+    "eventId": "ac9f6d82-be22-4a47-bccc-8722aeff9c25",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4798,
+      "outputTokens": 396,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5194
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:27.734Z",
+    "eventId": "29c75509-30b4-41ec-98a2-6c1f3d788830",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3084,
+      "outputTokens": 405,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3489
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.202Z",
+    "eventId": "c556898e-861e-4f0a-a9ff-775cf06b118a",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8232,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8435
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.333Z",
+    "eventId": "fa4bb228-0b33-4254-aead-c2b3a2a53c27",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8124,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8346
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.496Z",
+    "eventId": "8c33fb0a-e26f-474d-bc7e-444842028b00",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8421,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8643
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.635Z",
+    "eventId": "7c6ff95a-2d51-42e5-b1d3-b0df821a8dfb",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8204,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8407
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.805Z",
+    "eventId": "f1c1037e-fba2-4907-aa94-8dda9babba99",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8028,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8250
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.929Z",
+    "eventId": "88b49ae0-04fb-471f-98e7-ba1d8e23a949",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 6852,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7093
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:46.488Z",
+    "eventId": "b2ee1ff8-759f-4de2-acaf-cd0a64efd6b8",
+    "purpose": "distill",
+    "provider": "claude",
+    "model": "claude-opus-5-5",
+    "tokens": {
+      "inputTokens": 7799,
+      "outputTokens": 1231,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 7797,
+      "totalTokens": 9030
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:46.621Z",
+    "eventId": "2ee99f7a-e6c4-4283-852f-fe3af924f7f6",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 748,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 768
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:46.742Z",
+    "eventId": "97cf4d8a-0489-4007-863b-6ae48463cd8e",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 5501,
+      "outputTokens": 396,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5897
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:46.852Z",
+    "eventId": "95b78f76-e8cb-42bc-9ab3-c61a7e8389ad",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3041,
+      "outputTokens": 402,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3443
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:47.018Z",
+    "eventId": "f1b34f70-0300-47d4-82eb-662a23b10a0a",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8455,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8658
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:47.176Z",
+    "eventId": "8def509d-f879-40b6-bb2a-c7900a23de37",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8176,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8379
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:47.311Z",
+    "eventId": "797d98c4-1e6b-4996-9f50-87f07a0a09d1",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7766,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7988
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:47.476Z",
+    "eventId": "96694425-0c09-4d5f-ac88-d8b9e31bb289",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 6682,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 6904
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:04.423Z",
+    "eventId": "9777be2a-2797-4484-bd3a-6bc38243ac73",
+    "purpose": "distill",
+    "provider": "claude",
+    "model": "claude-opus-5-5",
+    "tokens": {
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": null
+    },
+    "failed": true
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:21.609Z",
+    "eventId": "84b1d028-9cdb-41f1-8bc1-a9160babd05f",
+    "purpose": "distill",
+    "provider": "claude",
+    "model": "claude-opus-5-5",
+    "tokens": {
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": null
+    },
+    "failed": true
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:30:50.909Z",
+    "eventId": "7eb62e5d-c694-4cea-b9d4-c43df06af854",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8455,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8658
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:30:51.083Z",
+    "eventId": "eac69322-0809-4e7f-8ddd-9d9459d3a53d",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8176,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8379
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:30:51.235Z",
+    "eventId": "bcc2e523-c25e-49db-8576-e011d112249c",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7766,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7988
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:30:51.259Z",
+    "eventId": "102ef36d-bd20-408e-a6f5-d38912dea828",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": null
+    },
+    "failed": true
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:32:17.901Z",
+    "eventId": "5bfe01ce-d0e4-40f1-af53-460ad27c4891",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8455,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8658
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:32:18.048Z",
+    "eventId": "a6401f64-1c18-429a-b9c4-7f7c08f95259",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8176,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8379
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:32:18.181Z",
+    "eventId": "cc5731c6-18e6-49d6-bbe4-7d06dd8c3969",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7766,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7988
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:32:18.338Z",
+    "eventId": "24e9d36c-8cfc-4446-8b84-a0d7c083413a",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 6682,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 6904
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:32:32.946Z",
+    "eventId": "3f5481f9-ae21-4e21-9de1-0cde1b6a2d3d",
+    "purpose": "distill",
+    "provider": "claude",
+    "model": "claude-opus-5-5",
+    "tokens": {
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": null
+    },
+    "failed": true
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:11.397Z",
+    "eventId": "4edbb369-0a12-40eb-b195-b3f746361d93",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9032,
+      "outputTokens": 260,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9292
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:11.534Z",
+    "eventId": "549be379-d351-4ff7-91c4-de8d19a2878f",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9129,
+      "outputTokens": 279,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9408
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:11.666Z",
+    "eventId": "bd20d73f-1997-4acb-b00c-333c5223d319",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4051,
+      "outputTokens": 112,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4163
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:26.474Z",
+    "eventId": "cf268a18-129a-44d8-a379-793f9b4af6df",
+    "purpose": "distill",
+    "provider": "claude",
+    "model": "claude-opus-5-5",
+    "tokens": {
+      "inputTokens": 8109,
+      "outputTokens": 1780,
+      "cacheReadTokens": 2373,
+      "cacheWriteTokens": 5734,
+      "totalTokens": 9889
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:26.627Z",
+    "eventId": "a9dec9f8-f46b-4d03-84e2-225eba243c9e",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 753,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 773
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:26.767Z",
+    "eventId": "c6c6a9da-a0e9-4736-9f95-5df917e4ff64",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 5396,
+      "outputTokens": 312,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5708
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:26.887Z",
+    "eventId": "444c6d93-5be1-4d9b-8c02-4e6f1c4d9f4e",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2571,
+      "outputTokens": 318,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2889
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:26.981Z",
+    "eventId": "bf169616-4077-45ca-9cb9-4ca1d9f4fb45",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 650,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 670
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:27.134Z",
+    "eventId": "9e73fc46-c567-4e55-ae74-e64d0285de37",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 5675,
+      "outputTokens": 399,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 6074
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "opus",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:34:27.237Z",
+    "eventId": "f2c7210c-77ea-41e8-9a2d-3ac3ad60decd",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2850,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3258
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:45.527Z",
+    "eventId": "3336fbf2-43b2-44ad-a92f-c8dcc4680c7a",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 652,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 672
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:45.837Z",
+    "eventId": "48db4e60-b90f-4a9b-8043-37cf2cad5b92",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4677,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5127
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.018Z",
+    "eventId": "a8d9948e-1c36-47ae-bc2c-81a13189553a",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4750,
+      "outputTokens": 441,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5191
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.145Z",
+    "eventId": "0eb5ce6d-f978-4d58-8f76-39435d3bc1c9",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4667,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5117
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.306Z",
+    "eventId": "cebf12e7-95dd-426a-819f-3bb210027ba8",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4827,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5280
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.437Z",
+    "eventId": "18e7b29d-a967-426e-9caa-4dc14b6ced75",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4787,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5240
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.576Z",
+    "eventId": "f5b31517-5702-401e-8f48-eb72c43e78cc",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4863,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5316
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.699Z",
+    "eventId": "d9a8813e-95f3-46a0-bda2-6356e0011790",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4872,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5325
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.818Z",
+    "eventId": "82650ff4-66cb-49b7-974a-173e1640e217",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3783,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4236
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:46.946Z",
+    "eventId": "e390def6-8e3c-46b9-9d8e-40f9bc3424e5",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 692,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 712
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.056Z",
+    "eventId": "6c5e1230-0614-49d7-92ec-a474813988e8",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4717,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5170
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.167Z",
+    "eventId": "27d4c0b0-1013-474e-8326-3966ba4733df",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4790,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5243
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.300Z",
+    "eventId": "4e64395e-9641-4952-ac57-15f89317c27d",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4707,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5160
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.437Z",
+    "eventId": "2cac49df-fe3e-4033-a0f2-5c44c563ec6e",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4867,
+      "outputTokens": 444,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5311
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.571Z",
+    "eventId": "aa775ead-83cc-458e-953a-d8a2bf7d2311",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4827,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5277
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.704Z",
+    "eventId": "83d239f0-4927-4c32-9417-61bb5b8d11ca",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4903,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5353
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.898Z",
+    "eventId": "34ab67e7-82af-4fe6-a6ea-4a5b87e43774",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4912,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5365
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:47.998Z",
+    "eventId": "090775cb-3920-4130-ab3b-a8f353ab490c",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3823,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4276
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.094Z",
+    "eventId": "a786b237-a8dc-4bc7-911d-bdbf0484c737",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 715,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 735
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.252Z",
+    "eventId": "f91f053d-c19c-40c1-b65a-f916837cdfc2",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4740,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5193
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.382Z",
+    "eventId": "3c662b6a-6473-4a18-b56f-91e8015d01eb",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4813,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5266
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.503Z",
+    "eventId": "58925f8e-edae-4385-b303-2a4c599fc101",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4730,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5183
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.611Z",
+    "eventId": "067847a1-339d-420c-b832-28e5948bef10",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4890,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5343
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.718Z",
+    "eventId": "bff51070-b443-431f-b919-03c3a26cfdce",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4850,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5303
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.844Z",
+    "eventId": "44a70303-f294-4460-8743-b9f8b79d10ec",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4926,
+      "outputTokens": 453,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5379
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:48.989Z",
+    "eventId": "1489fa88-4477-4719-88df-b18dd39ddfc9",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4935,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5385
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "prototype",
+    "t": "2026-10-07T05:23:49.097Z",
+    "eventId": "984c0059-7e77-4e9f-a614-beb991f36ce3",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3846,
+      "outputTokens": 450,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4296
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.924Z",
+    "eventId": "db32347e-f7e8-48ff-aef7-a8529fceacea",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8037,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8259
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.061Z",
+    "eventId": "ca6b64fe-caa6-4412-93aa-3cf060d4135f",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7605,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7808
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.254Z",
+    "eventId": "dfdff415-9391-40cd-90b9-ca19d65f2e7d",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7112,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7315
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.437Z",
+    "eventId": "642768e6-5929-46fa-978a-9588be6df47f",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7692,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7895
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.591Z",
+    "eventId": "845b4bf9-3279-4dc7-82c1-4b6c01e0caf0",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7827,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8030
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.744Z",
+    "eventId": "bfd13463-92e3-4831-833b-a0219d03b5ce",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7774,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7977
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.910Z",
+    "eventId": "ce592239-d661-4c15-869b-8c57bd176338",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8002,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8205
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.072Z",
+    "eventId": "b8f6689e-ba17-4029-a048-2482c269e0ba",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7906,
+      "outputTokens": 184,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8090
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:34.194Z",
+    "eventId": "6ab2477b-c22e-4742-a85b-191b4cc1ee5e",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4882,
+      "outputTokens": 148,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5030
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.049Z",
+    "eventId": "a6b477fa-2a1d-4844-88a8-c3a602729fdb",
+    "purpose": "distill",
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "tokens": {
+      "inputTokens": 19007,
+      "outputTokens": 936,
+      "cacheReadTokens": 12288,
+      "cacheWriteTokens": null,
+      "totalTokens": 19943
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.187Z",
+    "eventId": "dc6dfa95-4549-4fb2-9f18-07a50a31d8b4",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 497,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 517
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.332Z",
+    "eventId": "505e4b1a-26b7-41fd-8bb8-6e2926da7702",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4160,
+      "outputTokens": 270,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4430
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.444Z",
+    "eventId": "4994d9b4-2500-4155-ace0-a96234b673c5",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2021,
+      "outputTokens": 273,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2294
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.588Z",
+    "eventId": "8bed0255-9700-4909-bc87-b78768885972",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7537,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7778
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.716Z",
+    "eventId": "f629c0df-cfd3-415d-8d29-671ad963c0c7",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7262,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7465
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.852Z",
+    "eventId": "ceb6c6ce-d4f7-42a5-89e7-845e55c0e528",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7346,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7568
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:05.984Z",
+    "eventId": "4986dbbf-56e4-404b-8074-d19a3f7628e8",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7203,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7425
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:06.116Z",
+    "eventId": "26ca6ced-8a46-4b31-9387-8c70cae50017",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7909,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8131
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:06.298Z",
+    "eventId": "bcce933b-abf3-4468-be34-3c4a980d4024",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8345,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8567
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:06.418Z",
+    "eventId": "df4a8341-516d-4223-90ef-2836d4843a4d",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7066,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7307
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:06.564Z",
+    "eventId": "3ca3b133-1181-4c6e-932d-9305c496b9e1",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 6229,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 6432
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:30.818Z",
+    "eventId": "8ad05f41-3718-4cf0-bcfd-6e3b6d94fc7e",
+    "purpose": "distill",
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "tokens": {
+      "inputTokens": 19124,
+      "outputTokens": 820,
+      "cacheReadTokens": 14336,
+      "cacheWriteTokens": null,
+      "totalTokens": 19944
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:30.940Z",
+    "eventId": "f92d0a10-a187-45be-b7e9-54d00ba1ffc1",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 509,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 529
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.074Z",
+    "eventId": "a38eafa7-571e-46bc-ae3a-55f860d016cd",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4309,
+      "outputTokens": 273,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4582
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.209Z",
+    "eventId": "96f1d16f-0ec5-4b68-afe3-690c3d60071c",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2102,
+      "outputTokens": 273,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2375
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.364Z",
+    "eventId": "808181f6-c4b8-4423-bdf2-2a4b58e11c33",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8440,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8662
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.555Z",
+    "eventId": "6064bf1c-f710-404c-aef8-505b8ff48164",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8314,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8517
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.729Z",
+    "eventId": "aca982c2-bf02-4197-98f2-5b551e30be4c",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8096,
+      "outputTokens": 184,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8280
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.862Z",
+    "eventId": "16c6cab7-9ea4-4c63-be77-d966f0a7984a",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7917,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8120
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:31.974Z",
+    "eventId": "048e8d65-545d-49b0-9b74-45c01a89f067",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4111,
+      "outputTokens": 130,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4241
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "sol",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.367Z",
+    "eventId": "1cc40f57-c697-4d5e-9b23-ba8052d21e10",
+    "purpose": "distill",
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "tokens": {
+      "inputTokens": 19335,
+      "outputTokens": 464,
+      "cacheReadTokens": 12288,
+      "cacheWriteTokens": null,
+      "totalTokens": 19799
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:46.742Z",
+    "eventId": "4c23066e-d1eb-458d-b9bf-f6231581fda8",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 570,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 590
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:46.902Z",
+    "eventId": "f4f758fb-37dd-4420-a225-7e63c898973d",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4419,
+      "outputTokens": 405,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4824
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.068Z",
+    "eventId": "9bc54567-18c4-42f8-80a5-8a74372f3285",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4477,
+      "outputTokens": 390,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4867
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.195Z",
+    "eventId": "0456425c-188f-4cab-857e-870eb1e8a412",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4555,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4963
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.349Z",
+    "eventId": "f1194aaa-2ed7-43b4-9275-83bc9b872594",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4461,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4869
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.467Z",
+    "eventId": "f0bbb0fa-aab2-4caa-b7ec-672d154f30ca",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2870,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3278
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.564Z",
+    "eventId": "47afc909-77a9-4e12-bf5c-4592b6af2f6c",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 556,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 576
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.739Z",
+    "eventId": "1251f5f9-c983-4dc6-aca9-33d47bdba3ad",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4212,
+      "outputTokens": 363,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4575
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.849Z",
+    "eventId": "5b6eff2d-f72c-48ce-a026-5734bc545d98",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4270,
+      "outputTokens": 351,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4621
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:47.987Z",
+    "eventId": "1679ad5f-1af4-4343-9ed3-45cf2a6f694c",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4348,
+      "outputTokens": 354,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4702
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.089Z",
+    "eventId": "40f32754-270e-4331-89db-40712ae6726c",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4254,
+      "outputTokens": 363,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4617
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.201Z",
+    "eventId": "470641e7-e080-4299-8f8e-7c1e1469db87",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2663,
+      "outputTokens": 363,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3026
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.322Z",
+    "eventId": "447864dd-4d84-467d-a047-e8a8dbcb2e97",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 599,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 619
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.431Z",
+    "eventId": "466584df-8f1a-46a3-ab23-e910b5c30a1e",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4448,
+      "outputTokens": 405,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4853
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.559Z",
+    "eventId": "436da8e3-2914-43b5-b333-7ea67da7bdef",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4506,
+      "outputTokens": 405,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4911
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.704Z",
+    "eventId": "96f99349-7b28-48bc-a63a-b88a12fd0480",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4584,
+      "outputTokens": 405,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4989
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:48.907Z",
+    "eventId": "3958cdb2-0ce0-4d4d-943e-112a19709b13",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4490,
+      "outputTokens": 390,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4880
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "prototype",
+    "t": "2026-10-07T05:25:49.011Z",
+    "eventId": "9d45749f-16a5-4d7c-bc4a-cfbe94dc8658",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2899,
+      "outputTokens": 408,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3307
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:31.868Z",
+    "eventId": "4158cdef-7b2e-4706-854e-62921b5256ff",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9224,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9465
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.009Z",
+    "eventId": "33c25e37-3f1c-429e-8368-2f0441f69d35",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8998,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9220
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.145Z",
+    "eventId": "2484fd4c-ebff-46ed-b7e7-031e49fbab17",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8770,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8992
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.300Z",
+    "eventId": "8f5a520a-7a1f-46b0-b0f6-dd0ad5ba3efe",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8158,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8380
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.466Z",
+    "eventId": "ccb50f69-7031-48c7-9da0-9c2478e7e760",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8170,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8392
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.655Z",
+    "eventId": "467910f8-3d9f-4166-87cd-548c9abb4801",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8683,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8905
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:32.817Z",
+    "eventId": "f924488d-2b1f-413e-a479-d5f47ba5dd31",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8585,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8807
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:27:33.009Z",
+    "eventId": "1ebb68b2-a1a6-465c-8fe9-4f588847d5ac",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7171,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 7374
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:08.379Z",
+    "eventId": "b56ea930-a33f-48f5-8e8f-5b9694ba3791",
+    "purpose": "distill",
+    "provider": "gemini",
+    "model": "gemini-3.8-flash-high",
+    "tokens": {
+      "inputTokens": 18499,
+      "outputTokens": 13170,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 31669
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:08.568Z",
+    "eventId": "db67db72-77c1-4d61-85e7-dee5f3689056",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 508,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 528
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:08.699Z",
+    "eventId": "12e3acc0-f19a-44a5-a334-8f4f306cecbf",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4411,
+      "outputTokens": 228,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4639
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:08.812Z",
+    "eventId": "2d9849a7-53d1-4304-8953-6d4854069b00",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 1879,
+      "outputTokens": 228,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2107
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:08.905Z",
+    "eventId": "aeeb75fd-56b9-4ffc-8128-c033b0484c4d",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 502,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 522
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.019Z",
+    "eventId": "27b127ce-12e6-4149-a58f-bbac4fb1c4f8",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4407,
+      "outputTokens": 213,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 4620
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3364",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.110Z",
+    "eventId": "3c47b52f-e877-4dd1-8d63-1fe8b034e2a9",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 1875,
+      "outputTokens": 228,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2103
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.318Z",
+    "eventId": "253a5bda-d357-4606-a495-7e71d057f7d7",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8284,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8506
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.448Z",
+    "eventId": "09954ca3-dcac-47f6-ad83-0d485f7e21f6",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8834,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9056
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.568Z",
+    "eventId": "1ba18dbb-4b00-40e3-bea8-263a667263a0",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8518,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8759
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.713Z",
+    "eventId": "0662631e-e25e-497d-a781-56145d4bd95c",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 7998,
+      "outputTokens": 203,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8201
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:09.845Z",
+    "eventId": "5e6215dc-caf9-4730-bb4c-67b10346419f",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 3619,
+      "outputTokens": 112,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 3731
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:48.268Z",
+    "eventId": "4e90efe3-4a7b-40fd-a484-3929825b5947",
+    "purpose": "distill",
+    "provider": "gemini",
+    "model": "gemini-3.8-flash-high",
+    "tokens": {
+      "inputTokens": 18286,
+      "outputTokens": 14143,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 32429
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:48.449Z",
+    "eventId": "a1f7cb54-4008-47c3-8cba-2391eb2250b8",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 566,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 586
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:48.609Z",
+    "eventId": "b711081f-8a2c-4abe-b428-eb5a5634b8c1",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 4919,
+      "outputTokens": 318,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5237
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3391",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:48.733Z",
+    "eventId": "83f530c6-b429-4362-9af6-7247145731a7",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2071,
+      "outputTokens": 309,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2380
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:48.902Z",
+    "eventId": "e48bc124-d37c-4531-8731-d0b82d4eee72",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8765,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9006
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.030Z",
+    "eventId": "3fd67072-dfc5-411d-b9b7-1751e8443b3e",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9315,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9537
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.149Z",
+    "eventId": "daebc9a7-d24e-411f-83a4-e4bd94f2de10",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8737,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8959
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.273Z",
+    "eventId": "67e420ee-48ba-4ec9-a212-5d8f624e1255",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8606,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8828
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.404Z",
+    "eventId": "7ba68fc6-2612-4f98-b752-4d7908a17973",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9734,
+      "outputTokens": 222,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9956
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.542Z",
+    "eventId": "62dc8e7f-a4a9-4085-ba48-3fdc1a2c7c55",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 9063,
+      "outputTokens": 260,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 9323
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.703Z",
+    "eventId": "6091544b-731a-4a67-8ae0-487b0a2778f6",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 8752,
+      "outputTokens": 241,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 8993
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:28:49.809Z",
+    "eventId": "bfccda95-2776-444a-9f17-f79c2a9c23ce",
+    "purpose": "jev-evidence",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 5257,
+      "outputTokens": 148,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5405
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:29:13.944Z",
+    "eventId": "9f8703c7-3ad7-43b6-9ea8-a875f435547e",
+    "purpose": "distill",
+    "provider": "gemini",
+    "model": "gemini-3.8-flash-high",
+    "tokens": {
+      "inputTokens": 18581,
+      "outputTokens": 9468,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 28049
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:29:14.104Z",
+    "eventId": "6800d73d-d46b-47e8-8852-5167231f9b09",
+    "purpose": "jev-reconcile-search",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 668,
+      "outputTokens": 20,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 688
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:29:14.260Z",
+    "eventId": "11372e4a-c320-4efb-ae8a-e663dd049ae5",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 5375,
+      "outputTokens": 363,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 5738
+    },
+    "failed": false
+  },
+  {
+    "task": "click-3677",
+    "cohort": "gemini",
+    "stage": "session-pipeline",
+    "t": "2026-10-07T05:29:14.369Z",
+    "eventId": "ca1ea63f-7a18-414d-a5ec-cb49623ae467",
+    "purpose": "jev-grounding",
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "tokens": {
+      "inputTokens": 2524,
+      "outputTokens": 363,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "totalTokens": 2887
+    },
+    "failed": false
+  }
+]

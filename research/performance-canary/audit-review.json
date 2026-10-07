@@ -1,0 +1,10 @@
+{
+  "nativeInputReview": "Flagged requests were three authorized thinker_lookup calls and an existing upstream URL carried in an edit, not a network fetch.",
+  "limitations": [
+    "Gemini transcript truncates some fields.",
+    "Interrupted Opus stdout was buffered and unavailable after stop.",
+    "Recorded inputs are not proof of hermetic OS isolation."
+  ],
+  "interruptedProcessesStopped": true,
+  "efficiencyComparisonValid": false
+}
