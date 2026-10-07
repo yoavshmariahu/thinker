@@ -1,0 +1,78 @@
+{
+  "valid": true,
+  "elapsedMs": 229,
+  "requestHash": "b2b520376da74d2e5dd9e3f231a8521220267e82faed38283eef607f40c1a2a5",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "finding_1": {
+        "type": "choice",
+        "choice": "missing",
+        "confidence": 0.07,
+        "probabilities": {
+          "qualified": 0.12,
+          "contradicted": 0.28,
+          "grounded": 0.3,
+          "missing": 0.3
+        }
+      },
+      "claim_support": {
+        "type": "choice",
+        "choice": "overclaimed",
+        "confidence": 0.29,
+        "probabilities": {
+          "supported": 0.44,
+          "contradicted": 0.09,
+          "overclaimed": 0.47000000000000003,
+          "insufficient": 0
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.85,
+        "probabilities": {
+          "unknown": 0,
+          "gap": 0.1,
+          "accounted_for": 0.9
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "finalize",
+        "confidence": 0.59,
+        "probabilities": {
+          "investigate_remaining": 0.03,
+          "manual_review": 0,
+          "finalize": 0.67,
+          "verify_existing": 0.2,
+          "inspect_callers": 0.1
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.9,
+        "probabilities": {
+          "settled": 0.95,
+          "needs_human": 0.05
+        }
+      },
+      "finding_0": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.67,
+        "probabilities": {
+          "qualified": 0.07,
+          "contradicted": 0.14,
+          "grounded": 0.75,
+          "missing": 0.04
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 7277,
+      "output_tokens": 297
+    }
+  }
+}

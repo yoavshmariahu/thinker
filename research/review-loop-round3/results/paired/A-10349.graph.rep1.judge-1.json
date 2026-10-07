@@ -1,0 +1,78 @@
+{
+  "valid": true,
+  "elapsedMs": 216,
+  "requestHash": "99e50fa2c853871625773ef0ebf7bfe5dc60aee63aa29165d1db9cb16046e664",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "supported",
+        "confidence": 0.41,
+        "probabilities": {
+          "contradicted": 0.13,
+          "insufficient": 0,
+          "supported": 0.56,
+          "overclaimed": 0.31
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.52,
+        "probabilities": {
+          "gap": 0.32,
+          "accounted_for": 0.68,
+          "unknown": 0
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "finalize",
+        "confidence": 0.35,
+        "probabilities": {
+          "investigate_remaining": 0.07,
+          "verify_existing": 0.2,
+          "manual_review": 0,
+          "inspect_callers": 0.25,
+          "finalize": 0.48
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.98,
+        "probabilities": {
+          "needs_human": 0.01,
+          "settled": 0.99
+        }
+      },
+      "finding_0": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.23,
+        "probabilities": {
+          "qualified": 0.21,
+          "grounded": 0.42,
+          "missing": 0.08,
+          "contradicted": 0.29
+        }
+      },
+      "finding_1": {
+        "type": "choice",
+        "choice": "qualified",
+        "confidence": 0.47,
+        "probabilities": {
+          "qualified": 0.6,
+          "grounded": 0.04,
+          "missing": 0.22,
+          "contradicted": 0.14
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 8118,
+      "output_tokens": 294
+    }
+  }
+}

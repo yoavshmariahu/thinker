@@ -1,0 +1,111 @@
+{
+  "id": "cleanup-qualified",
+  "hashes": {
+    "run.mjs": "05ab6e7f033e66f78bbace04b0dc4224f6a1eb87fd46f80ae4c9ce8c3d2467fb",
+    "clients.mjs": "e98934f4787d9d50c17defdcad78cedf645e63ce45792170beba12b6e9ff7737",
+    "policy.mjs": "cb73eae8cd16374101f5358fece322ca1424d47112a640a974f0bfd50fcccb72",
+    "questions.mjs": "fd2bb290b72c20ba51795236069440a1bc987f17421cc202c195f67e7cd8da9c",
+    "protocol.json": "2f1e1af7d4b297c35a41c68f0e1dfef107bd9959b6157b799a9aa3415ebc6c9d",
+    "prepare.py": "5707f70686baeefd5dd07a809ea713c32d6ac7ef8e7475c7f792cb7e644380c3",
+    "../review-loop-round2/policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "../review-loop-round2/questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20"
+  },
+  "stateHash": "3de68eb8dca45008c3f9b1a96065ecdaea2a9c0ad6a2b9067bbea383e207aa71",
+  "valid": true,
+  "elapsedMs": 163,
+  "requestHash": "36c9af54df8308dafbf8c4d510cb26c64efbf45b5e49c3490143d9407c33a0ac",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "overclaimed",
+        "confidence": 0.33,
+        "probabilities": {
+          "insufficient": 0,
+          "contradicted": 0.01,
+          "overclaimed": 0.5,
+          "supported": 0.49
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.7,
+        "probabilities": {
+          "accounted_for": 0.8,
+          "gap": 0.2,
+          "unknown": 0
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "inspect_callers",
+        "confidence": 0.29,
+        "probabilities": {
+          "investigate_remaining": 0.08,
+          "manual_review": 0.01,
+          "inspect_callers": 0.43,
+          "verify_existing": 0.26,
+          "finalize": 0.22
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.94,
+        "probabilities": {
+          "settled": 0.97,
+          "needs_human": 0.03
+        }
+      },
+      "finding_0": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.23,
+        "probabilities": {
+          "contradicted": 0.03,
+          "grounded": 0.42,
+          "qualified": 0.18,
+          "missing": 0.37
+        }
+      },
+      "finding_1": {
+        "type": "choice",
+        "choice": "qualified",
+        "confidence": 0.75,
+        "probabilities": {
+          "contradicted": 0.02,
+          "grounded": 0.02,
+          "qualified": 0.81,
+          "missing": 0.15
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 8145,
+      "output_tokens": 297
+    }
+  },
+  "decision": {
+    "action": "inspect_callers",
+    "reason": "Resolve or qualify unsupported claims before finalizing.",
+    "unresolved": [
+      "Claim support: overclaimed"
+    ],
+    "evidence": [
+      {
+        "index": 0,
+        "key": "a901784d6fd5ade5d62016e18ea8c59d40bdc375b0302f724597b60ab64b410e",
+        "message": "Cleanup is recorded as completed before collection runs, even when listing or deletion fails. Subsequent runs skip retrying until the GC interval elapses. Preserve error propagation and update lastCheckpointGC only after successful collection.",
+        "status": "grounded"
+      },
+      {
+        "index": 1,
+        "key": "991d175d2d97a3681d5bc23e17a76dc69994ad8b0aae823332b5235700ccf0ca",
+        "message": "Writing and garbage collection share the writing deadline. If writing exhausts that deadline, cleanup receives an expired context. Restore independent timeout contexts. Whether deletion actually fails is not established because the concrete deletion client is absent.",
+        "status": "qualified"
+      }
+    ]
+  }
+}

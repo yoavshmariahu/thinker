@@ -1,0 +1,383 @@
+{
+  "method": "Manual complete finding/report and observable shell-command audit by implementing agent; unblinded. Exact-source probes support local mechanisms, not entire report truth. Scores use frozen protocol criteria. All initial reports also met these criteria; follow-up phrasing refinements are recorded without inventing a new scoring criterion. Scope adherence is observed, not proof of OS read isolation.",
+  "arms": [
+    {
+      "id": "A-10141",
+      "arm": "graph",
+      "rep": 0,
+      "artifactSha256": "7d68ee903fd15a018bd7968746d13af74171daa5c2761e1e5c3d533ed5dd4744",
+      "strictPass": true,
+      "canonicalMechanisms": 1,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Desired-versus-ready guard/count defect established. Full source supports local map omission and disruption-predicate arithmetic; actual eviction/recovery left unverified. Two findings are manifestations of the known replica-count mechanism, not additional discovery credit.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10141",
+      "arm": "graph",
+      "rep": 1,
+      "artifactSha256": "77ee08da9eb6b10826d32a8ef087e7c1912ceb00b92de97e9c127da690f27706",
+      "strictPass": true,
+      "canonicalMechanisms": 1,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Desired-versus-ready guard/count defect established. Full source supports local map omission and disruption-predicate arithmetic; actual eviction/recovery left unverified. Two findings are manifestations of the known replica-count mechanism, not additional discovery credit.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          },
+          {
+            "action": "verify_existing",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "Wording refinements, no frozen-criterion improvement: initial report already demonstrated both defects and bounded uninspected operational outcomes."
+    },
+    {
+      "id": "A-10141",
+      "arm": "self",
+      "rep": 0,
+      "artifactSha256": "ed7cb1e76fedeb51ee7a349789e300d07d8a44c20c6d6e897e9787f08f04e044",
+      "strictPass": true,
+      "canonicalMechanisms": 1,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Desired-versus-ready guard/count defect established. Full source supports local map omission and disruption-predicate arithmetic; actual eviction/recovery left unverified. Two findings are manifestations of the known replica-count mechanism, not additional discovery credit.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10141",
+      "arm": "self",
+      "rep": 1,
+      "artifactSha256": "273975e24302dc45872523fe856b11a14f033c17f2d6659f4e75d0aac090218e",
+      "strictPass": true,
+      "canonicalMechanisms": 1,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Desired-versus-ready guard/count defect established. Full source supports local map omission and disruption-predicate arithmetic; actual eviction/recovery left unverified. Two findings are manifestations of the known replica-count mechanism, not additional discovery credit.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10178",
+      "arm": "graph",
+      "rep": 0,
+      "artifactSha256": "81c498ba0180b9f7cbacd3efb7a2d9217b6add8cadca37a59d0426268f553adc",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Premature completion/error suppression and shared deadline both established. Actual deletion cancellation is not asserted as demonstrated. Writer/context control flow is in the staged source. Independent probe supports local mechanisms only.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          },
+          {
+            "action": "verify_existing",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "Wording refinements, no frozen-criterion improvement: initial report already demonstrated both defects and bounded uninspected operational outcomes."
+    },
+    {
+      "id": "A-10178",
+      "arm": "graph",
+      "rep": 1,
+      "artifactSha256": "353ca55fe83a0aa14b7127ae93d154563133f3146fa952cc7bf194e732793af9",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Premature completion/error suppression and shared deadline both established. Actual deletion cancellation is not asserted as demonstrated. Writer/context control flow is in the staged source. Independent probe supports local mechanisms only.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10178",
+      "arm": "self",
+      "rep": 0,
+      "artifactSha256": "28427005b1cd866a829888e662ec62546f15bde1c4631ea3b10b4afb28788454",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Premature completion/error suppression and shared deadline both established. Actual deletion cancellation is not asserted as demonstrated. Writer/context control flow is in the staged source. Independent probe supports local mechanisms only.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10178",
+      "arm": "self",
+      "rep": 1,
+      "artifactSha256": "ba50a2482d70b105bb32e21059cdcb54128cf0f65a00f4771e18bec63c797454",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Premature completion/error suppression and shared deadline both established. Actual deletion cancellation is not asserted as demonstrated. Writer/context control flow is in the staged source. Independent probe supports local mechanisms only.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10349",
+      "arm": "graph",
+      "rep": 0,
+      "artifactSha256": "7362526c6b09d29a40b8e320a853c6dc3ca942dee2ed0b271bb38d71d4b48e10",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Both malformed-prefix and slash-truncation mechanisms established with concrete source-derived examples. Manager/cache outcomes explicitly unverified. No unsupported test claim or unrelated finding.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10349",
+      "arm": "graph",
+      "rep": 1,
+      "artifactSha256": "1cbef82d8c83bb66218360dc03e7bdbc62c6fd10dfc4a0cb4a3c8c9a2c6b8293",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Both malformed-prefix and slash-truncation mechanisms established with concrete source-derived examples. Manager/cache outcomes explicitly unverified. No unsupported test claim or unrelated finding.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10349",
+      "arm": "self",
+      "rep": 0,
+      "artifactSha256": "2f7caf04fb6f5fd0b4ae9a8b32614611abc3c47bc18bcfdab4c0a9b8a80efa15",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Both malformed-prefix and slash-truncation mechanisms established with concrete source-derived examples. Manager/cache outcomes explicitly unverified. No unsupported test claim or unrelated finding.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "A-10349",
+      "arm": "self",
+      "rep": 1,
+      "artifactSha256": "9752c56c2f0d5df0ce112b91cb62f4d4ea7e0b2dd691eea5ffe40e26af024aed",
+      "strictPass": true,
+      "canonicalMechanisms": 2,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "Both malformed-prefix and slash-truncation mechanisms established with concrete source-derived examples. Manager/cache outcomes explicitly unverified. No unsupported test claim or unrelated finding.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "graph",
+      "rep": 0,
+      "artifactSha256": "a20ad4b3bb8798b4a286bb8a120bd14593f9c23fa95c0e46e67f7532d243cda6",
+      "strictPass": true,
+      "canonicalMechanisms": 0,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "No finding; local variable rename consistently preserves behavior. Explicit source scope and no-test limitation. Offline exact-file comparison establishes identifier-only change.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "graph",
+      "rep": 1,
+      "artifactSha256": "f0ec591821d72bfc7b1fe4be39c261e698bcff72f1884dfbd9b366d9344bbfb8",
+      "strictPass": true,
+      "canonicalMechanisms": 0,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "No finding; local variable rename consistently preserves behavior. Explicit source scope and no-test limitation. Offline exact-file comparison establishes identifier-only change.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "self",
+      "rep": 0,
+      "artifactSha256": "ffcab6839f4d7306d5d80b3e0772941bfee59a071e8341966e3407c6e204b99a",
+      "strictPass": true,
+      "canonicalMechanisms": 0,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "No finding; local variable rename consistently preserves behavior. Explicit source scope and no-test limitation. Offline exact-file comparison establishes identifier-only change.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "self",
+      "rep": 1,
+      "artifactSha256": "cb6e5d2f62f284ab2e29d119cb2ee7d59b4c6005ec733e850854d8052c2a8fcb",
+      "strictPass": true,
+      "canonicalMechanisms": 0,
+      "actionableFalsePositives": 0,
+      "unsupportedImpactAssertions": 0,
+      "rationale": "No finding; local variable rename consistently preserves behavior. Explicit source scope and no-test limitation. Offline exact-file comparison establishes identifier-only change.",
+      "adherence": {
+        "observedScopeViolation": false,
+        "falseTestClaim": false,
+        "steps": [
+          {
+            "action": "initial",
+            "followed": true,
+            "basis": "Read-only commands inspect relevant staged source; report addresses requested action and preserves supported findings. No observed network, writes, tests, or external path reads."
+          }
+        ]
+      },
+      "followupQualityChange": "No follow-up executed."
+    }
+  ]
+}
