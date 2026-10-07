@@ -208,6 +208,17 @@ RULES = ('Work only within this repository. Do not inspect parent or sibling dir
          'relevant tests, and leave the work uncommitted.')
 
 
+def coding_prompt(task):
+    """What the agent is sent, and therefore what the prompt hook retrieves against.
+
+    The request comes first: with the constraints in front, Jev scored this repository's notes
+    against boilerplate about not inspecting directories (jevTop 0.25/0.11/0.10 against a floor of
+    0.5). A probe must send this same text, or it measures coverage the run will not have -- one
+    task probed at 0.51 on its request alone and reached only 0.44 in the run.
+    """
+    return task['prompt'] + '\n\nCONSTRAINTS:\n' + RULES
+
+
 def gold(task):
     """The upstream fix: its source diff and its version of the test module."""
     out = OUT / 'raw' / f'{task["id"]}-gold'
@@ -266,6 +277,9 @@ def agent_argv(cohort, repo, arm, prompt):
         return (['claude', '-p', prompt, '--model', model, '--effort', 'high', '--output-format', 'stream-json',
                  '--verbose', '--no-session-persistence', '--setting-sources', '', '--disable-slash-commands',
                  '--permission-mode', 'bypassPermissions', '--max-turns', '80', *wiring], None)
+    # No --ignore-rules: it suppresses the checkout's `.codex/hooks.json`, so thinker's prompt hook
+    # never ran and every Sol arm was a baseline with a `served: 0` nobody checked. Measured: the
+    # same invocation without it logs `intro` and `orient` on the first prompt.
     return (['codex', 'exec', '--json', '--model', model, '--config', 'model_reasoning_effort="high"',
              '--config', 'web_search="disabled"', '--sandbox', 'workspace-write', '--cd', str(repo), '-'], prompt)
 
@@ -297,11 +311,7 @@ def measure(cohort, arm, task):
             raise SystemExit(f'{label}: wiring failed')
     if MODELS[cohort][0] == 'codex':
         env['CODEX_HOME'] = str(codex_home(cohort, label, arm == 'thinker'))
-    # The request comes first because the prompt hook retrieves against the whole prompt: with the
-    # constraints in front, Jev scored this repository's notes against boilerplate about not
-    # inspecting directories and served nothing (jevTop 0.25/0.11/0.10 against a floor of 0.5).
-    # Both arms get the same text either way; only retrieval is affected.
-    prompt = task['prompt'] + '\n\nCONSTRAINTS:\n' + RULES
+    prompt = coding_prompt(task)
     argv, stdin = agent_argv(cohort, repo, arm, prompt)
     print(f'{label}: {notes} notes, starting', flush=True)
     start = time.monotonic()
@@ -314,6 +324,9 @@ def measure(cohort, arm, task):
     git(['add', '-A'], repo)
     (OUT / 'raw' / f'{label}.patch').write_text(git(['diff', '--cached'], repo))
     row['served'] = servings(repo)
+    row['cacheReached'] = arm == 'thinker' and row['served'] > 0
+    if arm == 'thinker' and not row['served']:
+        print(f'  {label}: WARNING the cache served nothing; this arm is a baseline', flush=True)
     record.write_text(json.dumps(row, indent=2) + '\n')
     print(f'  {label}: {row["toolCalls"]} tool calls, {row["inputTokens"]} input tokens, '
           f'{row["wallSeconds"]}s, {row["served"]} servings', flush=True)
@@ -366,16 +379,24 @@ def probe(cohort):
     if not (repo / '.thinker').exists():
         raise SystemExit(f'build {cohort} first')
     rows = []
+    log = repo / '.thinker/log.jsonl'
     for task in TASKS:
-        log = repo / '.thinker/log.jsonl'
-        log.unlink(missing_ok=True)
+        # Read from where the log already ends rather than clearing it: this file is the build's
+        # own provenance -- which model wrote each note, what Jev was asked, what it cost -- and an
+        # earlier version of this probe deleted a build's record before anyone had read it.
+        offset = log.stat().st_size if log.exists() else 0
         # A fresh session every time: the hook serves a note once per session, so a reused id makes
         # the second probe of the same cache look like a cache that covers nothing.
         payload = json.dumps({'session_id': f'probe-{cohort}-{task["id"]}-{uuid.uuid4().hex[:8]}',
-                              'cwd': str(repo), 'prompt': task['prompt']})
+                              'cwd': str(repo), 'prompt': coding_prompt(task)})
         subprocess.run(['node', CLI, 'hook', 'prompt'], cwd=repo, input=payload,
                        env=env_for(cohort, learning=False, cache=True), capture_output=True, text=True)
-        records = [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.exists() else []
+        fresh = ''
+        if log.exists():
+            with log.open() as fh:
+                fh.seek(offset)
+                fresh = fh.read()
+        records = [json.loads(l) for l in fresh.splitlines() if l.strip()]
         served = next((r for r in records if r.get('op') == 'orient'), {})
         rows.append({'task': task['id'], 'cohort': cohort, 'served': served.get('served') or [],
                      'scores': served.get('jevTop'), 'ranker': 'jev' if 'jev' in served else 'local'})
@@ -410,6 +431,12 @@ def solve(cohort, covered_only=True):
             rows.append(measure(cohort, arm, task))
     if skipped:
         print(f'{cohort}: skipped {", ".join(skipped)} (cache serves nothing for them)', flush=True)
+    # One arm serving nothing is a ranking decision; none of them serving is a wiring failure, and
+    # it reads identically in the results: every Sol arm of the first run was a baseline because
+    # `--ignore-rules` suppressed the hook, and the only sign was `served: 0`.
+    wired = [r for r in rows if r['arm'] == 'thinker']
+    if wired and not any(r['cacheReached'] for r in wired):
+        raise SystemExit(f'{cohort}: no thinker arm was served anything; the wiring did not reach the agent')
     (OUT / f'solve-{cohort}.json').write_text(json.dumps(
         {'cohort': cohort, 'runs': rows, 'skippedForNoCoverage': skipped}, indent=2) + '\n')
 

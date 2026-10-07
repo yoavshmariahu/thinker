@@ -34,7 +34,9 @@ def run(t,m,arm):
    if not source.is_file():raise SystemExit('Set THINKER_CODEX_AUTH to the Codex auth.json to use for this run')
    auth.symlink_to(source)
   env['CODEX_HOME']=str(home)
-  cmd=['codex','exec','--json','--ephemeral','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
+  # no --ignore-rules: it suppresses the checkout's .codex/hooks.json, so the arm's prompt hook
+  # never runs and the cache never reaches the agent (measured 2026-10-07)
+  cmd=['codex','exec','--json','--ephemeral','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
  elif m=='opus':
   tools=','.join(wiring_mod.tools_for('claude',arm,['Bash','Read','Write','Edit','Glob','Grep']))
   mcp=wiring_mod.agent_argv('claude',cwd,receipt) if receipt else ['--strict-mcp-config','--mcp-config','{"mcpServers":{}}']
