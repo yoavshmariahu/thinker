@@ -88,24 +88,14 @@ test('an uncertain pairing counts as unrelated and the remaining candidates are 
   assert.equal(laterConflict.deferred[0].status, 'contradiction');
 });
 
-// `extends` leading the distribution at 0.6 or above but under 0.85 is a hint. With a repair round
-// behind the caller it goes to the writer once, with the target; the writer's answer settles it.
-// Without one, deferring would lose the note, so the hint is unrelated.
-test('a likely extension goes to the writer with its target when a repair round follows, else writes', async () => {
+// `extends` leading the distribution but under 0.85 does not act: the note is written as its own.
+// There is no repair round to put the hint to the writer (removed 2026-10-07: 92 revised notes, 10
+// saved), and deferring it would lose the note.
+test('a likely but unconfirmed extension is written as a new note', async () => {
   const old = note();
   const hint = pairwise({ lease: { choice: 'extends', p: .7 } });
-  const noRepair = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint });
-  assert.equal(noRepair.notes.length, 1); assert.equal(noRepair.notes[0].extends, '');
-  const toWriter = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint, repair: true });
-  assert.equal(toWriter.notes.length, 0);
-  assert.equal(toWriter.deferred[0].status, 'uncertain');
-  assert.match(toWriter.deferred[0].reason, /likely extends lease/);
-  assert.equal(toWriter.deferred[0].diagnostics.extensionTarget.id, old.id);
-  assert.equal(toWriter.deferred[0].diagnostics.hint, true);
-  const settled = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint, repair: true, repaired: true });
-  assert.equal(settled.notes.length, 1);
-  const behavior = await prepareNotes(store([note('lease', { kind: 'behavior' })]), [note('new')], { evidence, judge: hint, repair: true });
-  assert.equal(behavior.notes.length, 1, 'a human behavior is never offered as a merge target');
+  const r = await prepareNotes(store([old]), [note('new')], { evidence, judge: hint });
+  assert.equal(r.notes.length, 1); assert.equal(r.notes[0].extends, ''); assert.equal(r.deferred.length, 0);
 });
 
 test('the catalog scan is selective by default: floor 0.6, four candidates', async () => {
@@ -138,7 +128,7 @@ test('extension preserves full old text and refuses lossy merging or human behav
   assert.equal(seen.find(r => r.purpose === 'jev-reconcile').state.existing_note.body, old.body);
   const lossy = await prepareNotes(store([old]), [{ ...next, body: 'The release token must match the commit token.' }], { evidence, judge: judge({ relation: 'extends', preserve: .5 }) });
   assert.equal(lossy.notes.length, 0); assert.match(lossy.deferred[0].reason, /complete merged body/);
-  assert.equal(lossy.deferred[0].diagnostics.extensionTarget.id, old.id, 'the target travels with the deferral so the repair round can ask for the merged body');
+  assert.equal(lossy.deferred[0].diagnostics.extensionTarget.id, old.id, 'the pending record names the note this one would have extended');
   const behavior = await prepareNotes(store([note('lease', { kind: 'behavior' })]), [next], { evidence, judge: judge({ relation: 'extends' }) });
   assert.equal(behavior.notes.length, 0); assert.match(behavior.deferred[0].reason, /human behavior/);
 });

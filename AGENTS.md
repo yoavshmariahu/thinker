@@ -1365,24 +1365,23 @@ set so that uncertainty does not discard: discarding is the invisible outcome.
    discarded the note with no retry: on five deferred notes against this cache, 24
    of 60 pairings fell under 0.85, eleven of them unrelated at 0.57-0.84, and all
    five were lost; 694 relation judgments in one mining run reached ten grounding
-   calls. `extends` leading at 0.6 or above but under 0.85 is a hint: with a repair
-   round behind the caller (`repair`, the pull request path) the note goes back to
-   the writer once with the target, to merge or keep separate, and the writer's
-   answer settles it (`repaired`); without one the hint is unrelated.
+   calls. `extends` leading the distribution but under 0.85 does not act either:
+   the note is written as its own, since deferring it would lose it.
 3. Grounding (`jev-grounding`): each body line is a claim, judged against the
    source evidence for support (`SUPPORT`, 0.7; was 0.9) and, independently, for
    conflict (`CONFLICT`, 0.2, unchanged: a claim the source contradicts is the one
    thing worth stopping for, and missing evidence is not a conflict). A line that
-   fails defers the note with the unsupported lines in its diagnostics, which the
-   repair round puts to the writer.
+   fails defers the note with the unsupported lines in its diagnostics.
 4. Metadata (`jev-grounding-metadata`): the title must not misrepresent the
    grounded body and `applies` must not exceed it, each under 0.2.
-The repair round (`commands/learn.js`, `prs.js:distillPr` with `repair`) is one
-writer call per pull request over every deferral that carries diagnostics, with
-the same evidence and model; its notes are checked again. Session distillation has
-no repair round. The pending queue has no consumer: a deferral is a record for a
-person to inspect, and a pull request whose proposals were all deferred is still
-recorded as mined.
+There is no repair round. Until 2026-10-07 pull request mining made one more
+writer call per pull request over the deferrals that carried diagnostics, with the
+same evidence, and checked the revised notes again; measured on this repository
+that day it ran 39 times, proposed 92 revised notes and saved 10, for about a third
+of the mining tokens, and the user had it removed. A deferral is a record in
+`.thinker/state/learning-pending/` for a person to inspect (the extension target
+travels with it), the queue has no consumer, and a pull request whose proposals
+were all deferred is still recorded as mined.
 
 A note's search description is checked against the note before it is kept
 (`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
