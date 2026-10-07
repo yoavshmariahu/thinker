@@ -1,0 +1,232 @@
+{
+  "complete": true,
+  "limits": "Development cases, invocation-only executor identity, manual unblinded quality audit; no general benefit claim.",
+  "totals": {
+    "self": {
+      "arms": 8,
+      "executorCalls": 8,
+      "jevCalls": 0,
+      "toolStarts": 36,
+      "elapsedMs": 277839,
+      "executorUsage": {
+        "input_tokens": 603538,
+        "cached_input_tokens": 456064,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 7370,
+        "reasoning_output_tokens": 1833
+      },
+      "jevUsage": {},
+      "outcomes": {
+        "finalize": 8
+      },
+      "strictPass": 8
+    },
+    "graph": {
+      "arms": 8,
+      "executorCalls": 10,
+      "jevCalls": 10,
+      "toolStarts": 54,
+      "elapsedMs": 337331,
+      "executorUsage": {
+        "input_tokens": 810258,
+        "cached_input_tokens": 613248,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 9279,
+        "reasoning_output_tokens": 1887
+      },
+      "jevUsage": {
+        "input_tokens": 134386,
+        "output_tokens": 2749
+      },
+      "outcomes": {
+        "finalize": 8
+      },
+      "strictPass": 8
+    }
+  },
+  "openLoop": {
+    "calls": 2,
+    "usage": {
+      "input_tokens": 16301,
+      "output_tokens": 591
+    }
+  },
+  "rows": [
+    {
+      "id": "A-10349",
+      "arm": "self",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 5,
+      "elapsedMs": 38967,
+      "strictPass": true
+    },
+    {
+      "id": "A-10349",
+      "arm": "graph",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 6,
+      "elapsedMs": 36750,
+      "strictPass": true
+    },
+    {
+      "id": "A-10349",
+      "arm": "self",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 5,
+      "elapsedMs": 36630,
+      "strictPass": true
+    },
+    {
+      "id": "A-10349",
+      "arm": "graph",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 4,
+      "elapsedMs": 35089,
+      "strictPass": true
+    },
+    {
+      "id": "A-10141",
+      "arm": "self",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 4,
+      "elapsedMs": 40137,
+      "strictPass": true
+    },
+    {
+      "id": "A-10141",
+      "arm": "graph",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 5,
+      "elapsedMs": 36788,
+      "strictPass": true
+    },
+    {
+      "id": "A-10141",
+      "arm": "self",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 3,
+      "elapsedMs": 37297,
+      "strictPass": true
+    },
+    {
+      "id": "A-10141",
+      "arm": "graph",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 2,
+      "jevCalls": 2,
+      "toolStarts": 8,
+      "elapsedMs": 66254,
+      "strictPass": true
+    },
+    {
+      "id": "A-10178",
+      "arm": "self",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 6,
+      "elapsedMs": 42482,
+      "strictPass": true
+    },
+    {
+      "id": "A-10178",
+      "arm": "graph",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 2,
+      "jevCalls": 2,
+      "toolStarts": 17,
+      "elapsedMs": 80146,
+      "strictPass": true
+    },
+    {
+      "id": "A-10178",
+      "arm": "self",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 6,
+      "elapsedMs": 47535,
+      "strictPass": true
+    },
+    {
+      "id": "A-10178",
+      "arm": "graph",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 6,
+      "elapsedMs": 44768,
+      "strictPass": true
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "self",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 4,
+      "elapsedMs": 18234,
+      "strictPass": true
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "graph",
+      "rep": 0,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 3,
+      "elapsedMs": 17524,
+      "strictPass": true
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "self",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 0,
+      "toolStarts": 3,
+      "elapsedMs": 16557,
+      "strictPass": true
+    },
+    {
+      "id": "C-aws-rename",
+      "arm": "graph",
+      "rep": 1,
+      "outcome": "finalize",
+      "executorCalls": 1,
+      "jevCalls": 1,
+      "toolStarts": 5,
+      "elapsedMs": 20012,
+      "strictPass": true
+    }
+  ]
+}

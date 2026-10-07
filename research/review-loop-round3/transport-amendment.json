@@ -1,0 +1,19 @@
+{
+  "reason": "Existing cache helper rejects payloads over 30000 bytes locally. Full-source cleanup state is larger. Research transport raises byte ceiling to 150000, preserves exact request state/questions/model and response validation, requires personal key, and disables enrollment. No semantic changes or model retries.",
+  "providerDocumentation": "https://docs.typesafe.ai/models",
+  "documentedContext": "64k tokens per request; 32k state plus longest question",
+  "acceptedPriorHashes": [
+    {
+      "run.mjs": "05ab6e7f033e66f78bbace04b0dc4224f6a1eb87fd46f80ae4c9ce8c3d2467fb",
+      "clients.mjs": "ac1006757cf42fb4a29f3bc6cd87a56b17d64d1f774c700b19136222eb78aa22",
+      "policy.mjs": "cb73eae8cd16374101f5358fece322ca1424d47112a640a974f0bfd50fcccb72",
+      "questions.mjs": "fd2bb290b72c20ba51795236069440a1bc987f17421cc202c195f67e7cd8da9c",
+      "protocol.json": "2f1e1af7d4b297c35a41c68f0e1dfef107bd9959b6157b799a9aa3415ebc6c9d",
+      "prepare.py": "5707f70686baeefd5dd07a809ea713c32d6ac7ef8e7475c7f792cb7e644380c3",
+      "../review-loop-round2/policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+      "../review-loop-round2/questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20"
+    }
+  ],
+  "pendingExecution": "A-10178.graph.rep0 initial review reused; original local rejection made no HTTP request.",
+  "accounting": "Keep prior execution latency/tokens; add continuation latency. Exclude human/harness-repair pause. Both reported explicitly."
+}

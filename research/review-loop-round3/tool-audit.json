@@ -1,0 +1,902 @@
+[
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g TASK.json -g CHANGE.diff -g '*.go' -g AGENTS.md\"",
+    "exitCode": 0,
+    "outputHash": "2ea003b74eedc8ce08798cd921c89f180f84b4e32e37886dd781ceee8431897d"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "1f32f165b333e5c6a52ab16c9f5d6ceb29a80bac10e15e14b4b932dd654f76c0"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg -n 'AwsRefFromProviderId|ProviderID|placeholderInstanceNamePrefix|\\\\.Name|validAwsRefIdRegex' cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\"",
+    "exitCode": 0,
+    "outputHash": "51ae5f750cc1696de121a4fb226b9f66bcfd73b03df0387bca6ccde850dfa17d"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '1,330p'\"",
+    "exitCode": 0,
+    "outputHash": "91baed55a24675f227c21d249d360660f152db96e82bec266d4c3605decbee3b"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '330,510p'\"",
+    "exitCode": 0,
+    "outputHash": "0d3aa10cc9fdabdf094be61c5b0cac6ceac73fb4e560d0289691cc44927d7ade"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "618c6da090e4aa3b542f847af91dcdb817f080b381b10daac6b9e860f6865464"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "e8ae2d93ec04b4b4c1d993beb31805ceacb69bda6826d066bc0d02024783e858"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "d1bb77bc041f47c3940c86e261d27b9aac697333c2b68ee6d7d79a0ab291268f"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '1,320p'\"",
+    "exitCode": 0,
+    "outputHash": "e64619b27cabf50b7008153bf2b677da38393de2fccd16cdfc4c50adccb5a00a"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg -n 'AwsRefFromProviderId|\\\\.Name|placeholderInstanceNamePrefix|ProviderID|validAwsRefIdRegex' cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\"",
+    "exitCode": 0,
+    "outputHash": "51ae5f750cc1696de121a4fb226b9f66bcfd73b03df0387bca6ccde850dfa17d"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '320,520p'\"",
+    "exitCode": 0,
+    "outputHash": "f9ef2981e1b838e25ca8dd02ecbeade74190f45a84d57667ee8e3d4a5d7a1cff"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "9f7d890501e555992a91702041b627dc84b3aa8b6a5d10812c4230bea7310e8a"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "1f32f165b333e5c6a52ab16c9f5d6ceb29a80bac10e15e14b4b932dd654f76c0"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg -n 'AwsRefFromProviderId|placeholderInstanceNamePrefix|ProviderID|\\\\.Name' cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\"",
+    "exitCode": 0,
+    "outputHash": "b775292a58d3f0a91bc307dbf5944f789f7470a75a1651d5204de56389081cab"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '1,320p'\"",
+    "exitCode": 0,
+    "outputHash": "e64619b27cabf50b7008153bf2b677da38393de2fccd16cdfc4c50adccb5a00a"
+  },
+  {
+    "id": "A-10349",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '318,510p'\"",
+    "exitCode": 0,
+    "outputHash": "06a154a4e8af74ea674aecc837529e8aa63bc1b78b8247a1d47c958380659799"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "c56d77e31ee4064deb9aa83da7af80344a65a9fd2fb53925d76168f2ed7ca6a3"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "e8ae2d93ec04b4b4c1d993beb31805ceacb69bda6826d066bc0d02024783e858"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "d1bb77bc041f47c3940c86e261d27b9aac697333c2b68ee6d7d79a0ab291268f"
+  },
+  {
+    "id": "A-10349",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go'",
+    "exitCode": 0,
+    "outputHash": "cb1e042a6c0b926ce3cc4e4d06d00a461eb3842b7c7dfef8318ffc8201ae18be"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "2bc93a3a2894c2180ffecfdb51ff964f5a25d5282be04b1dc1f72dd36887d75a"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "28d7a8e8f27126f3c46acb93f4ec348a609920db92fb1725d5f25664cb151dc5"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go'",
+    "exitCode": 0,
+    "outputHash": "1d412c17fb196714d310d8b3285c86d5458795016154723ebc6ee97174e8336c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f98bb0ee80e324184c1133418ecb37fee29b9ff70a620625d623e9509945171c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc pwd",
+    "exitCode": 0,
+    "outputHash": "3f35f918f598d1a340c6225f234e8bbe4988738e14c2a9e64b9f2226822c939f"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "6ffbc6136cf0833fa404f6b6d4f39b6c4c0592b7ccaa6106c84d896541d1648b"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "28d7a8e8f27126f3c46acb93f4ec348a609920db92fb1725d5f25664cb151dc5"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f98bb0ee80e324184c1133418ecb37fee29b9ff70a620625d623e9509945171c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go'",
+    "exitCode": 0,
+    "outputHash": "1d412c17fb196714d310d8b3285c86d5458795016154723ebc6ee97174e8336c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "723282b33c981e4df1b7724a15225b9762f4bf52399a45192794e8e2d7ed29a1"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "4c08bcaf6d1b645fbe35c62bd80d588670cf6fbe993c6a9e3302a4bfff7d7085"
+  },
+  {
+    "id": "A-10141",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go'",
+    "exitCode": 0,
+    "outputHash": "1d412c17fb196714d310d8b3285c86d5458795016154723ebc6ee97174e8336c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "7413f80583082752eaa73e0976211bb8df362c89f2fc25b3425536903bb032c7"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "28d7a8e8f27126f3c46acb93f4ec348a609920db92fb1725d5f25664cb151dc5"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go'",
+    "exitCode": 0,
+    "outputHash": "1d412c17fb196714d310d8b3285c86d5458795016154723ebc6ee97174e8336c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f98bb0ee80e324184c1133418ecb37fee29b9ff70a620625d623e9509945171c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "7413f80583082752eaa73e0976211bb8df362c89f2fc25b3425536903bb032c7"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "28d7a8e8f27126f3c46acb93f4ec348a609920db92fb1725d5f25664cb151dc5"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f98bb0ee80e324184c1133418ecb37fee29b9ff70a620625d623e9509945171c"
+  },
+  {
+    "id": "A-10141",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go'",
+    "exitCode": 0,
+    "outputHash": "1d412c17fb196714d310d8b3285c86d5458795016154723ebc6ee97174e8336c"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'AGENTS.md' -g 'TASK.json' -g 'CHANGE.diff' -g '*.go'\"",
+    "exitCode": 0,
+    "outputHash": "cdf0e126b16965634e1e1c15a833e239305741d8d6b639e6f191648c9435502b"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f42109d80e01abef0a7d704eba15e8bffec2cb8d6fdca6c0743684add902b768"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go'",
+    "exitCode": 0,
+    "outputHash": "d32dd447ee5c91302d2807ab70f52b03a5cd4126910b73e9796a466147a6172d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go; nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go; nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go'",
+    "exitCode": 0,
+    "outputHash": "00a30477260d3b348294c54d8448224e08baa31eaffdea7aba93ce1da0079293"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go | sed -n '145,245p'; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go\"",
+    "exitCode": 0,
+    "outputHash": "9773f606b636a936ebbb0fd466732cb548fac9350be13b541a90535872448c49"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go | sed -n '230,355p'; nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go | sed -n '65,195p'; rg -n 'MaintainCheckpoints|GarbageCollectCheckpoints|CheckpointsGC|CheckpointsWriteTimeout|WithDeadline|WithTimeout|StoreCheckpoints' vertical-pod-autoscaler\"",
+    "exitCode": 0,
+    "outputHash": "9bc804875dae243ee18a7577a0e302e06bc10807463e6feaf52822982196a9e7"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc pwd",
+    "exitCode": 0,
+    "outputHash": "eb7acb78e5da3ff950bd724ebf55890a181f242ac20571a9baa0f8f72eb4523d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+    "exitCode": 0,
+    "outputHash": "adc68bee45da823fc3398803f9311b39fef11729274d8acdbb837eb94b064846"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go'",
+    "exitCode": 0,
+    "outputHash": "16ff7fc99981d8ccaf3bf44d22b0723d7733fb80a71b39fac5a62b78b525d09d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "dcef16097021ffdcd59fd2779032b3dab674763674f7628144bef1907a94f79d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go'",
+    "exitCode": 0,
+    "outputHash": "9f2b4346704e29328cbc33650b4ba233c921172469eff5b63efe49baae3e71c9"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "598cbf60250fc55e1d282eb284a0299c693ef16962a5a7784f92edc429f2b58b"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go'",
+    "exitCode": 0,
+    "outputHash": "de901435b9fbd46cc7c88cfd413724df3266b229c23795b0c2bdf306fe49bd8a"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go'",
+    "exitCode": 0,
+    "outputHash": "bd67f21b5f1885f583fa270181615de489f273fb9927601ec2e0e07314a60792"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go'",
+    "exitCode": 0,
+    "outputHash": "d277f332a209bbe3fac063924deeb89e92c0b017490863b2f03228a9aa2abf05"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg -n 'MaintainCheckpoints|GarbageCollectCheckpoints|CheckpointsGCTimeout|checkpoints-gc-timeout|lastCheckpointGC|StoreCheckpoints|checkpointsWriteTimeout' .\"",
+    "exitCode": 0,
+    "outputHash": "7cc4e35e996bf751550771f04370c23cc47eb0307ea717c7d2b352895fa03652"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go | sed -n '388,520p'\"",
+    "exitCode": 0,
+    "outputHash": "758f384e94e55a5dcd015664577dfc9d871aa67c82e84be7e88c0a43c8257509"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go | sed -n '30,55p;100,130p;175,205p;255,287p'\"",
+    "exitCode": 0,
+    "outputHash": "e221a3bad4d01c7fe258ba07724a5c757f5d06ec211929f610f8840628dd5ef6"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "f304fd4eac6f3d1a2c4c5a249742808039647b0b0fd563b211054d34f59a5752"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go'",
+    "exitCode": 0,
+    "outputHash": "d32dd447ee5c91302d2807ab70f52b03a5cd4126910b73e9796a466147a6172d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f42109d80e01abef0a7d704eba15e8bffec2cb8d6fdca6c0743684add902b768"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go | sed -n '65,85p;285,355p'; nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go | sed -n '105,125p;175,200p;245,285p'; nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go | sed -n '130,225p'\"",
+    "exitCode": 0,
+    "outputHash": "cbab53ca5c43514253b4e815004d488b9772401aedb3b896561526a0ba6bfeb7"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 1,
+    "action": "verify_existing",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go | sed -n '150,245p'; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go | sed -n '65,140p'; rg -n 'MaintainCheckpoints|GarbageCollectCheckpoints|CheckpointsWriteTimeout|CheckpointsGCInterval|lastCheckpointGC' vertical-pod-autoscaler\"",
+    "exitCode": 0,
+    "outputHash": "21486f39a909b9fd799a1799235a35f16d534ade68001b669f018e0d8ac934c0"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "17fd768ae24e130b4611997527c4c0e421127397cb2b8761cd44a08c4521c340"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f42109d80e01abef0a7d704eba15e8bffec2cb8d6fdca6c0743684add902b768"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go'",
+    "exitCode": 0,
+    "outputHash": "d32dd447ee5c91302d2807ab70f52b03a5cd4126910b73e9796a466147a6172d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go; nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go; nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go'",
+    "exitCode": 0,
+    "outputHash": "872324ea33316de452cb9b9d0365aca48c1950e5f2f462cc011af5dacca655fa"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go | sed -n '140,250p'; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go\"",
+    "exitCode": 0,
+    "outputHash": "cdc8333776beb549ffa3cfdce9cd5bd2aa817e819af133185cd55fc00273bcea"
+  },
+  {
+    "id": "A-10178",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go | sed -n '270,355p'; rg -n 'MaintainCheckpoints|GarbageCollectCheckpoints|Checkpoints.*Timeout|checkpoints-.*timeout|lastCheckpointGC|context.With' vertical-pod-autoscaler\"",
+    "exitCode": 0,
+    "outputHash": "ed3d8af69a36b07f40437f6ab2bdceabbb4fe6f145480224924379548400f7f7"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "449464a9230471db50fcdd66b9ba5f2bc6f8d269ecbb4374dd2010cae833283e"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f42109d80e01abef0a7d704eba15e8bffec2cb8d6fdca6c0743684add902b768"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go'",
+    "exitCode": 0,
+    "outputHash": "d32dd447ee5c91302d2807ab70f52b03a5cd4126910b73e9796a466147a6172d"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go; nl -ba vertical-pod-autoscaler/pkg/recommender/config/config.go; nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender_controller.go'",
+    "exitCode": 0,
+    "outputHash": "872324ea33316de452cb9b9d0365aca48c1950e5f2f462cc011af5dacca655fa"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/routines/recommender.go | sed -n '145,245p'; nl -ba vertical-pod-autoscaler/pkg/recommender/checkpoint/checkpoint_writer.go\"",
+    "exitCode": 0,
+    "outputHash": "9773f606b636a936ebbb0fd466732cb548fac9350be13b541a90535872448c49"
+  },
+  {
+    "id": "A-10178",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go | sed -n '280,350p'; rg -n 'Checkpoint|checkpoints-|MaintainCheckpoints|RunOnce|WithTimeout|WithDeadline|context.Background' vertical-pod-autoscaler/pkg/recommender\"",
+    "exitCode": 0,
+    "outputHash": "fae9fced02b1d14421859efee4cf74867d9d9adec7740bfe0540c84b901a44d7"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+    "exitCode": 0,
+    "outputHash": "0fb04c56068e69ea5dc0f2de7ca26dd5fd0996f8e8a97b781d6eeaadbfca36ba"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "6e9ac8f3ac94787f08673ac8c3927af195b9047a4ee503e81e5dbdc06239fdef"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "e8ae2d93ec04b4b4c1d993beb31805ceacb69bda6826d066bc0d02024783e858"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go'",
+    "exitCode": 0,
+    "outputHash": "76c2e4ca9fd7ccd1f653a2b79020e7110b3ed41562be61dbf937e299625661b5"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+    "exitCode": 0,
+    "outputHash": "2c81469db7dde5f913cb94a027175218a5dd2bd2b798f9baf6bcfbe568dc8289"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json; cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f1e25ede5a18be804d98084ab32c373a5bc03385c38f36419e09bc74bf32cc3e"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 0,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go'",
+    "exitCode": 0,
+    "outputHash": "76c2e4ca9fd7ccd1f653a2b79020e7110b3ed41562be61dbf937e299625661b5"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g '*.go' -g 'AGENTS.md'\"",
+    "exitCode": 0,
+    "outputHash": "e5650a84b9b9831d5e9a67de4ab1d89bb1b1be994529a5e9f10822fd6989ae46"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "f1e25ede5a18be804d98084ab32c373a5bc03385c38f36419e09bc74bf32cc3e"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "self",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go'",
+    "exitCode": 0,
+    "outputHash": "76c2e4ca9fd7ccd1f653a2b79020e7110b3ed41562be61dbf937e299625661b5"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"pwd; rg --files -g 'TASK.json' -g 'CHANGE.diff' -g 'AGENTS.md' -g '*.go'\"",
+    "exitCode": 0,
+    "outputHash": "231e1ff6e2b63dc7eb4e9fcac7a7a2bdc1deb7cc1d6b4e9c1f9bbbc7414bfcab"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat CHANGE.diff'",
+    "exitCode": 0,
+    "outputHash": "6e9ac8f3ac94787f08673ac8c3927af195b9047a4ee503e81e5dbdc06239fdef"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"nl -ba cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go | sed -n '1,310p'\"",
+    "exitCode": 0,
+    "outputHash": "b606933644f16ab6385b519d2fb2763a966ff01209f437f9b4eb6d623aabc46f"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc 'cat TASK.json'",
+    "exitCode": 0,
+    "outputHash": "e8ae2d93ec04b4b4c1d993beb31805ceacb69bda6826d066bc0d02024783e858"
+  },
+  {
+    "id": "C-aws-rename",
+    "arm": "graph",
+    "rep": 1,
+    "execution": 0,
+    "action": "initial",
+    "command": "/bin/zsh -lc \"rg -n -C 5 'AwsRefFromProviderId|placeholderInstanceNamePrefix|parsedName|validAwsRefIdRegex' cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go\"",
+    "exitCode": 0,
+    "outputHash": "0896245bde93f9c0801fb9ecaa75108ca877ae61842efa3de8f93790df9a96c8"
+  }
+]

@@ -1,8 +1,7 @@
 import fs from 'node:fs';import path from 'node:path';
 import {spawn,execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {jevKey,JEV_ENDPOINT} from '../../src/jev.js';
-import {jevEvaluate} from './transport.mjs';
+import {jevEvaluate,jevKey,JEV_ENDPOINT} from '../../src/jev.js';
 import {questionsFor} from './questions.mjs';import {ACTIONS} from './policy.mjs';
 export const hash=v=>createHash('sha256').update(Buffer.isBuffer(v)?v:JSON.stringify(v)).digest('hex');
 export const save=(p,x)=>fs.writeFileSync(p,JSON.stringify(x,null,2)+'\n');
@@ -55,7 +54,7 @@ export async function execute(action,state,cwd,prefix,protocol,timeoutMs,toolRem
   if(events.some(e=>(e.model||e.item?.model)&&((e.model||e.item.model)!==protocol.models.executor)))throw Error('Executor model mismatch');
   const message=completed.filter(e=>e.item?.type==='agent_message').at(-1)?.item.text;
   const result=JSON.parse((message||'').replace(/^```json\s*/,'').replace(/\s*```$/,''));
-  if(!Array.isArray(result.findings)||!result.findings.every(f=>typeof f.file==='string'&&Number.isInteger(f.line)&&typeof f.severity==='string'&&f.severity.length>0&&typeof f.message==='string'&&typeof f.evidence==='string')||typeof result.coverage!=='string'||!Array.isArray(result.limitations)||!result.limitations.every(x=>typeof x==='string')||typeof result.contribution!=='string'||!ACTIONS.includes(result.next_action))throw Error('Malformed report');
+  if(!Array.isArray(result.findings)||!result.findings.every(f=>typeof f.file==='string'&&Number.isInteger(f.line)&&['error','warning','info'].includes(f.severity)&&typeof f.message==='string'&&typeof f.evidence==='string')||typeof result.coverage!=='string'||!Array.isArray(result.limitations)||!result.limitations.every(x=>typeof x==='string')||typeof result.contribution!=='string'||!ACTIONS.includes(result.next_action))throw Error('Malformed report');
   const r={...common,valid:true,result};save(prefix+'.json',r);return r;
  }catch(e){save(prefix+'.json',{...common,valid:false,error:String(e.message)});throw e;}
 }
