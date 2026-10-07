@@ -1,7 +1,9 @@
-import io,json,os,subprocess,tarfile
+import io,json,os,subprocess,tarfile,shlex
 from pathlib import Path
+from guardrails import run_dir, checked_execution
 assert os.environ.get('THINKER_TEST')=='1'
-ROOT=Path(__file__).resolve().parents[2]; OUT=ROOT/'research/performance-canary'; STATE=OUT/'state'; RAW=OUT/'raw'; SOURCE=Path('/Users/yoavshmariahu/src/thinker/bench/repos/click')
+ROOT=Path(__file__).resolve().parents[2]; OUT=run_dir(); STATE=OUT/'state'; RAW=OUT/'raw'; SOURCE=Path('/Users/yoavshmariahu/src/thinker/bench/repos/click')
+checked_execution(OUT)
 TASKS=json.loads((OUT/'tasks.json').read_text())
 def git(*args,cwd=SOURCE):return subprocess.check_output(['git',*args],cwd=cwd)
 STATE.mkdir(exist_ok=True);RAW.mkdir(exist_ok=True)
@@ -24,3 +26,8 @@ for t in TASKS:
  (gold/'source.patch').write_bytes(git('diff',t['base'],t['fixed'],'--','src'))
  (gold/'LICENSE.txt').write_bytes(git('show',t['fixed']+':LICENSE.txt'))
  print(t['id'],git('rev-parse','base',cwd=bare).decode().strip())
+
+# The helper is created by setup, not by an unrecorded manual shell step.
+helper=STATE/'bin'/'thinker_lookup';helper.parent.mkdir(exist_ok=True)
+helper.write_text('#!/bin/sh\nexec node '+shlex.quote(str(Path(__file__).resolve().parent/'memory.mjs'))+' lookup "$@"\n')
+helper.chmod(0o755)
