@@ -7,7 +7,7 @@ import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBe
 import { listBehaviorProposals, acceptBehaviorProposal } from '../behavior-proposals.js';
 import { annotateFanout } from '../codegraph.js';
 import { formatTokens } from '../model-usage.js';
-import { orient, trackTurn, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
+import { orient, trackTurn, phraseNotes, phraseKey, lookup, drilldown, find, createNote, feedback, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
 async function orientCommand(ctx) {
   const { pos, flags, store, out } = ctx;
@@ -120,6 +120,16 @@ async function addCommand(ctx) {
   return;
 }
 
+async function feedbackCommand({ pos, store, out, readStdin }) {
+  const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
+  if (!input || typeof input.id !== 'string' || !input.id || typeof input.useful !== 'boolean' || (input.correction !== undefined && typeof input.correction !== 'string')) {
+    throw new Error('feedback expects JSON with id (string), useful (boolean), and optional correction (string)');
+  }
+  const r = feedback(store, input);
+  if (r.error) throw new Error(r.error);
+  out(`Recorded. ${r.note.id} confidence now ${Math.round(r.note.confidence * 100)}%${input.correction ? ', body updated' : ''}.`);
+}
+
 async function relinkCommand(ctx) {
   const { store, out } = ctx;
   const notes = store.list(); for (const n of notes) linkNotes(store, n, notes); out(`linked ${notes.length} notes`); return;
@@ -185,6 +195,7 @@ export const commands = {
   'show': showCommand,
   'rm': rmCommand,
   'add': addCommand,
+  'feedback': feedbackCommand,
   'relink': relinkCommand,
   'rehash': rehashCommand,
   'archive': archiveCommand,

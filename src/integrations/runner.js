@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { agentWorkflow } from '../cache-guidance.js';
 // An unavailable cache must not interrupt the host agent. Bound time and output,
 // use argv rather than a shell, and inherit experiment/learning controls.
 export function hookRunner(config) {
@@ -15,6 +16,5 @@ export function hookRunner(config) {
   });
 }
 export function guidance(config) {
-  const command = `node ${JSON.stringify(config.cli)}`;
-  return `Thinker caches verified repository notes. Before exploring, run ${command} orient "<task>" --repo ${JSON.stringify(config.repo)}. Use the same command with lookup "<question or note id>", find "<query>", or drilldown "path:Symbol" to follow up. Treat STALE notes as unverified.`;
+  return agentWorkflow({ ...config, mcp: false });
 }

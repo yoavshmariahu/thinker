@@ -65,7 +65,7 @@ async function hookCommand(ctx) {
     if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     // once per session, what the code tools are and how to reach them; with the notes when there are any
     // (a held-out session gets neither the intro nor the nudges: the holdout compares sessions with thinker's help against sessions without)
-    const intro = store.exists() && client !== 'windsurf' && !holdoutSession(store, session) ? sessionIntro(store, { session, client }) : '';
+    const intro = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdoutSession(store, session) ? sessionIntro(store, { session, client }) : '';
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
     if (!store.exists() || !store.list().length || client === 'windsurf') { if (intro) emit(intro); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
@@ -75,7 +75,7 @@ async function hookCommand(ctx) {
     const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
     if (!r.included.length) { if (intro) emit(intro); return; }
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-    const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}${!NO_LEARN && sessionLearning() ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
+    const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
     emit(intro ? `${intro}\n\n${text}` : text);
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
