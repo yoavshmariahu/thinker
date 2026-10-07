@@ -1,0 +1,135 @@
+{
+  "status": "stopped-before-coding",
+  "cacheSource": "recent-merged-prs",
+  "cacheBuildPath": "minePrs",
+  "cacheBuildsStarted": 3,
+  "cacheBuildsCompleted": 0,
+  "cacheBuildsUnstarted": 6,
+  "codingRunsStarted": 0,
+  "plannedCodingRuns": 18,
+  "stop": {
+    "status": "stopped",
+    "reason": "Live cache audit found a failed Jev grounding call in Opus PR #3158: missing or invalid c4. This already violates frozen cache readiness; stop before further inference.",
+    "at": 1791357006.144042,
+    "evidence": "state/click-3364-opus-pr-cache/.thinker/log.jsonl",
+    "eventId": "8bddb7a1-3b08-4611-8007-09cb8610faa1",
+    "initiator": "operator-live-audit"
+  },
+  "models": {
+    "opus": {
+      "cacheTask": "click-3364",
+      "buildOutcome": "interrupted-shared-stop",
+      "process": {
+        "status": "failed",
+        "reason": "batch-stopped",
+        "pid": 62376,
+        "wallMs": 98463,
+        "stdoutBytes": 1812,
+        "stderrBytes": 0,
+        "returncode": -15,
+        "nativeTraceBytes": null
+      },
+      "completedWriterCalls": 8,
+      "completedWriterPrIds": [
+        2957,
+        3245,
+        3151,
+        3021,
+        3158,
+        2991,
+        2539,
+        2846
+      ],
+      "recordedModelCalls": 45,
+      "failedRecordedModelCalls": 1,
+      "recordedTokens": {
+        "inputTokens": 96033,
+        "outputTokens": 13461,
+        "totalTokens": 109494,
+        "cacheReadTokens": 10479,
+        "cacheWriteTokens": 23572
+      },
+      "unknownUsageRecordedCalls": 0,
+      "inflightUsage": "unknown; interrupted calls may have no final record",
+      "pendingNotes": 13,
+      "pendingReasons": {
+        "jev: missing or invalid c4": 1,
+        "source evidence does not establish every proposed claim": 11,
+        "source evidence conflicts with a proposed claim": 1
+      },
+      "savedNotes": 0
+    },
+    "sol": {
+      "cacheTask": "click-3364",
+      "buildOutcome": "interrupted-shared-stop",
+      "process": {
+        "status": "failed",
+        "reason": "batch-stopped",
+        "pid": 62430,
+        "wallMs": 97592,
+        "stdoutBytes": 1095,
+        "stderrBytes": 0,
+        "returncode": -15,
+        "nativeTraceBytes": null
+      },
+      "completedWriterCalls": 4,
+      "completedWriterPrIds": [
+        2957,
+        3245,
+        3151,
+        3021
+      ],
+      "recordedModelCalls": 21,
+      "failedRecordedModelCalls": 0,
+      "recordedTokens": {
+        "inputTokens": 100054,
+        "outputTokens": 4607,
+        "totalTokens": 104661,
+        "cacheReadTokens": 49152
+      },
+      "unknownUsageRecordedCalls": 0,
+      "inflightUsage": "unknown; interrupted calls may have no final record",
+      "pendingNotes": 5,
+      "pendingReasons": {
+        "source evidence does not establish every proposed claim": 5
+      },
+      "savedNotes": 0
+    },
+    "gemini": {
+      "cacheTask": "click-3364",
+      "buildOutcome": "interrupted-shared-stop",
+      "process": {
+        "status": "failed",
+        "reason": "batch-stopped",
+        "pid": 62477,
+        "wallMs": 96832,
+        "stdoutBytes": 628,
+        "stderrBytes": 0,
+        "returncode": -15,
+        "nativeTraceBytes": null
+      },
+      "completedWriterCalls": 2,
+      "completedWriterPrIds": [
+        2957,
+        3245
+      ],
+      "recordedModelCalls": 13,
+      "failedRecordedModelCalls": 0,
+      "recordedTokens": {
+        "inputTokens": 52742,
+        "outputTokens": 31682,
+        "totalTokens": 84424
+      },
+      "unknownUsageRecordedCalls": 0,
+      "inflightUsage": "unknown; interrupted calls may have no final record",
+      "pendingNotes": 3,
+      "pendingReasons": {
+        "source evidence conflicts with a proposed claim": 1,
+        "source evidence does not establish every proposed claim": 2
+      },
+      "savedNotes": 0
+    }
+  },
+  "knownRecordedTokens": 298579,
+  "noEfficiencyComparison": true
+}

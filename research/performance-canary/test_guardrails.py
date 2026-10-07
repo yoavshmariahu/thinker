@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from pr_cache import validate_pr_manifest
 from frozen_gh import replay
+from collect_prs import collect
 from guardrails import HERE, MODELS, GuardError, assert_ready, checked_ready, digest, guarded_env, supervised, validate_execution, source_hashes, ROOT
 
 
@@ -120,6 +121,23 @@ class Guards(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'ancestor'): validate_pr_manifest(self.corpus, self.tasks, self.out)
             run.return_value.returncode=0
             validate_pr_manifest(self.corpus, self.tasks, self.out)
+
+    def test_collection_filters_updated_time_before_bounded_search(self):
+        pr = self.corpus['tasks']['task']['prs'][0]
+        queries = []
+        def output(args, **kwargs):
+            if args[0] == 'git': return '2026-01-02T00:00:00Z'
+            if args[:3] == ['gh','pr','list']:
+                queries.append(args[args.index('--search')+1])
+                return json.dumps([pr])
+            if args[:3] == ['gh','pr','diff']: return pr['diff']
+            if args[:2] == ['gh','api']: return '[]'
+            raise AssertionError(args)
+        with patch('collect_prs.subprocess.check_output',side_effect=output), patch('collect_prs.subprocess.run') as run:
+            run.return_value.returncode = 0
+            result = collect(self.tasks,self.out,20)
+        self.assertEqual(result['tasks']['task']['prs'][0]['number'],1)
+        self.assertEqual(queries,['merged:<2026-01-02T00:00:00Z updated:<2026-01-02T00:00:00Z sort:updated-desc'])
 
     def test_github_replay_blocks_unfrozen_requests(self):
         corpus = self.corpus['tasks']['task']
