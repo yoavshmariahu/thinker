@@ -4,7 +4,8 @@
 // the guidance in grok-cache.md is put above the notes that `orient` returns.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { installClient, uninstallClients } from '../src/clients.js';
 import { findSessions } from '../src/transcripts.js';
@@ -47,10 +48,7 @@ const jobs = fs.readdirSync(path.join(HERE, 'runs', 'posthog-fable'))
 function log(s) { fs.appendFileSync(path.join(OUT, 'progress.log'), s + '\n'); console.log(s); }
 
 function makeWorktree(i) {
-  const wt = path.join(HERE, 'worktrees', `posthog-grok-fable-${i}`);
-  if (fs.existsSync(wt)) { try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: POSTHOG }); } catch { fs.rmSync(wt, { recursive: true, force: true }); } }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'a3b3c3685bcffcf273f0d27ffb6a669239200e30'], { cwd: POSTHOG });
-  return wt;
+  return createWorktree(POSTHOG, path.join(HERE, 'worktrees', `posthog-grok-fable-${i}`), 'a3b3c3685bcffcf273f0d27ffb6a669239200e30');
 }
 function resetWorktree(wt) {
   try { execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt }); execFileSync('git', ['clean', '-qfd'], { cwd: wt }); } catch {}
@@ -148,6 +146,10 @@ function diffOf(wt) {
 
 async function worker(wi) {
   const wt = makeWorktree(wi);
+  try { await runWorker(wt); }
+  finally { removeWorktree(wt); }
+}
+async function runWorker(wt) {
   while (jobs.length) {
     const job = jobs.shift();
     const file = path.join(OUT, job.id + '.json');

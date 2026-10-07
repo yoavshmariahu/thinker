@@ -7,7 +7,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { createWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { cbmBin, cbmIndex, cbmProject, CBM_VERSION } from './eval-support/cbm.js';
 
@@ -105,16 +106,12 @@ export function runClaude({ prompt, cwd, arm, maxTurns = 30, disallowed, timeout
 }
 
 // A clean worktree per arm under bench/worktrees/<repo>-eval-<arm>, from bench/repos/<repo> at
-// `base` (or its HEAD), reused across runs (CBM's index is keyed by the path). Notes for the
+// `base` (or its HEAD), removed on exit (CBM's index is keyed by the stable path). Notes for the
 // thinker arms are copied in from the noteset.
 export function armWorktree(repoName, arm, { base, notes } = {}) {
   const repo = path.join(ROOT, 'bench/repos', repoName);
   if (!fs.existsSync(repo)) throw new Error(`clone the target first: bench/repos/${repoName}`);
-  const wt = path.join(ROOT, 'bench/worktrees', `${repoName}-eval-${arm}`);
-  if (!fs.existsSync(wt)) {
-    fs.mkdirSync(path.dirname(wt), { recursive: true });
-    execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, base || 'HEAD'], { cwd: repo, stdio: 'ignore' });
-  }
+  const wt = createWorktree(repo, path.join(ROOT, 'bench/worktrees', `${repoName}-eval-${arm}`), base || 'HEAD');
   resetWorktree(wt, { base, notes: arm === 'cbm' ? null : notes });
   return wt;
 }

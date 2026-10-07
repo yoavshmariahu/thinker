@@ -5,6 +5,7 @@
 //     --judge <model> (default sonnet) regrades runs another judge graded; earlier grades are kept in grade.criteriaBy
 //   node bench/criteria.js calibrate <tasksFile>      → grades the merged patch and an empty patch
 import fs from 'node:fs';
+import { createWorktree } from './worktrees.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { complete, resolveModel } from '../src/llm.js';
@@ -26,8 +27,7 @@ const repo = path.join(HERE, 'repos', spec.repo);
 const git = (cwd, ...a) => execFileSync('git', a, { cwd, maxBuffer: 1 << 26, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
 function worktree(i) {
   const wt = path.join(HERE, 'worktrees', `${spec.repo}-grade-${i}`);
-  if (!fs.existsSync(wt)) execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, spec.base || 'HEAD'], { cwd: repo });
-  return wt;
+  return createWorktree(repo, wt, spec.base || 'HEAD');
 }
 // post-patch code around every hunk, so behaviour can be judged in context
 function hunks(diff) {
