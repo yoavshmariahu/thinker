@@ -10,7 +10,7 @@ import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
 import { listBehaviors, behaviorsSummary } from './behavior.js';
 import { initAst } from './ast.js';
-import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
+import { cacheInstructions, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every
@@ -29,7 +29,8 @@ let setUp = !!store && store.exists();
 if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
-  instructions: `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.\n\n${CACHE_USAGE_GUIDE}\n\n${CACHE_LEARNING_GUIDE}`,
+  // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
+  instructions: cacheInstructions({ repo }),
 } : repo ? {
   instructions: `thinker is installed but not set up for this repository (${repo}): no notes are served or learned here. To use it, run \`thinker setup\` in the repository.`,
 } : {
