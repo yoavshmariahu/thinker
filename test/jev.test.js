@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ACCESS_MODES, accessFile, jevAccess, jevAsked, recordAccess, JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, hostedCredential, proxyFile, noteRecord, saveKey, selectByJev } from '../src/jev.js';
+import { ACCESS_MODES, accessFile, jevAccess, jevAsked, recordAccess, JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, hostedCredential, proxyFile, noteRecord, saveKey, selectByJev, testNetworkAllowed, jevEvaluate } from '../src/jev.js';
 
 const note = (id, over = {}) => ({ id, kind: 'rule', title: `t ${id}`, answers: [`q ${id}`], body: `line one about ${id}\nline two`, deps: [{ path: 'src/a.js', symbol: 'f' }], status: 'fresh', ...over });
 const withHome = async fn => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jev-')); const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = dir;
@@ -130,6 +130,33 @@ test('a key on the machine never switches Jev on inside the test suite', () => w
   assert.equal(jevConfig(store).enabled, true, 'THINKER_JEV=on still wins');
   delete process.env.THINKER_JEV;
 }));
+
+test('test mode opens direct Jev only for an explicit, fully credentialed benchmark run', () => {
+  // A benchmark measures the shipped ranker from the agent's own child process, where a transport
+  // cannot be injected. One flag opens that path; nothing less does, so an ordinary test or a
+  // forgotten variable cannot reach the service.
+  const cases = [
+    [{}, false, 'nothing set'],
+    [{ THINKER_JEV_ALLOW_NETWORK: '1' }, false, 'the flag alone'],
+    [{ THINKER_JEV: 'on' }, false, 'Jev on without the flag'],
+    [{ THINKER_JEV_ALLOW_NETWORK: '1', THINKER_JEV: 'off' }, false, 'explicitly off'],
+    [{ THINKER_JEV_ALLOW_NETWORK: '1', THINKER_JEV: 'on' }, true, 'the flag, Jev on and a key'],
+  ];
+  for (const [env, want, why] of cases) assert.equal(testNetworkAllowed('k', env), want, why);
+  assert.equal(testNetworkAllowed('', { THINKER_JEV_ALLOW_NETWORK: '1', THINKER_JEV: 'on' }), false, 'no key, no network');
+});
+
+test('without that flag a real call is refused in tests rather than reaching the API', async () => {
+  process.env.THINKER_TEST = '1';
+  const before = { allow: process.env.THINKER_JEV_ALLOW_NETWORK, on: process.env.THINKER_JEV };
+  delete process.env.THINKER_JEV_ALLOW_NETWORK; delete process.env.THINKER_JEV;
+  try {
+    await assert.rejects(() => jevEvaluate({ a: 1 }, { rel0: { type: 'noul', question: 'q' } }, { key: 'k' }),
+      /jev network disabled in tests/);
+  } finally {
+    for (const [k, v] of [['THINKER_JEV_ALLOW_NETWORK', before.allow], ['THINKER_JEV', before.on]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+});
 
 test('hosted Jev registers once, stores an owner-only token and reuses it', () => withHome(async () => {
   let enrollments = 0, evaluations = 0;

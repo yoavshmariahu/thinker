@@ -830,8 +830,14 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   Any transport, quota, timeout or response-validation failure falls back to the
   local ranking (installed cross-encoder for hooks, lexical otherwise). A low relevance score is a valid decision to omit a
   note, not a service failure. Tests cannot call either production model path
-  unless they explicitly inject a transport. `thinker ranker` reports the path,
-  and the `orient` log line carries `jev` beside `ce`.
+  unless they explicitly inject a transport, which only an in-process caller can
+  do: under `THINKER_TEST=1` a child process (a prompt hook, the MCP server)
+  falls back to the cross-encoder in silence. A benchmark that must measure the
+  shipped ranker there sets `THINKER_JEV_ALLOW_NETWORK=1`, which opens direct
+  access only alongside `THINKER_JEV=on` and a personal key, never hosted
+  enrollment (`jev.js:testNetworkAllowed`); the default stays closed.
+  `thinker ranker` reports the path, and the `orient` log line carries `jev`
+  beside `ce`.
   A facet vector typed onto the notes was measured and rejected as a serving
   signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
   the notes' own attestation labels, and the `inert` flag would have suppressed

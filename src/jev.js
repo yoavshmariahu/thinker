@@ -22,6 +22,14 @@ export const thinkerHome = () => process.env.THINKER_HOME || path.join(os.homedi
 // machine's thinker home, readable by its owner alone, or in the environment.
 export const keyFile = () => path.join(thinkerHome(), 'jev-key');
 
+// Test mode blocks every production model path, so a run never reaches Jev by accident. A benchmark
+// that measures the shipped ranker needs the real service in the agent's own child process, where an
+// injected transport cannot reach, so one explicit flag opens direct access and nothing else does:
+// the flag, Jev switched on for this run, and a personal key already on the machine. Hosted
+// enrollment stays closed in tests, since it would spend service quota and record an enrollment.
+export const testNetworkAllowed = (key, e = process.env) =>
+  e.THINKER_JEV_ALLOW_NETWORK === '1' && e.THINKER_JEV === 'on' && !!key;
+
 export function jevKey() {
   const e = process.env;
   const fromEnv = e.THINKER_JEV_KEY || e.JEV_API_KEY || e.TYPESAFE_API_KEY;
@@ -168,7 +176,7 @@ export async function jevEvaluate(state, questions, cfg = {}) {
   if (entries.some(([, q]) => !['noul', 'choice'].includes(q.type))) throw new Error('jev: unsupported question type');
   const body = JSON.stringify({ model, state, questions });
   if (Buffer.byteLength(body) > 30000) throw new Error('jev: request exceeds limit');
-  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
+  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch && !testNetworkAllowed(key)) throw new Error('jev network disabled in tests');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   const requestSignal = signal ? AbortSignal.any([signal, ctl.signal]) : ctl.signal;

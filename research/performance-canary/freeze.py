@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 import subprocess
 from pr_cache import CACHE_SOURCE, CACHE_BUILD_PATH, validate_pr_manifest
-from guardrails import HERE, ROOT, MODELS, digest, require_running, source_hashes
+from guardrails import HERE, ROOT, MODELS, GUIDANCE, WIRING_MODE, digest, require_running, source_hashes
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--out', type=Path, required=True)
@@ -23,6 +23,12 @@ if a.out.resolve() == HERE or a.out.exists():
     raise SystemExit('Use a new, nonexistent run directory')
 if not 1 <= a.agent_seconds <= 1200:
     raise SystemExit('Agent deadline must be 1..1200 seconds')
+# The wired arm serves through Jev in the agent's own process, which needs a personal key on this
+# machine (src/jev.js:testNetworkAllowed). Fail here rather than halfway through a cohort.
+key = subprocess.run(['node', '-e', "import('./src/jev.js').then(m=>process.exit(m.jevKey()?0:1))"],
+                     cwd=ROOT, capture_output=True)
+if key.returncode != 0:
+    raise SystemExit('A personal Jev key is required: the hosted proxy is not used for benchmarks')
 adapter = (ROOT / 'src/llm.js').read_text()
 if not all(x in adapter for x in ['THINKER_CLAUDE_EFFORT', 'THINKER_CODEX_REASONING_EFFORT', 'THINKER_GEMINI_EFFORT']):
     raise SystemExit('Apply the reviewed exact-model/high-effort adapter before freezing; no silent default effort')
@@ -45,8 +51,11 @@ for task in tasks:
 a.out.mkdir(parents=True)
 (a.out / 'prs.json').write_text(json.dumps(corpus, indent=2) + '\n')
 (a.out / 'tasks.json').write_text(json.dumps(tasks, indent=2) + '\n')
-e = {'guardrailsVersion': 2, 'thinkerCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+e = {'guardrailsVersion': 3, 'thinkerCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
      'models': MODELS, 'effort': 'high', 'fallback': False, 'testMode': True, 'jev': 'jev-1.13.0',
+     # The arm is wired by the product itself; the guidance text it delivers is pinned by hash, so an
+     # edit to cache-guidance.js after freezing fails the gate instead of changing the measurement.
+     'wiring': {'mode': WIRING_MODE, 'guidanceSha256': digest(GUIDANCE), 'instructionsLimit': 2048, 'ranker': 'jev'},
      'tasksSha256': digest(a.out / 'tasks.json'), 'agentSeconds': a.agent_seconds,
      'cacheSource': CACHE_SOURCE, 'cacheBuildPath': CACHE_BUILD_PATH, 'prsSha256': digest(a.out / 'prs.json'), 'sourceHashes': source_hashes()}
 (a.out / 'execution.json').write_text(json.dumps(e, indent=2) + '\n')
