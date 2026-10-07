@@ -36,16 +36,17 @@ Thinker may land direct commits or use any Git workflow; setup must not install
 our repository policy guard or require PRs in their repositories.
 - Push task branches and open a GitHub pull request targeting `main`. Never push
   commits directly to remote `main`, including fast-forward pushes.
-- **GitHub Actions is off in this repository** since 2026-10-07, at the owner's
-  request: `tests` and `thinker review` are both `disabled_manually`. No check will
-  report on a pull request, so do not wait for one. Run the full suite locally
+- **The `tests` workflow is disabled** since 2026-10-07, at the owner's request
+  (`disabled_manually`; `gh workflow enable tests` reverses it). No test check will
+  report on a pull request, so do not wait for one: run the full suite locally
   (`npm test`, which sets `THINKER_TEST=1`) before pushing and state the result in
-  the pull request; then merge through GitHub and bring local `main` up to date
-  from the merged remote branch. `gh workflow enable <name>` reverses it.
-- Before it was disabled, `thinker review` reported a green check in 4 seconds with
-  every real step skipped, because the server it posts to is not deployed and
-  `THINKER_SYNC_TOKEN` is unset: the check asserted nothing. Re-enable it only
-  together with a deployed server and that secret.
+  the pull request, then merge through GitHub and bring local `main` up to date
+  from the merged remote branch.
+- `thinker review` stays enabled and runs on every non-draft pull request. Nothing
+  should stand in the way of running it. But with no deployed server and no
+  `THINKER_SYNC_TOKEN`, its steps skip and it reports a green check in about four
+  seconds having reviewed nothing: that pass is no evidence a behavior was checked.
+  Read the job's steps before trusting it.
 - Do not bypass a pre-push guard or disable hooks to push `main`.
 - GitHub server-side enforcement for this private repository requires GitHub Pro
   (the API currently returns 403 on the account's plan). Until enabled, the local
