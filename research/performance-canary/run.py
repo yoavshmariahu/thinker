@@ -3,6 +3,8 @@ import json,os,subprocess,sys,time,hashlib,re,shutil
 from pathlib import Path
 from guardrails import run_dir, checked_execution, checked_ready, stop, supervised, guarded_env
 assert os.environ.get('THINKER_TEST')=='1'
+if len(sys.argv) < 3 or sys.argv[1] != 'solve':
+ raise SystemExit('Only solve is allowed. Build caches from recent PRs with pipeline.py build; exploration/session distillation is forbidden.')
 ROOT=Path(__file__).resolve().parents[2];OUT=run_dir();RAW=OUT/'raw';STATE=OUT/'state'
 if (OUT/'STOPPED.json').exists():raise SystemExit('Canary stopped as invalid for efficiency. Preserve these results; use a reviewed fresh protocol for another run.')
 EXECUTION=checked_execution(OUT)
@@ -12,15 +14,14 @@ ENV.pop('MAX_THINKING_TOKENS',None)
 def run(t,m,arm):
  name=f"{t['id']}-{m}-{arm}";out=RAW/(name+'.json');cwd=STATE/name
  if out.exists():return json.loads(out.read_text())
- learn=arm=='learn'
- if not learn:checked_ready(OUT,TASKS)
+ if arm not in ['baseline','thinker']:raise ValueError('Session exploration is forbidden')
+ checked_ready(OUT,TASKS)
  rules=f"Work only within this repository. Do not inspect parent or sibling directories, git history/remotes, reference patches, hidden evaluator tests or websites. Do not install dependencies, create commits or delegate. Machine-wide memory hooks and MCP are disabled. Use {ROOT}/.venv-perf/bin/python for local probes and relevant tests. Keep the inherited test environment. Stress tests, clearing pytest addopts, disabling plugins, and broad repeated test runs are forbidden. Pytest is limited to 2000 tests and 120 seconds; a violation stops the batch."
- if learn:
-  prompt=rules+'\nExplore the current code without modifying files. '+t['learning']+'\nSummarize observed reusable mechanisms with source pointers and supporting evidence. Do not propose fixes.'
- else:
-  memory=''
-  if arm=='thinker':memory=(RAW/(name+'-retrieval.json')).read_text();memory=json.loads(memory)['text'];memory+='\nYou may execute thinker_lookup "specific question" for more cached knowledge; resolve its pointers inside this checkout. Do not inspect the helper itself.'
-  prompt=rules+'\nImplement the requested change, add appropriate tests, run relevant tests, leave the patch uncommitted and summarize the result.\n\nPRIOR REPOSITORY KNOWLEDGE:\n'+(memory or '(none)')+'\n\nREQUEST:\n'+t['prompt']
+ memory=''
+ if arm=='thinker':
+  memory=json.loads((RAW/(name+'-retrieval.json')).read_text())['text']
+  memory+='\nYou may execute thinker_lookup "specific question" for more cached knowledge; resolve its pointers inside this checkout. Do not inspect the helper itself.'
+ prompt=rules+'\nImplement the requested change, add appropriate tests, run relevant tests, leave the patch uncommitted and summarize the result.\n\nPRIOR REPOSITORY KNOWLEDGE:\n'+(memory or '(none)')+'\n\nREQUEST:\n'+t['prompt']
  (RAW/(name+'-prompt.txt')).write_text(prompt)
  env={**guarded_env(cwd,RAW/(name+'.violation.json'),base=ENV),'PATH':str(STATE/'bin')+os.pathsep+ENV['PATH']}
  env.pop('MAX_THINKING_TOKENS',None)
@@ -28,10 +29,10 @@ def run(t,m,arm):
   home=STATE/('home-'+name);home.mkdir(exist_ok=True);auth=home/'auth.json'
   if not auth.exists():auth.symlink_to('/Users/yoavshmariahu/src/thinker/bench/codex-home/auth.json')
   env['CODEX_HOME']=str(home)
-  cmd=['codex','exec','--json','--ephemeral','--ignore-user-config','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','read-only' if learn else 'workspace-write','--cd',str(cwd),'-']
+  cmd=['codex','exec','--json','--ephemeral','--ignore-user-config','--ignore-rules','--strict-config','--config','model_reasoning_effort="high"','--config','web_search="disabled"','--config','features.multi_agent=false','--model',MODELS[m],'--sandbox','workspace-write','--cd',str(cwd),'-']
  elif m=='opus':
-  cmd=['claude','-p','--model',MODELS[m],'--effort','high','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--disable-slash-commands','--tools','Bash,Read,Glob,Grep' if learn else 'Bash,Read,Write,Edit,Glob,Grep','--permission-mode','bypassPermissions','--max-turns','80']
- else:cmd=['agy','-p',prompt,'--model',MODELS[m],'--effort','high','--output-format','json','--mode','plan' if learn else 'accept-edits','--dangerously-skip-permissions','--disable-slash-commands']
+  cmd=['claude','-p','--model',MODELS[m],'--effort','high','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--disable-slash-commands','--tools','Bash,Read,Write,Edit,Glob,Grep','--permission-mode','bypassPermissions','--max-turns','80']
+ else:cmd=['agy','-p',prompt,'--model',MODELS[m],'--effort','high','--output-format','json','--mode','accept-edits','--dangerously-skip-permissions','--disable-slash-commands']
  (RAW/(name+'-invocation.json')).write_text(json.dumps({'model':MODELS[m],'effort':'high','cwd':str(cwd),'argv':[x if x!=prompt else '<saved prompt>' for x in cmd],'thinkerCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'testMode':True},indent=2))
  print('START',name,flush=True);start=time.monotonic();timed=False
  execution=supervised(cmd,cwd=cwd,env=env,prefix=RAW/name,seconds=EXECUTION['agentSeconds'],batch=OUT,input_text=None if m=='gemini' else prompt,native_root=Path.home()/'.gemini/antigravity-cli/brain' if m=='gemini' else None)
@@ -55,23 +56,16 @@ def run(t,m,arm):
   if not r['valid']:r['error']='Provider failure or identity mismatch; inspect native events'
  except Exception as e:r['error']=str(e);r['valid']=False
  if execution['reason']:r['valid']=False;r['error']=execution['reason']
- if learn and (not r['answer'] or not r['toolCalls']):r['valid']=False;r['error']='Exploration requires an answer and tool activity'
- if learn and subprocess.check_output(['git','diff','HEAD','--name-only'],cwd=cwd,text=True).strip():r['valid']=False;r['error']='Exploration modified tracked source'
- if not learn:
-  subprocess.run(['git','add','-A','--','src','tests','docs','CHANGES.rst','CHANGES.md'],cwd=cwd,env=env,capture_output=True)
-  # Explicit path list can include absent paths; stage tracked changes and new source/tests individually.
-  for d in ['src','tests','docs','CHANGES.rst','CHANGES.md']:
-   if (cwd/d).exists():subprocess.run(['git','add','-A','--',d],cwd=cwd,env=env,check=True,capture_output=True)
-  (RAW/(name+'.patch')).write_bytes(subprocess.check_output(['git','diff','--cached','--binary','--no-color'],cwd=cwd))
+ subprocess.run(['git','add','-A','--','src','tests','docs','CHANGES.rst','CHANGES.md'],cwd=cwd,env=env,capture_output=True)
+ # Explicit path list can include absent paths; stage tracked changes and new source/tests individually.
+ for d in ['src','tests','docs','CHANGES.rst','CHANGES.md']:
+  if (cwd/d).exists():subprocess.run(['git','add','-A','--',d],cwd=cwd,env=env,check=True,capture_output=True)
+ (RAW/(name+'.patch')).write_bytes(subprocess.check_output(['git','diff','--cached','--binary','--no-color'],cwd=cwd))
  if not r['valid']:stop(OUT,name+': '+r.get('error','invalid result'))
  out.write_text(json.dumps(r,indent=2)+'\n');print('DONE',name,'valid='+str(r['valid']),'tokens='+str(r['tokens']),'seconds='+str(r['wallMs']/1000),flush=True);return r
 if __name__=='__main__':
  mode,m=sys.argv[1:3]
- if mode not in ['learn','solve'] or m not in MODELS:raise SystemExit('learn|solve opus|sol|gemini')
- if mode=='solve':checked_ready(OUT,TASKS)
+ checked_ready(OUT,TASKS)
  for i,t in enumerate(TASKS):
-  if mode=='learn':
-   if not run(t,m,'learn')['valid']:raise SystemExit('Learning failed; cohort paused before coding')
-  else:
-   for arm in (['baseline','thinker'] if (i+list(MODELS).index(m))%2==0 else ['thinker','baseline']):
-    if not run(t,m,arm)['valid']:raise SystemExit('Invalid run; batch stopped')
+  for arm in (['baseline','thinker'] if (i+list(MODELS).index(m))%2==0 else ['thinker','baseline']):
+   if not run(t,m,arm)['valid']:raise SystemExit('Invalid run; batch stopped')

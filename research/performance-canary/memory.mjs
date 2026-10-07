@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {Store} from '../../src/store.js';
-import {distillFile} from '../../src/commands/learn.js';
+import {minePrs} from '../../src/commands/learn.js';
 import {orient,lookup} from '../../src/ops.js';
 import {execFileSync} from 'node:child_process';
 import {jevKey,JEV_ENDPOINT} from '../../src/jev.js';
@@ -27,35 +27,41 @@ const [mode,cohort,...query]=process.argv.slice(2);
 if(mode==='lookup'){
  const store=storeFor(process.cwd());const r=await lookup(store,{query:[cohort,...query].join(' '),budget:1500,maxNotes:3});console.log(r.text||'(no matching notes)');
 }else if(mode==='build'){
+ const execution=read(path.join(OUT,'execution.json')),corpus=read(path.join(OUT,'prs.json'));
+ if(execution.cacheSource!=='recent-merged-prs'||execution.cacheBuildPath!=='minePrs')throw Error('Only recent PR mining is allowed; session distillation is forbidden');
+ const model=execution.models[cohort];if(!model)throw Error('Unknown model cohort');
+ const shim=path.join(STATE,`pr-build-bin-${cohort}`);fs.mkdirSync(shim,{recursive:true});
+ const quote=s=>"'"+s.replaceAll("'", "'\\''")+"'";
+ fs.writeFileSync(path.join(shim,'gh'),'#!/bin/sh\nexec python3 '+quote(path.join(ROOT,'research/performance-canary/frozen_gh.py'))+' "$@"\n',{mode:0o755});
+ process.env.PATH=shim+path.delimiter+process.env.PATH;
  for(const t of read(path.join(OUT,'tasks.json'))){
-  const learnName=`${t.id}-${cohort}-learn`,name=`${t.id}-${cohort}-thinker`,dest=path.join(RAW,name+'-retrieval.json');if(fs.existsSync(dest))throw Error('Existing cache attempt: use a fresh run; no silent reuse');
-  const learned=read(path.join(RAW,learnName+'.json'));if(!learned.valid)throw Error('Invalid learning session');
-  const repo=path.join(STATE,learnName),store=storeFor(repo),start=performance.now();
-  const transcript=path.join(RAW,learnName+(cohort==='gemini'?'.transcript.jsonl':'.events.jsonl'));
-  Object.assign(process.env,{THINKER_LLM:{opus:'claude',sol:'codex',gemini:'gemini'}[cohort],THINKER_LLM_MODEL:learned.model,THINKER_CLAUDE_EFFORT:'high',THINKER_CODEX_REASONING_EFFORT:'high',THINKER_GEMINI_EFFORT:'high',THINKER_NO_LIMIT_WAIT:'1',THINKER_EVAL_TRACE_DIR:path.join(RAW,'distill-traces')});
+  const cacheName=`${t.id}-${cohort}-pr-cache`,name=`${t.id}-${cohort}-thinker`,prefix=`${t.id}-${cohort}-pr`,dest=path.join(RAW,name+'-retrieval.json');
+  if(fs.existsSync(dest)||fs.existsSync(path.join(RAW,prefix+'-build.json')))throw Error('Existing cache attempt: use a fresh run; no silent reuse');
+  const repo=path.join(STATE,cacheName),store=storeFor(repo),start=performance.now(),input=corpus.tasks[t.id];
+  if(store.list().length)throw Error('PR cache must start empty');
+  Object.assign(process.env,{THINKER_FROZEN_PR_TASK:t.id,THINKER_LLM:{opus:'claude',sol:'codex',gemini:'gemini'}[cohort],THINKER_LLM_MODEL:model,THINKER_CLAUDE_EFFORT:'high',THINKER_CODEX_REASONING_EFFORT:'high',THINKER_GEMINI_EFFORT:'high',THINKER_NO_LIMIT_WAIT:'1',THINKER_EVAL_TRACE_DIR:path.join(RAW,'pr-model-traces')});
   fs.mkdirSync(process.env.THINKER_EVAL_TRACE_DIR,{recursive:true});delete process.env.MAX_THINKING_TOKENS;
   const records=[], originalLog=store.log.bind(store);
   store.log=record=>{records.push(record);return originalLog(record);};
   let result;
+  const receipt={cacheBuildPath:'minePrs',cacheSource:'recent-merged-prs',model,effort:'high',prsSha256:execution.prsSha256};
   try {
-    // Use the same orchestration as thinker distill/seed: hydration, catalog,
-    // evidence selection, distillation, grounding, pending records and persistence.
-    result=await distillFile({repo,store,out:console.log},transcript,{minExplore:1,model:learned.model,quiet:false,incremental:false,phase:'init'});
-    if(records.some(r=>r.op==='model'&&(r.failed||r.model!==(r.provider==='typesafe'?'jev-1.13.0':learned.model))))throw Error('Failed or mismatched setup model call');
-    if(!result?.notes?.length||!store.list().length)throw Error('Cache readiness failed: no saved notes');
+    result=await minePrs({repo,store,flags:{},out:console.log},input.repository,{repo,before:input.before,limit:input.limit,model,phase:'init'});
+    if(result.failed||records.some(r=>r.op==='model'&&(r.failed||r.model!==(r.provider==='typesafe'?'jev-1.13.0':model))))throw Error('Failed or mismatched PR cache model call');
+    if(!result.saved||!store.list().length)throw Error('PR cache readiness failed: no saved notes');
   } catch(error) {
-    save(path.join(RAW,learnName+'-build.json'),{valid:false,cacheBuildPath:'distillFile',setupError:error.message,records});
+    save(path.join(RAW,prefix+'-build.json'),{...receipt,valid:false,setupError:error.message,records,result});
     try{fs.writeFileSync(path.join(OUT,'STOPPED.json'),JSON.stringify({reason:error.message}),{flag:'wx'});}catch(e){if(e.code!=='EEXIST')throw e;}
     throw error;
   }
-  const build={valid:true,cacheBuildPath:'distillFile',saved:result.notes,setupError:null,records,distillationTokens:result.tokens,wallMs:performance.now()-start};save(path.join(RAW,learnName+'-build.json'),build);
-  const source=path.join(repo,'.thinker','notes');const local=path.join(repo,'.thinker','local','notes');
+  const processedPrs=[...new Set(records.filter(r=>r.op==='model'&&r.purpose==='mine-prs'&&!r.failed).map(r=>`${input.repository}#${r.pr}`))];
+  const build={...receipt,valid:true,processedPrs,saved:store.list().map(n=>n.id),setupError:null,records,prTokens:result.tokens,wallMs:performance.now()-start};save(path.join(RAW,prefix+'-build.json'),build);
   // Store may save into local/notes; export the merged in-memory corpus explicitly.
   const notes=store.list();
-  const immutable=path.join(RAW,learnName+'-notes');fs.mkdirSync(immutable,{recursive:true});
+  const immutable=path.join(RAW,prefix+'-notes');fs.mkdirSync(immutable,{recursive:true});
   const target=path.join(STATE,name),copy=path.join(target,'.thinker','notes');fs.mkdirSync(copy,{recursive:true});
   const hashes={};for(const n of notes){const file=n.id+'.json',text=JSON.stringify(n,null,2)+'\n';fs.writeFileSync(path.join(immutable,file),text);fs.writeFileSync(path.join(copy,file),text);hashes[file]=crypto.createHash('sha256').update(text).digest('hex');}
-  save(path.join(RAW,learnName+'-note-hashes.json'),hashes);
+  save(path.join(RAW,prefix+'-note-hashes.json'),hashes);
   const targetStore=storeFor(target),r0=performance.now(),r=await orient(targetStore,{task:t.prompt,budget:750,maxNotes:2,freshOnly:true,client:'performance-canary'});
   const logs=fs.existsSync(path.join(target,'.thinker','log.jsonl'))?fs.readFileSync(path.join(target,'.thinker','log.jsonl'),'utf8'):'';
   if(/"op":"jev-error"/.test(logs))throw Error('Jev serving failed; do not silently substitute another ranker');
