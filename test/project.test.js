@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PROJECT_FILE, validateProject, readProject, writeProject, projectFromFlags, includesPath, projectRecordKey } from '../src/project.js';
 import { chooseProject } from '../src/setup/project.js';
-import { discoverAreas } from '../src/topology.js';
+import { discoverAreas, planAreas } from '../src/topology.js';
 import { estimateCacheBuild } from '../src/setup/estimate.js';
 import { stepBuildCache } from '../src/setup/steps.js';
 import { Store } from '../src/store.js';
@@ -193,4 +193,51 @@ test('GitHub project scans keep unrelated and deferred PRs available to another 
   assert.deepEqual([...minedPrs(store, 'owner/repo').mined], [2, 3]);
   cli(repo, ['mine-prs', 'owner/repo', '--full-repo'], env);
   assert.deepEqual([...minedPrs(store, 'owner/repo').mined], [1, 2, 3]);
+});
+
+test('adaptive planning is shared by CLI preview, estimates and setup, with explicit caps', async t => {
+  const repo = fixture(t);
+  for (let i = 0; i < 15; i++) {
+    const dir = path.join(repo, `packages/large${i}`);
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'core.js'), '// source\n'.repeat(9000));
+  }
+  git(repo, 'add', '.');
+  writeProject(repo, project(['packages']));
+  const directories = ['packages'];
+  const plan = planAreas(repo, { directories });
+  assert.ok(plan.areas.length > 12);
+  const estimates = estimateCacheBuild(repo, { directories, agent: 'claude', noPrs: true });
+  assert.equal(estimates.candidateAreasCount, plan.areas.length);
+  assert.equal(estimates.tokenEstimate, plan.areas.length * 400_000);
+  const preview = cli(repo, ['seed', '--dry']);
+  for (const area of plan.areas) for (const file of area.files) assert.ok(preview.includes(JSON.stringify(file)));
+  // Exercise real seed dispatch with a local agent double; an empty trace makes
+  // distillation a no-op, so this checks session boundaries without model calls.
+  const bin = path.join(repo, 'bin'), captured = path.join(repo, 'prompts.jsonl');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nlet prompt = ''; process.stdin.on('data', chunk => prompt += chunk); process.stdin.on('end', () => { require('fs').appendFileSync(${JSON.stringify(captured)}, JSON.stringify(prompt) + '\\n'); });\n`, { mode: 0o755 });
+  cli(repo, ['seed', '--agent', 'codex', '--yes'], { PATH: `${bin}${path.delimiter}${process.env.PATH}`, THINKER_JEV: 'off' });
+  const prompts = fs.readFileSync(captured, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(prompts.length, plan.areas.length, 'actual seed runs every planned session');
+  for (const [i, prompt] of prompts.entries()) {
+    const inventory = prompt.split('Source files assigned to this session:\n')[1].split('\nFocus on these files;')[0];
+    assert.deepEqual(inventory.split('\n').map(JSON.parse), plan.areas[i].files);
+  }
+  const limited = estimateCacheBuild(repo, { directories, areas: 2, agent: 'claude', noPrs: true });
+  assert.equal(limited.tokenEstimate, 800_000);
+  assert.equal(limited.omittedAreas.length, plan.areas.length - 2);
+  assert.match(cli(repo, ['seed', '--dry', '--areas', '2']), /Exploring 2 of \d+ areas.*omitted:/);
+  assert.match(cli(repo, ['seed', '--areas', '0']), /Exploration skipped/);
+  for (const value of ['invalid', '1.5', '-1']) assert.throws(() => cli(repo, ['seed', '--dry', '--areas', value]));
+  const output = [];
+  let options;
+  await stepBuildCache({ repo, store: new Store(repo).init(), directories, estimates, noPrs: true,
+    noPhrase: true, agent: 'claude', out: line => output.push(line),
+    seedFn: async opts => { options = opts; return { ok: plan.areas.length, total: plan.areas.length, saved: 0 }; },
+    proposeFn: async () => ({ proposals: [], sources: 0 }),
+  });
+  assert.equal(options.areas, undefined, 'setup does not insert a default cap');
+  assert.equal(discoverAreas(repo, { directories: options.directories, limit: options.areas }).length, estimates.candidateAreasCount);
+  assert.ok(output.some(line => line.includes(`${plan.areas.length} sessions`)));
 });

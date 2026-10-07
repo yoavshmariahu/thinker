@@ -19,7 +19,7 @@
 #   --build             build the cache here without asking (otherwise `thinker setup` offers it, with an estimate)
 #   --no-build          do not build a cache; only wire up the hooks and the MCP server
 #   --no-seed           with --build: skip architectural subsystem exploration
-#   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
+#   --areas <n>         with --build: cap exploration sessions (default: adaptive to selected source code)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
 #   --benchmark         run paired PR benchmark during setup

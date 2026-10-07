@@ -127,9 +127,14 @@ export function ignoreLocalState(dir) {
   if (missing.length) fs.writeFileSync(gi, ignored + (ignored && !ignored.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
 }
 
+function printExplorationPlan(estimates, out) {
+  if (estimates.canSeed) out(`    • Exploration: ${estimates.candidateAreasCount} sessions sized to the selected source code`);
+  if (estimates.omittedAreas?.length) out(`    • Area cap leaves ${estimates.omittedAreas.length} areas unexplored: ${estimates.omittedAreas.join(', ')}`);
+}
+
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, directories = null, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
+export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, directories = null, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
   let warnings = 0;
   // with neither pull requests nor exploration there is nothing to estimate: what is left
   // (linking) is free and local, and the notes come from the sessions to come
@@ -142,6 +147,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
 
   if (building) {
     out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
+    printExplorationPlan(estimates, out);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
     out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
@@ -254,6 +260,7 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
   const usage = estimates.tokenEstimate > 0 ? `, about ${c.cyan(`${formatTokens(estimates.tokenEstimate)} tokens`)} of your ${agent || 'agent'} usage` : '';
   out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional')}`);
   out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
+  printExplorationPlan(estimates, out);
   out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
   out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);
   if (!process.stdin.isTTY) {

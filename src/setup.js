@@ -27,7 +27,7 @@ export async function runSetup({
   mcpEntry,
   userMcpEntry,
   clients,
-  areas = 12,
+  areas,
   projectFlags = {},
   chooseProjectFn = chooseProject,
   prs = 60,
