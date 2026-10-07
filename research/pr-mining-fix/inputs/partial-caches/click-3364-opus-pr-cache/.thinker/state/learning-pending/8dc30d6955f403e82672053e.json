@@ -1,0 +1,38 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#2539"
+  },
+  "evidenceRef": "pallets/click#2539",
+  "title": "Docs convention: environment setup examples use `python3 -m venv .venv`, not the virtualenv package",
+  "note": {
+    "title": "Docs convention: environment setup examples use `python3 -m venv .venv`, not the virtualenv package",
+    "kind": "rule",
+    "answers": [
+      "how should docs tell users to create a virtual environment?",
+      "do I need to install virtualenv to follow the click quickstart?",
+      "what folder name do the docs use for the venv?"
+    ],
+    "body": "Convention: in the docs (docs/quickstart.rst, docs/setuptools.rst), virtual environment setup uses the standard-library `venv` module, `python3 -m venv .venv`. Do not tell users to install the separate `virtualenv` package (no `pip install virtualenv` or `apt-get install python-virtualenv`).\nThe environment directory is `.venv`, not `venv`. Activation examples are `. .venv/bin/activate` on POSIX and `> .venv\\scripts\\activate` on Windows, with the Windows prompt shown as `>`.\nWhen you add or edit console examples that create or activate an environment, update every docs page so they all match. These two files previously both used `virtualenv venv` and had to be changed together.\nThis covers only user-facing docs examples. The PR did not touch the project's own tooling (tox, CI).",
+    "applies": "Any edit to docs/*.rst that shows creating or activating a Python environment",
+    "deps": [
+      {
+        "path": "docs/quickstart.rst"
+      },
+      {
+        "path": "docs/setuptools.rst"
+      }
+    ],
+    "tags": [
+      "docs",
+      "venv",
+      "virtualenv",
+      "quickstart",
+      "convention"
+    ],
+    "confidence": 0.6
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:51.938Z"
+}

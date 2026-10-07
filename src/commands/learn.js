@@ -470,21 +470,52 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       tokens += r.tokens || 0;
       if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ proposed: r.notes }); continue; }
       const source = { type: 'pr', ref: refId };
-      const prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
+      // Persist incompleteness before any note can be saved: a process interruption
+      // must not let legacy note-source inference turn a partial PR into a success.
+      recordMinedPrs(store, scopeKey, [], { failed: [pr] });
+      if (directories) recordMinedPrs(store, recSlug, [], { failed: [pr] });
+      let prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
       const s2 = saveNotes(store, prepared.notes, { source, kinds: distillKinds(store), reconciled: prepared.reconciled });
       s2.skipped.push(...prepared.skipped);
+      // One bounded revision of new discoveries, using the exact same PR evidence/model.
+      // Never retry an unavailable judge as a content repair or rewrite an existing note
+      // to resolve a contradiction. No revised claim bypasses grounding/reconciliation.
+      const repairable = prepared.deferred.filter(d => d.status === 'uncertain' && d.diagnostics && !d.note?.extends);
+      if (repairable.length && (phase === 'init' || withinDailyCap(store).ok)) {
+        try {
+          const revised = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo,
+            existing: store.list(), repair: { evidence: r.evidence, findings: repairable },
+            accounting: { ...accounting, purpose: 'mine-prs-repair' } });
+          tokens += revised.tokens || 0;
+          const checked = await prepareNotes(store, revised.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
+          const savedRevision = saveNotes(store, checked.notes, { source, kinds: distillKinds(store), reconciled: checked.reconciled });
+          s2.saved.push(...savedRevision.saved); s2.merged.push(...savedRevision.merged);
+          s2.skipped.push(...checked.skipped, ...savedRevision.skipped);
+          s2.deferred.push(...(savedRevision.deferred || []));
+          s2.retryable ||= savedRevision.retryable;
+          // An unavailable recheck remains retryable even if other notes were saved.
+          prepared = { ...prepared, deferred: [...prepared.deferred.filter(d => !repairable.includes(d)), ...checked.deferred],
+            retryable: prepared.retryable || checked.retryable };
+          store.log({ op: 'mine-prs-repair', pr: pr.number, proposed: revised.notes.length,
+            saved: savedRevision.saved.length + savedRevision.merged.length, deferred: checked.deferred.length,
+            metered: true, phase });
+        } catch (error) {
+          failed.add(pr.number);
+          store.log({ op: 'mine-prs-repair', pr: pr.number, failed: true, error: String(error.message).slice(0, 300), phase });
+        }
+      }
       const pending = deferLearning(store, [...prepared.deferred, ...(s2.deferred || [])], { source, evidenceRef: pr.url || refId });
       if (pending.length) out(`        Deferred ${pending.length} findings: ${path.join(store.dir, 'state', 'learning-pending')}`);
       if (prepared.retryable || s2.retryable) failed.add(pr.number);
       saved += s2.saved.length + s2.merged.length;
-      progress.complete({ ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
+      progress.complete({ ref: refId, title: pr.title, ...(failed.has(pr.number) ? { error: 'PR learning incomplete; failed checks remain retryable' } : {}), deferred: pending.length, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
     } catch (e) { failed.add(pr.number); progress.complete({ ref: refId, title: pr.title, error: e.message }); }
   }
   // PRs the filter passed over are recorded too; failed ones and candidates deferred by the limit are not, so the next run takes them again
   if (!dry) {
     const completed = listed.filter(p => !failed.has(p.number) && !deferred.has(p.number));
-    recordMinedPrs(store, scopeKey, completed);
-    if (directories) recordMinedPrs(store, recSlug, prs.filter(p => !failed.has(p.number)));
+    recordMinedPrs(store, scopeKey, completed, { failed: prs.filter(p => failed.has(p.number)) });
+    if (directories) recordMinedPrs(store, recSlug, prs.filter(p => !failed.has(p.number)), { failed: prs.filter(p => failed.has(p.number)) });
     store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github' });
   }
   progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });

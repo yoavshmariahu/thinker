@@ -1,0 +1,39 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3151"
+  },
+  "evidenceRef": "pallets/click#3151",
+  "title": "Run randomized parallel tests to detect test pollution",
+  "note": {
+    "title": "Run randomized parallel tests to detect test pollution",
+    "kind": "howto",
+    "answers": [
+      "How do I detect tests that pollute other tests?",
+      "How do I run Click tests in random order across multiple cores?",
+      "Which test environment helps investigate flaky tests and race conditions?"
+    ],
+    "body": "Run `tox r -e random` to execute tests in randomized order and in parallel.\nThe command is defined in `pyproject.toml:tool.tox.env.random` and documented in `docs/contributing.md`.\nThe environment installs the `tests-random` dependency group, including `pytest-randomly` and `pytest-xdist`.\n`--numprocesses=auto` automatically selects the parallel worker count.\n`--basetemp={env_tmp_dir}` places pytest temporary files in the tox environment's temporary directory; `-v --tb=short` enables verbose output with short tracebacks.\nThe command forwards positional arguments to pytest, allowing a narrower test selection.",
+    "applies": "Use the optional random tox environment when checking Click tests for test pollution, flakiness, or race conditions.",
+    "deps": [
+      {
+        "path": "pyproject.toml"
+      },
+      {
+        "path": "docs/contributing.md"
+      }
+    ],
+    "tags": [
+      "testing",
+      "pytest",
+      "tox",
+      "test-pollution",
+      "parallel-tests"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:36.002Z"
+}

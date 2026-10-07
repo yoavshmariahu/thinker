@@ -179,24 +179,30 @@ export async function jevEvaluate(state, questions, cfg = {}) {
       method: 'POST', headers: { authorization: `Bearer ${key || hosted.token}`, 'content-type': 'application/json' },
       body, signal: requestSignal, redirect: 'error',
     });
-    if (!res.ok) throw new Error(`jev ${res.status}`);
-    const j = await res.json();
+    if (!res.ok) throw Object.assign(new Error(`jev ${res.status}`), { code: 'JEV_HTTP', retryable: res.status === 408 || res.status === 429 || res.status >= 500 });
+    let j;
+    try { j = await res.json(); }
+    catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      throw Object.assign(new Error('jev: invalid JSON response'), { code: 'JEV_INVALID_RESPONSE', question: 'response', reason: 'invalid JSON', retryable: true });
+    }
     if (onResponse) onResponse(j);
     requestSignal.throwIfAborted();
-    if (!j?.answers) throw new Error('jev: no answers');
+    const invalid = (id, reason) => { throw Object.assign(new Error(`jev: missing or invalid ${id} (${reason})`), { code: 'JEV_INVALID_RESPONSE', question: id, reason, retryable: true }); };
+    if (!j?.answers) invalid('answers', 'missing answers');
     const probability = v => Number.isFinite(v) && v >= 0 && v <= 1;
     for (const [id, q] of entries) {
       const a = j.answers[id];
-      if (!a || (a.type !== undefined && a.type !== q.type)) throw new Error(`jev: missing or invalid ${id}`);
+      if (!a || (a.type !== undefined && a.type !== q.type)) invalid(id, 'missing answer or wrong type');
       if (q.type === 'noul') {
-        if (!probability(a.noul)) throw new Error(`jev: missing or invalid ${id}`);
+        if (!probability(a.noul)) invalid(id, 'probability must be a finite number in [0, 1]');
       } else {
         const options = Object.keys(q.criteria || {}), ps = a.probabilities;
-        if (!options.length || !options.includes(a.choice) || !ps ||
-            Object.keys(ps).length !== options.length || options.some(k => !probability(ps[k])) ||
-            Math.abs(options.reduce((sum, k) => sum + ps[k], 0) - 1) > 0.02 ||
-            options.some(k => ps[k] > ps[a.choice] + 1e-6) ||
-            (a.confidence !== undefined && !probability(a.confidence))) throw new Error(`jev: missing or invalid ${id}`);
+        if (!options.length || !options.includes(a.choice)) invalid(id, 'unknown choice');
+        if (!ps || Object.keys(ps).length !== options.length || options.some(k => !probability(ps[k]))) invalid(id, 'missing, extra or invalid probabilities');
+        if (Math.abs(options.reduce((sum, k) => sum + ps[k], 0) - 1) > 0.02) invalid(id, 'probabilities do not sum to one');
+        if (options.some(k => ps[k] > ps[a.choice] + 1e-6)) invalid(id, 'choice is not a maximum probability option');
+        if (a.confidence !== undefined && !probability(a.confidence)) invalid(id, 'invalid confidence');
       }
     }
     return j;

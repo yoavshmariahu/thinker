@@ -1,0 +1,36 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Avoid GitHub issue links and user docstring churn for internal command details",
+  "note": {
+    "title": "Avoid GitHub issue links and user docstring churn for internal command details",
+    "kind": "rule",
+    "answers": [
+      "Are GitHub issue or pull request links allowed in Click docstrings?",
+      "Where should platform-specific implementation notes for termui be documented?",
+      "Should internal pager command splitting details be exposed in user-facing docstrings?"
+    ],
+    "body": "Convention: Do not include GitHub issue or PR links in public docstrings or code comments.\nEnforced in `src/click/_termui_impl.py:pager` review; explain platform rationale directly in inline comments above relevant code rather than user docstrings.\nUser docstrings should describe user-facing behavior, leaving implementation history and platform quirks to internal comments.",
+    "applies": "Writing docstrings and code comments in click._termui_impl.",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "pager"
+      }
+    ],
+    "tags": [
+      "documentation",
+      "comments",
+      "docstrings",
+      "conventions"
+    ],
+    "confidence": 0.6,
+    "extends": ""
+  },
+  "reason": "source evidence conflicts with a proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:10:00.527Z"
+}

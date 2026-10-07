@@ -1,0 +1,41 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3021"
+  },
+  "evidenceRef": "pallets/click#3021",
+  "title": "Preserve prompt text while retaining the readline workaround",
+  "note": {
+    "title": "Preserve prompt text while retaining the readline workaround",
+    "kind": "rule",
+    "answers": [
+      "Why does an empty prompt_suffix still print a trailing space?",
+      "How should prompt and confirm render custom suffixes?",
+      "Why does the last prompt character go to stdout with err=True?"
+    ],
+    "body": "Symptom: A prompt or confirmation with prompt_suffix=\"\" displays an unwanted trailing space.\nRoot cause: src/click/termui.py:prompt (nested prompt_func) and src/click/termui.py:confirm stripped trailing spaces and passed a synthetic space to the input function.\nFix pattern: Echo the prompt's text[:-1] with nl=False, then pass text[-1:] to the input function. Preserve the exact text while retaining the readline backspace workaround and separate echo for Windows coloring.\nConstraints: Keep this behavior consistent in prompt and confirm, including intentional trailing spaces. With err=True, the echoed prefix goes to stderr, but the final character goes to stdout; the entire prompt is not guaranteed to appear on stderr.",
+    "applies": "Prompt and confirmation rendering in src/click/termui.py, especially empty suffixes, trailing whitespace, and stderr routing.",
+    "deps": [
+      {
+        "path": "src/click/termui.py",
+        "symbol": "prompt"
+      },
+      {
+        "path": "src/click/termui.py",
+        "symbol": "confirm"
+      }
+    ],
+    "tags": [
+      "prompt",
+      "confirm",
+      "prompt_suffix",
+      "readline",
+      "stderr"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:57.501Z"
+}

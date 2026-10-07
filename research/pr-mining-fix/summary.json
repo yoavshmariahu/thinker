@@ -1,0 +1,633 @@
+{
+  "runs": [
+    {
+      "run": "pilot2-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "d2e836228e0cf673396be5fcd94bc295c9b618ea295537099bad48bf1ffa8ec0",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 48050,
+        "saved": 1,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 1,
+      "retrieved": [
+        "testing-editor-edit-files-argv-by-patching-subprocess-popen"
+      ],
+      "replay": null,
+      "wallSeconds": 87.50514262499999,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 27,
+        "claude-opus-5-5": 6
+      },
+      "pendingCount": 5
+    },
+    {
+      "run": "pilot3-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "2b6a6c723bf716330452ce8d01db389efe1ed6e4a7d3faca73441d0fb4807278",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 44854,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "streammixer-stream-close-order",
+        "tox-env-random-pyproject-toml",
+        "testing-editor-edit-files-by-mocking-subprocess-popen"
+      ],
+      "replay": null,
+      "wallSeconds": 67.728771542,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 28,
+        "claude-opus-5-5": 6
+      },
+      "pendingCount": 2
+    },
+    {
+      "run": "reliable-1-gemini",
+      "protocol": {
+        "cohort": "gemini",
+        "model": "gemini-3.8-flash-high",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 199936,
+        "saved": 2,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 2,
+      "retrieved": [
+        "streammixer-stream-closing-order",
+        "editor-command-execution"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 280.335247417,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 25,
+        "gemini-3.8-flash-high": 6
+      },
+      "pendingCount": 1
+    },
+    {
+      "run": "reliable-1-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 44332,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "pager-editor-argv-splitting-in-termui-impl",
+        "streammixer-del-close-order",
+        "tox-random-env-for-randomized-parallel-tests"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 62.679942166000004,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 27,
+        "claude-opus-5-5": 6
+      },
+      "pendingCount": 2
+    },
+    {
+      "run": "reliable-1-sol",
+      "protocol": {
+        "cohort": "sol",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 113096,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "editor-filenames-remain-separate-argv-arguments",
+        "random-tox-environment",
+        "streammixer-close-order"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 140.397006833,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 23,
+        "gpt-6.1-sol": 6
+      },
+      "pendingCount": 1
+    },
+    {
+      "run": "reliable-2-gemini",
+      "protocol": {
+        "cohort": "gemini",
+        "model": "gemini-3.8-flash-high",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 186603,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "editor-command-execution",
+        "streammixer-stream-closing-order",
+        "randomized-parallel-tests"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 258.92026183400003,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 25,
+        "gemini-3.8-flash-high": 6
+      },
+      "pendingCount": 1
+    },
+    {
+      "run": "reliable-2-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 44478,
+        "saved": 2,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 2,
+      "retrieved": [
+        "tox-env-random-for-randomized-parallel-tests",
+        "pager-editor-command-splitting-with-shlex-split"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 60.150640333,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 24,
+        "claude-opus-5-5": 6
+      },
+      "pendingCount": 2
+    },
+    {
+      "run": "reliable-2-sol",
+      "protocol": {
+        "cohort": "sol",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 93120,
+        "saved": 4,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 4,
+      "retrieved": [
+        "pager-and-editor-commands-use-posix-tokenization-editor-file",
+        "streammixer-close-order",
+        "random-test-environment"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 112.335193709,
+      "writerCalls": 5,
+      "repairCalls": 2,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 23,
+        "gpt-6.1-sol": 5
+      },
+      "pendingCount": 0
+    },
+    {
+      "run": "reliable-3-gemini",
+      "protocol": {
+        "cohort": "gemini",
+        "model": "gemini-3.8-flash-high",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 172729,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "stream-close-ordering-in-streammixer-del",
+        "editor-command-invocation-in-editor-edit-files",
+        "pager-command-splitting-in-pager"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 248.74240387499998,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 27,
+        "gemini-3.8-flash-high": 6
+      },
+      "pendingCount": 1
+    },
+    {
+      "run": "reliable-3-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 44128,
+        "saved": 2,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 2,
+      "retrieved": [
+        "pager-and-editor-commands-run-as-shlex-split-argv-lists-with",
+        "streammixer-del-close-order"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 63.845856167,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 33,
+        "claude-opus-5-5": 6
+      },
+      "pendingCount": 4
+    },
+    {
+      "run": "reliable-3-sol",
+      "protocol": {
+        "cohort": "sol",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "0c5f3635d697dbe3376a036c43d4184acaeeb08e3ef60e19f04863c97ee82c61",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 93190,
+        "saved": 5,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 5,
+      "retrieved": [
+        "editor-commands-and-filenames-are-separate-argv-inputs",
+        "isolated-stderr-assertions",
+        "streammixer-close-order"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 115.6927465,
+      "writerCalls": 5,
+      "repairCalls": 2,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 27,
+        "gpt-6.1-sol": 5
+      },
+      "pendingCount": 0
+    },
+    {
+      "run": "validation-1-gemini",
+      "protocol": {
+        "cohort": "gemini",
+        "model": "gemini-3.8-flash-high",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "c516755e05f72057de06c3f9cd917c7f8989158208f872e246d1e2329c9e18e1",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 194450,
+        "saved": 0,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 0,
+      "retrieved": [],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 282.82256395800005,
+      "writerCalls": 6,
+      "repairCalls": 3,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 24,
+        "gemini-3.8-flash-high": 6
+      },
+      "pendingCount": 4
+    },
+    {
+      "run": "validation-1-opus",
+      "protocol": {
+        "cohort": "opus",
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "c516755e05f72057de06c3f9cd917c7f8989158208f872e246d1e2329c9e18e1",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 36846,
+        "saved": 3,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 3,
+      "retrieved": [
+        "clirunner-isolation-streams-may-be-closed-after-the-with-blo",
+        "tox-env-random-for-test-pollution",
+        "editor-edit-files-runs-the-editor-as-an-argv-list-without-sh"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 46.279652,
+      "writerCalls": 5,
+      "repairCalls": 2,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 22,
+        "claude-opus-5-5": 5
+      },
+      "pendingCount": 1
+    },
+    {
+      "run": "validation-1-sol",
+      "protocol": {
+        "cohort": "sol",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "jev": "jev-1.13.0",
+        "commit": "d4d469d0271b76f59e011c5fd06b2de1b52c66a9",
+        "patchSha": "c516755e05f72057de06c3f9cd917c7f8989158208f872e246d1e2329c9e18e1",
+        "source": "PR-only",
+        "prIds": [
+          3151,
+          3245,
+          2991
+        ],
+        "retries": "at most one transient Jev retry; at most one writer repair per PR; all attempts retained"
+      },
+      "result": {
+        "tokens": 94842,
+        "saved": 2,
+        "failed": 0,
+        "processed": 3
+      },
+      "noteCount": 2,
+      "retrieved": [
+        "editor-subprocess-arguments",
+        "run-randomized-parallel-tests-to-detect-test-pollution"
+      ],
+      "replay": {
+        "tokens": 0,
+        "saved": 0
+      },
+      "wallSeconds": 122.54263966699999,
+      "writerCalls": 5,
+      "repairCalls": 2,
+      "failedCalls": [],
+      "modelCounts": {
+        "jev-1.13.0": 22,
+        "gpt-6.1-sol": 5
+      },
+      "pendingCount": 2
+    }
+  ],
+  "replays": {
+    "baseline": {
+      "proposals": 21,
+      "accepted": 0,
+      "reasons": {
+        "source evidence does not establish every proposed claim": 19,
+        "source evidence conflicts with a proposed claim": 2
+      }
+    },
+    "complete-evidence": {
+      "proposals": 21,
+      "accepted": 0,
+      "reasons": {
+        "source evidence does not establish every proposed claim": 20,
+        "source evidence conflicts with a proposed claim": 1
+      }
+    },
+    "final-replay": {
+      "proposals": 21,
+      "accepted": 1,
+      "reasons": {
+        "source evidence does not establish every proposed claim": 14,
+        "source evidence conflicts with a proposed claim": 5,
+        "title or applicability exceeds the grounded body": 1
+      }
+    }
+  },
+  "controls": {
+    "controls": {
+      "cases": 24,
+      "truePositive": 0,
+      "falseNegative": 9,
+      "falsePositive": 0,
+      "trueNegative": 15
+    },
+    "controls-v2": {
+      "cases": 33,
+      "truePositive": 9,
+      "falseNegative": 3,
+      "falsePositive": 0,
+      "trueNegative": 21
+    }
+  }
+}

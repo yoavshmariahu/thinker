@@ -1,0 +1,29 @@
+[
+  {
+    "id": "click-3364",
+    "upstream": "https://github.com/pallets/click/pull/3364",
+    "base": "8a2b48901a08b3d2ec3a9bbd151948a9765368c6",
+    "fixed": "c8da1fcc2cb4523c1fb5bef7f0ca82394dde1efd",
+    "test_file": "tests/test_defaults.py",
+    "acceptance": "test_default_map_nargs",
+    "prompt": "Fix string values in default_map for multi-value parameters. For example, an integer option with nargs=2 and default_map={'point': '3 4'} should receive (3, 4), rather than treating the string as characters or raising a conversion error. Explicit tuple types should work too. Use the parameter type's environment-value splitting semantics, preserve already-structured tuple/list defaults, and preserve command-line precedence over default_map. Add appropriate tests and document the behavior."
+  },
+  {
+    "id": "click-3391",
+    "upstream": "https://github.com/pallets/click/pull/3391",
+    "base": "ba745ac64037b7d4cdd0abce10446c0a2861935f",
+    "fixed": "d959898db264aaf07e70ad4eafa254286f9a5185",
+    "test_file": "tests/test_testing.py",
+    "acceptance": "test_capture",
+    "prompt": "Add an explicit capture mode to CliRunner and fix its default exposure of real file descriptors. CliRunner(capture='sys') must be the default: capture Python-level writes while leaving sys.stdout.fileno() and sys.stderr.fileno() raising io.UnsupportedOperation so code cannot accidentally redirect the host runner. Add capture='fd' on non-Windows platforms to capture direct os.write(1/2), writes through stale stream references or logging handlers, and allow faulthandler.enable(). Keep stdout/stderr separate and include both in Result.output. Restore original streams and descriptors even on exceptions; nested invocations and interaction with pytest's capsys/capfd must work. Reject invalid capture values and reject fd mode on Windows with clear ValueErrors. Preserve existing invocation/exit behavior. Add tests and update the testing documentation."
+  },
+  {
+    "id": "click-3677",
+    "upstream": "https://github.com/pallets/click/pull/3677",
+    "base": "8dd4d60eb5ad4532abdd9b2809a7d9e2aa679b87",
+    "fixed": "8a4ce842564ae94ab050062db8525196ad476c19",
+    "test_file": "tests/test_utils/test_style.py",
+    "acceptance": "test_styling",
+    "prompt": "Make click.style validate foreground and background color values consistently. Accept supported named colors, integer palette indices from 0 through 255 (including 0), and three-element tuple/list RGB colors whose components are integers from 0 through 255. Reject booleans, invalid names, wrong tuple lengths, non-integer components and out-of-range values with ValueError mentioning Unknown color. None still means no color, valid styling and resets must remain unchanged. Add tests and document the behavior."
+  }
+]

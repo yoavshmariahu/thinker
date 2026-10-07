@@ -1,0 +1,40 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3158"
+  },
+  "evidenceRef": "pallets/click#3158",
+  "title": "Record deprecations, removals and behaviour changes for 9.0 in docs/upgrade-guides.md",
+  "note": {
+    "title": "Record deprecations, removals and behaviour changes for 9.0 in docs/upgrade-guides.md",
+    "kind": "rule",
+    "answers": [
+      "where do I document a breaking change or deprecation for 9.0?",
+      "how do users upgrade from 8.3 to 9.0?",
+      "is there a migration guide for the next major version?",
+      "how do I add a new docs page to the How to Guides section?"
+    ],
+    "body": "Convention: docs/upgrade-guides.md has one section per major upgrade (currently \"Upgrading 8.3.X to 9.0\"). It assumes the reader is on 8.3.X and stays marked as under construction until 9.0.0 is released.\nAny change that deprecates, removes or changes user-facing API for 9.0 should add a bullet (replacing \"TBD\") under the matching subsection: Deprecations, Removals with prior deprecation, Removals with no prior deprecation, Changes, or Fixes.\nDeprecation and removal bullets give a short explanation and point users to the replacement function or class, if one exists.\nThe guide prefers deprecating now and removing in 10.0.0 over removing outright. If something is removed with no prior deprecation, the bullet must say clearly why it could not be deprecated first.\nThe page is reached through the \"How to Guides\" toctree in docs/index.rst. Any new docs page (.md or .rst) must be added to a toctree there, or Sphinx will not link it.",
+    "applies": "Any PR that deprecates, removes or changes public API ahead of the 9.0 release, or adds a docs page",
+    "deps": [
+      {
+        "path": "docs/upgrade-guides.md"
+      },
+      {
+        "path": "docs/index.rst"
+      }
+    ],
+    "tags": [
+      "docs",
+      "upgrade-guide",
+      "deprecation",
+      "breaking-change",
+      "9.0",
+      "sphinx-toctree"
+    ],
+    "confidence": 0.7
+  },
+  "reason": "jev: missing or invalid c4",
+  "status": "unavailable",
+  "at": "2026-10-07T07:09:29.637Z"
+}

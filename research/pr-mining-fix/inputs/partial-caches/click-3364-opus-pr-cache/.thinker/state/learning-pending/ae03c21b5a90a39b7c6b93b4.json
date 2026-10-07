@@ -1,0 +1,37 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3021"
+  },
+  "evidenceRef": "pallets/click#3021",
+  "title": "User-visible behavior changes need a docstring versionchanged note and a CHANGES.rst entry",
+  "note": {
+    "title": "User-visible behavior changes need a docstring versionchanged note and a CHANGES.rst entry",
+    "kind": "rule",
+    "answers": [
+      "how do I document a behavior change in click",
+      "where do changelog entries go in click",
+      "versionchanged format for click docstrings"
+    ],
+    "body": "Convention seen in this PR: when a public function's behavior changes, add `.. versionchanged:: X.Y.Z` with a short one-line description to its docstring, placed above the older versionchanged/versionadded entries (e.g. src/click/termui.py:prompt and confirm).\nA reviewer asked for the note to be cut down to a single plain sentence (\"A space is no longer appended to the prompt.\"), so keep these notes short.\nAlso add a bullet under the \"Unreleased\" section of CHANGES.rst that ends with `:issue:`N` :pr:`M``, wrapped to the file's line width.",
+    "applies": "Any user-visible behavior change or bug fix in the click public API",
+    "deps": [
+      {
+        "path": "CHANGES.rst"
+      },
+      {
+        "path": "src/click/termui.py",
+        "symbol": "prompt"
+      }
+    ],
+    "tags": [
+      "changelog",
+      "docs",
+      "convention"
+    ],
+    "confidence": 0.7
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:20.880Z"
+}

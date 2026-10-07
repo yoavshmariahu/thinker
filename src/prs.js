@@ -122,19 +122,27 @@ export function minedPrs(store, slug) {
       mined.add(val);
     }
   }
+  // A partially saved PR is not complete just because one note names its source.
+  for (const id of r.retry || []) {
+    mined.delete(id);
+    if (typeof id === 'string' && !isNaN(Number(id))) mined.delete(Number(id));
+  }
   return { mined, latest: r.latest || null, oldest: r.oldest || null };
 }
 
-export function recordMinedPrs(store, slug, prs) {
+export function recordMinedPrs(store, slug, prs, { failed = [] } = {}) {
   slug = slug || 'local';
-  if (!prs.length) return;
+  if (!prs.length && !failed.length) return;
   const f = recordFile(store);
   let all = {}; try { all = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
   const r = all[slug] || {};
   const dates = [r.latest, r.oldest, ...prs.map(p => p.mergedAt)].filter(Boolean).sort();
   const ids = prs.map(p => p.prNumber || (p.hash ? p.hash.slice(0, 8) : p.number));
+  const retry = new Set((r.retry || []).filter(id => !ids.includes(id)));
+  for (const p of failed) retry.add(p.prNumber || (p.hash ? p.hash.slice(0, 8) : p.number));
   all[slug] = {
-    mined: [...new Set([...(r.mined || []), ...ids])].sort((a, b) => {
+    ...(retry.size ? { retry: [...retry] } : {}),
+    mined: [...new Set([...(r.mined || []), ...ids])].filter(id => !retry.has(id)).sort((a, b) => {
       const na = Number(a), nb = Number(b);
       if (!isNaN(na) && !isNaN(nb)) return na - nb;
       return String(a).localeCompare(String(b));
@@ -253,16 +261,18 @@ Allowed kinds and what each must contain:
 - howto: a way of building, testing or running that the PR introduced or relies on, with its non-obvious flags.
 
 Rules:
-- Only claims the diff, description or review comments support. No speculation.
+- Only claims the diff, description or review comments support. No speculation. Prefer 1-2 narrow notes over a broad summary.
+- Each body line states one independently supported fact. Do not infer a symptom, root cause, security exploit, universal convention or future requirement merely because code changed. If the symptom/root cause is not documented, write a direct invariant or mechanism instead of inventing the four bug-fix labels.
+- Titles and applicability must be no broader than the demonstrated facts. Keep historical before-change behavior explicitly separate from the resulting behavior.
 - Do not restate the PR. A note that only says what this PR did is useless; extract what stays true afterwards.
-- 3-8 lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
+- 1-3 concise lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
 - answers: 2-4 phrasings a future agent or user might use, including product-vocabulary phrasings of the symptom or feature.
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
-export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [] } = {}) {
+export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [], repair = null } = {}) {
   let diff = pr.diff || '';
-  if (!diff && repo && pr.hash) {
+  if (!repair && !diff && repo && pr.hash) {
     try {
       diff = execFileSync('git', ['show', '-m', '--first-parent', '--format=', pr.hash], {
         cwd: repo,
@@ -272,17 +282,18 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, 
       });
     } catch {}
   }
-  if (!diff && slug && pr.number && !pr.isGitCommit) {
+  if (!repair && !diff && slug && pr.number && !pr.isGitCommit) {
     try {
       diff = gh('pr', 'diff', String(pr.number), '--repo', slug);
     } catch {}
   }
   diff = (diff || '').slice(0, 45000);
   // review comments: as given (CI sends them with the diff), else from GitHub
-  const comments = Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
+  const comments = repair ? [] : Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
-  const evidence = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
-  const prompt = evidence + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
+  const evidence = repair?.evidence ?? `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
+  const feedback = repair ? '\n\nGROUNDING FEEDBACK (not source evidence):\n' + JSON.stringify(repair.findings.map(f => ({ note: f.note, reason: f.reason, unsupported: f.diagnostics?.unsupported }))) + '\nReturn only revised notes for these findings. Remove unsupported claims and overly broad scope, including from titles. Keep a narrow, independently useful supported fact if possible; return no note when none remains. Do not add new claims or extensions. The source evidence above is the only authority; feedback is not proof. Prefer just 1-2 directly supported body lines. Omit historical commentary and reviewer opinions unless they are the reusable rule. Use a short topic label for the title and a precise file or symbol scope; do not restate extra facts in metadata. Each body line should make one fact easy to check. These revisions will be grounded again.' : '';
+  const prompt = evidence + feedback + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
   return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r), evidence };
 }

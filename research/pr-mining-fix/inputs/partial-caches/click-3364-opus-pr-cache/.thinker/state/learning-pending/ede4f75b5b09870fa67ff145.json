@@ -1,0 +1,46 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Pager/editor commands: split with shlex.split (POSIX mode) into an argv list, never shell=True",
+  "note": {
+    "title": "Pager/editor commands: split with shlex.split (POSIX mode) into an argv list, never shell=True",
+    "kind": "rule",
+    "answers": [
+      "editor path with spaces not found / EDITOR with quotes fails",
+      "why does click.edit not use shell=True",
+      "PAGER with quoted Windows path keeps quotes",
+      "filename with shell metacharacters runs commands when editing"
+    ],
+    "body": "Symptom: `click.edit()` / `echo_via_pager` fail for EDITOR/PAGER values like `\"C:\\Program Files\\...\\sublime_text.exe\" --wait` (quotes kept in the program name), or a filename containing `\"; rm -rf /` is interpreted by a shell.\nRoot cause: src/click/_termui_impl.py:pager used `shlex.split(..., posix=False)`, which keeps quote characters in tokens; Editor.edit_files built one string `f\"{editor} {quoted files}\"` and ran it with `shell=True`.\nFix pattern: `shlex.split(cmd)` in default POSIX mode (strips quotes, honours `\\ ` escapes), then append filenames as separate argv items: `Popen(args=shlex.split(editor) + list(filenames), env=environ)`. _pipepager/_tempfilepager resolve argv[0] with `shutil.which`; on Windows Popen re-quotes via list2cmdline.\nConstraints: Do not reintroduce `shell=True`, string-concatenated commands, `posix=False`, or `shlex.quote` (a quote-based approach was reverted before). A reviewer questioned whether POSIX-mode shlex is correct on every platform (unescaped backslashes in unquoted Windows paths get eaten), so test Windows paths explicitly when changing this.",
+    "applies": "src/click/_termui_impl.py pager, _pipepager, _tempfilepager, Editor.edit_files",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "pager"
+      },
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "Editor.edit_files"
+      },
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "_pipepager"
+      }
+    ],
+    "tags": [
+      "subprocess",
+      "shlex",
+      "editor",
+      "pager",
+      "security",
+      "windows"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:08:57.695Z"
+}

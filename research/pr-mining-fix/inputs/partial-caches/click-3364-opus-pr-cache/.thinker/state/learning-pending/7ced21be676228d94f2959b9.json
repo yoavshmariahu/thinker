@@ -1,0 +1,45 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3021"
+  },
+  "evidenceRef": "pallets/click#3021",
+  "title": "prompt/confirm must pass the prompt's last character to the input function (readline workaround) and must not add or strip characters",
+  "note": {
+    "title": "prompt/confirm must pass the prompt's last character to the input function (readline workaround) and must not add or strip characters",
+    "kind": "rule",
+    "answers": [
+      "click.prompt with prompt_suffix=\"\" shows an extra trailing space",
+      "why does part of my prompt go to stdout when err=True",
+      "backspace clears the whole prompt line with readline",
+      "how does click.termui split the prompt between echo and input"
+    ],
+    "body": "Symptom: with `prompt_suffix=\"\"`, `click.prompt`/`click.confirm` rendered an extra trailing space (\"bar\" became \"bar \"); earlier, without the workaround, readline backspace cleared the whole line (#665, #2092).\nRoot cause: src/click/termui.py:prompt (inner prompt_func) and src/click/termui.py:confirm used `echo(text.rstrip(\" \"))` and then `f(\" \")`, which rewrote the prompt and always added a space.\nFix pattern: echo everything except the last character (`echo(text[:-1], nl=False, err=err)`), then hand exactly `text[-1:]` to the input/getpass function (`f(text[-1:])` / `visible_prompt_func(prompt[-1:])`). The rendered prompt must be exactly the text plus the suffix, with nothing trimmed or appended.\nConstraints: this split is intentional. With `err=True`, the prompt minus its last character goes to stderr and the last character goes to stdout (e.g. `prompt(\"bar\", prompt_suffix=\"\", err=True)` sends \"ba\" to stderr and \"r\" to stdout). Don't \"fix\" this by moving everything to echo, because that brings back the readline backspace bug. tests/test_utils.py checks the exact stdout/stderr split with capfd for prompt and confirm, with and without a suffix, so update those asserts together with any change here.",
+    "applies": "Any change to prompt rendering in src/click/termui.py prompt() and confirm()",
+    "deps": [
+      {
+        "path": "src/click/termui.py",
+        "symbol": "prompt"
+      },
+      {
+        "path": "src/click/termui.py",
+        "symbol": "confirm"
+      },
+      {
+        "path": "tests/test_utils.py"
+      }
+    ],
+    "tags": [
+      "termui",
+      "prompt",
+      "confirm",
+      "readline",
+      "stderr",
+      "prompt_suffix"
+    ],
+    "confidence": 0.8
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:09:20.880Z"
+}

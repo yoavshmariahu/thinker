@@ -1,0 +1,37 @@
+{
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3245"
+  },
+  "evidenceRef": "pallets/click#3245",
+  "title": "Avoid shell=True when launching editor with filenames in Editor.edit_files",
+  "note": {
+    "title": "Avoid shell=True when launching editor with filenames in Editor.edit_files",
+    "kind": "rule",
+    "answers": [
+      "Why does click.edit fail or behave unexpectedly with filenames containing quotes or spaces?",
+      "How should editor commands be executed without shell=True in Editor.edit_files?",
+      "How to prevent command injection when opening files in external editors?"
+    ],
+    "body": "Symptom: Opening files with quotes, spaces, or shell metacharacters in an external editor causes syntax errors or executes arbitrary shell commands.\nRoot cause: `src/click/_termui_impl.py:Editor.edit_files` formatted filenames into a command string and invoked `subprocess.Popen` with `shell=True`.\nFix pattern: Split the editor command string with `shlex.split()` and append filenames as discrete argument list items to `subprocess.Popen` without `shell=True`.\nConstraints: Applies when launching external editors via subprocess; editor command string must be split into argv before appending filename arguments.",
+    "applies": "Invoking user-configured editor commands via subprocess in click._termui_impl.",
+    "deps": [
+      {
+        "path": "src/click/_termui_impl.py",
+        "symbol": "Editor.edit_files"
+      }
+    ],
+    "tags": [
+      "subprocess",
+      "editor",
+      "security",
+      "termui",
+      "shell"
+    ],
+    "confidence": 0.8,
+    "extends": ""
+  },
+  "reason": "source evidence does not establish every proposed claim",
+  "status": "uncertain",
+  "at": "2026-10-07T07:10:00.527Z"
+}

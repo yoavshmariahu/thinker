@@ -1,0 +1,31 @@
+{
+  "source": "research/pr-efficiency-canary archived frozen evidence",
+  "upstreamBase": "8a2b48901a08b3d2ec3a9bbd151948a9765368c6",
+  "snapshotTree": "005d805e4149cf985db9b35a2f686f34e3f88197",
+  "files": {
+    "click-base.tar.gz": "05ae5fc312b4387e4ada36b28890fc1963f2f76ba1f1b21fd4beb565c6c9ee29",
+    "partial-caches/click-3364-gemini-pr-cache/.thinker/state/learning-pending/20e17989680d1c51c968acbd.json": "f2f57822b7227923e174ca909b724864af87b5c6be4b6182b95cf9ac63a0285a",
+    "partial-caches/click-3364-gemini-pr-cache/.thinker/state/learning-pending/a273565d9704888a50959456.json": "9ac3de6be60c46f245e90394d015285585a24aecea818ef62d9933cdccffe39d",
+    "partial-caches/click-3364-gemini-pr-cache/.thinker/state/learning-pending/c824eefa8b5ae9e7bc184323.json": "f63d26ab2d2933346f0edc0db5146b069f69b1492eb1f344cd326a173a8eae84",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/0c891c825a75ffffe5a07502.json": "2bbc93a1566d1af3bca4f33153af4c4300299a03da4c31400ea053a0baff0bf4",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/186d2107c33ce4077d0008a0.json": "7be0ac13e434a306650dade2ef0e29dce6cc34785a6124beb13ba4f283290b91",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/5a15f3d1ff471dbcadc3e3c6.json": "f6086ccc722ea74cec9b025e61d42b4888169e219d868025baeaa9d365c9a1e6",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/5b2ea8398dcc9443e9344bc1.json": "85d494feb6ae5e9a17086a992761e69f9c6514e19ef5e1968f1f415db1f9e73d",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/649a7242c0694d4bbc1733f3.json": "2689ecec2f9bb451b184263fd4fb7ca4678aeccf690168fef609e139b5b895aa",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/7ced21be676228d94f2959b9.json": "66ece1f64b3d81eb5b2a1f3d1326f9c7afdba430e764a00e312fa26fbaf51876",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/8dc30d6955f403e82672053e.json": "9fac3aeca84366ce9e43bb64ec69b1eda642b7686a20d53a9e250301b3e952d8",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/98c630c76c49e06cf787b2ba.json": "08e42422ddd6227c9e90b623fe1fec462a374b79fdc04d1a157c42d788d3bd48",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/ae03c21b5a90a39b7c6b93b4.json": "d9fc4f9a04d14492304525f07bac512cbf8ec4cf16d5ba75585ef83596165103",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/ca5a167b7e99d13274c91f9c.json": "7c1440509369f64a82734bc0aa1f476fa727f0676ed353e9369f2731320fc099",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/d48cc98f3b4000f03e84c79e.json": "69b5517cb7f4205ff585a2198444d766fd8543609c066b43717ce46198c04d64",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/ede4f75b5b09870fa67ff145.json": "af33216336b5abb651c6073892bab088048b72985c0a08d26c29b5e44c09a590",
+    "partial-caches/click-3364-opus-pr-cache/.thinker/state/learning-pending/fb5f61f3cb1beae5f1ad21c2.json": "7c63a567b591e944e183273f06046c52336ae1e420b715644673fec4177e4c7a",
+    "partial-caches/click-3364-sol-pr-cache/.thinker/state/learning-pending/116f57327bf4cedda3118b30.json": "c4e5de7a10a1b692c2ffe2e38fe1a6b1b3b34d9da508825f7701150999673738",
+    "partial-caches/click-3364-sol-pr-cache/.thinker/state/learning-pending/684ea011a722f2428a62cd4c.json": "ee0e9ec1e01fd21c6cbd89b115fd9bf06ca9db37c7caceade1483f7b5e2ed306",
+    "partial-caches/click-3364-sol-pr-cache/.thinker/state/learning-pending/c3fe6280239f671643dd129a.json": "e87183f1aab17fbb7b9d18a3a2bcf6f07e2a17ffd2a4a1b6d6b254be03a17c3e",
+    "partial-caches/click-3364-sol-pr-cache/.thinker/state/learning-pending/c5bfafd15ea4c916d6ed4eab.json": "1c5d51439d4745192a940a347171225dca672f6602a9da6596434a683a33c7d2",
+    "partial-caches/click-3364-sol-pr-cache/.thinker/state/learning-pending/dadab90dc36b29d5b3546da2.json": "a8b13fc09ee58a94655034f464185e1282b294873ba2686d25f7a6029bf4c648",
+    "prs.json": "3548bf3a886a0e9c660d57368be6ad05c360be00bd440e31a98b085031a660a1",
+    "tasks.json": "0c8126ff0373de12b01cb43b7faf744699a699c972fdf9432098223384ced12b"
+  }
+}
