@@ -708,7 +708,7 @@ export async function phraseNotes(store, notes, { model, max = 5, phase = 'maint
     pending.forEach((candidate, i) => {
       const verdict = checked.results[i];
       if (verdict.accepted) accepted.push(candidate);
-      else if (attempt === 1) again.push({ candidate, verdict });
+      else if (attempt === 1 && verdict.status === 'rejected') again.push({ candidate, verdict });
       else refused.push({ candidate, verdict });
     });
     if (!again.length) break;
@@ -728,8 +728,13 @@ export async function phraseNotes(store, notes, { model, max = 5, phase = 'maint
     store.put({ ...cur, ...(says.length ? { says } : {}), ...(search.length >= 40 ? { search } : {}), saysFor: phraseKey(cur) });
     done.push(n.id);
   }
-  // `phraseRefused` carries the key the refusal was for, so an edited note is described again.
+  // `phraseRefused` carries the key the refusal was for, so an edited note is described again. Only
+  // a judgment refuses a note for good: a check that could not run (`unavailable` -- a quota, a
+  // transport failure, the daily token cap) must leave the note to a later run. One capped build
+  // marked all 21 of its notes refused for reason `dailyTokens`, which would have stopped
+  // maintenance describing them ever again.
   for (const { candidate, verdict } of refused) {
+    if (verdict?.status !== 'rejected') continue;
     const cur = store.get(candidate.note.id);
     if (!cur || phraseKey(cur) !== phraseKey(candidate.note)) continue;
     store.put({ ...cur, phraseRefused: { at: new Date().toISOString(), key: phraseKey(cur), support: verdict?.support ?? null, scope: verdict?.scope ?? null } });

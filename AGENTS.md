@@ -1335,10 +1335,13 @@ Human behavior notes cannot be authored or replaced by these learning paths.
 A note's search description is checked against the note before it is kept
 (`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
 conditions and prohibitions survive"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since
-2026-10-07. A refused description is written again once, told to stay inside the note; a second
+2026-10-07. A description the judge refuses is written again once, told to stay inside the note; a second
 refusal is final, and `phraseRefused` records the key and the scores so maintenance leaves the note
 alone until its text changes, rather than paying the writer and the judge for the same refusal every
-run. The note keeps no description and ranks on its body, which is Jev's documented fallback.
+run. The note keeps no description and ranks on its body, which is Jev's documented fallback. A check
+that could not run is different from a refusal: `unavailable` (a quota, a transport failure, the
+daily token cap) stores nothing and records nothing, leaving the note to a later run, since one
+capped build marked all 21 of its notes refused for reason `dailyTokens`.
 The floor was 0.9 and kept nothing: 0 of 38 descriptions written by a pinned Opus from mined notes,
 support 0.18 to 0.81. Two causes, measured in `research/phrase-length`. `phraseNotes` asked for
 "3 to 6 plain sentences" of notes whose bodies are one to three lines, so the writer padded, and
