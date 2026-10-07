@@ -1,0 +1,34 @@
+{
+  "state": {
+    "task": "Review this retention change. Do not choose precedence between equally authoritative requirements. If an intent decision is required, use manual_review and name the exact conflicting requirements. No network, edits, tests, or outside reads.",
+    "contracts": [
+      "Requirement A: delete records after seven days.",
+      "Requirement B: retain all records for at least thirty days.",
+      "A and B apply to the same records and have equal authority; there is no approved precedence or exception."
+    ],
+    "diff": "- export const retentionDays = 30;\n+ export const retentionDays = 7;\n",
+    "source": {
+      "src/retention.js": "export const retentionDays = 7;\n"
+    },
+    "findings": [],
+    "coverage": "No review performed yet.",
+    "limitations": [
+      "Only the staged source files are available; external implementations and upstream integration tests are not supplied."
+    ],
+    "history": [],
+    "roundsUsed": 0,
+    "maxRounds": 3,
+    "availableActions": {
+      "verify_existing": "Check existing findings against the supplied source; correct or limit unsupported claims.",
+      "inspect_callers": "Fetch the predeclared additional source excerpt and inspect the caller/control flow.",
+      "investigate_remaining": "Inspect the current diff and source for distinct unreported contract violations.",
+      "finalize": "Finish with supported findings and explicit scope limits.",
+      "manual_review": "Stop with an unresolved question that requires human intent or unavailable evidence."
+    }
+  },
+  "steps": [
+    {
+      "action": "initial"
+    }
+  ]
+}
