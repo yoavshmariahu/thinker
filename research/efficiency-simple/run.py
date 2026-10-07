@@ -17,7 +17,7 @@ themselves. And an agent CLI is only logged in with its real configuration direc
 wiring comes from the checkout (`wire.mjs`, repo scope) while `--setting-sources ''` keeps the
 machine's settings out. Measured: under `--safe-mode` an explicitly passed hook does not run at all.
 """
-import json, os, shutil, subprocess, sys, time
+import json, os, shutil, subprocess, sys, time, uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +34,22 @@ if not SOURCE.is_dir():
     raise SystemExit('Set THINKER_BENCH_SOURCE to the read-only upstream clone')
 
 
+MUTATING = {'reset', 'clean', 'add', 'apply', 'commit', 'checkout'}
+
+
 def git(args, cwd, check=True):
+    """Run git in `cwd`, having proved that `cwd` is the repository it claims to be.
+
+    Without the check a mutating command aimed at a directory that is not a checkout walks up to
+    the enclosing repository: `reset --hard` on an empty run directory discarded this worktree's
+    uncommitted work once, which is a benchmark deleting the thing it is measuring.
+    """
+    cwd = Path(cwd)
+    if args[0] in MUTATING:
+        top = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=cwd, capture_output=True, text=True)
+        if top.returncode or Path(top.stdout.strip()).resolve() != cwd.resolve():
+            raise SystemExit(f'refusing git {args[0]}: {cwd} is not a checkout '
+                             f'(enclosing repository is {top.stdout.strip() or "none"})')
     r = subprocess.run(['git', *args], cwd=cwd, capture_output=True, text=True)
     if check and r.returncode:
         raise SystemExit(f'git {" ".join(args)} failed in {cwd}: {r.stderr[:300]}')
@@ -44,7 +59,13 @@ def git(args, cwd, check=True):
 def snapshot(commit, dest):
     """A checkout whose history stops at `commit`; nothing merged later exists to be found."""
     if dest.exists():
-        return dest
+        head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=dest, capture_output=True, text=True)
+        top = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=dest, capture_output=True, text=True)
+        if (not head.returncode and head.stdout.strip() == commit
+                and Path(top.stdout.strip() or '/').resolve() == dest.resolve()):
+            return dest
+        # A directory left over from an interrupted run holds the cache and no source.
+        shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     git(['branch', '-f', 'eff-anchor', commit], SOURCE)
     git(['clone', '--quiet', '--single-branch', '--branch', 'eff-anchor', f'file://{SOURCE}', str(dest)], ROOT)
@@ -94,9 +115,25 @@ def anchor_task():
     return sorted(TASKS, key=lambda t: int(git(['show', '-s', '--format=%ct', t['base']], SOURCE).strip()))[0]
 
 
+def lift_daily_cap(repo):
+    """A build spends more in an hour than a repository is meant to spend in a day.
+
+    Without this the cap stops the note catalog mid-build and the remaining changes fail their
+    checks -- 16 of 60 commits on the first deep mining run, reported only as
+    `note catalog unavailable: dailyTokens`. The guarded harness set the same override.
+    """
+    config = repo / '.thinker/config.json'
+    if not config.parent.exists():
+        return
+    current = json.loads(config.read_text()) if config.exists() else {}
+    current['maintain'] = {**current.get('maintain', {}), 'dailyTokens': 1_000_000_000}
+    config.write_text(json.dumps(current, indent=2) + '\n')
+
+
 def build(cohort):
     anchor = anchor_task()
     repo = snapshot(anchor['base'], OUT / f'cache-{cohort}')
+    lift_daily_cap(repo)
     env = env_for(cohort, learning=True, cache=True)
     print(f'building {cohort} cache at {anchor["id"]} ({anchor["base"][:10]})', flush=True)
     # Mining only. Exploration was measured on Click and is not part of a benchmark cache: it cost
@@ -119,7 +156,9 @@ def task_cache(cohort, task, repo):
     source = OUT / f'cache-{cohort}/.thinker'
     if not source.exists():
         raise SystemExit(f'build {cohort} first')
+    shutil.rmtree(repo / '.thinker', ignore_errors=True)   # repeatable: a retry starts clean
     shutil.copytree(source, repo / '.thinker')
+    lift_daily_cap(repo)
     for path in [repo / '.thinker/log.jsonl', repo / '.thinker/state']:
         shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(missing_ok=True)
     env = env_for(cohort, learning=True, cache=True)
@@ -271,14 +310,18 @@ def usage(cli_name, stdout):
 
 
 def servings(repo):
-    """How often the cache actually served, from the checkout's own log."""
+    """How many notes the cache actually served, from the checkout's own log.
+
+    The hook logs them under `served`; `included` is orient's return shape, not the log's, and
+    reading the wrong key reported "0 servings" for a run that was served two notes at 0.58.
+    """
     log = repo / '.thinker/log.jsonl'
     if not log.exists():
         return 0
     rows = [json.loads(l) for l in log.read_text().splitlines() if l.strip()]
     if any(r.get('op') in ('jev-error', 'ce-error') for r in rows):
         raise SystemExit(f'{repo.name}: ranking fell back; the run would not measure the shipped ranker')
-    return sum(1 for r in rows if r.get('op') == 'orient' and r.get('included'))
+    return sum(len(r.get('served') or []) for r in rows if r.get('op') == 'orient')
 
 
 def probe(cohort):
@@ -294,8 +337,10 @@ def probe(cohort):
     for task in TASKS:
         log = repo / '.thinker/log.jsonl'
         log.unlink(missing_ok=True)
-        payload = json.dumps({'session_id': f'probe-{cohort}-{task["id"]}', 'cwd': str(repo),
-                              'prompt': task['prompt']})
+        # A fresh session every time: the hook serves a note once per session, so a reused id makes
+        # the second probe of the same cache look like a cache that covers nothing.
+        payload = json.dumps({'session_id': f'probe-{cohort}-{task["id"]}-{uuid.uuid4().hex[:8]}',
+                              'cwd': str(repo), 'prompt': task['prompt']})
         subprocess.run(['node', CLI, 'hook', 'prompt'], cwd=repo, input=payload,
                        env=env_for(cohort, learning=False, cache=True), capture_output=True, text=True)
         records = [json.loads(l) for l in log.read_text().splitlines() if l.strip()] if log.exists() else []
@@ -309,13 +354,32 @@ def probe(cohort):
     return rows
 
 
-def solve(cohort):
+def solve(cohort, covered_only=True):
+    """Both arms of every covered task. An uncovered pair compares the baseline against itself.
+
+    The skipped tasks are named in the result, so the coverage gap is part of the finding rather
+    than a silent omission. THINKER_EFF_ALL=1 runs them anyway.
+    """
     preflight()
-    rows = []
+    probed = OUT / f'probe-{cohort}.json'
+    covered = None
+    if covered_only and not os.environ.get('THINKER_EFF_ALL'):
+        if not probed.exists():
+            probe(cohort)
+        covered = {r['task'] for r in json.loads(probed.read_text()) if r['served']}
+        if not covered:
+            raise SystemExit(f'{cohort}: no task has cache coverage; nothing here would measure the cache')
+    rows, skipped = [], []
     for i, task in enumerate(TASKS):
+        if covered is not None and task['id'] not in covered:
+            skipped.append(task['id'])
+            continue
         for arm in (ARMS if (i + list(MODELS).index(cohort)) % 2 == 0 else list(reversed(ARMS))):
             rows.append(measure(cohort, arm, task))
-    (OUT / f'solve-{cohort}.json').write_text(json.dumps(rows, indent=2) + '\n')
+    if skipped:
+        print(f'{cohort}: skipped {", ".join(skipped)} (cache serves nothing for them)', flush=True)
+    (OUT / f'solve-{cohort}.json').write_text(json.dumps(
+        {'cohort': cohort, 'runs': rows, 'skippedForNoCoverage': skipped}, indent=2) + '\n')
 
 
 def score(cohort):
