@@ -3,6 +3,10 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## PR-only cache effectiveness canary (2026-10-07)
+
+[Preserved results and coverage diagnosis](../research/cache-effectiveness/README.md): after the PR-mining repair, the first Opus cache mined 20 recent pre-task PRs into 15 notes with no failed model calls, but served none for the actual Click task (highest Jev relevance 0.07). The guard stopped Sol/Gemini builds and all coding before execution. **No efficiency comparison is available; expansion remains paused.** Relevant material was present in a mined PR but was not extracted into notes. A separate post-stop harness fix accounts for the product's local note storage and usage updates without allowing learned content to change.
+
 ## Stopped performance canary (2026-10-06)
 
 [Harness audit and preserved results](../research/performance-canary/README.md): planned three Click tasks per model, with and without Thinker, using Opus 5.5, GPT-6.1 Sol and Gemini 3.8 Flash at high effort. **Invalid for the intended efficiency comparison; expansion stopped.** All nine fresh caches were empty, but the harness lacked a cache-readiness gate and still launched coding. Nine runs completed and passed their frozen affected-module tests; two were interrupted and seven never started. The interrupted Opus run enabled 30,000 normally excluded stress-test iterations, hidden by buffered output. The evidence does not establish either a memory efficiency benefit or a product-wide cache outage. Existing historical results remain separate; no new efficiency headline is published.

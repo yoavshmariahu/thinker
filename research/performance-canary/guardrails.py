@@ -127,17 +127,30 @@ def assert_ready(out, tasks, models=MODELS):
                 raise GuardError(f'{name}: no valid PR mining receipt')
             retrieval = read(out / 'raw' / (name + '-thinker-retrieval.json'))
             hashes = read(out / 'raw' / (name + '-pr-note-hashes.json'))
-            if not hashes or retrieval.get('noteCount') != len(hashes) or not retrieval.get('text', '').strip() or not retrieval.get('included'):
+            if retrieval.get('valid') is False or retrieval.get('error') or not hashes or retrieval.get('noteCount') != len(hashes) or not retrieval.get('text', '').strip() or not retrieval.get('included'):
                 raise GuardError(f'{name}: empty cache or retrieval')
             ids = set()
+            cache = out / 'state' / (name + '-thinker') / '.thinker'
+            # Store.init migrates untracked legacy notes into local/notes. Serving
+            # legitimately updates usage and staleness; the learned content stays frozen.
+            target_dir = cache / 'local/notes'
+            if ({p.name for p in target_dir.glob('*.json')} != set(hashes)
+                    or any((cache / 'notes').glob('*.json'))
+                    or any((cache / 'local/shared').glob('*.json'))):
+                raise GuardError(f'{name}: unexpected cache inventory')
             for filename, checksum in hashes.items():
                 if Path(filename).name != filename or not filename.endswith('.json'):
                     raise GuardError('Invalid cache filename')
                 source = out / 'raw' / (name + '-pr-notes') / filename
-                target = out / 'state' / (name + '-thinker') / '.thinker/notes' / filename
-                if digest(source) != checksum or digest(target) != checksum:
+                target = target_dir / filename
+                if digest(source) != checksum:
                     raise GuardError(f'{name}: cache hash mismatch')
                 note = read(source)
+                mutable = {'uses', 'lastUsed', 'servedIn', 'status', 'stale'}
+                content = lambda n: {k: v for k, v in n.items() if k not in mutable}
+                current = read(target)
+                if current.get('status') not in ('fresh', 'stale') or content(current) != content(note):
+                    raise GuardError(f'{name}: cache content mismatch')
                 if not note.get('deps') or not note.get('body', '').strip() or note.get('status') != 'fresh':
                     raise GuardError(f'{name}: unusable note')
                 provenance = note.get('source', {})
