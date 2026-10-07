@@ -1,3 +1,4 @@
+import { parseAreaLimit } from '../topology.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
@@ -340,7 +341,7 @@ export async function setup(ctx) {
   const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
-  const areas = flags['no-seed'] ? 0 : num(flags.areas, 12);
+  const areas = flags['no-seed'] ? 0 : parseAreaLimit(flags.areas);
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);

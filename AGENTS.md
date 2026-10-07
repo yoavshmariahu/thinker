@@ -170,15 +170,15 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
 
 1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
-2. runs one exploration session per source area and distills it (`--areas n`,
-   default 12);
+2. runs one exploration session per adaptively sized source area and distills it
+   (`--areas n` is an optional cap, with omitted areas reported; no default cap);
 3. links the notes; the agents (`--clients claude,codex,cursor,gemini`, `all`,
    or `auto`, the default) were connected in step 1.
 
 Steps 1 and 2 run through an installed agent with its own login (`--agent`
 picks one). Measured on this machine's log: about 400k tokens per area (the
 exploration and its distillation, most of them cached prompt reads) and 14k per
-pull request, so roughly 5.5M tokens and twenty minutes with the defaults
+pull request. The estimate scales with the discovered session count
 (`setup/estimate.js:TOKENS_PER_AREA`, `TOKENS_PER_PR`). The estimate is printed
 in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
 since most agents run on subscriptions and a figure from API list prices told
@@ -211,9 +211,16 @@ reuses the file. `--project file` chooses another file; `--full-repo` overrides 
 for one run. Choosing Full repo in the menu updates an existing default file to
 `directories: ["."]`.
 
-`discoverAreas` uses literal git pathspecs before clustering, and cannot widen a
-selected deep directory into its parent. Setup passes the same directories to
-estimates, exploration and PR mining. Scoped PR scans keep a directory-keyed
+`planAreas` / `discoverAreas` use literal git pathspecs before clustering and
+cannot widen a selected deep directory into its parent. Exploration groups use
+128 KiB of source (roughly 32k tokens) and 80 files as per-session working-set
+heuristics, not a repository coverage limit. Small sibling groups share a session;
+oversized directories split recursively, including flat directories split into
+explicit file batches. A single oversized file stays intact. Every eligible
+source file belongs to one group; tests are used only if no production source is
+available. Size and git churn determine execution order, and an explicit cap
+selects from that order. These sizing heuristics are not empirically calibrated.
+Setup passes the same directories to estimates, exploration and PR mining. Scoped PR scans keep a directory-keyed
 cursor; only successfully processed changes enter the global mined record, so
 unrelated PRs remain available to other builds. Git history uses directory
 pathspecs; GitHub uses the listed changed paths with bounded scans. All projects

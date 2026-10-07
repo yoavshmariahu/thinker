@@ -51,126 +51,103 @@ export function subsystemForFile(repo, filePath) {
   return top2;
 }
 
-// Discover architectural areas in the repository, combining file structure,
-// adaptive directory depth, and git churn over recent commits.
-export function discoverAreas(repo, { limit = 12, churnLimit = 200, directories = null } = {}) {
-  if (limit <= 0) return [];
+// Per-session working-set heuristics, not a limit on repository coverage. About
+// 32k source tokens leaves room for dependency reads and the exploration trace.
+// File count also bounds the inventory for repositories with many tiny files.
+export const AREA_SOURCE_BYTES = 128 * 1024;
+export const AREA_SOURCE_FILES = 80;
+
+export function parseAreaLimit(value) {
+  if (value === undefined) return undefined;
+  const limit = Number(value);
+  if (typeof value === 'boolean' || String(value).trim() === '' || !Number.isSafeInteger(limit) || limit < 0) {
+    throw new Error('--areas must be a non-negative integer');
+  }
+  return limit;
+}
+
+export function discoverAreas(repo, options = {}) {
+  return planAreas(repo, options).areas;
+}
+
+// Partition all selected source files, then rank sessions by size and churn.
+// Only an explicit limit leaves areas out; the same plan drives preview and build.
+export function planAreas(repo, { limit, churnLimit = 200, directories = null } = {}) {
+  limit = parseAreaLimit(limit);
   let rawFiles = [];
   try {
     rawFiles = execFileSync('git', ['ls-files', '-z', '--', ...directoryPathspecs(directories)], { cwd: repo, maxBuffer: 1 << 26 })
-      .toString()
-      .split('\0')
-      .filter(Boolean);
+      .toString().split('\0').filter(Boolean);
   } catch {
-    return [];
+    return { areas: [], omitted: [] };
   }
-
   const codeFiles = rawFiles.filter(f => CODE_EXTS.test(f) && !IGNORE_PATHS.test(f));
   const primaryFiles = codeFiles.filter(f => !IGNORE_TESTS.test(f));
-  const files = primaryFiles.length >= 5 ? primaryFiles : codeFiles;
+  const files = (primaryFiles.length ? primaryFiles : codeFiles).flatMap(file => {
+    try {
+      const stat = fs.lstatSync(path.join(repo, file));
+      return stat.isFile() ? [{ file, size: stat.size }] : [];
+    } catch { return []; }
+  }).sort((a, b) => a.file.localeCompare(b.file, 'en'));
 
-  if (!files.length) return [];
-
-  // Never widen a deep selection (services/api/auth) to its parent (services/api).
-  const scopeArea = (file, area) => {
-    const root = directories?.find(dir => includesPath([dir], file));
-    return root && root !== '.' && includesPath([area], root) ? root : area;
+  const clusters = [];
+  const sizeOf = entries => entries.reduce((sum, entry) => sum + entry.size, 0);
+  const fits = entries => entries.length <= AREA_SOURCE_FILES && sizeOf(entries) <= AREA_SOURCE_BYTES;
+  const add = (dir, entries) => {
+    if (!entries.length) return;
+    const isFile = entries.length === 1;
+    clusters.push({ dir: isFile ? entries[0].file : dir, isFile, n: entries.length,
+      size: sizeOf(entries), files: entries.map(entry => entry.file) });
   };
-
-  // Count files by 2-segment directory
-  const depth2 = {};
-  for (const f of files) {
-    const parts = f.split('/');
-    const key = scopeArea(f, parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.');
-    depth2[key] = (depth2[key] || 0) + 1;
-  }
-
-  const topDirs = Object.keys(depth2);
-
-  // Compact repo case: if <= 3 top directories and < 60 total source files (e.g. click),
-  // partition by key individual source files rather than collapsing into 1 directory.
-  if (topDirs.length <= 3 && files.length <= 60) {
-    const substantive = files.filter(f => !/__init__|py\.typed|index\.[jt]s$/i.test(f));
-    const scoredFiles = (substantive.length ? substantive : files)
-      .map(f => {
-        let size = 0;
-        try { size = fs.statSync(path.join(repo, f)).size; } catch {}
-        const isPrivate = path.basename(f).startsWith('_');
-        return { dir: f, n: 1, isFile: true, size, isPrivate };
-      });
-    scoredFiles.sort((a, b) => (a.isPrivate ? 1 : 0) - (b.isPrivate ? 1 : 0) || b.size - a.size);
-    return scoredFiles.slice(0, limit);
-  }
-
-  // Adaptive directory clustering
-  const clusters = {};
-  for (const f of files) {
-    const parts = f.split('/');
-    let key;
-    const p2 = scopeArea(f, parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.');
-    // If a 2-segment directory has > 80 files, split into depth 3 (e.g. pkg/services/auth, posthog/api)
-    const splitDepth = Math.max(3, p2.split('/').length + 1);
-    if (depth2[p2] > 80 && parts.length > splitDepth) {
-      key = scopeArea(f, parts.slice(0, splitDepth).join('/'));
-    } else {
-      key = p2;
+  const partition = (dir, entries) => {
+    if (entries.length === 1 || fits(entries)) { add(dir, entries); return; }
+    const children = new Map();
+    const prefix = dir === '.' ? '' : dir + '/';
+    for (const entry of entries) {
+      const relative = entry.file.slice(prefix.length);
+      const child = prefix + relative.split('/')[0];
+      if (!children.has(child)) children.set(child, []);
+      children.get(child).push(entry);
     }
-    clusters[key] = (clusters[key] || 0) + 1;
-  }
+    let batch = [];
+    for (const [child, group] of children) {
+      if (!fits(group)) {
+        add(dir, batch); batch = [];
+        // A single oversized file stays intact; directories keep splitting.
+        if (group.length === 1) add(dir, group);
+        else partition(child, group);
+      } else {
+        if (!fits([...batch, ...group])) { add(dir, batch); batch = []; }
+        batch.push(...group);
+      }
+    }
+    add(dir, batch);
+  };
+  // Keep selected roots separate and never widen them to a parent. Normalize
+  // overlapping roots here as well as in the project-file reader.
+  const roots = (directories?.length ? directories : ['.'])
+    .filter((dir, i, all) => all.indexOf(dir) === i && !all.some(other => other !== dir && includesPath([other], dir)));
+  for (const root of roots) partition(root, files.filter(entry => includesPath([root], entry.file)));
 
-  // Count git churn over the last N commits
-  const churn = {};
+  const byFile = new Map(clusters.flatMap(area => area.files.map(file => [file, area])));
+  for (const area of clusters) area.churn = 0;
   try {
     const log = execFileSync('git', ['log', '--name-only', '--pretty=format:', '-n', String(churnLimit), '--', ...directoryPathspecs(directories)], {
-      cwd: repo,
-      maxBuffer: 1 << 24,
-      stdio: ['ignore', 'pipe', 'ignore'],
+      cwd: repo, maxBuffer: 1 << 24, stdio: ['ignore', 'pipe', 'ignore'],
     }).toString().split('\n');
-
-    for (const line of log) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      for (const k of Object.keys(clusters)) {
-        if (includesPath([k], trimmed)) {
-          churn[k] = (churn[k] || 0) + 1;
-          break;
-        }
-      }
+    for (const file of log) {
+      const area = byFile.get(file);
+      if (area) area.churn++;
     }
   } catch {}
-
-  // Score each area: combine file count (mass) with churn (activity)
-  const scored = Object.entries(clusters).map(([dir, n]) => {
-    const ch = churn[dir] || 0;
-    const score = Math.log(n + 1) * (1 + Math.log(ch + 1));
-    return { dir, n, churn: ch, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-
-  // Diversity cap: ensure no single root (e.g. "packages/") takes more than 40% of slots
-  // if other roots exist
-  const result = [];
-  const rootCount = {};
-  const maxPerRoot = Math.max(2, Math.floor(limit * 0.45));
-
-  for (const item of scored) {
-    const root = item.dir.split('/')[0];
-    if (topDirs.length > 2 && (rootCount[root] || 0) >= maxPerRoot) continue;
-    result.push(item);
-    rootCount[root] = (rootCount[root] || 0) + 1;
-    if (result.length >= limit) break;
+  const totals = new Map(), ordinals = new Map();
+  for (const area of clusters) totals.set(area.dir, (totals.get(area.dir) || 0) + 1);
+  for (const area of clusters) {
+    const ordinal = (ordinals.get(area.dir) || 0) + 1;
+    ordinals.set(area.dir, ordinal);
+    area.label = totals.get(area.dir) > 1 ? `${area.dir} (part ${ordinal}/${totals.get(area.dir)})` : area.dir;
+    area.score = Math.log(area.size + 1) * (1 + Math.log(area.churn + 1));
   }
-
-  // If diversity cap left slots empty, fill from remaining
-  if (result.length < limit) {
-    for (const item of scored) {
-      if (!result.includes(item)) {
-        result.push(item);
-        if (result.length >= limit) break;
-      }
-    }
-  }
-
-  return result.slice(0, limit);
+  clusters.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'en'));
+  return { areas: clusters.slice(0, limit), omitted: limit === undefined ? [] : clusters.slice(limit) };
 }

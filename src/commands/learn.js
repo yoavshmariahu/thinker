@@ -18,7 +18,7 @@ import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
 import { selectMenu, getAgentDisplayName } from '../setup.js';
-import { discoverAreas } from '../topology.js';
+import { planAreas, parseAreaLimit } from '../topology.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
@@ -89,8 +89,8 @@ async function seedCommand(ctx) {
   // Bootstrap coverage: one exploration session per source area, distilled.
   const project = projectFromFlags(ctx.repo, flags, { save: !flags.dry });
   if (project) ctx.out(`Cache build: ${project.name} (${project.directories.join(', ')})`);
-  const r = await seed(ctx, { directories: project?.directories || null, areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
-  if (r && r.ok === 0 && !flags.dry) process.exitCode = 1;
+  const r = await seed(ctx, { directories: project?.directories || null, areas: parseAreaLimit(flags.areas), model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
+  if (r && r.ok === 0 && !r.skipped && !flags.dry) process.exitCode = 1;
   return;
 }
 
@@ -236,22 +236,30 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
 export async function seed(ctx, { areas, model, dry, prompts, agent, directories = null }) {
   const { flags, repo, store, out } = ctx;
   if (prompts && directories) throw new Error('--prompts cannot be combined with a project selection; use --full-repo for custom prompts.');
-  const areaList = discoverAreas(repo, { limit: areas, directories });
+  const { areas: areaList, omitted } = planAreas(repo, { limit: areas, directories });
   const list = prompts ? JSON.parse(fs.readFileSync(prompts, 'utf8')).map(p => ({ prompt: p })) : areaList.map(a => {
     if (a.isFile) {
       return {
-        dir: a.dir, n: a.n,
+        dir: a.label, n: a.n, files: a.files,
         prompt: `Orient a new contributor in ${a.dir}: what this module is responsible for, its primary classes and functions (cite file:symbol), how control and data flow into and out of it, the key invariants and conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
       };
     }
     return {
-      dir: a.dir, n: a.n,
+      dir: a.label, n: a.n, files: a.files,
       prompt: `Orient a new contributor in ${a.dir}/ (${a.n} source files): what this subsystem is responsible for, its main entry points and how control flows into and out of it (cite file:symbol), the two or three things that must change together when extending it, local conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
     };
   });
-  if (!list.length) { out('No source areas found in the selected directories.'); return { ok: 0, total: 0, tokens: 0, failures: [] }; }
+  if (!prompts && omitted.length) out(`Exploring ${areaList.length} of ${areaList.length + omitted.length} areas (--areas ${areas}); omitted: ${omitted.map(a => a.label).join(', ')}`);
+  for (const a of list) if (a.files) a.prompt += `\nSource files assigned to this session:\n${a.files.map(f => JSON.stringify(f)).join('\n')}\nFocus on these files; follow other files only as needed to explain their dependencies.`;
+  if (!list.length) { out(areas === 0 ? 'Exploration skipped (--areas 0).' : 'No source areas found in the selected directories.'); return { ok: 0, total: 0, tokens: 0, failures: [], skipped: areas === 0 }; }
   if (directories) for (const a of list) a.prompt += `\nCache project directories: ${directories.join(', ')}. Focus on this area; follow dependencies outside these directories only when needed to explain it. Use repository-relative file:symbol pointers.`;
-  if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
+  if (dry) {
+    for (const a of list) {
+      out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`);
+      if (a.files) for (const file of a.files) out(`  ${JSON.stringify(file)}`);
+    }
+    return;
+  }
   let activeAgent = agent || exploreAgent();
   if (!activeAgent) {
     out('\n❌ cache init failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');

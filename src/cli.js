@@ -133,7 +133,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  learn from new session evidence (edits, failures, corrections), with sampled full-trace audits;
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
-  seed [--project file | --full-repo] [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
+  seed [--project file | --full-repo] [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: adaptive source areas; --areas caps sessions
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
   mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,

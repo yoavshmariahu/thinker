@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { discoverAreas, subsystemForFile } from '../src/topology.js';
+import { discoverAreas, planAreas, AREA_SOURCE_BYTES, AREA_SOURCE_FILES, subsystemForFile } from '../src/topology.js';
 import { stratifyPrs } from '../src/prs.js';
 import { Store } from '../src/store.js';
 import { createNote, attest } from '../src/ops.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 function tmpRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-topo-'));
@@ -63,4 +64,82 @@ test('kind-aware attestation: invariants and gotchas do not decay on unused, but
   // Location confidence must have decayed
   assert.ok(store.get(loc.id).confidence < 0.85, 'location confidence decayed');
   fs.rmSync(repoDir, { recursive: true, force: true });
+});
+
+function sourceRepo(t, sources) {
+  const repo = tmpRepo();
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: repo });
+  for (const [file, size] of Object.entries(sources)) {
+    fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(repo, file), 'x'.repeat(size));
+  }
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  return repo;
+}
+
+function assertCoverage(areas, files) {
+  const assigned = areas.flatMap(area => area.files);
+  assert.deepEqual(assigned.toSorted(), files.toSorted(), 'every source file assigned exactly once');
+  assert.equal(new Set(areas.map(area => area.label)).size, areas.length, 'distinct session labels');
+  for (const area of areas) {
+    assert.equal(area.n, area.files.length);
+    assert.ok(area.n <= AREA_SOURCE_FILES);
+    assert.ok(area.size <= AREA_SOURCE_BYTES || area.n === 1);
+  }
+}
+
+test('compact code shares one session, including entry points and private modules', t => {
+  const sources = { 'src/index.js': 100, 'src/_private.js': 200, 'src/auth/token.js': 500,
+    'src/auth/session.js': 500, 'src/api.js': 1000 };
+  const repo = sourceRepo(t, { ...sources, 'test/api.test.js': 500, 'dist/bundle.js': 900_000 });
+  const areas = discoverAreas(repo);
+  assert.equal(areas.length, 1);
+  assertCoverage(areas, Object.keys(sources));
+});
+
+test('session count grows with source size beyond twelve and caps report omitted coverage', t => {
+  const sources = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`packages/p${i}/core.js`, 90_000]));
+  const repo = sourceRepo(t, sources);
+  const all = discoverAreas(repo);
+  assert.equal(all.length, 15);
+  assertCoverage(all, Object.keys(sources));
+  const capped = planAreas(repo, { limit: 3 });
+  assert.equal(capped.areas.length, 3);
+  assert.equal(capped.omitted.length, 12);
+  assertCoverage([...capped.areas, ...capped.omitted], Object.keys(sources));
+  const zero = planAreas(repo, { limit: 0 });
+  assert.equal(zero.areas.length, 0);
+  assert.equal(zero.omitted.length, all.length);
+  assert.deepEqual(discoverAreas(repo), all, 'planning is deterministic');
+  for (const limit of [true, -1, 1.5, 'bad', Infinity]) assert.throws(() => discoverAreas(repo, { limit }), /non-negative integer/);
+});
+
+test('large flat and deep directories split without losing or duplicating files', t => {
+  const sources = Object.fromEntries(Array.from({ length: 170 }, (_, i) => [`src/flat/f${i}.js`, 2000]));
+  sources['src/deep/nested/large.js'] = AREA_SOURCE_BYTES * 2;
+  sources['src/deep/nested/peer.js'] = 80_000;
+  sources['src/deep/nested/other.js'] = 80_000;
+  const repo = sourceRepo(t, sources);
+  const all = discoverAreas(repo);
+  assert.ok(all.length > 3);
+  assertCoverage(all, Object.keys(sources));
+  const selected = discoverAreas(repo, { directories: ['src/deep/nested'] });
+  assertCoverage(selected, Object.keys(sources).filter(file => file.startsWith('src/deep/')));
+  assert.ok(selected.every(area => area.dir.startsWith('src/deep/nested/')));
+});
+
+test('many tiny files split by inventory size and missing or generated files do not inflate it', t => {
+  const sources = Object.fromEntries(Array.from({ length: 161 }, (_, i) => [`lib/f${i}.js`, 1]));
+  const repo = sourceRepo(t, { ...sources, 'lib/deleted.js': 10, 'vendor/huge.js': 1_000_000 });
+  fs.unlinkSync(path.join(repo, 'lib/deleted.js'));
+  const areas = discoverAreas(repo);
+  assert.equal(areas.length, 3);
+  assertCoverage(areas, Object.keys(sources));
+});
+
+test('empty selection yields no work and test-only projects can still be explored', t => {
+  const repo = sourceRepo(t, { 'test/only.test.js': 100 });
+  assert.equal(discoverAreas(repo).length, 1);
+  assert.deepEqual(discoverAreas(repo, { directories: ['missing'] }), []);
 });

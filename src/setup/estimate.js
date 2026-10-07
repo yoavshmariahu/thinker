@@ -4,7 +4,7 @@
 import path from 'node:path';
 import { directoryPathspecs } from '../project.js';
 import { execFileSync } from 'node:child_process';
-import { discoverAreas } from '../topology.js';
+import { planAreas } from '../topology.js';
 import { formatDuration, formatBytes } from './ui.js';
 import { hasBin } from './agents.js';
 
@@ -16,7 +16,7 @@ import { hasBin } from './agents.js';
 export const TOKENS_PER_AREA = 400_000;
 export const TOKENS_PER_PR = 14_000;
 
-export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null, directories = null } = {}) {
+export function estimateCacheBuild(repo, { areas, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null, directories = null } = {}) {
   let commitCount = 0;
   try {
     const raw = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -29,23 +29,20 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     fileCount = raw ? raw.split('\0').filter(Boolean).length : 0;
   } catch {}
 
-  let candidateAreas = [];
-  try {
-    candidateAreas = discoverAreas(repo, { limit: areas, directories });
-  } catch {}
+  const { areas: candidateAreas, omitted: omittedAreas } = planAreas(repo, { limit: areas, directories });
 
   const canMineGh = Boolean(slug && !noPrs && hasBin('gh') && prs > 0);
   const canMineGit = Boolean(!noPrs && commitCount > 5 && prs > 0);
   const canMine = canMineGh || canMineGit;
   const mineSource = canMineGh ? 'github' : (canMineGit ? 'git' : null);
-  const canSeed = Boolean(!noSeed && agent && areas > 0 && candidateAreas.length > 0);
+  const canSeed = Boolean(!noSeed && agent && candidateAreas.length > 0);
 
   // PR mining timing estimate (~8.5s per PR for diff fetch + LLM distillation)
   const prsCount = canMine ? Math.min(prs, 50) : 0;
   const prsSec = canMine ? Math.round(prsCount * 8.5) : 0;
 
   // Area exploration timing estimate (~55s per area for multi-turn agent exploration)
-  const areasCount = canSeed ? Math.min(areas, candidateAreas.length) : 0;
+  const areasCount = canSeed ? candidateAreas.length : 0;
   const areasSec = canSeed ? Math.round(areasCount * 55) : 0;
 
   // Indexing, linking, and note phrasing timing estimate
@@ -70,6 +67,7 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     commitCount,
     fileCount,
     candidateAreasCount: candidateAreas.length,
+    omittedAreas: omittedAreas.map(area => area.label),
     canMine,
     mineSource,
     canSeed,

@@ -196,8 +196,13 @@ The project file is small and editable:
 
 Paths are relative to the repository root. `setup`, `seed`, and `mine-prs` use
 this file automatically; `--project other.project.json` selects another file,
-and `--full-repo` uses the whole repository for one run. `--areas` still limits
-the number of exploration sessions. `thinker project show` prints the selection.
+and `--full-repo` uses the whole repository for one run. Exploration adapts to
+source size and directory structure: small related files share a session, and
+large directories split into groups with explicit file lists. There is no default
+session cap. `--areas N` caps sessions and reports the areas left unexplored;
+`--areas 0` skips exploration. Preview the groups with `thinker seed --dry`.
+Setup estimates usage from the resulting session count before building.
+`thinker project show` prints the selection.
 The file can be committed or kept personal using `.git/info/exclude`.
 
 Project builds explore selected directories and mine changes touching them.
