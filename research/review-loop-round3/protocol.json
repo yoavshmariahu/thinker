@@ -1,0 +1,56 @@
+{
+  "status": "Frozen before any round-three model calls",
+  "date": "2026-10-07",
+  "revision": "6913b8b182d92ee0f0546a233b5fafb2ad7f3761",
+  "purpose": "Grounded paired bounded-code-review comparison: self-directed agent versus Jev decision graph, plus two open-loop diagnostics. Experimental only.",
+  "scope": "No cache is built or served. These are explicit task requirements and public source, not benchmark notes. This is not a PR-cache benchmark. No source edits or full development loop.",
+  "models": {
+    "routing": "jev-1.13.0",
+    "executor": "gpt-6.1-sol",
+    "executorReasoningEffort": "high",
+    "codexCLI": "0.160.1",
+    "fallback": false,
+    "grading": "Manual source and full-trace audit plus exact-source executable probes; no model judge"
+  },
+  "cases": [
+    "A-10349",
+    "A-10141",
+    "A-10178",
+    "C-aws-rename"
+  ],
+  "repetitions": 2,
+  "selection": "Three historical bugs used in controller development plus a known clean rename. Start with empty findings and full staged production files, no historical report or evaluator output. No held-out generalization claim.",
+  "intervention": "Both arms run the identical initial review with shell reads and return the same structured report plus suggested next action. Self-directed baseline uses the executor suggestion without semantic gates. Graph arm asks Jev about support, intent, coverage, next action and each finding, then code applies v3 gates plus per-finding missing/contradicted -> verify_existing. Both retain the same hard execution/timeout/stall guard. Neither arm is forced into extra review passes.",
+  "evidenceUnit": "One question per finding, not automatic atomic-claim extraction. Code records finding content hashes and rebuilds questions after every edit. Jev still decides evidence sufficiency; hashes establish identity, not truth. Evaluator labels and probes never enter state.",
+  "execution": {
+    "maxExecutorCalls": 3,
+    "maxJevCalls": 3,
+    "maxArmSeconds": 300,
+    "maxExecutorCallSeconds": 150,
+    "maxJevCallSeconds": 30,
+    "maxToolCalls": 24,
+    "maxModeSeconds": 3600,
+    "order": "Alternate arm order by task index plus repetition",
+    "tools": "Read-only shell in identical separately staged bounded task directories; no network, edits, cache, or reading outside task. Enforced filesystem write sandbox plus instructions; scope adherence audited from commands, not claimed as strong read isolation.",
+    "continuation": "Fresh ephemeral executor session with prior structured findings, limitations, history and requested action. Same continuation mechanism for both arms; no hidden reasoning copied.",
+    "toolCapSemantics": "Observer aborts at the 24th command start, potentially interrupting that command; this is not pre-dispatch permission enforcement. Read-only sandbox blocks writes; scope instructions and trace audit are distinct from OS read isolation."
+  },
+  "openLoop": {
+    "cases": [
+      "cleanup-original",
+      "cleanup-qualified"
+    ],
+    "callsEach": 1,
+    "purpose": "Diagnostic per-finding contrast on same source. No execution, no outcome-based tuning of the frozen graph."
+  },
+  "criteria": {
+    "A-10349": "Retain prefix-anchor and placeholder slash-truncation defects; no unsupported deletion-test assertion or unrelated findings.",
+    "A-10141": "Find desired-versus-ready defect; no unconditional downstream recovery claim absent inspected caller evidence.",
+    "A-10178": "Find premature completion/error suppression and shared deadline; qualify actual deletion failure unless concrete client evidence establishes it.",
+    "C-aws-rename": "No actionable defect invented; finalize within bounded scope."
+  },
+  "controlEvaluation": "Separately audit runner route/limits, executor adherence to initial and follow-up actions, factual/source support of final report, and agreement with executable oracles. Schema validity alone is not adherence. Missing scope or tool-trace evidence remains unknown.",
+  "benefitRule": "Provisional quality benefit requires strict criterion improvement in both repetitions on at least one distinct case with no strict regressions elsewhere; report all additional calls, per-provider tokens and latency. Never claim general clear benefit from four development cases. Equal quality with added overhead is no observed benefit; quality improvements remain tradeoffs until overhead is assessed.",
+  "invalid": "Model mismatch, malformed report, unexpected tools, or transport errors stop and preserve artifacts. Budget exhaustion is an incomplete outcome, not an invalid discarded run. No outcome-based retries, provider fallbacks, or selective scenario removal.",
+  "telemetry": "THINKER_TEST=1 THINKER_TELEMETRY=off THINKER_LOG=off THINKER_NO_LEARN=1 for preparation, tests, model calls and children. Personal-key allowlisted direct TypeSafe transport only. No hosted enrollment or production telemetry."
+}
