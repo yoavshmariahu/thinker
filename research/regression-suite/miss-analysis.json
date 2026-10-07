@@ -82,5 +82,33 @@
       }
     ],
     "assessment": "Relevant bug notes were retrieved. The review accepted the reverted code as the current policy and marked the protective notes outdated. This is a semantic review miss, not failed retrieval. Both baseline and cached final reports contain no findings."
+  },
+  {
+    "id": "pydantic-13515",
+    "cohort": "gemini",
+    "classification": "review treats reverted implementation as justification for retiring the historical constraint",
+    "rawTrace": "pydantic/gemini/traces/1791348895653-gemini.json",
+    "rawFindings": [],
+    "outdated": [
+      {
+        "id": "catch-typeerror-for-unhashable-type-arguments-in-generic-mod",
+        "reason": "The helper functions _generic_cache_get and _generic_cache_set were removed from pydantic/_internal/_generics.py. Cache lookups and writes in get_cached_generic_type_early, get_cached_generic_type_late, and set_cached_generic_type now directly access _GENERIC_TYPES_CACHE without wrapping in try/except TypeError, and the corresponding test test_generics_parameterization_not_hashable was removed."
+      }
+    ],
+    "assessment": "Relevant target note was retrieved, then marked outdated because the reversal removed the protection it describes. The raw model response has no findings, so this is a review-reasoning miss rather than postprocessing loss."
+  },
+  {
+    "id": "posthog-103110",
+    "cohort": "gemini",
+    "classification": "review treats reverted implementation as justification for retiring the historical constraint",
+    "rawTrace": "posthog/gemini/traces/1791348860703-gemini.json",
+    "rawFindings": [],
+    "outdated": [
+      {
+        "id": "surface-mcp-gateway-tool-listing-failures-during-server-conn",
+        "reason": "The note claims that tool listing failures or skipped === 'no-server' results during MCP server connect or registration must display a warning toast with static recovery guidance. However, the code in useGatewayServers and useRegisterGatewayServer intentionally removes these warning toasts, instead relying on the server detail page to display its empty state and retry discovery on mount."
+      }
+    ],
+    "assessment": "Relevant target note was retrieved, then marked outdated because the reversal removed the protection it describes. The raw model response has no findings, so this is a review-reasoning miss rather than postprocessing loss."
   }
 ]
