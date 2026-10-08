@@ -63,7 +63,11 @@ Cursor, their desktop apps included). Run from inside a repository, it also
 sets that repository up; anywhere else, `thinker setup` inside a repository
 does that later. `setup` offers to build the cache from the repository's code
 and merged pull requests (`--build` says yes without asking, `--no-build` says
-no; without it the cache grows from your own sessions). The wiring is
+no; without it the cache grows from your own sessions). The build comes in two
+depths: **full**, everything the build determines for the repository, or
+**shallow**, the most valuable 30% of it (the largest, most-changed areas and the
+newest pull requests), for a quicker, cheaper start. Setup offers both with their
+estimates; `--depth full` or `--depth shallow` picks one without asking. The wiring is
 everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
 

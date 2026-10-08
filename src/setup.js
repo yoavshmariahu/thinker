@@ -7,9 +7,9 @@ import { projectFromFlags } from './project.js';
 import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
-import { c, banner, stepBanner } from './setup/ui.js';
+import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, exploreAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
-import { estimateCacheBuild } from './setup/estimate.js';
+import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
 import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild } from './setup/steps.js';
 import { stepPrBenchmark } from './setup/pr-benchmark.js';
 export * from './setup/ui.js';
@@ -35,6 +35,7 @@ export async function runSetup({
   benchmark = false,
   noBenchmark = false,
   build = null,
+  depth = null,
   noSeed = false,
   noPrs = false,
   noPhrase = false,
@@ -58,8 +59,8 @@ export async function runSetup({
   store.init();
   ignoreLocalState(store.dir);
 
-  // Header Banner
-  out('\n' + banner() + '\n');
+  // Header Banner (the installer draws the same box before it runs setup, so not twice)
+  if (!process.env.THINKER_INSTALLER) out('\n' + banner() + '\n');
   out(`  ${c.dim('Repository')}  ${repo}\n`);
 
   out(stepBanner(1, 2, 'Connect your agents'));
@@ -84,7 +85,7 @@ export async function runSetup({
   try {
     const { rankerStatus, fetchRanker } = await import('./dense.js');
     const st = await rankerStatus();
-    if (st.runtime && !st.model) { out(`  ${c.dim('Fetching the ranking model (about 23 MB)…')}`); await fetchRanker(); }
+    if (st.runtime && !st.model) await withSpinner(out, 'Fetching the ranking model (about 23 MB)', () => fetchRanker());
     const now = await rankerStatus();
     out(now.runtime && now.model ? `  ${c.green('✓')} Ranking model ready ${c.dim(`(${now.modelName})`)}` : `  ${c.yellow('○')} Ranking model not in place ${c.dim(now.runtime ? '(fetch failed; thinker ranker fetch)' : '(runtime missing: npm ci in the app directory, or thinker update)')}; notes are ranked by words alone until then`);
   } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
@@ -104,13 +105,19 @@ export async function runSetup({
   // --no-seed --no-prs leaves nothing to spend on, so there is nothing to ask about
   let building = (noSeed && noPrs) ? false : build;
   if (building === null) {
-    building = yes || await confirmCacheBuild({
+    const shallowLimits = depthLimits(repo, { depth: 'shallow', areas, prs, directories });
+    const answer = yes ? (depth || 'full') : await confirmCacheBuild({
       estimates: estimateCacheBuild(repo, { areas, prs, directories, noSeed, noPrs, slug, agent: activeAgent }),
+      shallow: estimateCacheBuild(repo, { ...shallowLimits, directories, noSeed, noPrs, slug, agent: activeAgent }),
       agent: activeAgent,
       out,
     });
+    building = Boolean(answer);
+    if (answer) depth = answer;
     if (building) out('');
   }
+  // a shallow build is 30% of the full one: the first areas and pull requests of the same order
+  if (building && depth === 'shallow') ({ areas, prs } = depthLimits(repo, { depth, areas, prs, directories }));
   let effectiveNoSeed = noSeed || !building;
   let effectiveNoPrs = noPrs || !building;
 
@@ -185,12 +192,15 @@ export async function runSetup({
   // One result and one next action, with recovery guidance beside failures above.
   const connected = connections.filter(result => result.status === 'connected');
   const needsAttention = cacheRes.warnings || connections.some(result => result.status === 'error') || !connected.length;
-  out(`\n  ${needsAttention ? c.yellow('!') : c.green('✓')} ${c.bold(needsAttention ? 'Setup finished with items to review.' : 'Thinker is ready.')}\n`);
-  if (connected.length) out('  Start a new agent session in this repository.');
-  else out('  Connect an agent with: thinker setup --clients <agent>');
-  if (learn) out(`  ${c.dim('Ongoing learning uses your agent to save knowledge from sessions.')}`);
-  if (!building) out(`\n  Build from existing code later: ${c.cyan('thinker setup --build')}`);
-  out('');
+  const done = [
+    `${needsAttention ? c.yellow('!') : c.green('✓')} ${c.bold(needsAttention ? 'Setup finished with items to review.' : 'Thinker is ready.')}`,
+    '',
+    connected.length ? 'Start a new agent session in this repository.' : `Connect an agent with: ${c.cyan('thinker setup --clients <agent>')}`,
+    `Review a change against the cache: ${c.cyan('thinker review')}`,
+  ];
+  if (!building) done.push(`Build from existing code later: ${c.cyan('thinker setup --build')}`);
+  if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
+  out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
 
   return { built: building, warnings: cacheRes.warnings || 0, error: buildError };
 }

@@ -34,6 +34,9 @@ import {
   selectMenu,
   stepPrBenchmark,
   stepBuildCache,
+  depthLimits,
+  spinner,
+  finishBox,
 } from '../src/setup.js';
 import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
 
@@ -1079,4 +1082,51 @@ test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interac
   assert.ok(res.agent);
   assert.match(outLines.join('\n'), /Available agents to build the knowledge cache:/);
   assert.match(outLines.join('\n'), /Selected agent:/);
+});
+
+test('a shallow build is 30% of the full one: areas and pull requests, rounded up, at least one', () => {
+  const repo = createMockGitRepo();
+  try {
+    for (let i = 0; i < 12; i++) {
+      fs.mkdirSync(path.join(repo, `pkg${i}`));
+      fs.writeFileSync(path.join(repo, `pkg${i}`, 'index.js'), `export const v${i} = ${i};\n`.repeat(400));
+    }
+    execFileSync('git', ['add', '.'], { cwd: repo }); execFileSync('git', ['commit', '-qm', 'packages'], { cwd: repo });
+    const full = depthLimits(repo, { depth: 'full', areas: undefined, prs: 60 });
+    assert.deepEqual(full, { areas: undefined, prs: 60 }, 'full leaves the build to determine itself');
+    const fullAreas = estimateCacheBuild(repo, { prs: 60 }).candidateAreasCount;
+    const shallow = depthLimits(repo, { depth: 'shallow', areas: undefined, prs: 60 });
+    assert.equal(shallow.prs, 18);
+    assert.equal(shallow.areas, Math.max(1, Math.ceil(fullAreas * 0.3)));
+    assert.ok(shallow.areas <= fullAreas);
+    assert.deepEqual(depthLimits(repo, { depth: 'shallow', areas: 0, prs: 0 }), { areas: 0, prs: 0 }, 'nothing to build stays nothing');
+    assert.equal(depthLimits(repo, { depth: 'shallow', areas: 2, prs: 1 }).prs, 1);
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('the spinner draws nothing off a terminal and the finish box says whether setup is done', () => {
+  const written = [];
+  const stream = { isTTY: false, write: s => { written.push(s); return true; } };
+  const spin = spinner('Working', { stream });
+  assert.equal(spin.active, false);
+  spin.set('Still working');
+  spin.stop('done line');
+  assert.deepEqual(written, ['done line\n']);
+  assert.match(stripAnsi(finishBox(['Thinker is ready.'])), /Setup complete[\s\S]*Thinker is ready\./);
+  assert.match(stripAnsi(finishBox(['x'], { ok: false })), /Setup finished with items to review/);
+});
+
+test('on a terminal the spinner redraws in place and gives the stream back when stopped', () => {
+  const written = [];
+  const stream = { isTTY: true, columns: 80, write(s) { written.push(String(s)); return true; } };
+  const original = stream.write;
+  const spin = spinner('Fetching', { stream, enabled: true });
+  assert.equal(spin.active, true);
+  stream.write('another line\n');
+  spin.stop('✓ Fetched');
+  assert.equal(stream.write, original);
+  const text = written.join('');
+  assert.match(stripAnsi(text), /Fetching/);
+  assert.match(text, /\r\x1b\[2K/, 'the line is cleared before other output');
+  assert.ok(text.indexOf('another line') < text.indexOf('✓ Fetched'));
 });
