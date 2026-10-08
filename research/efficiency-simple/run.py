@@ -31,6 +31,10 @@ CLI, WIRE = str(ROOT / 'src/cli.js'), str(ROOT / 'research/performance-canary/wi
 # would import that rather than the checkout under test.
 PY_BIN = os.environ.get('THINKER_EFF_PYBIN') or str(ROOT / '.venv-perf/bin/python')
 PYPATH = os.environ.get('THINKER_EFF_PYPATH', 'src')
+# The directory the upstream fix is taken from (its source, never its tests): the package directory
+# when PYPATH is the repository root. With `src` hard-wired, every mitmproxy gold patch was empty
+# and the preflight read "gold FAILS" for five tasks of six (2026-10-08).
+SRC = os.environ.get('THINKER_EFF_SRC') or ('src' if PYPATH == 'src' else PYPATH)
 # Plugin autoload is off for the acceptance run, so a repository whose tests need a plugin names it
 # (mitmproxy: `-p pytest_asyncio -p pytest_timeout`, its asyncio tests collect as plain functions otherwise).
 PYTEST_ARGS = os.environ.get('THINKER_EFF_PYTEST_ARGS', '').split()
@@ -259,7 +263,7 @@ def gold(task):
     out.mkdir(parents=True, exist_ok=True)
     patch, tests = out / 'source.patch', out / 'tests.py'
     if not patch.exists():
-        patch.write_text(git(['diff', task['base'], task['fixed'], '--', 'src'], SOURCE))
+        patch.write_text(git(['diff', task['base'], task['fixed'], '--', SRC], SOURCE))
         tests.write_text(git(['show', f'{task["fixed"]}:{task["test_file"]}'], SOURCE))
     return patch, tests
 
