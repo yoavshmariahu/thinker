@@ -339,6 +339,26 @@ def run_label(task, cohort, arm, seed=1):
     return f'{task["id"]}-{cohort}-{arm}' + (f'-s{seed}' if seed > 1 else '')
 
 
+def measure_retrying(cohort, arm, task, seed=1, tries=3):
+    """A thinker arm refused for a ranking-service fault (a 503, a degraded score) is run again
+    from a clean checkout after a pause, so one flaky hour does not end an unattended batch: on
+    2026-10-08 Jev returned 503 four times in twenty minutes and stopped both cohorts twice."""
+    for attempt in range(1, tries + 1):
+        try:
+            return measure(cohort, arm, task, seed)
+        except SystemExit as e:
+            msg = str(e)
+            if arm != 'thinker' or attempt == tries or not ('fell back' in msg or 'degraded' in msg):
+                raise
+            label = run_label(task, cohort, arm, seed)
+            print(f'  {label}: {msg}; retry {attempt + 1} of {tries} in 90s', flush=True)
+            shutil.rmtree(OUT / label, ignore_errors=True)
+            shutil.rmtree(OUT / 'homes' / label, ignore_errors=True)
+            for f in (OUT / 'raw').glob(f'{label}.*'):
+                f.unlink()
+            time.sleep(90)
+
+
 def measure(cohort, arm, task, seed=1):
     label = run_label(task, cohort, arm, seed)
     record = OUT / 'raw' / f'{label}.json'
@@ -500,7 +520,7 @@ def solve(cohort, covered_only=True):
             continue
         for seed in range(1, SEEDS + 1):
             for arm in (ARMS if (i + seed + list(MODELS).index(cohort)) % 2 == 0 else list(reversed(ARMS))):
-                rows.append(measure(cohort, arm, task, seed))
+                rows.append(measure_retrying(cohort, arm, task, seed))
     if skipped:
         print(f'{cohort}: skipped {", ".join(skipped)} (cache serves nothing for them)', flush=True)
     # One arm serving nothing is a ranking decision; none of them serving is a wiring failure, and
