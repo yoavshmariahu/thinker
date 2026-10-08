@@ -27,20 +27,6 @@ function fixture(t, notes, fetchImpl) {
   return store;
 }
 
-test('Jev searches past the lexical gate for lookup and both hook and agent orientation', async t => {
-  const n = note('hidden-rule', { search: 'A customer cannot receive another invitation after joining.' });
-  n.saysFor = phraseKey(n);
-  assert.equal(rank([n], { query: 'avoid duplicate membership', mode: 'lookup' }).length, 0);
-  const seen = [];
-  const store = fixture(t, [n], transport(() => 0.95, seen));
-  const l = await lookup(store, { query: 'avoid duplicate membership' });
-  const hook = await orient(store, { task: 'avoid duplicate membership', maxNotes: 2 });
-  const agent = await orient(store, { task: 'avoid duplicate membership', maxNotes: 5 });
-  for (const r of [l, hook, agent]) assert.deepEqual(r.included.map(n => n.id), ['hidden-rule']);
-  assert.equal(seen.length, 3);
-  assert.ok(seen.every(r => r.state.candidate_notes[0].claim === n.search));
-});
-
 test('search scans every batch and globally ranks the last note, without an eight-note cutoff', async () => {
   const notes = Array.from({ length: 75 }, (_, i) => note(`n-${i}`, { body: '界'.repeat(1100) }));
   const seen = [];
@@ -61,32 +47,12 @@ test('changed content and scope invalidate summaries even when the character cou
   assert.equal(searchRecord({ ...n, saysFor: 'old-length-key:s1' }, 0).claim, n.body);
 });
 
-test('eligibility, kind filters, exact IDs and behavior listings retain their semantics', async t => {
+test('eligibility and the freshOnly filter hold inside the search', async t => {
   const notes = [note('fresh'), note('archived', { archived: { reason: 'test' } }), note('invalid', { status: 'invalid' }), note('stale', { status: 'stale' })];
   const seen = [];
   const rows = await jevSearch(notes, 'query', { freshOnly: true, key: 'test', fetchImpl: transport(() => 0.9, seen) });
   assert.deepEqual(rows.map(r => r.note.id), ['fresh']);
   assert.deepEqual(seen[0].state.candidate_notes.map(n => n.title), ['fresh']);
-  const store = fixture(t, [...notes, note('human-rule', { kind: 'behavior' })], transport(() => 0.9, seen));
-  assert.equal((await lookup(store, { query: 'archived' })).included[0].id, 'archived');
-  assert.equal((await lookup(store, { kind: 'behavior' })).included[0].id, 'human-rule');
-  assert.equal(seen.length, 1, 'IDs and kind-only listing never call Jev');
-  await lookup(store, { query: 'some question', kind: 'behavior' });
-  assert.deepEqual(seen[1].state.candidate_notes.map(n => n.kind), ['behavior']);
-});
-
-test('a successful no-match decision is final, while a failed request falls back to lexical search', async t => {
-  const n = note('retry-rule', { title: 'Retry worker requests', body: 'Retry worker requests after a timeout.', answers: ['retry worker requests'] });
-  const store = fixture(t, [n], transport(() => 0.1));
-  const query = 'retry worker requests';
-  assert.ok(rank([n], { query, mode: 'lookup' }).length);
-  assert.equal((await lookup(store, { query })).included.length, 0);
-  const empty = await orient(store, { task: query });
-  assert.equal(empty.included.length, 0);
-  assert.equal(empty.more.length, 0, 'rejected lexical candidates must not reappear as recommended titles');
-  store.config = () => ({ jev: { enabled: true, key: 'test', fetchImpl: async () => ({ ok: false, status: 503 }) }, ce: false, snippets: false });
-  assert.equal((await lookup(store, { query })).included[0].id, n.id);
-  assert.equal((await orient(store, { task: query })).included[0].id, n.id);
 });
 
 test('one failed batch rejects the whole search, and all batches share one deadline', async () => {
@@ -103,23 +69,16 @@ test('one failed batch rejects the whole search, and all batches share one deadl
   assert.equal(aborted, 2, 'both in-flight batches are stopped by the search deadline');
 });
 
-test('once-per-session, holdouts, budgets and explicit result limits still apply with Jev', async t => {
-  const notes = Array.from({ length: 5 }, (_, i) => note(`n-${i}`, { body: `Concrete guidance ${i}.`, servedIn: i ? [] : ['session'] }));
-  const store = fixture(t, notes, transport(() => 0.9));
-  const once = await orient(store, { task: 'specific mechanism', session: 'session', once: true, maxNotes: 5, budget: 3000 });
-  assert.deepEqual(once.included.map(n => n.id), ['n-1', 'n-2', 'n-3', 'n-4']);
-  const held = await orient(store, { task: 'specific mechanism', session: 'control', holdout: true });
-  assert.equal(held.included.length, 0); assert.ok(held.withheld.length);
-  assert.ok(store.list().every(n => !n.servedIn?.includes('control')));
-  assert.equal((await lookup(store, { query: 'some query', maxNotes: 1 })).included.length, 1);
-  assert.equal((await lookup(store, { query: 'some query', budget: 1 })).included.length, 0);
-});
-
-test('subjectless orientation does not search the catalog, while a short explicit lookup can', async t => {
+// Jev served the hooks from 2026-10-06 to 2026-10-08 and was taken out of serving (ops.js:orient):
+// its servings on the Click rerun were true, nearby and costly, and it was an outage away from
+// serving nothing. Learning decisions and review still call it; serving never does.
+test('serving never calls Jev, whatever the config says', async t => {
   const seen = [];
-  const store = fixture(t, [note('retry-rule')], transport(() => 0.9, seen));
-  assert.equal((await orient(store, { task: 'status?' })).included.length, 0);
-  assert.equal(seen.length, 0);
-  await lookup(store, { query: 'retry' });
-  assert.equal(seen.length, 1);
+  const notes = [note('member', { answers: ['avoid duplicate membership'], body: 'src/a.py:invite checks membership first', deps: [{ path: 'src/a.py' }] })];
+  const store = fixture(t, notes, transport(() => 0.99, seen));
+  const hook = await orient(store, { task: 'avoid duplicate membership', maxNotes: 2, backgroundVerify: false });
+  const agent = await orient(store, { task: 'avoid duplicate membership', maxNotes: 5, backgroundVerify: false });
+  const l = await lookup(store, { query: 'avoid duplicate membership' });
+  assert.ok(hook.included.length && agent.included.length && l.included.length, 'the lexical ranking serves the note');
+  assert.equal(seen.length, 0, 'no request reached Jev');
 });

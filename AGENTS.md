@@ -809,67 +809,32 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Jev (`jev.js:jevSearch`), hosted by default, searches all eligible notes for
-  `orient` and query-based `lookup`, without BM25 candidate gating. `searchRecord`
-  uses a current `search` description or falls back to the body, including scope
-  and pointers. `note-search.js:phraseKey` hashes title, body, questions, scope
-  and dependency paths/symbols; old length-based keys and equal-length edits
-  cannot validate a description. Maintenance and `phrase` regenerate missing or
-  obsolete descriptions. Up to two batches run concurrently, each at most 32
-  questions and 30,000 UTF-8 bytes including the whole request. A five-second
-  deadline covers the search; any failed batch discards the partial result.
-  Invalid/archived notes are excluded; hooks additionally exclude stale or
-  already-served notes. Exact IDs and kind-only lookup remain direct.
-  `selectByJev` keeps those at or above `floor`, up to the caller's limit.
-  The earlier reranker sent named fields (`noteRecord`), which beat one
-  prose blob of the same note (false positives 8 to 5). There is no fallback
-  below the floor: a Noul near 0 is the model saying the note does not bear on
-  the request, and serving nothing was right on every labelled task that had
-  nothing useful. Measured on all 54 labelled tasks, two runs, against the
-  same `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.96 of served
-  notes useful, 40 of 70 important notes reached and 33 of 54 tasks served
-  something useful, against the cross-encoder's 0.96, 16 of 70 and 23 of 54 —
-  2.5x the reach at the same precision, ~160 ms and ~10k tokens a prompt. Both
-  runs were identical on the default arm. One judge, one prompt, and Jev was
-  handed the labelled candidate pool.
-  Hosted Jev is the default since 2026-10-06. Setup (`configureJev`) and first
-  retrieval automatically enroll through `infra/jev-proxy/`, an API Gateway and
-  Lambda service on AWS. Revocable client tokens live in `~/.thinker/jev-proxy.json`
-  (mode 0600), expire after 30 days, and renew automatically on expiry. The proxy
-  holds the upstream key in Secrets Manager, checks token validity and reserves
-  minute/day/global request quotas atomically in DynamoDB, and never logs payloads
-  or credentials. Anonymous enrollment is bounded by IP/day and service/day quotas;
-  it is not proof of user identity. Prompt text and candidate note excerpts are
-  sent to the proxy and TypeSafe for inference, separately from telemetry.
-  An optional personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
-  or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
-  stores one; `--no-jev-key` returns to hosted access. Which of the three a
-  machine uses is asked once, in a terminal, and recorded in
-  `~/.thinker/jev-access.json` (`jev.js:recordAccess`, modes `proxy`, `key`,
-  `off`): `setup/steps.js:configureJev` puts the question on a new install and
-  `thinker update` puts it to anyone who installed before hosted access existed,
-  once, since an update run by hand is a deliberate act. A recorded `off` keeps
-  Jev off, though `jev` in the config and `THINKER_JEV` still win, both being
-  more specific than a machine-wide preference. Saving a key records the choice
-  by itself. Nothing is recorded without a terminal, so a scheduled or `--quiet`
-  update asks nothing and the next interactive one still can; `THINKER_TEST`
-  never prompts. Secrets never belong in the
-  repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
-  model, timeoutMs, searchTimeoutMs }` or is `false`; `enabled: "auto"` means hosted or direct
-  Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`
-  controls still apply, including `THINKER_JEV_TIMEOUT` (overrides both deadlines;
-  default search deadline 5000 ms, individual legacy scoring calls 1500 ms).
-  Any transport, quota, timeout or response-validation failure falls back to the
-  local ranking (installed cross-encoder for hooks, lexical otherwise). A low relevance score is a valid decision to omit a
-  note, not a service failure. Tests cannot call either production model path
-  unless they explicitly inject a transport, which only an in-process caller can
-  do: under `THINKER_TEST=1` a child process (a prompt hook, the MCP server)
-  falls back to the cross-encoder in silence. A benchmark that must measure the
-  shipped ranker there sets `THINKER_JEV_ALLOW_NETWORK=1`, which opens direct
-  access only alongside `THINKER_JEV=on` and a personal key, never hosted
-  enrollment (`jev.js:testNetworkAllowed`); the default stays closed.
-  `thinker ranker` reports the path, and the `orient` log line carries `jev`
-  beside `ce`.
+- Jev served the hooks from 2026-10-06 to 2026-10-08 (`jev.js:jevSearch`, all
+  eligible notes, no BM25 gate, floor 0.5, two notes; measured on the labelled
+  tasks at 0.96 precision and 2.5x the cross-encoder's reach, `bench/RESULTS.md`,
+  "Serving: Jev") and was taken out of serving at the user's decision on
+  2026-10-08. On the Click rerun its servings were true, on the fix's own lines,
+  and cost tokens in eight of eight pairs; on mitmproxy it paid once, on a note
+  the lexical path would have found; it returned 503 five times in one evening;
+  and it scored the same cache and prompt at 0.44 under one client and 0.07 under
+  another, unexplained (`research/efficiency-simple/CANARY-MITMPROXY-2026-10-08.md`).
+  Asked whether a passing note is worth serving, mechanism against nearby rule,
+  it ranked the one note that paid seventh of 37. The hooks rank with the
+  cross-encoder, `orient` and `lookup` by words; `jevSearch` stays for the
+  benchmark harness. Jev's learning decisions (`jev-decisions.js`), review
+  narrowing and gates are untouched, and the hosted access, keys and
+  `jev-access.json` below serve those. `THINKER_JEV` and `jev` in the config
+  switch those paths; nothing switches Jev serving back on.
+  Still true of the credentials: hosted Jev enrolls through `infra/jev-proxy/`
+  (API Gateway and Lambda on AWS); revocable client tokens live in
+  `~/.thinker/jev-proxy.json` (mode 0600), expire after 30 days and renew; the
+  proxy holds the upstream key in Secrets Manager and reserves quotas in
+  DynamoDB; a personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
+  `~/.thinker/jev-key`) selects direct access; `thinker ranker --jev-key` stores
+  one, `--no-jev-key` returns to hosted; which a machine uses is recorded in
+  `~/.thinker/jev-access.json` (`jev.js:recordAccess`). Tests cannot call either
+  model path unless they inject a transport; a benchmark that must measure Jev
+  sets `THINKER_JEV_ALLOW_NETWORK=1` with `THINKER_JEV=on` and a personal key.
   A facet vector typed onto the notes was measured and rejected as a serving
   signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
   the notes' own attestation labels, and the `inert` flag would have suppressed
