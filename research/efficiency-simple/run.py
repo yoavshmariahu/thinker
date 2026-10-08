@@ -453,7 +453,12 @@ def solve(cohort, covered_only=True):
     The skipped tasks are named in the result, so the coverage gap is part of the finding rather
     than a silent omission. THINKER_EFF_ALL=1 runs them anyway.
     """
-    preflight()
+    # Two cohorts started together both reset the preflight checkouts and one lost the git lock
+    # (2026-10-08): a preflight already recorded for every task of this set is not run again.
+    done = OUT / 'raw' / 'preflight.json'
+    recorded = json.loads(done.read_text()) if done.exists() else {}
+    if not all(recorded.get(t['id'], {}).get('valid') for t in TASKS):
+        preflight()
     probed = OUT / f'probe-{cohort}.json'
     covered = None
     if covered_only and not os.environ.get('THINKER_EFF_ALL'):
