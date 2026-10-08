@@ -3,6 +3,10 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## Click rerun on tasks that reopen a remembered fix (2026-10-08)
+
+[Record](../research/efficiency-simple/CANARY-2026-10-08.md): four Click pull requests whose changed definitions carry notes of the day's caches, three seeds per arm, Opus 5.5 through Claude Code and GPT-6.1 Sol through Codex. All 48 runs pass the upstream acceptance test; **the cache arm used more input tokens in eight of eight pairs**, +10% to +49%, with on-target notes and no contamination. Opus reached the edit at the same call and ran the tests more; Sol added `find`/`drilldown` calls before its edit rather than replacing reads. The gate caught every Opus arm saving a note at the end because the MCP server's instructions asked for it; learning is now never requested of the agent, the edit hook serves only rules on the definitions the edits changed, the learning tools are opt-in, and a request-complexity gate was measured and rejected (AUC 0.60). Next measurement: another repository.
+
 ## PR-only cache effectiveness canary (2026-10-07)
 
 [Preserved results and coverage diagnosis](../research/cache-effectiveness/README.md): after the PR-mining repair, the first Opus cache mined 20 recent pre-task PRs into 15 notes with no failed model calls, but served none for the actual Click task (highest Jev relevance 0.07). The guard stopped Sol/Gemini builds and all coding before execution. **No efficiency comparison is available; expansion remains paused.** Relevant material was present in a mined PR but was not extracted into notes. A separate post-stop harness fix accounts for the product's local note storage and usage updates without allowing learned content to change.
