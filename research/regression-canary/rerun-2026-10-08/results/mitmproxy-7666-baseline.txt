@@ -1,0 +1,16 @@
+thinker review: working tree against HEAD, 4 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/savehar.py:249  HAR export now raises ValueError for requests with malformed content encoding. The bodySize expression accesses request.content without handling decoding failures, reintroducing the crash covered by the deleted test.  [from the code, 100%]
+           finding: f-ef10ca0448e9716caaf1c3ed
+           evidence: + "bodySize": len(flow.request.content) if flow.request.content else 0, | Deleted test: req=tutils.treq(content=b"foo", headers=((b"content-encoding", b"utf8"),)) | with pytest.raises(ValueError): | _ = flow.request.content | # should not raise | assert SaveHar().make_har([flow])
+
+Verdicts:
+  nocache        nocache: The change reintroduces a HAR export crash for malformed request content encoding.
+
+Gate integrity — needs review:
+  test/mitmproxy/addons/test_savehar.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+
+
+Impact review: 8c59f84e-5112-48f6-884f-7e7cfb192d43 · attach with thinker impact link-review <run-id> --pr <number>

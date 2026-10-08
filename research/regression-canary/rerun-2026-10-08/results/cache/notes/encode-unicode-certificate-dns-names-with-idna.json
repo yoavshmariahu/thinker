@@ -1,0 +1,44 @@
+{
+  "id": "encode-unicode-certificate-dns-names-with-idna",
+  "title": "Encode Unicode certificate DNS names with IDNA",
+  "kind": "rule",
+  "answers": [
+    "Why does proxying a Unicode domain fail?",
+    "How should Unicode SNI names appear in certificate subject alternative names?",
+    "Where are hostnames converted to certificate DNS or IP names?"
+  ],
+  "body": "Symptom: Proxying Unicode domains fails when constructing certificate DNS names.\nRoot cause: mitmproxy/addons/tlsconfig.py:_ip_or_dns_name passed Unicode hostnames directly to x509.DNSName.\nFix pattern: Encode DNS names with val.encode(\"idna\").decode() before constructing x509.DNSName; Unicode SNI is then represented as an ASCII name in certificate alternative names.\nConstraints: Perform DNS encoding only after IP parsing fails in _ip_or_dns_name; valid IP literals must remain x509.IPAddress values.",
+  "applies": "Certificate general-name construction for DNS hostnames, including Unicode SNI, in the TLS configuration addon.",
+  "tags": [
+    "tls",
+    "certificates",
+    "unicode",
+    "idna",
+    "sni"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "_ip_or_dns_name",
+      "hash": "sha256:32b375ef4b63bd196baab548",
+      "line": 647,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6796"
+  },
+  "created": "2026-10-08T20:57:14.753Z",
+  "verified": "2026-10-08T20:57:14.753Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

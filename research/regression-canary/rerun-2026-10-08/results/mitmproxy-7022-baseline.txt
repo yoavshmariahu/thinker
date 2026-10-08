@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 2 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/net/dns/domain_names.py:153  Valid RDATA containing non-name bytes with leading bits 0b11 now raises struct.error instead of preserving those bytes. The removed test demonstrates this case with SOA numeric data containing \xd2\xa2 and \xc2\x00. Scanning every byte requires retaining the fallback for bytes that only resemble compression pointers.  [from the code, 99%]
+           finding: f-9119da2b45c82c680f2c4879
+           evidence: The function scans every byte with `if buffer[offset + data_offset] & _POINTER_INDICATOR == _POINTER_INDICATOR:` and now unconditionally calls `unpack_from_with_compression(buffer, offset + data_offset, cached_names)`. The diff removes `except struct.error:` and its comment, `# the byte isn't actual
+
+Verdicts:
+  nocache        nocache: Removing the exception fallback breaks decompression of valid RDATA whose non-name fields resemble compression pointers.
+
+
+
+Impact review: 77f70fc0-50af-4568-a544-361867319b4c · attach with thinker impact link-review <run-id> --pr <number>

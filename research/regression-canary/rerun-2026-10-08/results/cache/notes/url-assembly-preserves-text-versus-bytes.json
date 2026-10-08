@@ -1,0 +1,44 @@
+{
+  "id": "url-assembly-preserves-text-versus-bytes",
+  "title": "URL assembly preserves text versus bytes",
+  "kind": "rule",
+  "answers": [
+    "Why does reconstructing a URL produce byte-literal text?",
+    "How do I assemble a URL from byte components?",
+    "Does url.unparse return str or bytes?"
+  ],
+  "body": "Symptom: Reconstructing a URL from byte components produces text containing Python byte-literal representations.\nRoot cause: mitmproxy/net/http/url.py:unparse used string interpolation for byte components as well as text components.\nFix pattern: Select text or byte formatting according to the scheme type, preserving the component representation in the returned URL.\nConstraints: Use consistently text or byte components; the overloads cover text scheme/host returning str and byte scheme/host returning bytes, not arbitrary mixed representations.",
+  "applies": "URL construction through mitmproxy/net/http/url.py:unparse with text or byte components.",
+  "tags": [
+    "http",
+    "url",
+    "bytes"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/http/url.py",
+      "symbol": "unparse",
+      "hash": "sha256:6bd991b8d46827e30cd70181",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7624"
+  },
+  "created": "2026-10-08T20:56:10.601Z",
+  "verified": "2026-10-08T20:56:10.601Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalize-asterisk-request-targets-at-the-request-layer"
+  ]
+}

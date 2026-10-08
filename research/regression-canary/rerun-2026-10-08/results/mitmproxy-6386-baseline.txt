@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 3 files; no notes (baseline) (2 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/savehar.py:85  The comma after the help text makes the mitmdump sentence the fifth argument, `choices`, instead of part of `help`. This incorrectly configures hardump's choices and removes the memory-use explanation from its help. The deleted string assertion no longer catches this mistake.  [from the code, 100%]
+           finding: f-0a6965fd694271a2bf260593
+           evidence: "You may select particular flows by setting save_stream_filter.", | "For mitmdump, enabling this option will mean that flows are kept in memory. ", | Loader.add_option signature: default: Any, help: str, choices: Sequence[str] | None = None | Forwarding: self.master.options.add_option(name, typespec
+
+Verdicts:
+  nocache        nocache: One bug: SaveHar.load passes part of the option help as choices.
+
+
+
+Impact review: 95062f9e-7346-44e0-8222-109e2b6bbae7 · attach with thinker impact link-review <run-id> --pr <number>

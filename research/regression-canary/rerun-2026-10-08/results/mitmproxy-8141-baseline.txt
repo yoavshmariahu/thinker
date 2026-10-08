@@ -1,0 +1,19 @@
+thinker review: working tree against HEAD, 2 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 3 errors, 0 warnings, 0 info
+  error    mitmproxy/addons/proxyserver.py:340  Invalid WebSocket inputs now reach inject_event. Removing the return makes the validation warning fall through, including for non-HTTP flows and HTTP flows without a WebSocket. This also breaks the explicitly documented requirement that string inputs must not reach inject_event.  [from the code, 100%]
+           finding: f-31f9838b9888b49ac3b859d2
+           evidence: if not isinstance(flow, http.HTTPFlow) or not flow.websocket: | logger.warning("Cannot inject WebSocket messages into non-WebSocket flows.") | # The return was removed. | ... | event = WebSocketMessageInjected(flow, msg) | self.inject_event(event) | Deleted test: # str must not reach inject_event (i
+  error    mitmproxy/addons/proxyserver.py:354  Non-TCP flows now proceed to TCP event injection after the validation warning. The removed return was the only control flow preventing an incompatible flow from being wrapped in TcpMessageInjected and passed to inject_event.  [from the code, 100%]
+           finding: f-906c0ea15b42bdb27770ebf6
+           evidence: if not isinstance(flow, tcp.TCPFlow): | logger.warning("Cannot inject TCP messages into non-TCP flows.") | # The return was removed. | event = TcpMessageInjected(flow, tcp.TCPMessage(not to_client, message)) | ... | self.inject_event(event)
+  error    mitmproxy/addons/proxyserver.py:365  Non-UDP flows now proceed to UDP event injection after the validation warning. The removed return was the only control flow preventing an incompatible flow from being wrapped in UdpMessageInjected and passed to inject_event.  [from the code, 100%]
+           finding: f-221beea8d760e4fd759ab6aa
+           evidence: if not isinstance(flow, udp.UDPFlow): | logger.warning("Cannot inject UDP messages into non-UDP flows.") | # The return was removed. | event = UdpMessageInjected(flow, udp.UDPMessage(not to_client, message)) | ... | self.inject_event(event)
+
+Verdicts:
+  nocache        nocache: Removing the three early returns causes rejected inputs to continue into protocol-specific event injection.
+
+
+
+Impact review: fc882ea4-f6de-46de-b9ec-c127805fcce7 · attach with thinker impact link-review <run-id> --pr <number>

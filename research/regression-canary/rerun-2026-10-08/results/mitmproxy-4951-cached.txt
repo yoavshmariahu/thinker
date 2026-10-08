@@ -1,0 +1,10 @@
+thinker review: working tree against HEAD, 1 file; 1 note consulted (1 on the changed code, 0 related), 1 assessed with gpt-6.1-sol (~17k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/platform/windows.py:82  Removing AttributeError from the recovery handler prevents original destination lookup from initializing the connection and retrying when self.wfile is uninitialized.  [note windows-transparent-destination-resolution-must-recover-from, 99%]
+           finding: f-8a33e140787f00c6b75fdf57
+           evidence: write((ip, port), self.wfile) | -            except (EOFError, OSError, AttributeError): | +            except (EOFError, OSError): | self._connect() | return self.original_addr(csock)
+
+
+
+Impact review: 54ba9c27-12bb-41ce-885e-85ef0982f2e0 · attach with thinker impact link-review <run-id> --pr <number>

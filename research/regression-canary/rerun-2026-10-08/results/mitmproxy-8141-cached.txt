@@ -1,0 +1,11 @@
+thinker review: working tree against HEAD, 2 files; 1 note consulted (1 on the changed code, 0 related), 1 assessed with gpt-6.1-sol (~18k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/proxyserver.py:345  Removing the return makes incompatible WebSocket inputs proceed to message construction and injection. Restore the return after the warning.  [note reject-incompatible-flows-before-constructing-injection-even, 100%]
+           finding: f-2d8d1ddd0b6af5105c42a03d
+           evidence: if not isinstance(flow, http.HTTPFlow) or not flow.websocket: | logger.warning("Cannot inject WebSocket messages into non-WebSocket flows.") | msg = websocket.WebSocketMessage( | Opcode.TEXT if is_text else Opcode.BINARY, not to_client, message | ) | event = WebSocketMessageInjected(flow, msg) | try
+           also at: mitmproxy/addons/proxyserver.py:356 (Removing the return makes non-TCP flows proceed to TCP event construction and in…); mitmproxy/addons/proxyserver.py:367 (Removing the return makes non-UDP flows proceed to UDP event construction and in…)
+
+
+
+Impact review: bbd4ca02-0f35-45f4-8762-a9e2bc12ada3 · attach with thinker impact link-review <run-id> --pr <number>

@@ -1,0 +1,14 @@
+thinker review: working tree against HEAD, 3 files; 5 notes consulted (1 on the changed code, 4 related), 5 assessed with gpt-6.1-sol (~18k tokens)
+⚠ Blind on 1 of 2 changed code files: no note rests on it, so nothing checks those.
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/tlsconfig.py:652  Removing IDNA encoding regresses certificate construction for Unicode DNS names. Preserve val.encode("idna").decode() in the DNS fallback. The test change also removes the Unicode SNI case that covered this behavior.  [note encode-unicode-certificate-dns-names-with-idna, 99%]
+           finding: f-80f21e2039cc6794e208e5f1
+           evidence: - return x509.DNSName(val.encode("idna").decode()) | + return x509.DNSName(val) | Test coverage changed from ctx.client.sni = "🌈.sni.example" and x509.DNSName("xn--og8h.sni.example") to ASCII-only "sni.example".
+
+Cache state:
+  - no cached knowledge rests on: test/mitmproxy/addons/test_tlsconfig.py; the review is blind there
+
+
+
+Impact review: 92640dcb-6a7f-48ec-8c24-25eddaa59989 · attach with thinker impact link-review <run-id> --pr <number>

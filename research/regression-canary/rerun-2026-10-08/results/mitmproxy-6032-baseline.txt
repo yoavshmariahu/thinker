@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 1 file; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/command.py:75  Removing eval_str=True leaves string annotations unresolved. Command validation then looks up those strings instead of the evaluated types, causing commands with quoted annotations to fail registration unless CommandTypes also contains matching string keys.  [from the code, 93%]
+           finding: f-8199f69c5fd30fcca455f92b
+           evidence: self.signature = inspect.signature(self.func) | for name, parameter in self.signature.parameters.items(): | t = parameter.annotation | if not mitmproxy.types.CommandTypes.get(parameter.annotation, None): | raise exceptions.CommandError( | f"Argument {name} has an unknown type {t} in {func}." | )
+
+Verdicts:
+  nocache        nocache: The constructor stops resolving string annotations before validating command types.
+
+
+
+Impact review: 70a824ed-9e99-43a8-a6d3-3899de582275 · attach with thinker impact link-review <run-id> --pr <number>

@@ -1,0 +1,63 @@
+{
+  "id": "normalize-asterisk-request-targets-at-the-request-layer",
+  "title": "Normalize asterisk request targets at the request layer",
+  "kind": "rule",
+  "answers": [
+    "How should an asterisk request target appear in the request URL?",
+    "Where is the '*' request path normalized?",
+    "Why must url and pretty_url both handle asterisk paths?"
+  ],
+  "body": "Invariant: When constructing an absolute request URL, a request path of '*' is represented as an empty URL path.\nEnforcement: mitmproxy/http.py:Request.url and mitmproxy/http.py:Request.pretty_url each normalize the path before calling mitmproxy/net/http/url.py:unparse.\nLayering: unparse appends the supplied path; request-target normalization belongs in the Request accessors.\nConsequence: Skipping normalization in either accessor exposes a trailing '*' in that URL representation.\nConstraints: This applies to absolute URL construction; Request.url's authority-format branch returns host:port directly.",
+  "applies": "Changes to request URL accessors or handling of asterisk request targets.",
+  "tags": [
+    "http",
+    "url",
+    "request-target"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Request.url",
+      "hash": "sha256:761a8ab27e4f217b744dc64a",
+      "line": 792,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Request.pretty_url",
+      "hash": "sha256:9752d849595265a3db3ca85f",
+      "line": 824,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": "mitmproxy/net/http/url.py",
+      "symbol": "unparse",
+      "hash": "sha256:6bd991b8d46827e30cd70181",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7624"
+  },
+  "created": "2026-10-08T20:56:10.632Z",
+  "verified": "2026-10-08T20:56:10.632Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "url-assembly-preserves-text-versus-bytes"
+  ]
+}

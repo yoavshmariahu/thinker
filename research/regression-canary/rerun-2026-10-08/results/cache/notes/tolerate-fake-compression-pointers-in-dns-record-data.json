@@ -1,0 +1,54 @@
+{
+  "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+  "title": "Tolerate fake compression pointers in DNS record data",
+  "kind": "rule",
+  "answers": [
+    "Why does decoding a DNS message fail when an SOA record contains a fake pointer?",
+    "How should DNS record decompression handle bytes that resemble compression pointers?",
+    "Where are invalid compression-pointer candidates ignored?"
+  ],
+  "body": "Symptom: A DNS message fails to decode when ordinary record data resembles a domain-name compression pointer, including numeric data in an SOA record.\nRoot cause: mitmproxy/net/dns/domain_names.py:decompress_from_record_data treats bytes with leading bits 0b11 as pointer candidates, even when they belong to another data type.\nFix pattern: Catch struct.error around candidate decoding and replacement; leave failed candidates unchanged and advance the scan by one byte, while continuing to expand successfully decoded names.\nConstraints: This fallback applies to struct.error from candidate decompression; it does not guarantee that every fake pointer is detected or justify suppressing other exception types.",
+  "applies": "DNS resource-record data scanned by decompress_from_record_data, where domain names and other data types may coexist.",
+  "tags": [
+    "dns",
+    "compression",
+    "parsing"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/dns/domain_names.py",
+      "symbol": "decompress_from_record_data",
+      "hash": "sha256:81df6a9d15d82fa6b847e521",
+      "line": 140,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "test/mitmproxy/net/dns/test_domain_names.py",
+      "symbol": "test_record_data_contains_fake_pointer",
+      "hash": "sha256:c387bad793fb098f621be01b",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7022"
+  },
+  "created": "2026-10-08T20:56:57.571Z",
+  "verified": "2026-10-08T20:56:57.571Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

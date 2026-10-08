@@ -1,0 +1,42 @@
+{
+  "id": "validate-decoded-flow-records-before-migration",
+  "title": "Validate decoded flow records before migration",
+  "kind": "rule",
+  "answers": [
+    "Why does reading a malformed saved flow fail unexpectedly?",
+    "How should the flow reader handle non-dictionary records?",
+    "Where should decoded flow state be validated?"
+  ],
+  "body": "Symptom: Reading malformed saved flow data can fail without the expected FlowReadException.\nRoot cause: mitmproxy/io/io.py:FlowReader passed decoded non-dictionary values into flow migration without checking their shape.\nFix pattern: Reject non-dictionary records with ValueError before migration, inside the handler that converts ValueError into FlowReadException.\nConstraints: This check validates the decoded record's outer type; dictionary records must still pass through migration and Flow.from_state.",
+  "applies": "Reading serialized flow records through FlowReader.",
+  "tags": [
+    "flow-reader",
+    "input-validation",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/io/io.py",
+      "symbol": "FlowReader",
+      "hash": "sha256:8b1976864a7c68de22330b71",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 19,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7841"
+  },
+  "created": "2026-10-08T20:55:21.829Z",
+  "verified": "2026-10-08T20:55:21.829Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}
