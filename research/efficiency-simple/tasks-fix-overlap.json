@@ -1,0 +1,56 @@
+[
+  {
+    "id": "click-3228",
+    "upstream": "https://github.com/pallets/click/pull/3228",
+    "fixed": "831c8f0948af519e45b90801d7430ff25451f972",
+    "test_file": "tests/test_commands.py",
+    "acceptance": "test_unknown_command or test_suggest_possible_commands",
+    "base": "19fd4d6e18bc9fce451f92f422696b11169faa57",
+    "prompt": "Suggest commands for a misspelled subcommand name. When a group is invoked with a command name it does not know, raise a dedicated NoSuchCommand usage error, exported as click.NoSuchCommand, whose message is \"No such command 'gret'.\" followed by a suggestion when close matches exist: \"Did you mean 'push'?\" for one candidate and \"(Did you mean one of: 'declare', 'refine'?)\" for several, using the group's normalized command name. Bring NoSuchOption to the same wording: \"No such option '--nme'. Did you mean '--name'?\" and \"(Did you mean one of: '--bound', '--count'?)\". Add tests and document the behavior."
+  },
+  {
+    "id": "click-3256",
+    "upstream": "https://github.com/pallets/click/pull/3256",
+    "fixed": "c943271a269e6941fcc51e3506ead074b9dda6be",
+    "test_file": "tests/test_termui.py",
+    "acceptance": "test_hide_input_error_message or test_hide_input_confirmation_prompt_mismatch_unaffected or test_hide_input_value_never_leaks_when_err_true",
+    "base": "fc6c7c47edd6110b6bd5a1a5297b2035214b0cd1",
+    "prompt": "Show a custom type's error message in click.prompt with hide_input=True. Today a hidden prompt replaces every conversion error with a generic message, even when a custom ParamType fails with its own text. Change it so the type's message is shown with the user's input masked as '***' wherever the message contains it, whether quoted the way built-in types do (repr) or raw, once or several times; a message that never mentions the value is shown unchanged; built-in types keep their masked form such as \"'***' is not a valid integer\"; the hidden value must never appear in the output, including when err=True; the mismatch message of confirmation prompts is unaffected. Add tests."
+  },
+  {
+    "id": "click-3533",
+    "upstream": "https://github.com/pallets/click/pull/3533",
+    "fixed": "4df304c658666f34a5ca4335ab0da15832f02f9e",
+    "test_file": "tests/test_termui.py",
+    "acceptance": "test_get_pager_file_missing_pager_keeps_borrowed_stream_open or test_echo_via_pager_tty_pager_missing",
+    "base": "cd9bdd96a9dcc8e4ecabd45b5c244dbc70034484",
+    "prompt": "Do not let the pager close a borrowed stdout. click.get_pager_file() and click.echo_via_pager must never close a stream they did not open. When the terminal is a tty and PAGER names a missing binary, the fallback pager paths wrap the borrowed stdout and the wrapper closes the underlying buffer when it is garbage-collected; under CliRunner an echo_via_pager call in that situation breaks invoke with 'I/O operation on closed file' (issue #3449; the no-tty path was fixed earlier). After the change the borrowed stream and its buffer stay open after the pager object is dropped and gc.collect() runs, the text written reaches the buffer, and CliRunner.invoke of a command calling echo_via_pager('Hello, Click!') under a tty with a missing pager succeeds with output 'Hello, Click!\\n'. Add tests."
+  },
+  {
+    "id": "click-3482",
+    "upstream": "https://github.com/pallets/click/pull/3482",
+    "fixed": "5ee8e3123d8ddece6c47eff9a7a7d4ca478c4f37",
+    "test_file": "tests/test_testing.py",
+    "acceptance": "test_with_echo_via_pager",
+    "base": "a5f5aa6d4012d256ccca24638f2642fc371e9f77",
+    "prompt": "Fix echo_via_pager under CliRunner. A command that calls click.echo_via_pager('Hello, Click!') invoked through CliRunner fails with 'ValueError: I/O operation on closed file' (issue #3449): the pager path used when stdout is not a terminal wraps the runner's captured stdout and closes it afterwards. Make the invocation succeed with result.output == 'Hello, Click!\\n' and leave the captured stream open, while ANSI is still stripped from styled pager output where it was before; after a pager run over a plain StringIO stream the stream must remain open with the text intact. Add tests."
+  },
+  {
+    "id": "click-3484",
+    "upstream": "https://github.com/pallets/click/pull/3484",
+    "fixed": "d42f15b71757de791a5781fb179fd972da9169f5",
+    "test_file": "tests/test_defaults.py",
+    "acceptance": "test_parameter_source_during_paramtype_convert or test_parameter_source_during_eager_callback or test_flask_debug_env_not_stomped_by_default_flag",
+    "base": "4b24a6c8f6658ef89fd6db4dcaf8ee88eef75dfa",
+    "prompt": "Make ctx.get_parameter_source(name) answer during type conversion and eager callbacks. Since the flag-group arbitration change, a ParamType.convert or an eager callback sees None for the parameter being processed (issue #3458); it broke Flask's FLASK_DEBUG handling, whose eager callback checks whether --debug is at its default before touching the environment. Before the value is converted or any callback runs, the source that was determined for it must already be visible: convert sees DEFAULT for a defaulted option and COMMANDLINE for one passed on the command line, an eager flag callback sees the same source the command sees afterwards, and a callback that leaves an environment variable alone when the source is DEFAULT or DEFAULT_MAP must find it untouched. Flag-group arbitration must behave as it does today, and when one option of a group loses the slot the parameter's recorded source stays the winner's. Add tests."
+  },
+  {
+    "id": "click-3363",
+    "upstream": "https://github.com/pallets/click/pull/3363",
+    "fixed": "b03f211e602d915f413068eba87ff08469b38477",
+    "test_file": "tests/test_options.py",
+    "acceptance": "test_flag_value_not_stringified_for_custom_types or test_custom_type_frozenset_flag_value",
+    "base": "c8da1fcc2cb4523c1fb5bef7f0ca82394dde1efd",
+    "prompt": "Pass non-basic flag values through unchanged. When an option's flag_value is a class, an Enum member, a frozenset or another object that is not a basic Python type and no type is given, the value must reach the callback as that object instead of being converted to a string: click.Option(['-c', 'x'], flag_value=EngineType.OSS).type is click.UNPROCESSED, and likewise for frozenset(); default=True on such a flag resolves to the flag value object itself; a string flag_value keeps the STRING type. Issue #2012. Add tests."
+  }
+]
