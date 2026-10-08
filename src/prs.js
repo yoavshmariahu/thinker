@@ -261,11 +261,9 @@ Allowed kinds and what each must contain:
 - howto: a way of building, testing or running that the PR introduced or relies on, with its non-obvious flags.
 
 Rules:
-- Only claims the diff, description or review comments support. No speculation. Prefer 1-2 narrow notes over a broad summary.
-- Each body line states one independently supported fact. Do not infer a symptom, root cause, security exploit, universal convention or future requirement merely because code changed. If the symptom/root cause is not documented, write a direct invariant or mechanism instead of inventing the four bug-fix labels.
-- Titles and applicability must be no broader than the demonstrated facts. Keep historical before-change behavior explicitly separate from the resulting behavior.
+- Only claims the diff, description or review comments support. No speculation.
 - Do not restate the PR. A note that only says what this PR did is useless; extract what stays true afterwards.
-- 1-3 concise lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
+- 3-8 lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
 - answers: 2-4 phrasings a future agent or user might use, including product-vocabulary phrasings of the symptom or feature.
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
