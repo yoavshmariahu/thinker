@@ -126,14 +126,14 @@ main() {
   say() { printf '%s\n' "$*"; }
   die() { printf 'thinker: %s\n' "$*" >&2; exit 1; }
   # --- look: colors, boxes and spinners on a terminal, plain lines anywhere else --------------
-  local fancy=0 bold="" dim="" cyan="" green="" yellow="" red="" reset=""
+  local fancy=0 bold="" dim="" cyan="" green="" yellow="" red="" magenta="" reset=""
   if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ] && [ -z "${CI:-}" ]; then
-    fancy=1 bold=$'\033[1m' dim=$'\033[2m' cyan=$'\033[36m' green=$'\033[32m' yellow=$'\033[33m' red=$'\033[31m' reset=$'\033[0m'
+    fancy=1 bold=$'\033[1m' dim=$'\033[2m' cyan=$'\033[36m' green=$'\033[32m' yellow=$'\033[33m' red=$'\033[31m' magenta=$'\033[35m' reset=$'\033[0m'
   fi
-  # box <color> <line>...: a rounded box 72 columns wide; a line may carry color codes, padded on its plain text
+  # box <color> <line>...: a rounded box 74 columns wide, as setup draws it; a line may carry color codes, padded on its plain text
   box() {
     local color="$1"; shift
-    local width=70 line plain
+    local width=68 line plain
     printf '%s╭%s╮%s\n' "$color" "$(printf '─%.0s' $(seq 1 $((width + 4))))" "$reset"
     for line in "$@"; do
       plain="$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')"
@@ -210,7 +210,9 @@ main() {
   trap "rm -rf '$tmp'" EXIT
   say ""
   if [ "$fancy" = 1 ]; then
-    box "$cyan" "${bold}${cyan}thinker${reset}" "${bold}A knowledge cache for coding & review agents${reset}" "" \
+    local sparkle="${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
+    box "$cyan" "$sparkle  ${bold}${cyan}thinker${reset}  $sparkle" "${bold}A knowledge cache for coding & review agents${reset}" \
+      "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
       "${dim}Learns from your merged fixes, flags the change that would undo one,${reset}" \
       "${dim}and hands your coding agents what the repository already knows.${reset}"
   else
@@ -347,7 +349,8 @@ EOF
       box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· thinker v$version${reset}" "" \
         "Installed into $home and wired into your agents." \
         "This is not a git repository, so no cache was set up here." \
-        "Inside a repository, run: ${cyan}thinker setup${reset}"
+        "Inside a repository, run: ${cyan}thinker setup${reset}" "" \
+        "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     else
       say "Install complete: thinker v$version, installed into $home and wired into your agents."
       say "This is not a git repository, so no cache was set up here. Inside a repository, run:"

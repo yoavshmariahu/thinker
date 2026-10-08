@@ -45,8 +45,9 @@ export const HEADLINE = 'A knowledge cache for coding & review agents';
 // The opening of `thinker setup` (and of the installer, which draws the same box in shell).
 export function banner() {
   return box([
-    c.bold(c.cyan('thinker')),
+    `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('thinker'))}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`,
     c.bold(HEADLINE),
+    c.magenta('~'.repeat(HEADLINE.length)),
     '',
     c.dim('Learns from your merged fixes, flags the change that would undo one,'),
     c.dim('and hands your coding agents what the repository already knows.'),
@@ -55,6 +56,7 @@ export function banner() {
 
 // The close of `thinker setup`: one box that says clearly whether it is done, and what next.
 export function finishBox(lines, { ok = true } = {}) {
+  if (ok) lines = [...lines, '', `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold('all done · happy shipping')}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`];
   return box(lines, { title: ok ? 'Setup complete' : 'Setup finished with items to review', width: 74, borderColor: ok ? 'green' : 'yellow' });
 }
 
