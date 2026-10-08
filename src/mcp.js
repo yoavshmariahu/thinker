@@ -22,9 +22,13 @@ let repo = pinned ? findRepoRoot(pinned) : inRepo(process.cwd()) ? findRepoRoot(
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 const off = process.env.THINKER_MCP === 'off';
-// THINKER_NO_LEARN=1 switches off every learning path (cli.js): here the learning tools. Nothing
-// asks for them in any case (cache-guidance.js); they are there for an agent a person asks.
+// The learning tools (`remember`, `feedback`) are registered only when the repository's config asks
+// for them (`mcp: { learningTools: true }` in .thinker/config.json) and learning is on. Nothing asks
+// the agent for them (cache-guidance.js): learning is the background distillation, and a tool
+// schema is paid on every request of every session, about 640 tokens for `remember` alone, for a
+// tool the agent was never seen to call unprompted. THINKER_NO_LEARN=1 keeps them out regardless.
 const learn = !/^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
+const learningTools = () => learn && store?.config?.()?.mcp?.learningTools === true;
 // A repository where `thinker setup` has not run has no cache: the server offers no tools there and
 // creates nothing, so a machine-wide registration does not start a cache in every checkout.
 let store = off || !repo ? null : new Store(repo);
@@ -129,7 +133,7 @@ function registerTools() {
   // than some clients allow — and its findings need a person. `thinker review` has every capability
   // the tool had, verification runs included (--run, --start, --status). See "Reviewing a change"
   // in AGENTS.md and the README.
-  if (!learn) return;
+  if (!learningTools()) return;
   retrieval('remember', {
     title: 'Save a reusable note',
     description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: rule (what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and why), map (where something is handled, a call path, a module map), howto, behavior. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,

@@ -109,7 +109,7 @@ cache at twice the input price and never read again.
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`; `remember` and `feedback` only with `mcp: { learningTools: true }` in the config |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI and OpenCode: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -466,8 +466,9 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    on the Click rerun of that day every Opus arm whose learning was switched
    off still ended by saving a note, two turns the baseline could not spend.
    Learning happens offline, in the distillation below, never on the critical
-   path of a task; with `THINKER_NO_LEARN=1` the server registers neither
-   `remember` nor `feedback`.
+   path of a task. The server registers `remember` and `feedback` only when
+   the config asks (`mcp: { learningTools: true }`), and never with
+   `THINKER_NO_LEARN=1`.
 3. **Human**: `thinker add note.json`.
 
 ## The learning loop
@@ -593,8 +594,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
-  `remember(...)`, `feedback(id, useful, correction?)`.
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`;
+  `remember(...)` and `feedback(id, useful, correction?)` only when the config
+  asks (`mcp: { learningTools: true }`), since 2026-10-08: a tool's schema is
+  paid on every request of every session (about 640 tokens for `remember`,
+  1,900 for the six tools against 1,050 for the four), and no guidance asks for
+  them.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note
