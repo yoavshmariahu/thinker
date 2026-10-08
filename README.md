@@ -1,5 +1,12 @@
 # thinker — a knowledge cache for coding & review agents
 
+```bash
+curl -fsSL https://zerotime.dev/dist/install.sh | bash
+```
+
+Run it inside a repository to set that repository up too. Requires git, curl, tar, Node 20+
+and a logged-in coding agent. [More on install](#install-and-start).
+
 Every merged fix leaves knowledge behind that the next change can quietly undo.
 `thinker` learns from your repository's merged pull requests, its fixes first,
 and keeps what it learns as short notes keyed to the code they describe. A
@@ -47,8 +54,7 @@ Integrates with Claude Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade
 
 ## Install and start
 
-Open [zerotime.dev](https://zerotime.dev), enter your access code, and run the
-private install command shown there. The same code unlocks the docs. It
+Run the install command above (`curl -fsSL https://zerotime.dev/dist/install.sh | bash`). It
 installs the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
 Cursor, their desktop apps included). Run from inside a repository, it also
@@ -483,10 +489,9 @@ rewrites the hooks and MCP entries of every repository it is wired into, so a ne
 event reaches them without `thinker setup` being rerun (`thinker rewire` does it by hand).
 
 Clients installed before 0.1.1 may be unable to update without GitHub access.
-Refresh the updater once: sign in at [zerotime.dev](https://zerotime.dev), copy
-the private install command, and replace its final `| bash` with
-`| bash -s -- --update`. This preserves the existing home and telemetry settings
-and saves the private download URL for unattended updates.
+Refresh the updater once with
+`curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --update`. This preserves
+the existing home and telemetry settings and saves the download URL for unattended updates.
 
 To test a specific branch version:
 
