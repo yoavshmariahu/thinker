@@ -10,7 +10,7 @@
 // call, are left out. It is an estimate of reading avoided, not a measurement.
 import fs from 'node:fs';
 import path from 'node:path';
-import { emptySpend, addSpend, formatTokens, isJevUsage } from './model-usage.js';
+import { emptySpend, addSpend, formatTokens } from './model-usage.js';
 export { formatTokens };
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
@@ -164,9 +164,7 @@ export function summarize(store, { days, all = false } = {}) {
     learned: { sessions: 0, notes: 0, merged: 0, prs: 0, prNotes: 0 },
     verified: { still_valid: 0, update: 0, invalid: 0 },
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
-    // `total` stays everything spent; `generative` and `jev` are that total split the way the two
-    // daily budgets are (model-usage.js:isJevUsage, maintain.js:spentToday / jevSpentToday).
-    spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, generative: emptySpend(), jev: emptySpend(), legacyRecords: 0 },
+    spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
     distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
     distillationPerformance: { attempts: 0, succeeded: 0, failed: 0, durationMs: 0, durationSamples: 0, spending: emptySpend() },
     clients: {
@@ -212,7 +210,6 @@ export function summarize(store, { days, all = false } = {}) {
       const purpose = e.purpose || e.op, phase = e.phase || 'legacy';
       const model = `${e.provider || 'unknown'}/${e.model || 'unknown'}`;
       addSpend(u.spending, e); addSpend(r.spending, e);
-      addSpend(isJevUsage(e) ? u.spending.jev : u.spending.generative, e);
       for (const [group, key] of [['byPurpose', purpose], ['byPhase', phase], ['byModel', model]]) {
         u.spending[group][key] ||= emptySpend();
         addSpend(u.spending[group][key], e);
@@ -401,11 +398,6 @@ export function renderUsage(u, { days } = {}) {
     L.push('', 'Cache build and maintenance (reported usage)');
     const row = (label, s) => `  ${label.padEnd(18)} ${num(s.inputTokens)} input + ${num(s.outputTokens)} output; ${num(s.totalTokens)} total tokens; ${num(s.calls)} records`;
     L.push(row('total', spending));
-    // The two budgets are separate, so the report keeps them apart as well.
-    if (spending.jev.calls) {
-      L.push(row('  generative', spending.generative), row('  typed decisions', spending.jev));
-      L.push('  budgets            counted apart: maintain.dailyTokens covers generative calls, maintain.dailyJevTokens the typed decisions');
-    }
     L.push('  By phase:');
     for (const [phase, s] of Object.entries(spending.byPhase)) L.push(row(phase === 'init' ? 'cache init' : phase === 'learning' ? 'ongoing learning' : phase === 'legacy' ? 'older records' : phase, s));
     L.push('  By operation (same spending):');

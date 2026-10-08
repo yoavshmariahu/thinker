@@ -44,10 +44,9 @@ no; without it the cache grows from your own sessions). The wiring is
 everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
 
-Then work with your agent as usual. Thinker selects relevant notes for each
-request automatically using **hosted Jev through Thinker's proxy**, with no
-personal TypeSafe account or API key required. See
-[Jev through Thinker](#jev-through-thinker) for setup and data flow.
+Then work with your agent as usual. The notes that bear on each request are
+chosen on your machine by a small local ranking model; no extra account or key
+is needed.
 
 To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
 
@@ -82,92 +81,6 @@ Notes:
   nothing is given in dollars, since the agent's login is often a subscription.
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
-
-## Jev through Thinker
-
-Thinker selects notes with
-[Jev](https://docs.typesafe.ai/concepts/system-one), TypeSafe's System One
-model. **Access is provided through Thinker's proxy; no TypeSafe account or
-personal API key is required.**
-
-Thinker searches all eligible notes with Jev, sending the request and note
-descriptions through its proxy in bounded batches, then uses Jev's relevance
-probabilities to choose what the coding agent sees. Thinker
-provisions access automatically and keeps the upstream TypeSafe credential on
-the server. A revocable client token is stored in `~/.thinker/jev-proxy.json`
-with owner-only permissions. Your configured agent writes notes; Jev selects
-learning evidence and checks proposed notes and search descriptions. Verification
-and review continue to use their configured models.
-
-`lookup` queries and `orient` both use Jev, without a keyword shortlist.
-It reads a note's current `search` description, falling back to its body when
-the description is missing or outdated. Exact-ID lookups and kind-only listings
-are direct. A relevance threshold of 0.5 selects up to two notes for prompt
-hooks, three for `lookup`, or the explicit caller's limit, within the token budget.
-If nothing qualifies, nothing is served. Prompt hooks withhold stale notes and
-avoid repeating notes within a session. Invalid and archived notes stay out of
-query search. Errors, rate limits, and searches exceeding five seconds fall back
-to local ranking (the cross-encoder for hooks, then lexical ranking).
-
-Jev also helps maintain the cache:
-
-- It selects numbered source passages from eligible sessions, preserving nearby context.
-- Before distilling sessions or PRs, it searches the catalog for related notes. It then
-  classifies proposed discoveries as covered, extending, contradictory, or unrelated
-  against complete note bodies.
-- Each proposed claim must be supported by source evidence before it is saved.
-  Extensions must retain existing constraints; contradictions wait for investigation.
-- Generated `search` descriptions must preserve the source note's claims, scope and
-  exceptions before their content hash is marked current.
-
-Uncertain discoveries and contradictions are saved in
-`.thinker/state/learning-pending/` with their source reference. Transient failures
-leave sessions and PRs eligible for retry. Human behavior notes are not rewritten
-by these learning paths. Jev usage is logged by purpose and counts toward the
-learning/maintenance daily token cap. Acceptance thresholds are initial conservative
-policies; synthetic checks do not establish accuracy on real sessions.
-
-**Data flow:** the request and all eligible note titles, question phrasings,
-search descriptions or body excerpts, applicability, file/symbol pointers,
-and freshness pass through Thinker's proxy to
-TypeSafe. Learning additionally sends selected transcript passages, proposed claims,
-source evidence from sessions/PRs, and relevant complete notes; summary checks send
-the source note and proposed description. The proxy does not log this content. Hosted access has
-usage limits; the local ranker takes over when a limit is reached. The cache
-remains stored locally. Hosted ranking is separate from
-telemetry: `THINKER_TELEMETRY=off` does not disable model calls. Set
-`"jev": false` in `.thinker/config.json`, or `THINKER_JEV=off` in the agent's
-environment, to use local note ranking and disable these Jev learning checks. See [onboarding](ONBOARDING.md#jev-through-thinker)
-for setup guidance and optional personal-key access.
-
-**Choosing how it reaches the model.** Setup asks once, in a terminal, and
-remembers the answer in `~/.thinker/jev-access.json`, so neither setup nor a
-later update asks again:
-
-| | |
-|---|---|
-| Thinker hosted access | the default; no key, nothing to sign up for |
-| your own TypeSafe key | requests go straight to TypeSafe, not through Thinker |
-| neither | rank locally; nothing leaves the machine |
-
-If you installed before hosted access existed, the next `thinker update` you run
-in a terminal puts the question once. An update with no terminal — the scheduled
-daily one, or `--quiet` — asks nothing and changes nothing. You can switch at any
-time without waiting to be asked:
-
-```
-thinker ranker --jev-key <key>   # your own key, stored 0600 outside the repository
-thinker ranker --no-jev-key      # back to hosted access
-THINKER_JEV=off                  # local ranking only, for one agent or shell
-thinker ranker                   # which of the three is in use
-```
-
-In two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes;
-96% of the notes it served were useful. The runs reported about 160 ms per
-task. These measured the earlier reranker on a supplied candidate pool, not the
-current full-catalog search, production proxy latency, or an end-to-end coding speedup. See
-[the results and limitations](bench/RESULTS.md#serving-jev-2026-10-06-offline-all-54-labelled-tasks-two-runs).
-The coding-agent benchmarks below predate this integration.
 
 ## Large repositories: choose your project
 
@@ -218,9 +131,8 @@ the project file adds no retrieval filter.
 Thinker learns and stores notes locally in `.thinker/local/notes/`, which is
 ignored by Git. It does not publish notes or synchronize them with a team.
 Older committed notes remain readable; updates to those notes stay local.
-Local storage does not mean all processing is offline: hosted Jev receives
-selection inputs through Thinker’s proxy as described above. Direct Jev
-access, learning, and review use their configured model providers.
+Local storage does not mean all processing is offline: learning, verification
+and review run through your configured agent or model provider.
 
 Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
@@ -483,9 +395,9 @@ setup spending outside that period.
 
 Session learning uses the working agent's `remember` and `feedback` tools first:
 save a reusable finding while its evidence is already in context. Background
-learning uses Jev to select at most 12,000 characters of source evidence from up
-to 96 passages sampled across the transcript, with neighboring context. Unavailable
-or uncertain selection falls back to the existing local evidence selection. Routine exploration and cache hits alone do not
+learning selects at most 12,000 characters of source evidence from the transcript:
+the first request, the last answer, failures and corrections with what followed
+them, and the most recent tool calls. Routine exploration and cache hits alone do not
 trigger discovery. Notes are assessed only when discussed explicitly or when a
 failure/correction touches their dependencies; omitted evidence stays unknown,
 not “unused.” Only returned assessments are checkpointed as assessed.
@@ -604,7 +516,7 @@ integration tests that intentionally exercise installation or scheduling.
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Jev sends requests and note records for search, and source evidence and proposed claims/descriptions for learning checks; the hosted flow routes them through Thinker’s proxy to TypeSafe. Disabling telemetry does not disable model calls.
+Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning, verification and review send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 

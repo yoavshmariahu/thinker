@@ -10,7 +10,7 @@ import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner } from './setup/ui.js';
 import { githubSlug, exploreAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
 import { estimateCacheBuild } from './setup/estimate.js';
-import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild, configureJev } from './setup/steps.js';
+import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild } from './setup/steps.js';
 import { stepPrBenchmark } from './setup/pr-benchmark.js';
 export * from './setup/ui.js';
 export * from './setup/agents.js';
@@ -111,8 +111,6 @@ export async function runSetup({
     });
     if (building) out('');
   }
-  // Hosted Jev is the default in interactive and unattended setup; the local model remains ready.
-  out(''); await configureJev({ store, out }); out('');
   let effectiveNoSeed = noSeed || !building;
   let effectiveNoPrs = noPrs || !building;
 

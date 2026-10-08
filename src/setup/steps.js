@@ -11,7 +11,6 @@ import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
-import { jevConfig, hostedCredential, jevAccess, jevAsked, recordAccess, saveKey, keyFile } from '../jev.js';
 import { c, formatBytes, selectMenu } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -283,55 +282,3 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
     return false;
   }
 }
-
-// How this machine reaches Jev. Asked once, in a terminal, and remembered (jev.js:recordAccess) so that
-// neither setup nor update asks again. The question is put plainly because the default sends the request
-// and excerpts of candidate notes off the machine, which is not what the rest of thinker does.
-export async function configureJev({ store, out = console.log, hostedCredentialFn = hostedCredential,
-                                     stdin = process.stdin, stdout = process.stdout, readlineFn = null, ask = true } = {}) {
-  const cfg = jevConfig(store);
-  if (!cfg.enabled) { out(`  ${c.dim('Jev is off; the built-in ranker chooses your notes. thinker ranker --jev-key <key> turns it on.')}`); return 'ce'; }
-  if (cfg.key) { out(`  ${c.dim(`Jev uses your own key (${jevAccess()?.mode === 'key' ? keyFile() : 'from the environment'}); the built-in ranker is the fallback.`)}`); return 'direct'; }
-
-  const already = jevAccess();
-  // never block a test run on a menu, whatever stdin happens to be
-  const interactive = ask && !already && Boolean(stdin?.isTTY) && !process.env.THINKER_TEST;
-  if (interactive) {
-    out(`  ${c.bold('How should Jev reach the model?')} ${c.dim('— asked once')}`);
-    out(`    • Jev picks which of your notes you are shown. It reaches ${c.cyan('2.5x as many of the notes that matter')} as the built-in ranker.`);
-    out(`    • Either way your request and short excerpts of candidate notes leave this machine. ${c.dim('Your code and your notes\' files do not.')}`);
-    let choice;
-    try {
-      choice = (await selectMenu({
-        items: [
-          { label: 'Thinker hosted access · no key, nothing to sign up for (recommended)', value: 'proxy' },
-          { label: 'My own TypeSafe key · requests go straight to TypeSafe, not through Thinker', value: 'key' },
-          { label: 'Neither · rank locally, nothing leaves this machine', value: 'off' },
-        ], defaultIndex: 0, out,
-      }))?.value;
-    } catch { choice = 'proxy'; }
-    if (choice === 'off') { recordAccess('off'); out(`  ${c.dim('Local ranker only. thinker ranker --jev-key <key>, or THINKER_JEV=on, changes it.')}`); return 'ce'; }
-    if (choice === 'key') {
-      const rl = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
-      let key = '';
-      try { key = String(await rl.question(`  ${c.bold('TypeSafe API key')} ${c.dim('(blank to use hosted access instead)')}: `)).trim(); } finally { rl.close(); }
-      if (key) { saveKey(key); out(`  ${c.green('✓')} Saved to ${c.dim(keyFile())} ${c.dim('(owner-readable only; never written into the repository)')}`); return 'direct'; }
-      out(`  ${c.dim('No key given; using hosted access.')}`);
-    }
-    recordAccess('proxy');
-  } else if (!already) {
-    // Not a terminal, so nothing is recorded and the next interactive setup or update still asks.
-    out(`  ${c.bold('Jev chooses your notes through Thinker hosted access — no API key needed.')}`);
-    out(`  ${c.dim('Your request and candidate note excerpts go to Thinker\'s AWS proxy and on to TypeSafe.')}`);
-    out(`  ${c.dim('thinker ranker --jev-key <key> uses your own instead; THINKER_JEV=off keeps everything local.')}`);
-  }
-  try {
-    await hostedCredentialFn();
-    out(`  ${c.green('✓')} Hosted Jev ready; the local ranker takes over on errors or after ${cfg.timeoutMs} ms.`);
-    return 'hosted';
-  } catch {
-    out(`  ${c.yellow('○')} Hosted Jev is unavailable right now. The local ranker stays ready; a later request can retry.`);
-    return 'ce';
-  }
-}
-

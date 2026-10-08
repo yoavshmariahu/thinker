@@ -14,4 +14,3 @@ bench/runs/efficiency-simple/
 
 # private gateway deployment snapshots and credentials
 .access-work/
-.jev-proxy-work/
