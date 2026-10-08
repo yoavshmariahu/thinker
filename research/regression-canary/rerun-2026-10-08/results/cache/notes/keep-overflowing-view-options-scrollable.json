@@ -1,0 +1,53 @@
+{
+  "id": "keep-overflowing-view-options-scrollable",
+  "title": "Keep overflowing view options scrollable",
+  "kind": "rule",
+  "answers": [
+    "Why does the view options menu overflow?",
+    "How can users reach options in a long content view menu?",
+    "Where is dropdown menu height constrained?"
+  ],
+  "body": "Symptom: The view options menu overflows when its options exceed the available menu height.\nRoot cause: Dropdown styling lacked a height limit and vertical scrolling; see web/src/css/dropdown.less:max-height and the menu consumer web/src/js/components/contentviews/ViewSelector.tsx:ViewSelector.\nFix pattern: Bound the dropdown height and enable vertical scrolling; the established declarations are max-height: 250px and overflow-y: scroll.\nConstraints: This pattern addresses vertical dropdown overflow; the content view selector also uses top-end placement, which should not be generalized to other dropdowns from this fix alone.",
+  "applies": "Dropdown height and scrolling in the web UI, particularly the content view options menu.",
+  "tags": [
+    "web",
+    "dropdown",
+    "contentviews",
+    "overflow"
+  ],
+  "deps": [
+    {
+      "path": "web/src/css/dropdown.less",
+      "hash": "sha256:60c34da43bc10bb223237e85",
+      "missing": false
+    },
+    {
+      "path": "web/src/css/dropdown.less",
+      "hash": "sha256:60c34da43bc10bb223237e85",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/contentviews/ViewSelector.tsx",
+      "symbol": "ViewSelector",
+      "hash": "sha256:56fef9bb80526020b879ee90",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6697"
+  },
+  "created": "2026-10-08T20:57:42.030Z",
+  "verified": "2026-10-08T20:57:42.030Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

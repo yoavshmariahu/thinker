@@ -1,0 +1,16 @@
+thinker review: working tree against HEAD, 3 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/tlsconfig.py:652  Unicode DNS names now reach x509.DNSName without IDNA encoding, which raises ValueError for non-ASCII input. This breaks certificate generation for Unicode SNI such as the previously tested "🌈.sni.example"; changing the test to ASCII removes coverage of that case.  [from the code, 99%]
+           finding: f-4ea2f4820d99d154078bc1bc
+           evidence: -        return x509.DNSName(val.encode("idna").decode()) | +        return x509.DNSName(val) | -            ctx.client.sni = "🌈.sni.example" | +            ctx.client.sni = "sni.example" | -                    x509.DNSName("xn--og8h.sni.example"), | +                    x509.DNSName("sni.example")
+
+Cache state:
+  - no cached knowledge rests on: test/mitmproxy/addons/test_tlsconfig.py; the review is blind there
+
+Verdicts:
+  nocache        nocache: Removing IDNA conversion reintroduces a failure when generating certificates for Unicode DNS names.
+
+
+
+Impact review: b076373e-72f5-4f50-bb58-86a1967f2e10 · attach with thinker impact link-review <run-id> --pr <number>

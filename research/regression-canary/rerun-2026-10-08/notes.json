@@ -1,0 +1,518 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "pr": 8141,
+    "source": "mitmproxy/mitmproxy#8141",
+    "title": "fix: skip inject_event when inject flow type is wrong",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/8141",
+    "mergedAt": "2026-03-24T06:18:51Z",
+    "proposed": [
+      {
+        "title": "Reject incompatible flows before constructing injection events",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "reject-incompatible-flows-before-constructing-injection-even",
+        "title": "Reject incompatible flows before constructing injection events",
+        "kind": "rule",
+        "body": "Symptom: Injecting messages into an incompatible flow or passing a bare @focus string can crash with AttributeError instead of only logging a warning.\nRoot cause: mitmproxy/addons/proxyserver.py:Proxyserver.inject_websocket, Proxyserver.inject_tcp, and Proxyserver.inject_udp logged failed flow checks but continued constructing events and calling inject_event, which accesses flow.client_conn.\nFix pattern: Return immediately after the incompatible-flow warning, before constructing messages or injection events.\nConstraints: WebSocket injection requires an HTTPFlow with websocket present; TCP and UDP injection require their respective flow types. Passing these checks does not establish a live connection: correctly typed flows must still reach the existing live-connection check.",
+        "deps": [
+          {
+            "path": "mitmproxy/addons/proxyserver.py",
+            "symbol": "Proxyserver.inject_websocket"
+          },
+          {
+            "path": "mitmproxy/addons/proxyserver.py",
+            "symbol": "Proxyserver.inject_tcp"
+          },
+          {
+            "path": "mitmproxy/addons/proxyserver.py",
+            "symbol": "Proxyserver.inject_udp"
+          },
+          {
+            "path": "test/mitmproxy/addons/test_proxyserver.py",
+            "symbol": "test_inject_fail"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 18193
+  },
+  {
+    "id": "mitmproxy-7841",
+    "pr": 7841,
+    "source": "mitmproxy/mitmproxy#7841",
+    "title": "Fix a flow reader bug found with fuzzing",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7841",
+    "mergedAt": "2025-08-24T17:26:00Z",
+    "proposed": [
+      {
+        "title": "Validate decoded flow records before migration",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "validate-decoded-flow-records-before-migration",
+        "title": "Validate decoded flow records before migration",
+        "kind": "rule",
+        "body": "Symptom: Reading malformed saved flow data can fail without the expected FlowReadException.\nRoot cause: mitmproxy/io/io.py:FlowReader passed decoded non-dictionary values into flow migration without checking their shape.\nFix pattern: Reject non-dictionary records with ValueError before migration, inside the handler that converts ValueError into FlowReadException.\nConstraints: This check validates the decoded record's outer type; dictionary records must still pass through migration and Flow.from_state.",
+        "deps": [
+          {
+            "path": "mitmproxy/io/io.py",
+            "symbol": "FlowReader"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16720
+  },
+  {
+    "id": "mitmproxy-7666",
+    "pr": 7666,
+    "source": "mitmproxy/mitmproxy#7666",
+    "title": "fix #7452",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7666",
+    "mergedAt": "2025-04-23T12:30:50Z",
+    "proposed": [
+      {
+        "title": "Measure HAR request body size without decoding content",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "measure-har-request-body-size-without-decoding-content",
+        "title": "Measure HAR request body size without decoding content",
+        "kind": "rule",
+        "body": "Symptom: HAR export crashes for malformed flows with invalid Content-Encoding headers.\nRoot cause: mitmproxy/addons/savehar.py:SaveHar calculated request bodySize from request.content, whose decoding can raise ValueError.\nFix pattern: Calculate request bodySize from len(request.raw_content), using 0 when raw_content is absent or empty; this measures the encoded body without decoding it.\nConstraints: This pattern applies to HAR request bodySize, not fields requiring decoded content. test/mitmproxy/addons/test_savehar.py:test_content_raises verifies export succeeds even when accessing request.content and response.content raises ValueError.",
+        "deps": [
+          {
+            "path": "mitmproxy/addons/savehar.py",
+            "symbol": "SaveHar"
+          },
+          {
+            "path": "test/mitmproxy/addons/test_savehar.py",
+            "symbol": "test_content_raises"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 22588
+  },
+  {
+    "id": "mitmproxy-7624",
+    "pr": 7624,
+    "source": "mitmproxy/mitmproxy#7624",
+    "title": "fixup url.unparse",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7624",
+    "mergedAt": "2025-03-28T22:44:12Z",
+    "proposed": [
+      {
+        "title": "URL assembly preserves text versus bytes",
+        "kind": "rule"
+      },
+      {
+        "title": "Normalize asterisk request targets at the request layer",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "url-assembly-preserves-text-versus-bytes",
+        "title": "URL assembly preserves text versus bytes",
+        "kind": "rule",
+        "body": "Symptom: Reconstructing a URL from byte components produces text containing Python byte-literal representations.\nRoot cause: mitmproxy/net/http/url.py:unparse used string interpolation for byte components as well as text components.\nFix pattern: Select text or byte formatting according to the scheme type, preserving the component representation in the returned URL.\nConstraints: Use consistently text or byte components; the overloads cover text scheme/host returning str and byte scheme/host returning bytes, not arbitrary mixed representations.",
+        "deps": [
+          {
+            "path": "mitmproxy/net/http/url.py",
+            "symbol": "unparse"
+          }
+        ]
+      },
+      {
+        "id": "normalize-asterisk-request-targets-at-the-request-layer",
+        "title": "Normalize asterisk request targets at the request layer",
+        "kind": "rule",
+        "body": "Invariant: When constructing an absolute request URL, a request path of '*' is represented as an empty URL path.\nEnforcement: mitmproxy/http.py:Request.url and mitmproxy/http.py:Request.pretty_url each normalize the path before calling mitmproxy/net/http/url.py:unparse.\nLayering: unparse appends the supplied path; request-target normalization belongs in the Request accessors.\nConsequence: Skipping normalization in either accessor exposes a trailing '*' in that URL representation.\nConstraints: This applies to absolute URL construction; Request.url's authority-format branch returns host:port directly.",
+        "deps": [
+          {
+            "path": "mitmproxy/http.py",
+            "symbol": "Request.url"
+          },
+          {
+            "path": "mitmproxy/http.py",
+            "symbol": "Request.pretty_url"
+          },
+          {
+            "path": "mitmproxy/net/http/url.py",
+            "symbol": "unparse"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 18313
+  },
+  {
+    "id": "mitmproxy-7183",
+    "pr": 7183,
+    "source": "mitmproxy/mitmproxy#7183",
+    "title": "Fix error while changing string-based options",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7183",
+    "mergedAt": "2024-09-16T11:12:07Z",
+    "proposed": [
+      {
+        "title": "Read grid editor text through the underlying widget",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "read-grid-editor-text-through-the-underlying-widget",
+        "title": "Read grid editor text through the underlying widget",
+        "kind": "rule",
+        "body": "Symptom: Changing string-based console options such as mode or dns_name_servers raises AttributeError: 'AttrMap' object has no attribute 'get_text'.\nRoot cause: mitmproxy/tools/console/grideditor/col_bytes.py:Edit.get_data called get_text on self._w, which can be an AttrMap wrapper.\nFix pattern: Read text through self._w.base_widget.get_text(), then retain the existing stripping and escaped-string-to-bytes conversion.\nConstraints: This pattern applies to text retrieval from the wrapped editor in Edit.get_data; it does not change byte conversion or invalid-input handling.",
+        "deps": [
+          {
+            "path": "mitmproxy/tools/console/grideditor/col_bytes.py",
+            "symbol": "Edit.get_data"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16574
+  },
+  {
+    "id": "mitmproxy-7036",
+    "pr": 7036,
+    "source": "mitmproxy/mitmproxy#7036",
+    "title": "Do not block local mode connections",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7036",
+    "mergedAt": "2024-07-25T10:15:23Z",
+    "proposed": [
+      {
+        "title": "Local mode bypasses peer-address blocking",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "local-mode-bypasses-peer-address-blocking",
+        "title": "Local mode bypasses peer-address blocking",
+        "kind": "rule",
+        "body": "Symptom: Local mode connections are blocked by the block addon even though local interception should be allowed.\nRoot cause: mitmproxy/addons/block.py:Block.client_connected classified the peer address without exempting local mode; on macOS, that address may be the interface's public IP.\nFix pattern: Return early for clients whose proxy_mode is mode_specs.LocalMode, before applying private or public address blocking.\nConstraints: This exemption applies to local mode regardless of peer-address classification; preserve the existing loopback exemption and address-blocking behavior for other proxy modes.",
+        "deps": [
+          {
+            "path": "mitmproxy/addons/block.py",
+            "symbol": "Block.client_connected"
+          },
+          {
+            "path": "test/mitmproxy/addons/test_block.py",
+            "symbol": "test_ignore_local_mode"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16941
+  },
+  {
+    "id": "mitmproxy-7022",
+    "pr": 7022,
+    "source": "mitmproxy/mitmproxy#7022",
+    "title": "Fix decompressing fake pointers in DNS messages",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/7022",
+    "mergedAt": "2024-07-13T14:18:04Z",
+    "proposed": [
+      {
+        "title": "Tolerate fake compression pointers in DNS record data",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "tolerate-fake-compression-pointers-in-dns-record-data",
+        "title": "Tolerate fake compression pointers in DNS record data",
+        "kind": "rule",
+        "body": "Symptom: A DNS message fails to decode when ordinary record data resembles a domain-name compression pointer, including numeric data in an SOA record.\nRoot cause: mitmproxy/net/dns/domain_names.py:decompress_from_record_data treats bytes with leading bits 0b11 as pointer candidates, even when they belong to another data type.\nFix pattern: Catch struct.error around candidate decoding and replacement; leave failed candidates unchanged and advance the scan by one byte, while continuing to expand successfully decoded names.\nConstraints: This fallback applies to struct.error from candidate decompression; it does not guarantee that every fake pointer is detected or justify suppressing other exception types.",
+        "deps": [
+          {
+            "path": "mitmproxy/net/dns/domain_names.py",
+            "symbol": "decompress_from_record_data"
+          },
+          {
+            "path": "test/mitmproxy/net/dns/test_domain_names.py",
+            "symbol": "test_record_data_contains_fake_pointer"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17387
+  },
+  {
+    "id": "mitmproxy-6796",
+    "pr": 6796,
+    "source": "mitmproxy/mitmproxy#6796",
+    "title": "Fix certs for unicode domains",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6796",
+    "mergedAt": "2024-04-12T15:22:19Z",
+    "proposed": [
+      {
+        "title": "Encode Unicode certificate DNS names with IDNA",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "encode-unicode-certificate-dns-names-with-idna",
+        "title": "Encode Unicode certificate DNS names with IDNA",
+        "kind": "rule",
+        "body": "Symptom: Proxying Unicode domains fails when constructing certificate DNS names.\nRoot cause: mitmproxy/addons/tlsconfig.py:_ip_or_dns_name passed Unicode hostnames directly to x509.DNSName.\nFix pattern: Encode DNS names with val.encode(\"idna\").decode() before constructing x509.DNSName; Unicode SNI is then represented as an ASCII name in certificate alternative names.\nConstraints: Perform DNS encoding only after IP parsing fails in _ip_or_dns_name; valid IP literals must remain x509.IPAddress values.",
+        "deps": [
+          {
+            "path": "mitmproxy/addons/tlsconfig.py",
+            "symbol": "_ip_or_dns_name"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16960
+  },
+  {
+    "id": "mitmproxy-6697",
+    "pr": 6697,
+    "source": "mitmproxy/mitmproxy#6697",
+    "title": "Fix Bug view options menu",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6697",
+    "mergedAt": "2024-03-06T20:55:26Z",
+    "proposed": [
+      {
+        "title": "Keep overflowing view options scrollable",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-overflowing-view-options-scrollable",
+        "title": "Keep overflowing view options scrollable",
+        "kind": "rule",
+        "body": "Symptom: The view options menu overflows when its options exceed the available menu height.\nRoot cause: Dropdown styling lacked a height limit and vertical scrolling; see web/src/css/dropdown.less:max-height and the menu consumer web/src/js/components/contentviews/ViewSelector.tsx:ViewSelector.\nFix pattern: Bound the dropdown height and enable vertical scrolling; the established declarations are max-height: 250px and overflow-y: scroll.\nConstraints: This pattern addresses vertical dropdown overflow; the content view selector also uses top-end placement, which should not be generalized to other dropdowns from this fix alone.",
+        "deps": [
+          {
+            "path": "web/src/css/dropdown.less"
+          },
+          {
+            "path": "web/src/css/dropdown.less"
+          },
+          {
+            "path": "web/src/js/components/contentviews/ViewSelector.tsx",
+            "symbol": "ViewSelector"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17261
+  },
+  {
+    "id": "mitmproxy-6386",
+    "pr": 6386,
+    "source": "mitmproxy/mitmproxy#6386",
+    "title": "web: don't crash when opening options",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6386",
+    "mergedAt": "2023-09-27T11:07:01Z",
+    "proposed": [
+      {
+        "title": "Keep option help text out of the choices argument",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "keep-option-help-text-out-of-the-choices-argument",
+        "title": "Keep option help text out of the choices argument",
+        "kind": "rule",
+        "body": "Symptom: mitmweb crashes when opening options.\nRoot cause: mitmproxy/addons/savehar.py:SaveHar.load passed a second help-text string as the choices argument when registering hardump.\nFix pattern: Combine all help prose into one help argument; mitmproxy/addonmanager.py:Loader.add_option asserts that choices is not a string.\nConstraints: Applies to addon option registration; help prose belongs in the help argument, and any supplied choices must satisfy the non-string guard.",
+        "deps": [
+          {
+            "path": "mitmproxy/addonmanager.py",
+            "symbol": "Loader.add_option"
+          },
+          {
+            "path": "mitmproxy/addons/savehar.py",
+            "symbol": "SaveHar.load"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17853
+  },
+  {
+    "id": "mitmproxy-6032",
+    "pr": 6032,
+    "source": "mitmproxy/mitmproxy#6032",
+    "title": "Command signature inspection fix (#6029)",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/6032",
+    "mergedAt": "2023-03-29T11:13:55Z",
+    "proposed": [
+      {
+        "title": "Resolve postponed annotations when inspecting command signatures",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "resolve-postponed-annotations-when-inspecting-command-signat",
+        "title": "Resolve postponed annotations when inspecting command signatures",
+        "kind": "rule",
+        "body": "Symptom: Commands from modules using `from __future__ import annotations` fail to execute.\nRoot cause: Signature inspection in mitmproxy/command.py:Command and mitmproxy/command.py:verify_arg_signature did not evaluate string annotations.\nFix pattern: Use `inspect.signature(..., eval_str=True)` when constructing command signatures and inspecting callables for argument verification.\nConstraints: Applies to command signature inspection with postponed annotations; preserve the existing argument-binding validation via `sig.bind(*args, **kwargs)`.",
+        "deps": [
+          {
+            "path": "mitmproxy/command.py",
+            "symbol": "Command"
+          },
+          {
+            "path": "mitmproxy/command.py",
+            "symbol": "verify_arg_signature"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16675
+  },
+  {
+    "id": "mitmproxy-5982",
+    "pr": 5982,
+    "source": "mitmproxy/mitmproxy#5982",
+    "title": "fix #5972",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5982",
+    "mergedAt": "2023-03-09T15:48:27Z",
+    "proposed": [
+      {
+        "title": "Select HTTP mode from the outer proxy layer",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "select-http-mode-from-the-outer-proxy-layer",
+        "title": "Select HTTP mode from the outer proxy layer",
+        "kind": "rule",
+        "body": "Invariant: Select HTTPMode.upstream when context.layers[0] is an instance of modes.HttpUpstreamProxy; otherwise select HTTPMode.regular.\nEnforcement: mitmproxy/addons/next_layer.py:NextLayer checks the outermost context layer before constructing layers.HttpLayer.\nFailure: Unconditionally selecting HTTPMode.regular gives upstream proxy stacks the wrong HTTP mode.\nConstraints: Apply this check at the HTTP layer construction shown here, including after an optional ClientTLSLayer is added.",
+        "deps": [
+          {
+            "path": "mitmproxy/addons/next_layer.py",
+            "symbol": "NextLayer"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16573
+  },
+  {
+    "id": "mitmproxy-5749",
+    "pr": 5749,
+    "source": "mitmproxy/mitmproxy#5749",
+    "title": "Fix a race condition `ConnectionHandler.drain_writers`",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5749",
+    "mergedAt": "2022-11-22T13:04:06Z",
+    "proposed": [
+      {
+        "title": "Snapshot transports before awaiting writer drains",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "snapshot-transports-before-awaiting-writer-drains",
+        "title": "Snapshot transports before awaiting writer drains",
+        "kind": "rule",
+        "body": "Symptom: Draining proxy connection writes can fail when transports change during drainage.\nRoot cause: mitmproxy/proxy/server.py:ConnectionHandler.drain_writers iterated the live self.transports.values() view across await transport.writer.drain().\nFix pattern: Snapshot the transport values with list(self.transports.values()) before iterating across awaits.\nConstraints: This addresses changes to collection membership during drainage; preserve the existing _drain_lock and writer-is-not-None guard.",
+        "deps": [
+          {
+            "path": "mitmproxy/proxy/server.py",
+            "symbol": "ConnectionHandler.drain_writers"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16506
+  },
+  {
+    "id": "mitmproxy-5352",
+    "pr": 5352,
+    "source": "mitmproxy/mitmproxy#5352",
+    "title": "remove overambitious assertion found with fuzzing, fix #5343",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/5352",
+    "mergedAt": "2022-05-15T20:18:30Z",
+    "proposed": [
+      {
+        "title": "Ignore late HTTP events for streams no longer tracked",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "ignore-late-http-events-for-streams-no-longer-tracked",
+        "title": "Ignore late HTTP events for streams no longer tracked",
+        "kind": "rule",
+        "body": "Symptom: The HTTP proxy hits an assertion when data arrives for a stream it has already finished handling.\nRoot cause: mitmproxy/proxy/layers/http/__init__.py:HttpLayer assumed that events whose stream ID was absent from self.streams could only be RequestProtocolError or ResponseProtocolError.\nFix pattern: Ignore events whose stream ID is no longer tracked; late events may contain data as well as errors.\nConstraints: Apply this tolerance to the missing-stream lookup branch; events for tracked streams must still be forwarded through event_to_child.",
+        "deps": [
+          {
+            "path": "mitmproxy/proxy/layers/http/__init__.py",
+            "symbol": "HttpLayer"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 17578
+  },
+  {
+    "id": "mitmproxy-4951",
+    "pr": 4951,
+    "source": "mitmproxy/mitmproxy#4951",
+    "title": "Fixes AttributeError in transparent mode",
+    "url": "https://github.com/mitmproxy/mitmproxy/pull/4951",
+    "mergedAt": "2021-11-24T15:49:48Z",
+    "proposed": [
+      {
+        "title": "Windows transparent destination resolution must recover from an uninitialized connection",
+        "kind": "rule"
+      }
+    ],
+    "saved": [
+      {
+        "id": "windows-transparent-destination-resolution-must-recover-from",
+        "title": "Windows transparent destination resolution must recover from an uninitialized connection",
+        "kind": "rule",
+        "body": "Symptom: Windows transparent mode raises AttributeError while resolving the original destination before the upstream connection is established.\nRoot cause: mitmproxy/platform/windows.py:Resolver.original_addr writes to self.wfile before it has been initialized by Resolver._connect.\nFix pattern: Include AttributeError alongside EOFError and OSError in the connection-recovery handler, which calls Resolver._connect and retries Resolver.original_addr.\nConstraints: This recovery applies to Windows transparent-mode original destination lookup; the missing-wfile case requires connection initialization before retrying.",
+        "deps": [
+          {
+            "path": "mitmproxy/platform/windows.py",
+            "symbol": "Resolver.original_addr"
+          },
+          {
+            "path": "mitmproxy/platform/windows.py",
+            "symbol": "Resolver._connect"
+          }
+        ]
+      }
+    ],
+    "skipped": 0,
+    "tokens": 16612
+  }
+]

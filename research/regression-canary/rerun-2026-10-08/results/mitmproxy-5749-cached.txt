@@ -1,0 +1,10 @@
+thinker review: working tree against HEAD, 1 file; 2 notes consulted (1 on the changed code, 1 related), 2 assessed with gpt-6.1-sol (~17k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/proxy/server.py:336  Removing the snapshot leaves a live transport collection iterator suspended across writer drainage. If collection membership changes during the await, iteration can fail. Restore list(self.transports.values()).  [note snapshot-transports-before-awaiting-writer-drains, 98%]
+           finding: f-49a0433192ffae085f9566b8
+           evidence: - for transport in list(self.transports.values()): | + for transport in self.transports.values(): | if transport.writer is not None: | try: | await transport.writer.drain()
+
+
+
+Impact review: cb091caf-1eb3-48d1-811d-3e9ca13f3120 · attach with thinker impact link-review <run-id> --pr <number>

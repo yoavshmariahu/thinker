@@ -1,0 +1,54 @@
+{
+  "id": "resolve-postponed-annotations-when-inspecting-command-signat",
+  "title": "Resolve postponed annotations when inspecting command signatures",
+  "kind": "rule",
+  "answers": [
+    "Why do commands from modules using future annotations fail to execute?",
+    "How should command signatures handle string annotations?",
+    "Where are command signatures inspected?"
+  ],
+  "body": "Symptom: Commands from modules using `from __future__ import annotations` fail to execute.\nRoot cause: Signature inspection in mitmproxy/command.py:Command and mitmproxy/command.py:verify_arg_signature did not evaluate string annotations.\nFix pattern: Use `inspect.signature(..., eval_str=True)` when constructing command signatures and inspecting callables for argument verification.\nConstraints: Applies to command signature inspection with postponed annotations; preserve the existing argument-binding validation via `sig.bind(*args, **kwargs)`.",
+  "applies": "Command construction and argument verification for command callables with postponed annotations.",
+  "tags": [
+    "commands",
+    "annotations",
+    "signature-inspection"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/command.py",
+      "symbol": "Command",
+      "hash": "sha256:7d5d1d22e799a0344ad27fed",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 9,
+        "refs": 52
+      }
+    },
+    {
+      "path": "mitmproxy/command.py",
+      "symbol": "verify_arg_signature",
+      "hash": "sha256:117611ad22075767d39c5b0e",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#6032"
+  },
+  "created": "2026-10-08T20:58:12.003Z",
+  "verified": "2026-10-08T20:58:12.003Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

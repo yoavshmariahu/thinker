@@ -1,0 +1,10 @@
+thinker review: working tree against HEAD, 1 file; 4 notes consulted (1 on the changed code, 3 related), 4 assessed with gpt-6.1-sol (~18k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/proxy/layers/http/__init__.py:1041  The missing-stream branch now raises AssertionError for late data events instead of ignoring them, reintroducing the failure described by the note. Keep this branch tolerant of all late HTTP events while preserving forwarding for tracked streams.  [note ignore-late-http-events-for-streams-no-longer-tracked, 100%]
+           finding: f-e51aa2e459a8395c636477fe
+           evidence: Removed: # We may be getting data or errors for a stream even though we've already finished handling it, | Removed: pass | Added: assert isinstance( | command.event, (RequestProtocolError, ResponseProtocolError) | ) | Unchanged: else: | yield from self.event_to_child(stream, command.event)
+
+
+
+Impact review: 84bc7174-36e1-43de-99fb-d9a6712b0ca8 · attach with thinker impact link-review <run-id> --pr <number>

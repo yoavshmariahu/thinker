@@ -1,0 +1,16 @@
+thinker review: working tree against HEAD, 2 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/block.py:34  Removing the LocalMode exemption causes local-mode clients with non-loopback private peer addresses to be killed when block_private is enabled. This breaks the behavior demonstrated by the deleted test using peername 192.168.1.1.  [from the code, 99%]
+           finding: f-f0da36cac583581b3a48f67a
+           evidence: The guard changes from `if address.is_loopback or isinstance(client.proxy_mode, mode_specs.LocalMode):` to `if address.is_loopback:`. The remaining private-address branch sets `client.error = "Connection killed by block_private."`. The deleted test configured `block_private=True`, supplied `peername
+
+Verdicts:
+  nocache        nocache: The removed exemption breaks the previously tested behavior for local-mode clients with private peer addresses.
+
+Gate integrity — needs review:
+  test/mitmproxy/addons/test_block.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+
+
+Impact review: ae9f5def-e2a8-49e6-bc52-c6df2d863636 · attach with thinker impact link-review <run-id> --pr <number>

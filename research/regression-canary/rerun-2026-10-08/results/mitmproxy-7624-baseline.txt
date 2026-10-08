@@ -1,0 +1,16 @@
+thinker review: working tree against HEAD, 3 files; no notes (baseline) (2 on the changed code, 0 related)
+
+No findings.
+
+Cache state:
+  - no cached knowledge rests on: test/mitmproxy/net/http/test_url.py; the review is blind there
+
+Verdicts:
+  nocache        nocache: No bugs supported by the shown code. Asterisk normalization preserves the Request properties’ behavior, and the test reflects unparse’s changed string-only contract.
+
+Gate integrity — needs review:
+  test/mitmproxy/net/http/test_url.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+
+
+Impact review: 79def1e6-857a-455f-9e79-c54a313e46ce · attach with thinker impact link-review <run-id> --pr <number>

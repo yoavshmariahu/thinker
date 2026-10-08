@@ -1,0 +1,42 @@
+{
+  "id": "select-http-mode-from-the-outer-proxy-layer",
+  "title": "Select HTTP mode from the outer proxy layer",
+  "kind": "rule",
+  "answers": [
+    "How is HTTP mode selected for an upstream proxy?",
+    "Why is an upstream proxy stack using regular HTTP mode?",
+    "When should next-layer selection use HTTPMode.upstream?"
+  ],
+  "body": "Invariant: Select HTTPMode.upstream when context.layers[0] is an instance of modes.HttpUpstreamProxy; otherwise select HTTPMode.regular.\nEnforcement: mitmproxy/addons/next_layer.py:NextLayer checks the outermost context layer before constructing layers.HttpLayer.\nFailure: Unconditionally selecting HTTPMode.regular gives upstream proxy stacks the wrong HTTP mode.\nConstraints: Apply this check at the HTTP layer construction shown here, including after an optional ClientTLSLayer is added.",
+  "applies": "HTTP mode selection during next-layer stack construction for upstream and regular proxy contexts.",
+  "tags": [
+    "upstream-proxy",
+    "http-mode",
+    "layer-selection"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer",
+      "hash": "sha256:39e7850e83f5a6e7025da2c9",
+      "line": 78,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 28,
+        "refs": 63
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#5982"
+  },
+  "created": "2026-10-08T20:58:27.206Z",
+  "verified": "2026-10-08T20:58:27.206Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

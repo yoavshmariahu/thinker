@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 1 file; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/next_layer.py:415  Upstream proxy contexts now receive HTTPMode.regular. The removed branch explicitly selected HTTPMode.upstream when context.layers[0] was modes.HttpUpstreamProxy; the unconditional replacement loses that distinction.  [from the code, 97%]
+           finding: f-105e082c807e84a773cec9b1
+           evidence: Removed: if isinstance(context.layers[0], modes.HttpUpstreamProxy): stack /= layers.HttpLayer(context, HTTPMode.upstream) | Added: stack /= layers.HttpLayer(context, HTTPMode.regular)
+
+Verdicts:
+  nocache        nocache: The change removes upstream-specific HTTP mode selection from explicit proxy setup.
+
+
+
+Impact review: e967121a-da3e-44a6-a597-32ffa8392e8a · attach with thinker impact link-review <run-id> --pr <number>

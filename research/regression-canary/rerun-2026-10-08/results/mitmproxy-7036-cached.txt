@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 2 files; 2 notes consulted (1 on the changed code, 1 related), 2 assessed with gpt-6.1-sol (~18k tokens)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/addons/block.py:34  Removing the LocalMode exemption causes local interception connections with non-loopback peer addresses to be killed when the corresponding block_private or block_global option is enabled. The previous implementation and deleted regression test support the note's invariant.  [note local-mode-bypasses-peer-address-blocking, 100%]
+           finding: f-d747ae7f4adfd952129fe5b1
+           evidence: - if address.is_loopback or isinstance(client.proxy_mode, mode_specs.LocalMode): | + if address.is_loopback: | return | if ctx.options.block_private and address.is_private: | client.error = "Connection killed by block_private." | if ctx.options.block_global and address.is_global: | client.error = "C
+
+Gate integrity — needs review:
+  test/mitmproxy/addons/test_block.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+
+
+Impact review: 569e7757-cecc-429e-ac33-94b27314ad54 · attach with thinker impact link-review <run-id> --pr <number>

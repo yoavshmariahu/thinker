@@ -1,0 +1,42 @@
+{
+  "id": "snapshot-transports-before-awaiting-writer-drains",
+  "title": "Snapshot transports before awaiting writer drains",
+  "kind": "rule",
+  "answers": [
+    "Why can draining proxy connection writes fail when transports change?",
+    "How does ConnectionHandler.drain_writers avoid an iteration race?",
+    "Should transport iteration use a snapshot when awaiting writer drains?"
+  ],
+  "body": "Symptom: Draining proxy connection writes can fail when transports change during drainage.\nRoot cause: mitmproxy/proxy/server.py:ConnectionHandler.drain_writers iterated the live self.transports.values() view across await transport.writer.drain().\nFix pattern: Snapshot the transport values with list(self.transports.values()) before iterating across awaits.\nConstraints: This addresses changes to collection membership during drainage; preserve the existing _drain_lock and writer-is-not-None guard.",
+  "applies": "ConnectionHandler transport iteration that awaits writer drainage.",
+  "tags": [
+    "asyncio",
+    "race-condition",
+    "transports"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/server.py",
+      "symbol": "ConnectionHandler.drain_writers",
+      "hash": "sha256:109f709c45a4e3934abdc988",
+      "line": 330,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#5749"
+  },
+  "created": "2026-10-08T20:58:44.168Z",
+  "verified": "2026-10-08T20:58:44.168Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

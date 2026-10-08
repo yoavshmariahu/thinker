@@ -1,0 +1,107 @@
+[
+  {
+    "id": "mitmproxy-8141",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both name the removed early returns after incompatible-flow warnings at 340 (cached at 345, within six lines).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7841",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline: no findings. Cached: removed dictionary check lets non-dict records reach migration (73).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7666",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: malformed content encoding crashes HAR bodySize at 249.",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7624",
+    "baselineHit": false,
+    "cachedHit": false,
+    "reason": "Neither arm reports a finding. Cached consulted the matching note but judged it note_outdated rather than violated.",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7183",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline: no findings. Cached: AttrMap lacks get_text, keep base_widget (44).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7036",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: removed LocalMode exemption kills local-mode connections (34).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-7022",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: struct.error fallback removed, SOA data resembling pointers aborts (153).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-6796",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: IDNA encoding removed, Unicode DNS names fail (652).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-6697",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both warn: dropdown height limit removed, long menus overflow (8 vs 7).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-6386",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: help sentence passed as choices (85).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-6032",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: eval_str=True removed, string annotations unresolved (75).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-5982",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: upstream contexts get HTTPMode.regular (415).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-5749",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline: no findings. Cached: live transport iterator across await, restore list() snapshot (336).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-5352",
+    "baselineHit": true,
+    "cachedHit": true,
+    "reason": "Both: late data now raises AssertionError (1041).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  },
+  {
+    "id": "mitmproxy-4951",
+    "baselineHit": false,
+    "cachedHit": true,
+    "reason": "Baseline: no findings. Cached: AttributeError removed from recovery handler (82).",
+    "grader": "claude-opus-5-5 (manual, original rubric)"
+  }
+]

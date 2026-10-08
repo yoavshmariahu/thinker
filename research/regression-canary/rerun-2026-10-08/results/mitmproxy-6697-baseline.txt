@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 3 files; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 0 errors, 1 warning, 0 info
+  warning  web/src/css/dropdown.less:8  Removing the height limit and vertical scrolling lets long dropdown menus overflow the viewport. ViewSelector renders every backend content view, and changing its placement does not preserve the removed height constraint.  [from the code, 90%]
+           finding: f-947b9236bec1b1876670e0f8
+           evidence: Removed: `max-height: 250px;` and `overflow-y: scroll;`. ViewSelector renders `{contentViews.map((name) => (...) )}` with `options={{ placement: "top-start" }}`.
+
+Verdicts:
+  nocache        nocache: The change removes the dropdown's overflow protection.
+
+
+
+Impact review: 2fff915d-8805-47b9-8a4a-a3af29210cfc · attach with thinker impact link-review <run-id> --pr <number>

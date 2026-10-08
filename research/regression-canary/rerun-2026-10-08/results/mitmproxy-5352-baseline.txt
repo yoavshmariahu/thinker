@@ -1,0 +1,13 @@
+thinker review: working tree against HEAD, 1 file; no notes (baseline) (1 on the changed code, 0 related)
+
+Findings: 1 error, 0 warnings, 0 info
+  error    mitmproxy/proxy/layers/http/__init__.py:1041  Late data for a finished stream now raises AssertionError instead of being ignored. The previous comment explicitly identifies late data as a possible case, but the new assertion accepts only protocol errors.  [from the code, 92%]
+           finding: f-bc3e930961d3fcb76ace42fc
+           evidence: Removed: "We may be getting data or errors for a stream even though we've already finished handling it" followed by `pass`. Added in `except KeyError`: `assert isinstance(command.event, (RequestProtocolError, ResponseProtocolError))`. Streams are removed by `self.streams.pop(command.stream_id, None)
+
+Verdicts:
+  nocache        nocache: The new assertion rejects the previously documented case of late data arriving for a finished stream.
+
+
+
+Impact review: 7547fca0-c0d8-4eab-a9df-749720b552de · attach with thinker impact link-review <run-id> --pr <number>

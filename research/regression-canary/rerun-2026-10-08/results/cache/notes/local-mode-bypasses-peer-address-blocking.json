@@ -1,0 +1,54 @@
+{
+  "id": "local-mode-bypasses-peer-address-blocking",
+  "title": "Local mode bypasses peer-address blocking",
+  "kind": "rule",
+  "answers": [
+    "Why are local mode connections being blocked?",
+    "Should block_private or block_global apply to local mode?",
+    "Why can local mode have a public peer address on macOS?"
+  ],
+  "body": "Symptom: Local mode connections are blocked by the block addon even though local interception should be allowed.\nRoot cause: mitmproxy/addons/block.py:Block.client_connected classified the peer address without exempting local mode; on macOS, that address may be the interface's public IP.\nFix pattern: Return early for clients whose proxy_mode is mode_specs.LocalMode, before applying private or public address blocking.\nConstraints: This exemption applies to local mode regardless of peer-address classification; preserve the existing loopback exemption and address-blocking behavior for other proxy modes.",
+  "applies": "The block addon's connection checks, especially changes to mode eligibility or peer-address filtering.",
+  "tags": [
+    "local-mode",
+    "connection-blocking",
+    "macos"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/block.py",
+      "symbol": "Block.client_connected",
+      "hash": "sha256:8a384592d4fd350884beb255",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "test/mitmproxy/addons/test_block.py",
+      "symbol": "test_ignore_local_mode",
+      "hash": "sha256:845467f0642d420f95cea713",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7036"
+  },
+  "created": "2026-10-08T20:56:39.189Z",
+  "verified": "2026-10-08T20:56:39.189Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

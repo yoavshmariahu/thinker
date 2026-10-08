@@ -1,0 +1,15 @@
+thinker review: working tree against HEAD, 3 files; 4 notes consulted (2 on the changed code, 2 related), 4 assessed with gpt-6.1-sol (~19k tokens)
+
+No findings.
+
+Cache state:
+  - 2 notes the review found outdated: normalize-asterisk-request-targets-at-the-request-layer (The absolute-URL invariant still holds, but the layering claim is outdated: unparse now executes `if path == "*": path = ""`, and both Request accessors pass `self.path` directly. Corrected body: unparse normalizes an asterisk path to an empty URL path; Request.url and Request.pretty_url delegate absolute URL construction to it. Their authority-format branches remain separate.); url-assembly-preserves-text-versus-bytes (The documented byte overload and formatting branch have been removed. The current signature is `def unparse(scheme: str, host: str, port: int, path: str = "") -> str`, and the byte assertion was replaced with a text asterisk-path assertion. Corrected body: unparse accepts text scheme, host, and path components plus an integer port, and returns text using string interpolation. It no longer provides a bytes-preserving contract.)
+  - re-check them: thinker verify normalize-asterisk-request-targets-at-the-request-layer url-assembly-preserves-text-versus-bytes
+  - no cached knowledge rests on: test/mitmproxy/net/http/test_url.py; the review is blind there
+
+Gate integrity — needs review:
+  test/mitmproxy/net/http/test_url.py: Assertions were removed or rewritten; equivalent replacement coverage has not been established. (needs-assessment)
+
+
+
+Impact review: d3b8c6c2-b9fb-49e5-b5d8-a63ffde1ba11 · attach with thinker impact link-review <run-id> --pr <number>

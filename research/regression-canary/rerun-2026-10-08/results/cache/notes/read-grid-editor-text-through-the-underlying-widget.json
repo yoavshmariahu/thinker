@@ -1,0 +1,43 @@
+{
+  "id": "read-grid-editor-text-through-the-underlying-widget",
+  "title": "Read grid editor text through the underlying widget",
+  "kind": "rule",
+  "answers": [
+    "Why does changing mode or dns_name_servers raise an AttrMap get_text error?",
+    "How should the console grid editor read text from a wrapped edit widget?",
+    "Where is edited grid text converted back to bytes?"
+  ],
+  "body": "Symptom: Changing string-based console options such as mode or dns_name_servers raises AttributeError: 'AttrMap' object has no attribute 'get_text'.\nRoot cause: mitmproxy/tools/console/grideditor/col_bytes.py:Edit.get_data called get_text on self._w, which can be an AttrMap wrapper.\nFix pattern: Read text through self._w.base_widget.get_text(), then retain the existing stripping and escaped-string-to-bytes conversion.\nConstraints: This pattern applies to text retrieval from the wrapped editor in Edit.get_data; it does not change byte conversion or invalid-input handling.",
+  "applies": "Console grid editor byte-cell text retrieval, including editing string-based options.",
+  "tags": [
+    "console",
+    "grideditor",
+    "options",
+    "widget-wrappers"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/console/grideditor/col_bytes.py",
+      "symbol": "Edit.get_data",
+      "hash": "sha256:309205c0989772238e2ae3cc",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7183"
+  },
+  "created": "2026-10-08T20:56:24.241Z",
+  "verified": "2026-10-08T20:56:24.241Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

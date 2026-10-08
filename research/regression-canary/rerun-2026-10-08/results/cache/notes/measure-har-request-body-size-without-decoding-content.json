@@ -1,0 +1,54 @@
+{
+  "id": "measure-har-request-body-size-without-decoding-content",
+  "title": "Measure HAR request body size without decoding content",
+  "kind": "rule",
+  "answers": [
+    "Why does HAR export crash for malformed flows?",
+    "How should HAR request bodySize be calculated?",
+    "Can HAR export handle invalid Content-Encoding headers?"
+  ],
+  "body": "Symptom: HAR export crashes for malformed flows with invalid Content-Encoding headers.\nRoot cause: mitmproxy/addons/savehar.py:SaveHar calculated request bodySize from request.content, whose decoding can raise ValueError.\nFix pattern: Calculate request bodySize from len(request.raw_content), using 0 when raw_content is absent or empty; this measures the encoded body without decoding it.\nConstraints: This pattern applies to HAR request bodySize, not fields requiring decoded content. test/mitmproxy/addons/test_savehar.py:test_content_raises verifies export succeeds even when accessing request.content and response.content raises ValueError.",
+  "applies": "HAR export request body-size calculation and regression coverage for malformed content encodings.",
+  "tags": [
+    "har",
+    "content-encoding",
+    "raw-content"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/savehar.py",
+      "symbol": "SaveHar",
+      "hash": "sha256:3d3c5d2ff50dd7a84be80c7c",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "test/mitmproxy/addons/test_savehar.py",
+      "symbol": "test_content_raises",
+      "hash": "sha256:26f99b8a364fc138d31a5b80",
+      "line": 243,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#7666"
+  },
+  "created": "2026-10-08T20:55:36.159Z",
+  "verified": "2026-10-08T20:55:36.159Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

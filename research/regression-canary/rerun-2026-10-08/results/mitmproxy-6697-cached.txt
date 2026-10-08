@@ -1,0 +1,10 @@
+thinker review: working tree against HEAD, 3 files; 1 note consulted (1 on the changed code, 0 related), 1 assessed with gpt-6.1-sol (~17k tokens)
+
+Findings: 0 errors, 1 warning, 0 info
+  warning  web/src/css/dropdown.less:8  Removing the dropdown height limit and vertical scrolling regresses the overflow fix: long content-view menus can exceed the available menu height.  [note keep-overflowing-view-options-scrollable, 98%]
+           finding: f-8e2b0d30e08f4ded6b5adf93
+           evidence: The diff removes `max-height: 250px;` and `overflow-y: scroll;`. ViewSelector still renders every option with `{contentViews.map((name) => (`.
+
+
+
+Impact review: 7f3dfbac-152d-46d0-a790-b370ae7c2fe0 · attach with thinker impact link-review <run-id> --pr <number>
