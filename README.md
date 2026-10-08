@@ -1,29 +1,44 @@
-# thinker — a knowledge cache for coding agents
+# thinker — a knowledge cache for coding & review agents
 
-Coding agents re-orient in a repo every session: grep, read, trace imports,
-figure out how X flows from A to B. `thinker` caches that understanding as
-short notes keyed to the code they describe, and serves the relevant ones
-into each request. When the code under a note changes, the note is flagged
-stale and re-verified in a batch at most once every four hours. The cache
-maintains itself under a daily token cap, without anyone running commands.
+Every merged fix leaves knowledge behind that the next change can quietly undo.
+`thinker` learns from your repository's merged pull requests, its fixes first,
+and keeps what it learns as short notes keyed to the code they describe. A
+review checks each change against them and flags the one that brings a fixed bug
+back or breaks a rule the team wrote down, before it merges, on your machine or as
+a pull request review. The same notes go to coding agents while they work, so
+they start from what the repository already learned.
 
-Note refreshes run on the first repository activity after the four-hour interval,
-using changed dependencies and git diffs since each note was verified. Reading a
-note never starts verification. Between batches, stale notes retain their warning
-and prompt hooks withhold them. `thinker verify` requests an immediate check;
-`thinker maintain` respects the four-hour interval (`--dry` previews the work).
+The cache keeps itself current: when the code under a note changes, the note is
+re-verified in the background under a daily token cap, and a stale note is never
+served as fact. See [Review a change against the cache](#review-a-change-against-the-cache).
 
-**With Claude Fable on real tasks, the cache cut wall time, lowered token usage, and raised the correctness score.**
+**Code review: bugs missed.** 100 real bug fixes from seven open-source repositories,
+each reversed so the change brings the bug back, then reviewed by the same model
+with and without thinker.
 
 ```
-wall time            without thinker  ████████████████████  2.7 min
-                     with thinker     █████████████████░░░  2.3 min 14% faster
+Claude Opus 5.5    without thinker  ██████████████░░░░░░  7 missed of 25
+                   with thinker     ████░░░░░░░░░░░░░░░░  2 missed of 25    71% fewer
 
-input tokens         without thinker  ████████████████████  1.25M
-                     with thinker     ████████████████░░░░  1.02M   18% less tokens
+GPT-6.1 Sol        without thinker  ██████████████████░░  18 missed of 50
+                   with thinker     ██░░░░░░░░░░░░░░░░░░  2 missed of 50    89% fewer
 
-correctness score    without thinker  ████████████████░░░░  80%
-                     with thinker     ██████████████████░░  89%     +10% improved
+Gemini 3.8 Flash   without thinker  ████████████████░░░░  8 missed of 25
+                   with thinker     ██████████░░░░░░░░░░  5 missed of 25    38% fewer
+```
+
+**And for coding agents: input tokens per task.** Real tasks from merged pull
+requests, same model with and without thinker.
+
+```
+Claude Fable       without thinker  ████████████████████  1.25M
+                   with thinker     ████████████████░░░░  1.02M   18% less tokens
+
+Gemini 3.8 Flash   without thinker  ████████████████████  16.6M
+                   with thinker     ████████████████░░░░  13.4M   19% less tokens
+
+GPT-6 Astra        without thinker  ████████████████████  473k
+                   with thinker     ████████████████░░░░  384k    19% less tokens
 ```
 
 [See the benchmark](#benchmarks).
@@ -429,24 +444,20 @@ comparison, not just note count.
 
 ## Benchmarks
 
-Real tasks from merged pull requests, each run with and without the cache. Evaluated on Claude Fable (20 pairs via Claude Code), Gemini 3.8 Flash (14 pairs via Antigravity CLI), and OpenAI GPT-6 Astra (21 pairs via Codex CLI), all independently graded on calibrated acceptance criteria.
+**Code review.** Each case is a real bug fix from Grafana, PostHog, pandas,
+scikit-learn, Pydantic, Kubernetes Autoscaler or mitmproxy, reversed at a later
+commit so the change brings the bug back. The cache is mined from the fixes; the
+same model, at the same effort, reviews the change once with thinker and once
+without. A bug counts as caught only when the review flags the reverted lines and
+explains the original failure. Each model reviews different bugs, so the rows are
+not a model ranking. One run per arm; no clean changes were reviewed, so the false
+positive rate is not measured. A rerun of the 15 mitmproxy cases on the code
+released as 0.1.17 caught 14 with thinker and 10 without.
 
-| Dimension | Metric | Claude Fable (Claude Code) | Gemini 3.8 Flash (Antigravity CLI) | OpenAI GPT-6 Astra (Codex CLI) |
-|---|---|---|---|---|
-| ⏱️ **Timing** | **Wall clock time** | **14% faster** | **8.5% faster** | **7.0% faster** |
-| 🪙 **Token Usage** | **Input context** | **18% less tokens** | **21% less tokens** | **19% less tokens** |
-| | **Output tokens** | **11% less output** | **22% less output** | **11% less output** |
-| 🔍 **Tool Efficiency** | **Tool calls** | **17% fewer calls** | **22% fewer calls** | **18% fewer calls** (won 71% of tasks) |
-| | **File reads / exploration** | *(tracked in tool calls)* | **27% fewer file reads** | **14% less exploration** |
-| 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **Parity** (within noise) |
-| | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **Parity** (15 vs 16 solved) |
-
-### Key Takeaways for Users
-
-- **⏱️ Timing:** Eliminates blind repo exploration and prevents rabbit holes, cutting wall time by **7% to 14%** (saving up to **100+ seconds** on complex Grafana tasks).
-- **🪙 Token Usage:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**.
-- **🔍 Tool Efficiency:** Reduces tool calls across every evaluated agent harness — Claude Code (**-17%**), Codex CLI (**-18%**, lower in 15 of 21 tasks), and Antigravity CLI (**-22%**).
-- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast and frontier models (Gemini Flash, GPT-6 Astra) maintain strict correctness parity (within single-run noise).
+**Coding.** Real tasks from merged pull requests, run once with the cache and
+once without, with the same model: Claude Fable (20 tasks, Claude Code),
+Gemini 3.8 Flash (14 tasks, Antigravity CLI) and GPT-6 Astra (21 tasks, Codex
+CLI). The figure is input tokens per task, cached context included.
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).
