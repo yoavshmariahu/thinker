@@ -381,7 +381,9 @@ function sessionState(store, session) {
 // taken out on 2026-10-05 at the user's decision (a review is run when asked for, not by default),
 // after those runs showed the agent polling a slow review for minutes instead of working. A bare
 // mention that review exists went the same day: with it, the agent still called review at the end
-// of both reruns and lost three minutes to each timed-out call (bench/RESULTS.md).
+// of both reruns and lost three minutes to each timed-out call (bench/RESULTS.md). Since 2026-10-07
+// the prompt hook sends it only with the first bundle that serves a note (commands/hooks.js): a
+// session the cache has nothing for pays nothing for thinker.
 export function sessionIntro(store, { session, client }) {
   if (!session || session === 'unknown') return '';
   const { st, save } = sessionState(store, session);

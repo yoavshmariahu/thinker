@@ -63,17 +63,21 @@ async function hookCommand(ctx) {
     // the checkout's, and, from a hook at user scope, the user's own
     if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-    // once per session, what the code tools are and how to reach them; with the notes when there are any
-    // (a held-out session gets neither the intro nor the nudges: the holdout compares sessions with thinker's help against sessions without)
-    const intro = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdoutSession(store, session) ? sessionIntro(store, { session, client }) : '';
+    // Once per session, what the code tools are and how to reach them: only with the first bundle that
+    // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
+    // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
+    // not help). A held-out session gets neither the intro nor the nudges: the holdout compares
+    // sessions with thinker's help against sessions without.
+    const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdoutSession(store, session);
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
-    if (!store.exists() || !store.list().length || client === 'windsurf') { if (intro) emit(intro); return; }
+    if (!store.exists() || !store.list().length || client === 'windsurf') return;
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
     // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
     const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
-    if (!r.included.length) { if (intro) emit(intro); return; }
+    if (!r.included.length) return;
+    const intro = introOk ? sessionIntro(store, { session, client }) : '';
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
     const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale') });
     const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;

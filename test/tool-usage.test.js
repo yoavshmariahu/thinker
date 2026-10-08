@@ -22,18 +22,25 @@ const hook = (dir, kind, input, ...flags) => execFileSync('node', [CLI, 'hook', 
 const logOps = dir => fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l).op);
 
 // In two weeks of real sessions `find` was called 3 times over MCP: agents grepped instead. Claude Code
-// defers MCP tools until they are searched for, so the first prompt of a session names the tools and
-// the search, once. It does not tell the agent to run a review: that is done when asked for.
-test('the first prompt of a session introduces find and drilldown, with the ToolSearch that loads them in Claude Code; once', () => {
-  const dir = gitRepo(); new Store(dir).init();
-  // an empty cache: nothing to orient on, the tools still work
+// defers MCP tools until they are searched for, so the first bundle of a session names the tools and
+// the search, once. A session the cache serves nothing gets no intro either (the Click canary of
+// 2026-10-07: the intro and the workflow text were the whole cost of a session the notes did not help).
+// It does not tell the agent to run a review: that is done when asked for.
+test('the first served bundle of a session introduces find and drilldown, with the ToolSearch that loads them in Claude Code; once; never alone', () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  // an empty cache: nothing to orient on, nothing is said
+  const empty = hook(dir, 'prompt', { session_id: 's0', prompt: 'where does fetchRows read the rows from' });
+  assert.equal(empty.trim(), '', 'an empty cache injects nothing, not even the intro');
+  createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  // a note for the request: the intro opens the bundle
   const first = hook(dir, 'prompt', { session_id: 's1', prompt: 'where does fetchRows read the rows from' });
-  assert.match(first, /<thinker-tools>/);
+  assert.match(first, /<thinker-tools>[\s\S]*<thinker-cache>/);
   assert.match(first, /find \(the definitions carrying the words the code would use/);
   assert.match(first, /ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`/);
   assert.ok(!/review/i.test(first), 'review is not named: it is run when asked for');
+  // nothing for the follow-up: nothing is said, the intro included
   const second = hook(dir, 'prompt', { session_id: 's1', prompt: 'now change saveRows as well' });
-  assert.equal(second.trim(), '', 'said once per session');
+  assert.equal(second.trim(), '', 'said once per session, and never without a note');
   const other = hook(dir, 'prompt', { session_id: 's2', prompt: 'where does fetchRows read the rows from' });
   assert.match(other, /<thinker-tools>/);
   // Codex is not told to search for its tools
