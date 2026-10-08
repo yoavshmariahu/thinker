@@ -503,7 +503,7 @@
 
     .bench-row {
       display: grid;
-      grid-template-columns: 150px minmax(0, 1fr) 86px;
+      grid-template-columns: 150px minmax(0, 1fr) 120px;
       gap: 0 1rem;
       align-items: center;
     }
@@ -627,7 +627,7 @@
       .nav-links { margin-left: auto; }
       .modal-overlay { padding: 0.75rem; }
       .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
-      .bench-row { grid-template-columns: minmax(0, 1fr) 72px; row-gap: 0.35rem; }
+      .bench-row { grid-template-columns: minmax(0, 1fr) 104px; row-gap: 0.35rem; }
       .bench-model { grid-column: 1 / -1; }
       .bench-delta { font-size: 0.85rem; }
     }
@@ -1330,7 +1330,7 @@ export THINKER_TELEMETRY=off
                 <div class="bar before"><i style="--w: 100%"></i>1.25M</div>
                 <div class="bar after"><i style="--w: 82%"></i>1.02M</div>
               </div>
-              <div class="bench-delta">&minus;18%</div>
+              <div class="bench-delta">&minus;18% tokens</div>
             </div>
             <div class="bench-row">
               <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
@@ -1338,7 +1338,7 @@ export THINKER_TELEMETRY=off
                 <div class="bar before"><i style="--w: 100%"></i>16.6M</div>
                 <div class="bar after"><i style="--w: 81%"></i>13.4M</div>
               </div>
-              <div class="bench-delta">&minus;19%</div>
+              <div class="bench-delta">&minus;19% tokens</div>
             </div>
             <div class="bench-row">
               <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
@@ -1346,7 +1346,7 @@ export THINKER_TELEMETRY=off
                 <div class="bar before"><i style="--w: 100%"></i>473k</div>
                 <div class="bar after"><i style="--w: 81%"></i>384k</div>
               </div>
-              <div class="bench-delta">&minus;19%</div>
+              <div class="bench-delta">&minus;19% tokens</div>
             </div>
           </div>
         </section>
