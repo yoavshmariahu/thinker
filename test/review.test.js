@@ -334,8 +334,7 @@ test('thoroughness retains before/after evidence, failures and all verification 
     } });
   assert.equal(r.models['fixture/verifier'], 2);
   const audit = r.thoroughness;
-  assert.equal(audit.decisions.find(d => d.step === 'verify').source, 'caller');
-  assert.equal(audit.decisions.find(d => d.step === 'verify').status, 'incomplete');
+  assert.equal(audit.verify, 'incomplete');
   assert.deepEqual(audit.verifications.map(v => v.outcome), ['retained', 'dropped', 'error']);
   assert.equal(audit.verifications[0].before.severity, 'error');
   assert.equal(audit.verifications[0].after.severity, 'warning');

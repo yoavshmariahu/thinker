@@ -260,13 +260,13 @@ workflow will pass.
 
 ## Checking whether extra review work was worthwhile
 
-Review reports include a **Review thoroughness** section. It records which steps
-were selected by Jev, explicitly requested by the caller, or left at defaults
-(including fallback after a Jev error). The gate's question, exact score and
-threshold are recorded alongside the effective choice and what actually
-happened. A recommendation to run tests is not a test execution. A selected
-verification step with no eligible findings is not a model call. Explicit flags
-override Jev recommendations and are identified as such.
+Review reports include a **Review thoroughness** section whenever the review
+took a second look at a finding, which happens only when the caller asks for the
+`verify` strategy; a review that made no second look renders nothing. Until
+2026-10-08 Jev's step gates chose the optional steps per change and the section
+recorded their scores; measured on five Sol reviews they caught the same bugs for
+86% more tokens (`research/jev-sol-opus-ten/`), so review is the plain ensemble
+again and the steps are explicit caller settings.
 
 For each finding checked a second time, `report.thoroughness.verifications`
 keeps the original claim, evidence and severity; the bounded diff and code
@@ -278,15 +278,12 @@ review time, since calls can overlap. Missing usage stays unknown.
 
 This record is preserved in the `impact-review` event in the local impact
 journal (`impact/*.jsonl` beside the configured usage log, unless logging is disabled), and in the verification run's `run.json`.
-The CLI, posted PR review and proof-of-correctness report show the decisions and
-verifier explanations, including qualifications such as “downstream impact is
+The CLI, posted PR review and proof-of-correctness report show the verifier
+explanations, including qualifications such as “downstream impact is
 not shown.” Full code context stays in the structured record. Normal quiet CI
 reviews retain their existing posting rules; the audit is present when a report
 is posted, and remains available in the journal even when no comment is posted.
-
-Jev supplies scores, not case-specific explanations. The report names the gate
-policy without presenting it as a demonstrated reason for this particular
-change. It also does not label a repeated conclusion as added evidence:
+A repeated conclusion is not labelled as added evidence:
 `assessment: "unassessed"` remains explicit until someone audits the record.
 
 For future benchmark reviews, save the audit alongside the task result. Record
