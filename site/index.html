@@ -803,7 +803,7 @@
 
   <main>
     <h1>thinker</h1>
-    <p class="subtitle">A knowledge cache for your coding agents</p>
+    <p class="subtitle">A knowledge cache for coding &amp; review agents</p>
 
     <div class="install-container">
 
@@ -819,20 +819,20 @@
     <!-- Benchmark cards -->
     <div class="benchmark-cards">
       <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
-        <div class="metric-kicker">Bug detection · 7 repositories</div>
+        <div class="metric-kicker">Code Review · 7 repositories</div>
         <div class="metric-num gain">73% fewer bugs</div>
-        <div class="metric-label">Across a 100-bug benchmark set</div>
+        <div class="metric-label">Bugs missed in review, across 100 tests</div>
         <ul class="metric-models">
-          <li><span>Claude Opus 5.5</span><span>&minus;71% bugs</span></li>
-          <li><span>GPT-6.1 Sol</span><span>&minus;89% bugs</span></li>
-          <li><span>Gemini 3.8 Flash</span><span>&minus;38% bugs</span></li>
+          <li><span>Claude Opus 5.5</span><span><span class="before">7 &rarr;</span> 2 missed of 25</span></li>
+          <li><span>GPT-6.1 Sol</span><span><span class="before">18 &rarr;</span> 2 missed of 50</span></li>
+          <li><span>Gemini 3.8 Flash</span><span><span class="before">8 &rarr;</span> 5 missed of 25</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
       <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
-        <div class="metric-kicker">Efficiency · earlier revisions</div>
-        <div class="metric-num gain">&minus;18%</div>
-        <div class="metric-label">Less tokens per coding task</div>
+        <div class="metric-kicker">Efficiency</div>
+        <div class="metric-num gain">18% less tokens</div>
+        <div class="metric-label">per coding task</div>
         <ul class="metric-models">
           <li><span>Claude Fable</span><span><span class="before">1.25M &rarr;</span> 1.02M</span></li>
           <li><span>Gemini 3.8 Flash</span><span><span class="before">16.6M &rarr;</span> 13.4M</span></li>
@@ -861,46 +861,45 @@
       <div class="modal-body">
 
         <section class="bench-section" aria-labelledby="bench-bugs">
-          <div class="bench-kicker">Historical regression recall</div>
+          <div class="bench-kicker">Code Review</div>
           <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">Across seven open-source repositories and 100 reversed fixes, detection rose from 67% to 91% (+24 percentage points).</p>
+          <p class="bench-lede">100 tests across seven open-source repositories, each a reversed fix. Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort · 25 tests</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 28%"></i>28% missed</div>
-                <div class="bar after"><i style="--w: 8%"></i>8% missed</div>
+                <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
+                <div class="bar after"><i style="--w: 8%"></i>2 missed</div>
               </div>
               <div class="bench-delta">&minus;71% bugs</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort · 50 tests</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 36%"></i>36% missed</div>
-                <div class="bar after"><i style="--w: 4%"></i>4% missed</div>
+                <div class="bar before"><i style="--w: 36%"></i>18 missed</div>
+                <div class="bar after"><i style="--w: 4%"></i>2 missed</div>
               </div>
               <div class="bench-delta">&minus;89% bugs</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort · 25 tests</div></div>
               <div class="bench-bars">
-                <div class="bar before"><i style="--w: 32%"></i>32% missed</div>
-                <div class="bar after"><i style="--w: 20%"></i>20% missed</div>
+                <div class="bar before"><i style="--w: 32%"></i>8 missed</div>
+                <div class="bar after"><i style="--w: 20%"></i>5 missed</div>
               </div>
               <div class="bench-delta">&minus;38% bugs</div>
             </div>
           </div>
-          <p class="bench-lede">Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
         </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
           <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
-          <p class="bench-lede">Historical results from earlier Thinker revisions. A fresh three-task canary per model is next. Input tokens per coding task, cached context included:</p>
+          <p class="bench-lede">Input tokens per coding task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
