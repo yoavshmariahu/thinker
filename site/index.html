@@ -821,11 +821,11 @@
       <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
         <div class="metric-kicker">Code Review · 7 repositories</div>
         <div class="metric-num gain">73% fewer bugs</div>
-        <div class="metric-label">33 &rarr; 9 bugs missed, across a 100-bug benchmark set</div>
+        <div class="metric-label">Bugs missed in review, across 100 tests</div>
         <ul class="metric-models">
-          <li><span>Claude Opus 5.5</span><span><span class="before">7 &rarr;</span> 2 missed</span></li>
-          <li><span>GPT-6.1 Sol</span><span><span class="before">18 &rarr;</span> 2 missed</span></li>
-          <li><span>Gemini 3.8 Flash</span><span><span class="before">8 &rarr;</span> 5 missed</span></li>
+          <li><span>Claude Opus 5.5 · 25 tests</span><span><span class="before">7 &rarr;</span> 2 missed &middot; &minus;71%</span></li>
+          <li><span>GPT-6.1 Sol · 50 tests</span><span><span class="before">18 &rarr;</span> 2 missed &middot; &minus;89%</span></li>
+          <li><span>Gemini 3.8 Flash · 25 tests</span><span><span class="before">8 &rarr;</span> 5 missed &middot; &minus;38%</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
@@ -863,14 +863,14 @@
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Code Review</div>
           <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">Bugs missed fell from 33 without Thinker to 9 with Thinker, across seven open-source repositories and 100 reversed fixes. Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
+          <p class="bench-lede">100 tests across seven open-source repositories, each a reversed fix. Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort · 25 tests</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
                 <div class="bar after"><i style="--w: 8%"></i>2 missed</div>
@@ -878,7 +878,7 @@
               <div class="bench-delta">&minus;71% bugs</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort · 50 tests</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 36%"></i>18 missed</div>
                 <div class="bar after"><i style="--w: 4%"></i>2 missed</div>
@@ -886,7 +886,7 @@
               <div class="bench-delta">&minus;89% bugs</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort · 25 tests</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 32%"></i>8 missed</div>
                 <div class="bar after"><i style="--w: 20%"></i>5 missed</div>
