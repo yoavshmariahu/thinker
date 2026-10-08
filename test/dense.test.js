@@ -19,6 +19,8 @@ test('the cross-encoder is on by default at floor 0 with one note, and config an
   });
   withEnv({ ...clean, THINKER_CE_FALLBACK: '-2' }, () => assert.equal(ceConfig(store(undefined)).fallbackFloor, -2));
   withEnv(clean, () => assert.equal(ceConfig(store({ fallbackFloor: false })).fallbackFloor, null));
+  withEnv(clean, () => assert.equal(ceConfig(store(undefined)).fallbackFloor, null, 'no below-floor note is served by default'));
+  withEnv(clean, () => assert.equal(ceConfig(store({ fallbackFloor: -1 })).fallbackFloor, -1, 'the config can bring the fallback back'));
 });
 
 test('the cross-encoder reads the search text when a note has one, else title, answers and the head of the body', () => {
