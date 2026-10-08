@@ -421,17 +421,20 @@ def probe(cohort):
     """What the cache would serve for each task, before spending a coding run on it.
 
     A pair whose cache serves nothing measures the baseline against itself, so coverage is worth
-    knowing first: on Click, mining 20 commits covered 1 of 6 task-cohort pairs.
+    knowing first: on Click, mining 20 commits covered 1 of 6 task-cohort pairs. The probe runs on
+    the cache the task will actually have, the anchor cache topped up with what merged before the
+    task's base, re-verified and re-described (`task_cache`): probed on the anchor cache alone,
+    click-3533 scored 0.52 and was taken as covered, and in the run its topped-up cache scored
+    0.41 to 0.45 and served nothing at prompt time (2026-10-08). The top-up is built once per
+    task and cohort here and reused by every seed of `solve`.
     """
-    repo = OUT / f'cache-{cohort}'
-    if not (repo / '.thinker').exists():
+    if not (OUT / f'cache-{cohort}/.thinker').exists():
         raise SystemExit(f'build {cohort} first')
     rows = []
-    log = repo / '.thinker/log.jsonl'
     for task in TASKS:
-        # Read from where the log already ends rather than clearing it: this file is the build's
-        # own provenance -- which model wrote each note, what Jev was asked, what it cost -- and an
-        # earlier version of this probe deleted a build's record before anyone had read it.
+        repo = snapshot(task['base'], OUT / f'{task["id"]}-{cohort}-probe')
+        task_cache(cohort, task, repo)
+        log = repo / '.thinker/log.jsonl'
         offset = log.stat().st_size if log.exists() else 0
         # A fresh session every time: the hook serves a note once per session, so a reused id makes
         # the second probe of the same cache look like a cache that covers nothing.
