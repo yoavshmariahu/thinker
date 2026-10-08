@@ -25,10 +25,15 @@ const read = file => fs.readFileSync(file, 'utf8');
 function checkWorkflow(text, cliOnly = false) {
   for (const name of ['orient', 'lookup', 'find', 'drilldown', 'feedback']) assert.ok(text.includes(name), name);
   assert.ok(text.includes(cliOnly ? 'add ' : '`remember`'));
-  assert.match(text, /replaces the initial .*orient.* call only when a note in it bears on the request/);
+  // the four decisions, one line each; nothing about environment switches or whether .thinker/ exists,
+  // which had a Codex agent spend its first turn checking them (the Click canary of 2026-10-07)
+  assert.match(text, /Read an injected <thinker-cache> bundle first/);
+  assert.match(text, /none bears on the task, .*orient.* once/);
   assert.match(text, /before the first grep or file read/);
-  assert.match(text, /Fall back.*insufficient/);
-  assert.match(text, /Do not save task summaries/);
+  assert.match(text, /Ordinary search and reads are the fallback/);
+  assert.match(text, /Then edit and test/);
+  assert.doesNotMatch(text, /THINKER_|\.thinker\//);
+  assert.ok(text.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
   if (cliOnly) assert.doesNotMatch(text, /call `remember`|Use the Thinker MCP/);
 }
 

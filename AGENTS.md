@@ -1,16 +1,12 @@
 <!-- thinker:workflow:start -->
 ## Using Thinker while working
 
-Apply this workflow only in a repository set up with Thinker (.thinker/ exists). Respect disabled-tool and learning controls, including THINKER_MCP=off and THINKER_NO_LEARN=1.
+Use the Thinker MCP tools (if they are listed as deferred, load them with the host's tool search) as a map to the code, then do the work. If they are unavailable, continue with ordinary tools.
 
-Use the Thinker MCP tools. If deferred, discover/load them with the host tool-search facility before code exploration. If unavailable, continue with ordinary tools.
-
-- Read the injected <thinker-cache> notes first. An injected bundle replaces the initial `orient` call only when a note in it bears on the request; when none does, or none was injected, orient once on the task yourself.
-- Use `lookup` for a specific unanswered question. Ignore unrelated notes; verify STALE claims against code.
-- Reach code through pointers before the first grep or file read: `drilldown` for known file:symbol pointers, and `find` when no note maps the code. Fall back to ordinary search/read tools when unavailable, insufficient, or contradicted by the code. Direct reads of known non-code files and exact-text searches remain appropriate.
-- Once the entry point and constraints are clear, edit and test. Do not keep retrieving notes just to increase tool use.
-- Save reusable discoveries as soon as investigation establishes them, while the evidence is available: call `remember`. Include the reason, constraints and concrete file:symbol dependencies. Do not save task summaries or rely on background distillation to capture everything.
-- When evidence contradicts a note, call `feedback` with its id, useful: false and the corrected body.
+- Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
+- Reach code through pointers before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps. Ordinary search and reads are the fallback. `lookup` answers one question a note left open.
+- Then edit and test. Do not keep retrieving notes.
+- Save a reusable rule, call path or gotcha with `remember` while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
 <!-- thinker:workflow:end -->
 
 # thinker: internals and working context
@@ -609,9 +605,18 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   tools until searched for), only the benchmark arms did. Two weeks later the
   log held 3 `find` and 2 `review` calls over MCP against hundreds of hook
   orients, and sessions reported changes done without a review. Since
-  2026-10-05 the first prompt of a session carries a `<thinker-tools>` intro
+  2026-10-05 the first bundle of a session carries a `<thinker-tools>` intro
   (`ops.js:sessionIntro`): what `find` and `drilldown` do, for Claude Code
-  the exact `ToolSearch select:…` that loads them; logged as `intro`. It does
+  the exact `ToolSearch select:…` that loads them; logged as `intro`. Since
+  2026-10-07 it comes only with the first bundle that serves a note, never on
+  its own, and the workflow block that `setup` writes into the agent's
+  instruction file (`cache-guidance.js:agentWorkflow`) holds the four
+  decisions in four lines: on the Click canary of that day
+  (`research/efficiency-simple/CANARY-2026-10-07.md`) the intro, the workflow
+  text and the tool schemas were the whole cost of a session the notes did
+  not help, and the block's opening sentence about `THINKER_MCP=off` and
+  `.thinker/` had a Codex agent spend its first turn on `printenv` and
+  `test -d .thinker`. It does
   not name `review`: with one sentence saying it existed, the agent called it at
   the end of both reruns and lost three minutes to each timed-out call. A held-out session gets
   none of it. On two Grafana tasks under Gemini (`bench/RESULTS.md`, "Tool

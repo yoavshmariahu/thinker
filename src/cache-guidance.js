@@ -41,21 +41,23 @@ export const cacheBundleIntro = ({ stale = false } = {}) =>
 
 // Short, persistent workflow for native instruction files and CLI-only adapters.
 // Keep the decisions identical across transports; never name an unavailable tool.
+// Every line here is read on every turn of every session in the checkout, so it holds the four
+// decisions and nothing else. Until 2026-10-07 it opened by telling the agent to respect
+// THINKER_MCP=off and THINKER_NO_LEARN=1 and to apply it only where .thinker/ exists: on the Click
+// canary a Codex agent spent its first turn running `printenv THINKER_MCP THINKER_NO_LEARN; test -d
+// .thinker` to comply. The hooks and the server enforce those switches; the agent never needs to.
 export function agentWorkflow({ cli, repo, mcp = true, learn = true } = {}) {
   const quote = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
   const command = cli ? `node ${quote(cli)}` : 'thinker';
   const suffix = repo ? ` --repo ${quote(repo)}` : '';
   const call = (name, args = '') => mcp ? `\`${name}\`` : `\`${command} ${name}${args ? ' ' + args : ''}${suffix}\``;
+  const tools = mcp ? 'the Thinker MCP tools (if they are listed as deferred, load them with the host\'s tool search)' : 'the Thinker CLI commands below';
   return `## Using Thinker while working
 
-Apply this workflow only in a repository set up with Thinker (.thinker/ exists). Respect disabled-tool and learning controls, including THINKER_MCP=off and THINKER_NO_LEARN=1.
+Use ${tools} as a map to the code, then do the work. If they are unavailable, continue with ordinary tools.
 
-${mcp ? 'Use the Thinker MCP tools. If deferred, discover/load them with the host tool-search facility before code exploration. If unavailable, continue with ordinary tools.' : `Use the Thinker CLI commands below. If unavailable, continue with ordinary tools.`}
-
-- Read the injected <thinker-cache> notes first. An injected bundle replaces the initial ${call('orient', '"<task>"')} call only when a note in it bears on the request; when none does, or none was injected, orient once on the task yourself.
-- Use ${call('lookup', '"<specific question or note id>"')} for a specific unanswered question. Ignore unrelated notes; verify STALE claims against code.
-- Reach code through pointers before the first grep or file read: ${call('drilldown', '"path:Symbol"')} for known file:symbol pointers, and ${call('find', '"<code terms or identifier>"')} when no note maps the code. Fall back to ordinary search/read tools when unavailable, insufficient, or contradicted by the code. Direct reads of known non-code files and exact-text searches remain appropriate.
-- Once the entry point and constraints are clear, edit and test. Do not keep retrieving notes just to increase tool use.
-${learn ? `- Save reusable discoveries as soon as investigation establishes them, while the evidence is available: ${mcp ? 'call `remember`' : `use ${call('add', '"<note.json>" --source agent')}, with JSON containing title, kind (map/howto/rule), answers, body and deps`}. Include the reason, constraints and concrete file:symbol dependencies. Do not save task summaries or rely on background distillation to capture everything.
-- When evidence contradicts a note, ${mcp ? 'call `feedback` with its id, useful: false and the corrected body' : `use ${call('feedback', '"<feedback.json>"')}, with JSON containing id, useful: false and correction (the corrected body)`}.` : '- Learning is disabled for this integration; do not save notes or feedback.'}`;
+- Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, ${call('orient', '"<task>"')} once.
+- Reach code through pointers before the first grep or file read: ${call('drilldown', '"path:Symbol"')} for a note's file:symbol pointers, ${call('find', '"<code terms or identifier>"')} for code no note maps. Ordinary search and reads are the fallback. ${call('lookup', '"<question or note id>"')} answers one question a note left open.
+- Then edit and test. Do not keep retrieving notes.
+${learn ? `- Save a reusable rule, call path or gotcha with ${mcp ? '`remember`' : call('add', '"<note.json>" --source agent') + ' (JSON with title, kind map/howto/rule, answers, body, deps)'} while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with ${mcp ? '`feedback` (its id, useful: false, the corrected body)' : call('feedback', '"<feedback.json>"') + ' (JSON with id, useful: false, correction)'}.` : '- Learning is disabled here: do not save notes or feedback.'}`;
 }
