@@ -1012,16 +1012,13 @@ review prompt.
   count, `commonTerms`), then by kind and confidence; a note on a hub
   definition (`cli.js:main`) is touched by nearly every commit, and on the
   last ten commits here 30 to 60 notes were, with a dozen consulted per
-  review. `toAssess` says why each was chosen. With a Jev key (`jev.js`) the
-  BM25 pool is widened to twelve and `review.js:narrowRelated` keeps the notes
-  that bear on the change, a Noul each, scored against named fields
-  (`changeRecord`: the files touched, the definitions altered, the identifiers
-  added) rather than the bag of words BM25 ranks on; the kept scores are
-  `notes.relatedJev` in the report. BM25 fills all six slots whether or not
-  anything fits: on 16 grafana regression cases every review consulted exactly
-  six related notes and none carried the signal, since the note that catches a
-  regression arrives `direct`, by dep hash, in 16 of 16. So this buys a smaller,
-  truer prompt, not reach. A dry run and a failed call both keep BM25's choice.
+  review. `toAssess` says why each was chosen. BM25 fills all six related slots
+  whether or not anything fits: on 16 grafana regression cases every review
+  consulted exactly six related notes and none carried the signal, since the
+  note that catches a regression arrives `direct`, by dep hash, in 16 of 16.
+  Jev narrowing a widened pool to the notes that bear on the change was shipped
+  2026-10-06 and taken out 2026-10-08 (see "Jev in review" below): a smaller
+  prompt, no reach, and the gates it came with cost more than it saved.
   `thinker maintain --dry`
   persists no statuses.
 - **Without a model** (`deterministicFindings`): a definition the change
@@ -1070,24 +1067,24 @@ review prompt.
   nothing at all when only behaviors were consulted. "No findings" on such a
   change is not a clean bill. On 24 bug-introducing PostHog pull requests a
   note rested on the file holding the bug in one.
-- Step gates (`gates.js`, with a Jev key): one call decides which of the review's
-  optional steps this change is worth, instead of each being a flag that is on
-  or off for every change alike. Speculative fan-out: every gate is asked in the
-  same request, they cannot see one another, and code consumes the answers that
-  apply. A gate only fills a flag the caller left unset, never overrides one it
-  passed, never runs for the `nocache` baseline, and makes no call on a dry run.
-  `worth_reviewing` (act 0.15) decides whether to ask a model anything;
-  `callers` (0.5) and `verify` (0.6) set those strategy flags; `chunks` (0.6)
-  splits a large change; `tests` (0.5) only reports that running the tests would
-  settle it. The thresholds are not symmetric: skipping a step is invisible, so
-  the bar to skip is high and an uncertain answer does the work, and any failure
-  leaves every step where review has it without gates. Measured live on
-  contrasting changes: a comment reflow scores 0.03 on `worth_reviewing` against
-  0.96 for an off-by-one, `callers` 0.85 on a signature change against 0.13 on a
-  local loop bound, `tests` 0.78 on a cache key against 0.03 on the reflow. The
-  gates read `changeRecord`, which carries the changed lines themselves: without
-  them `worth_reviewing` scored a comment reflow 0.61, since file names, counts
-  and identifiers describe the shape of a change and not what it does.
+- Jev in review, 2026-10-06 to 2026-10-08: `review.js:narrowRelated` kept the
+  related notes Jev judged to bear on the change, and `gates.js` asked Jev in
+  one call which optional steps the change was worth (`worth_reviewing`,
+  `callers`, `verify`, `chunks`, `tests`), with a thoroughness table recording
+  each decision. Measured on five Sol reviews with matched model and effort
+  (`research/jev-sol-opus-ten/`): related notes 26 → 6, the same 4 of 5 target
+  bugs caught, and the verify gate doubled the model calls, +86% tokens and
+  +54% time; the audit of those five verification calls found none withdrew a
+  finding. The published review results (15 of 16 planted and reverted bugs, 12
+  of 12 fix-note regressions on PostHog) were all made by the plain ensemble
+  without it, so on 2026-10-08 the user had it removed: `narrowRelated`,
+  `gates.js`, its test and `bench/jev-sol-review.mjs` are gone (git holds them
+  at `e2a2ff3` and `c5a4734`), `callers`, `verify` and `chunks` are caller
+  settings again, and the thoroughness record keeps only the verification
+  audit, rendered when a second look was made. Serving had gone the same day
+  (PR #134). Jev remains in the learning gates (`jev-decisions.js`). Do not
+  bring it back into review without a paired measurement on held-out cases
+  that separates note selection from verification.
 - Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
   `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
   one call with every consulted note, `nocache` is the same model with no

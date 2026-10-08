@@ -26,8 +26,6 @@ import { outlineText, references, countable } from './codegraph.js';
 import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
-import { jevConfig, jevScores } from './jev.js';
-import { reviewGates, changeRecord } from './gates.js';
 import { startThoroughness, finishThoroughness, renderThoroughness } from './review-thoroughness.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
@@ -305,36 +303,6 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
 export const orderConsulted = (direct, related, strong) =>
   [...direct.filter(strong), ...related, ...direct.filter(n => !strong(n))];
 
-export { changeRecord };
-
-const RELATED_CRITERIA = {
-  true: 'The note states something that bears on this change: a constraint the change must respect, a rule about the code it alters, or a trap it risks.',
-  false: 'The note is about other code or another concern. Sharing identifiers or file names with the change is not enough.',
-};
-
-// The related notes are BM25's best by shared identifiers, and it fills every slot whether or not
-// anything fits: on 16 grafana regression cases every review consulted exactly six related notes,
-// none of which carried the signal — the note that catches a regression arrives `direct`, by dep
-// hash. With a Jev key the slots carry what actually bears on the change, judged a note at a time.
-// Any failure leaves BM25's choice, so a review never fails because a network call did.
-export async function narrowRelated(store, related, change, symbols, { max = 6 } = {}) {
-  const cfg = jevConfig(store);
-  if (!cfg.enabled || !related.length) return { related: related.slice(0, max), scores: null };
-  try {
-    const scores = await jevScores(changeRecord(change, symbols), related, {
-      ...cfg,
-      subject: 'the_change',
-      criteria: RELATED_CRITERIA,
-      question: i => ({ question: `Does the note at \`candidate_notes[${i}]\` bear on \`the_change\`? \`the_change\` names the files it touches, the definitions it alters and the identifiers it adds.` }),
-    });
-    const kept = related.map((n, i) => ({ n, s: scores[i] })).filter(x => x.s >= cfg.floor)
-      .sort((a, b) => b.s - a.s).slice(0, max);
-    return { related: kept.map(x => x.n), scores: kept.map(x => Number(x.s.toFixed(2))) };
-  } catch (e) {
-    store.log({ op: 'jev-error', where: 'review', error: String(e.message).slice(0, 200) });
-    return { related: related.slice(0, max), scores: null };
-  }
-}
 
 // The finding that needs no model: a definition the change removed that is still referred to
 // (working tree and index only; a commit's references cannot be grepped).
@@ -775,47 +743,24 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   report.integrity = scope.state ? null : gateIntegrity(change, reader);
   report.task = task || null;
   if (!change.files.length) { report.empty = true; return report; }
-  // With a Jev key the BM25 pool is widened and Jev picks the slots that actually bear on the change;
-  // without one, BM25's own best six stand, as before. A dry run makes no model call, so it keeps BM25.
+  // BM25's best six related notes, by shared identifiers (selectNotes). Jev once narrowed a widened
+  // pool here and gated the optional steps; measured on five Sol reviews it caught the same bugs for
+  // 86% more tokens (research/jev-sol-opus-ten), so review is the plain ensemble again.
   const RELATED_MAX = 6;
-  const jevOn = !dry && strat.related && jevConfig(store).enabled;
-  let { direct, related, exposures, symbols, order, strong } = selectNotes(notes, change, reader, { relatedMax: strat.related ? (jevOn ? RELATED_MAX * 2 : RELATED_MAX) : 0 });
-  let relatedJev = null;
-  if (jevOn && related.length) {
-    const narrowed = await narrowRelated(store, related, change, symbols, { max: RELATED_MAX });
-    related = narrowed.related; relatedJev = narrowed.scores;
-    order = orderConsulted(direct, related, strong);
-  } else if (related.length > RELATED_MAX) {
+  let { direct, related, exposures, symbols, order, strong } = selectNotes(notes, change, reader, { relatedMax: strat.related ? RELATED_MAX : 0 });
+  if (related.length > RELATED_MAX) {
     related = related.slice(0, RELATED_MAX);
     order = orderConsulted(direct, related, strong);
   }
   report.symbols = symbols.filter(s => s.changed.length || s.removed.length).map(s => ({ path: s.path, changed: s.changed, removed: s.removed.map(r => r.qualified) }));
-  // Step gates (gates.js): one call decides which optional steps this change is worth. A gate only
-  // fills in a flag the caller left unset, never overrides one it passed, and never runs for the
-  // no-notes baseline, whose point is to be unchanged. A dry run makes no call and keeps the defaults.
-  let gateResult;
-  if (!dry && strat.mode !== 'nocache') {
-    const g = gateResult = await reviewGates(store, change, symbols);
-    report.gates = g.source === 'jev' ? Object.fromEntries(Object.entries(g.gates).map(([k, v]) => [k, v.p])) : undefined;
-    if (g.source === 'jev') {
-      if (strategy.callers === undefined) strat.callers = g.gates.callers.run;
-      if (strategy.verify === undefined) strat.verify = g.gates.verify.run;
-      if (strategy.chunks === undefined && g.gates.chunks.run) strat.chunks = 4;
-      report.testsWouldSettleIt = g.gates.tests.run || undefined;
-      // Nothing a model could usefully be asked: say so rather than spend a call on it. The
-      // deterministic findings above still stand, and the bar is deliberately high (0.15).
-      if (!g.gates.worth_reviewing.run) report.noBehaviourChange = true;
-    }
-  }
-  report.thoroughness = startThoroughness(gateResult, strategy, strat, change, symbols, { dry, baseline: strat.mode === 'nocache' });
+  report.thoroughness = startThoroughness({ dry });
   report.findings.push(...deterministicFindings(repo, change, symbols, reader));
   const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
-  if (relatedJev) report.notes.relatedJev = relatedJev; // what Jev scored the kept related notes, when it chose them
   for (const n of consulted) { const e = exposures.get(n.id); if (e.staleBefore.length) report.notes.staleBefore.push({ id: n.id, title: n.title, changed: e.staleBefore }); }
   const covered = new Set(direct.flatMap(n => (n.deps || []).map(d => d.path)));
   report.notes.uncovered = change.files.filter(f => f.status !== 'D' && CODE_EXT.test(f.path) && !covered.has(f.path)).map(f => f.path);
-  const queue = report.noBehaviourChange ? [] : consulted.slice(0, max);
+  const queue = consulted.slice(0, max);
   report.notes.assessed = dry ? 0 : queue.length;
   // desired behaviors among the consulted notes: whether the change edits each one's note decides
   // whether a mutable one may be revised by it (noteFileChanged)
@@ -823,7 +768,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
   const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
-  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : relatedJev ? 'bears on the change (jev)' : 'shares identifiers with the change' }));
+  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
     // a change too large for one call is taken in chunks of files, the files the notes rest on first
@@ -890,7 +835,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
     }
     report.findings.push(...clustered);
   }
-  finishThoroughness(report, { dry, callers });
+  finishThoroughness(report, { dry });
   report.behaviors = behaviorReport(consulted, report, revisable, dry);
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };

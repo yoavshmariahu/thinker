@@ -14,7 +14,7 @@ import { normalizeFailures } from './verification-failures.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONTRACT = '.thinker/verification.json';
-const engineDigest = () => digest(['verification-v1', ...['review.js', 'review-integrity.js', 'review-thoroughness.js', 'gates.js', 'verification.js', 'verification-snapshot.js', 'verification-worker.js', 'verification-reporter.js', 'verification-failures.js'].map(f => fs.readFileSync(path.join(HERE, f), 'utf8'))]);
+const engineDigest = () => digest(['verification-v1', ...['review.js', 'review-integrity.js', 'review-thoroughness.js', 'verification.js', 'verification-snapshot.js', 'verification-worker.js', 'verification-reporter.js', 'verification-failures.js'].map(f => fs.readFileSync(path.join(HERE, f), 'utf8'))]);
 const uuid = v => typeof v === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(v);
 const directory = (repo, id) => { if (!uuid(id)) throw new Error('Invalid verification run id'); return path.join(repo, '.thinker/local/reviews', id); };
 const writeJson = (file, value) => { const tmp = file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 }); fs.renameSync(tmp, file); };

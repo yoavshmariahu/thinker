@@ -150,15 +150,14 @@ export const RELEVANCE_CRITERIA = {
 };
 
 // `subject` names the thing the notes are judged against in the state, and `question` writes the
-// per-note instruction. Serving judges notes against a request; review judges them against a change
-// (review.js:narrowRelated). Everything else is shared.
+// per-note instruction. Serving judged notes against a request; the benchmark harness still does.
 export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject = 'developer_request', criteria = RELEVANCE_CRITERIA, question = null, record = noteRecord } = {}) {
   const ask = question || (i => ({
     request: query,
     question: `Would the note at \`candidate_notes[${i}]\` help a developer carry out \`request\`? Weigh its \`claim\` and \`answers_the_questions\`; \`code_it_points_at\` tells you which code it governs.`,
   }));
   // `criteria` may be one object shared by every question, or a function of the index when each
-  // question defines its own (review's step gates: gates.js).
+  // question defines its own.
   const crit = typeof criteria === 'function' ? criteria : () => criteria;
   const questions = {};
   notes.forEach((n, i) => { questions[`rel${i}`] = { type: 'noul', instructions: ask(i), criteria: crit(i) }; });
