@@ -1,0 +1,20 @@
+[
+  {
+    "id": "mitm-8196",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8196",
+    "fixed": "a8fbfc73fae5334868ca8a4238952572c3863083",
+    "test_file": "test/mitmproxy/utils/test_strutils.py",
+    "acceptance": "test_is_mostly_bin",
+    "prompt": "The heuristic that decides whether some content is 'mostly binary' raises IndexError for very short inputs because of how it looks at the tail of the data. Fix it without changing the result for normal inputs, and add a regression test.",
+    "base": "c9b063bc6565840714a3008f264fc4e76112836e"
+  },
+  {
+    "id": "mitm-8317",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8317",
+    "fixed": "9362b05c29056b3d1846be920a31d18b7e288c85",
+    "test_file": "test/mitmproxy/tools/web/test_webaddons.py",
+    "acceptance": "test_web_theme_option",
+    "prompt": "Add a theme option to the web interface's addon: a `web_theme` option with the choices `system`, `dark` and `light`, defaulting to `system`, declared the way the addon declares its other web options, with help text saying what each choice does (`system` follows the operating system's preference). The frontend that applies the theme is out of scope here; add a test for the option.",
+    "base": "a4b234a3e1ffc8d9d97fe83ccde009de4c2d01d9"
+  }
+]

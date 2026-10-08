@@ -25,10 +25,25 @@ HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('THINKER_EFF_DIR', ROOT / 'bench/runs/efficiency-simple'))
 SOURCE = Path(os.environ.get('THINKER_BENCH_SOURCE', '')).expanduser()
 CLI, WIRE = str(ROOT / 'src/cli.js'), str(ROOT / 'research/performance-canary/wire.mjs')
-PY_BIN = str(ROOT / '.venv-perf/bin/python')
+# The interpreter the tests run under and the import root of the repository's package: Click keeps
+# its package under src/, mitmproxy at the repository root. THINKER_EFF_PYBIN and THINKER_EFF_PYPATH
+# name another repository's; the venv must not hold an installed copy of the package, or the tests
+# would import that rather than the checkout under test.
+PY_BIN = os.environ.get('THINKER_EFF_PYBIN') or str(ROOT / '.venv-perf/bin/python')
+PYPATH = os.environ.get('THINKER_EFF_PYPATH', 'src')
+# The directory the upstream fix is taken from (its source, never its tests): the package directory
+# when PYPATH is the repository root. With `src` hard-wired, every mitmproxy gold patch was empty
+# and the preflight read "gold FAILS" for five tasks of six (2026-10-08).
+SRC = os.environ.get('THINKER_EFF_SRC') or ('src' if PYPATH == 'src' else PYPATH)
+# Plugin autoload is off for the acceptance run, so a repository whose tests need a plugin names it
+# (mitmproxy: `-p pytest_asyncio -p pytest_timeout`, its asyncio tests collect as plain functions otherwise).
+PYTEST_ARGS = os.environ.get('THINKER_EFF_PYTEST_ARGS', '').split()
 MODELS = {'opus': ('claude', 'claude-opus-5-5'), 'sol': ('codex', 'gpt-6.1-sol')}
-TASKS = json.loads((ROOT / 'research/performance-canary/tasks.json').read_text())
+TASKS = json.loads(Path(os.environ.get('THINKER_EFF_TASKS', ROOT / 'research/performance-canary/tasks.json')).read_text())
 ARMS = ['baseline', 'thinker']
+# One draw per arm cannot tell the intervention from the agent's own variance (the Click canary of
+# 2026-10-07: identical no-cache runs of one task differed by ~12% of tokens and ~25% of wall time).
+SEEDS = int(os.environ.get('THINKER_EFF_SEEDS', '1'))
 assert os.environ.get('THINKER_TEST') == '1', 'THINKER_TEST=1 required'
 if not SOURCE.is_dir():
     raise SystemExit('Set THINKER_BENCH_SOURCE to the read-only upstream clone')
@@ -128,8 +143,19 @@ def described_in(repo):
 
 
 def anchor_task():
-    """The oldest task by base date: the cache is built there, so no fix is within its reach."""
-    return sorted(TASKS, key=lambda t: int(git(['show', '-s', '--format=%ct', t['base']], SOURCE).strip()))[0]
+    """The oldest task by base date: the cache is built there, so no fix is within its reach.
+
+    THINKER_EFF_ANCHOR pins an older commit instead, so a cache already built there serves a later
+    task set without being mined again; it must precede every task base, and is checked to.
+    """
+    oldest = sorted(TASKS, key=lambda t: int(git(['show', '-s', '--format=%ct', t['base']], SOURCE).strip()))[0]
+    pinned = os.environ.get('THINKER_EFF_ANCHOR')
+    if not pinned:
+        return oldest
+    for t in TASKS:
+        if subprocess.run(['git', 'merge-base', '--is-ancestor', pinned, t['base']], cwd=SOURCE).returncode != 0:
+            raise SystemExit(f'anchor {pinned[:10]} is not an ancestor of {t["id"]} base {t["base"][:10]}')
+    return {'id': f'anchor-{pinned[:10]}', 'base': pinned}
 
 
 def lift_daily_cap(repo):
@@ -186,6 +212,16 @@ def task_cache(cohort, task, repo):
     if not source.exists():
         raise SystemExit(f'build {cohort} first')
     shutil.rmtree(repo / '.thinker', ignore_errors=True)   # repeatable: a retry starts clean
+    # The topped-up cache of a task is built once per cohort and shared by its seeds: the seeds vary
+    # the agent's draw, not the cache, and a top-up with verification and phrasing is minutes of
+    # model time that would otherwise be paid again for every seed.
+    ready = OUT / f'cache-{cohort}-{task["id"]}/.thinker'
+    if ready.exists():
+        shutil.copytree(ready, repo / '.thinker')
+        for path in [repo / '.thinker/log.jsonl', repo / '.thinker/state']:
+            shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink(missing_ok=True)
+        print(f'  {task["id"]}-{cohort}: cache reused, {len(notes_in(repo))} notes', flush=True)
+        return len(notes_in(repo))
     shutil.copytree(source, repo / '.thinker')
     lift_daily_cap(repo)
     for path in [repo / '.thinker/log.jsonl', repo / '.thinker/state']:
@@ -199,12 +235,14 @@ def task_cache(cohort, task, repo):
     # mining and verification rewrite notes, and a rewritten note's description is no longer current
     thinker(['phrase'], repo, env, label + '-phrase')
     print(f'  {label}: {described_in(repo)} of {len(notes_in(repo))} notes described', flush=True)
+    shutil.rmtree(ready.parent, ignore_errors=True)
+    shutil.copytree(repo / '.thinker', ready)
     return len(notes_in(repo))
 
 
 RULES = ('Work only within this repository. Do not inspect parent or sibling directories, git history, '
          'remotes, reference patches or websites, and do not install dependencies or create commits. '
-         f'Use {PY_BIN} to run tests. Implement the requested change, add appropriate tests, run the '
+         f'Use {PY_BIN} to run tests, with PYTHONPATH={PYPATH}. Implement the requested change, add appropriate tests, run the '
          'relevant tests, and leave the work uncommitted.')
 
 
@@ -225,7 +263,7 @@ def gold(task):
     out.mkdir(parents=True, exist_ok=True)
     patch, tests = out / 'source.patch', out / 'tests.py'
     if not patch.exists():
-        patch.write_text(git(['diff', task['base'], task['fixed'], '--', 'src'], SOURCE))
+        patch.write_text(git(['diff', task['base'], task['fixed'], '--', SRC], SOURCE))
         tests.write_text(git(['show', f'{task["fixed"]}:{task["test_file"]}'], SOURCE))
     return patch, tests
 
@@ -234,8 +272,8 @@ def acceptance(repo, task, label):
     """The frozen upstream test, so an arm cannot pass by weakening it."""
     _, tests = gold(task)
     (repo / task['test_file']).write_text(tests.read_text())
-    env = {**os.environ, 'PYTHONPATH': str(repo / 'src'), 'THINKER_TEST': '1', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'}
-    r = subprocess.run([PY_BIN, '-m', 'pytest', '-q', task['test_file'], '-k', task['acceptance']],
+    env = {**os.environ, 'PYTHONPATH': str(repo / PYPATH), 'THINKER_TEST': '1', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'}
+    r = subprocess.run([PY_BIN, '-m', 'pytest', '-q', *PYTEST_ARGS, task['test_file'], '-k', task['acceptance']],
                        cwd=repo, env=env, capture_output=True, text=True, timeout=600)
     (OUT / 'raw' / f'{label}-acceptance.log').write_text(r.stdout + r.stderr)
     return {'returncode': r.returncode, 'passed': r.returncode == 0}
@@ -296,8 +334,33 @@ def codex_home(cohort, label, cache):
     return home
 
 
-def measure(cohort, arm, task):
-    label = f'{task["id"]}-{cohort}-{arm}'
+def run_label(task, cohort, arm, seed=1):
+    """Seed 1 keeps the label of a single-draw run, so an earlier run's records still read."""
+    return f'{task["id"]}-{cohort}-{arm}' + (f'-s{seed}' if seed > 1 else '')
+
+
+def measure_retrying(cohort, arm, task, seed=1, tries=3):
+    """A thinker arm refused for a ranking-service fault (a 503, a degraded score) is run again
+    from a clean checkout after a pause, so one flaky hour does not end an unattended batch: on
+    2026-10-08 Jev returned 503 four times in twenty minutes and stopped both cohorts twice."""
+    for attempt in range(1, tries + 1):
+        try:
+            return measure(cohort, arm, task, seed)
+        except SystemExit as e:
+            msg = str(e)
+            if arm != 'thinker' or attempt == tries or not ('fell back' in msg or 'degraded' in msg):
+                raise
+            label = run_label(task, cohort, arm, seed)
+            print(f'  {label}: {msg}; retry {attempt + 1} of {tries} in 90s', flush=True)
+            shutil.rmtree(OUT / label, ignore_errors=True)
+            shutil.rmtree(OUT / 'homes' / label, ignore_errors=True)
+            for f in (OUT / 'raw').glob(f'{label}.*'):
+                f.unlink()
+            time.sleep(90)
+
+
+def measure(cohort, arm, task, seed=1):
+    label = run_label(task, cohort, arm, seed)
     record = OUT / 'raw' / f'{label}.json'
     if record.exists():
         return json.loads(record.read_text())
@@ -318,13 +381,24 @@ def measure(cohort, arm, task):
     r = subprocess.run(argv, cwd=repo, env=env, input=stdin, capture_output=True, text=True, timeout=1800)
     (OUT / 'raw' / f'{label}.events').write_text(r.stdout)
     (OUT / 'raw' / f'{label}.stderr').write_text(r.stderr)
-    row = {'id': label, 'task': task['id'], 'cohort': cohort, 'arm': arm, 'model': MODELS[cohort][1],
+    row = {'id': label, 'task': task['id'], 'cohort': cohort, 'arm': arm, 'seed': seed, 'model': MODELS[cohort][1],
            'notes': notes, 'wallSeconds': round(time.monotonic() - start, 1), 'returncode': r.returncode,
            **usage(MODELS[cohort][0], r.stdout)}
     git(['add', '-A'], repo)
     (OUT / 'raw' / f'{label}.patch').write_text(git(['diff', '--cached'], repo))
     row['served'] = servings(repo)
     row['cacheReached'] = arm == 'thinker' and row['served'] > 0
+    if arm == 'thinker':
+        # The same cache and prompt scored 0.44 at probe time and 0.06 during a Jev outage (2026-10-08,
+        # mitm-8196 on Sol): the 503s were refused above, the degraded 200s were not, and three thinker
+        # arms ran as baselines. A run whose prompt-time top score falls far below the probe's is refused.
+        probed = OUT / f'probe-{cohort}.json'
+        top = next((r.get('scores') or [None] for r in json.loads(probed.read_text()) if r['task'] == task['id']), [None])[0] if probed.exists() else None
+        rows = [json.loads(l) for l in (repo / '.thinker/log.jsonl').read_text().splitlines() if l.strip()] if (repo / '.thinker/log.jsonl').exists() else []
+        seen = next((r.get('jevTop') or [None] for r in rows if r.get('op') == 'orient' and r.get('client') != 'mcp'), [None])[0]
+        row['jevTopProbe'], row['jevTopRun'] = top, seen
+        if top is not None and seen is not None and top >= 0.5 and seen < top - 0.25:
+            raise SystemExit(f'{label}: Jev scored the cache at {seen} in the run against {top} at probe time; the ranking service is degraded, rerun later')
     if arm == 'thinker' and not row['served']:
         print(f'  {label}: WARNING the cache served nothing; this arm is a baseline', flush=True)
     record.write_text(json.dumps(row, indent=2) + '\n')
@@ -343,6 +417,8 @@ def usage(cli_name, stdout):
         u = done[-1].get('usage', {})
         return {'inputTokens': sum(u.get(k, 0) for k in ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']),
                 'outputTokens': u.get('output_tokens', 0),
+                # model time apart from wall time, so hook and tool latency is visible as their difference
+                'apiSeconds': round(done[-1]['duration_api_ms'] / 1000, 1) if done[-1].get('duration_api_ms') else None,
                 'toolCalls': sum(b.get('type') == 'tool_use' for e in events if e.get('type') == 'assistant'
                                  for b in e.get('message', {}).get('content', [])),
                 'models': list(done[-1].get('modelUsage', {})), 'valid': not done[-1].get('is_error')}
@@ -371,24 +447,29 @@ def servings(repo):
     rows = [json.loads(l) for l in log.read_text().splitlines() if l.strip()]
     if any(r.get('op') in ('jev-error', 'ce-error') for r in rows):
         raise SystemExit(f'{repo.name}: ranking fell back; the run would not measure the shipped ranker')
-    return sum(len(r.get('served') or []) for r in rows if r.get('op') == 'orient')
+    # The edit hook's servings count too: a note resting on the code the agent changes reaches it
+    # through `late` rows, and on a task that reopens a remembered fix that is the serving that matters.
+    return sum(len(r.get('served') or []) for r in rows if r.get('op') in ('orient', 'late'))
 
 
 def probe(cohort):
     """What the cache would serve for each task, before spending a coding run on it.
 
     A pair whose cache serves nothing measures the baseline against itself, so coverage is worth
-    knowing first: on Click, mining 20 commits covered 1 of 6 task-cohort pairs.
+    knowing first: on Click, mining 20 commits covered 1 of 6 task-cohort pairs. The probe runs on
+    the cache the task will actually have, the anchor cache topped up with what merged before the
+    task's base, re-verified and re-described (`task_cache`): probed on the anchor cache alone,
+    click-3533 scored 0.52 and was taken as covered, and in the run its topped-up cache scored
+    0.41 to 0.45 and served nothing at prompt time (2026-10-08). The top-up is built once per
+    task and cohort here and reused by every seed of `solve`.
     """
-    repo = OUT / f'cache-{cohort}'
-    if not (repo / '.thinker').exists():
+    if not (OUT / f'cache-{cohort}/.thinker').exists():
         raise SystemExit(f'build {cohort} first')
     rows = []
-    log = repo / '.thinker/log.jsonl'
     for task in TASKS:
-        # Read from where the log already ends rather than clearing it: this file is the build's
-        # own provenance -- which model wrote each note, what Jev was asked, what it cost -- and an
-        # earlier version of this probe deleted a build's record before anyone had read it.
+        repo = snapshot(task['base'], OUT / f'{task["id"]}-{cohort}-probe')
+        task_cache(cohort, task, repo)
+        log = repo / '.thinker/log.jsonl'
         offset = log.stat().st_size if log.exists() else 0
         # A fresh session every time: the hook serves a note once per session, so a reused id makes
         # the second probe of the same cache look like a cache that covers nothing.
@@ -418,7 +499,12 @@ def solve(cohort, covered_only=True):
     The skipped tasks are named in the result, so the coverage gap is part of the finding rather
     than a silent omission. THINKER_EFF_ALL=1 runs them anyway.
     """
-    preflight()
+    # Two cohorts started together both reset the preflight checkouts and one lost the git lock
+    # (2026-10-08): a preflight already recorded for every task of this set is not run again.
+    done = OUT / 'raw' / 'preflight.json'
+    recorded = json.loads(done.read_text()) if done.exists() else {}
+    if not all(recorded.get(t['id'], {}).get('valid') for t in TASKS):
+        preflight()
     probed = OUT / f'probe-{cohort}.json'
     covered = None
     if covered_only and not os.environ.get('THINKER_EFF_ALL'):
@@ -432,8 +518,9 @@ def solve(cohort, covered_only=True):
         if covered is not None and task['id'] not in covered:
             skipped.append(task['id'])
             continue
-        for arm in (ARMS if (i + list(MODELS).index(cohort)) % 2 == 0 else list(reversed(ARMS))):
-            rows.append(measure(cohort, arm, task))
+        for seed in range(1, SEEDS + 1):
+            for arm in (ARMS if (i + seed + list(MODELS).index(cohort)) % 2 == 0 else list(reversed(ARMS))):
+                rows.append(measure_retrying(cohort, arm, task, seed))
     if skipped:
         print(f'{cohort}: skipped {", ".join(skipped)} (cache serves nothing for them)', flush=True)
     # One arm serving nothing is a ranking decision; none of them serving is a wiring failure, and
@@ -450,8 +537,9 @@ def score(cohort):
     """Each arm's work against the frozen upstream test."""
     results = []
     for task in TASKS:
-        for arm in ARMS:
-            label = f'{task["id"]}-{cohort}-{arm}'
+        for seed in range(1, SEEDS + 1):
+          for arm in ARMS:
+            label = run_label(task, cohort, arm, seed)
             patch = OUT / 'raw' / f'{label}.patch'
             if not patch.exists():
                 continue

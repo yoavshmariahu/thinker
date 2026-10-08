@@ -45,9 +45,9 @@ everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
 
 Then work with your agent as usual. Thinker selects relevant notes for each
-request automatically using **hosted Jev through Thinker's proxy**, with no
-personal TypeSafe account or API key required. See
-[Jev through Thinker](#jev-through-thinker) for setup and data flow.
+request locally, with a small ranking model fetched at setup; nothing about a
+request leaves the machine to be ranked. See
+[Jev through Thinker](#jev-through-thinker) for what Jev is used for.
 
 To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
 
@@ -85,19 +85,21 @@ Notes:
 
 ## Jev through Thinker
 
-Thinker selects notes with
-[Jev](https://docs.typesafe.ai/concepts/system-one), TypeSafe's System One
-model. **Access is provided through Thinker's proxy; no TypeSafe account or
-personal API key is required.**
+Thinker uses [Jev](https://docs.typesafe.ai/concepts/system-one), TypeSafe's
+System One model, while it learns and reviews, not while it serves. **Access is
+provided through Thinker's proxy; no TypeSafe account or personal API key is
+required.** Your configured agent writes notes; Jev selects learning evidence and
+checks proposed notes and their search descriptions, and narrows the notes a
+review consults. Thinker provisions access automatically and keeps the upstream
+TypeSafe credential on the server; a revocable client token is stored in
+`~/.thinker/jev-proxy.json` with owner-only permissions. Verification and review
+continue to use their configured models.
 
-Thinker searches all eligible notes with Jev, sending the request and note
-descriptions through its proxy in bounded batches, then uses Jev's relevance
-probabilities to choose what the coding agent sees. Thinker
-provisions access automatically and keeps the upstream TypeSafe credential on
-the server. A revocable client token is stored in `~/.thinker/jev-proxy.json`
-with owner-only permissions. Your configured agent writes notes; Jev selects
-learning evidence and checks proposed notes and search descriptions. Verification
-and review continue to use their configured models.
+Serving is local: the prompt hook ranks candidate notes with a small
+cross-encoder on the machine, and the agent's own `orient` and `lookup` rank by
+words. Jev ranked servings for two days in October 2026 and was taken out of
+that path: measured on the benchmark tasks its servings were true, nearby and
+costly, and it was an outage away from serving nothing.
 
 `lookup` queries and `orient` both use Jev, without a keyword shortlist.
 It reads a note's current `search` description, falling back to its body when

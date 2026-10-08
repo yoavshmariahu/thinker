@@ -6,7 +6,6 @@ Use the Thinker MCP tools (if they are listed as deferred, load them with the ho
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
 - Reach code through pointers before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps. Ordinary search and reads are the fallback. `lookup` answers one question a note left open.
 - Then edit and test. Do not keep retrieving notes.
-- Save a reusable rule, call path or gotcha with `remember` while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
 <!-- thinker:workflow:end -->
 
 # thinker: internals and working context
@@ -110,7 +109,7 @@ cache at twice the input price and never read again.
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`; `remember` and `feedback` only with `mcp: { learningTools: true }` in the config |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI and OpenCode: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -461,8 +460,15 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    is told that a rule about things changing together must name the
    mechanism (a generator, registry, schema, mirror or test), not list the
    files one session touched, since git history holds that already.
-2. **Agent-authored**: the `remember` MCP tool, for agents that finish
-   working something out.
+2. **Agent-authored**: the `remember` MCP tool, for an agent a person asks to
+   save something. Since 2026-10-08 no instruction asks for it: the MCP
+   server's instructions, the hook bundle and the workflow block all did, and
+   on the Click rerun of that day every Opus arm whose learning was switched
+   off still ended by saving a note, two turns the baseline could not spend.
+   Learning happens offline, in the distillation below, never on the critical
+   path of a task. The server registers `remember` and `feedback` only when
+   the config asks (`mcp: { learningTools: true }`), and never with
+   `THINKER_NO_LEARN=1`.
 3. **Human**: `thinker add note.json`.
 
 ## The learning loop
@@ -588,8 +594,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
-  `remember(...)`, `feedback(id, useful, correction?)`.
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`;
+  `remember(...)` and `feedback(id, useful, correction?)` only when the config
+  asks (`mcp: { learningTools: true }`), since 2026-10-08: a tool's schema is
+  paid on every request of every session (about 640 tokens for `remember`,
+  1,900 for the six tools against 1,050 for the four), and no guidance asks for
+  them.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note
@@ -799,67 +809,32 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Jev (`jev.js:jevSearch`), hosted by default, searches all eligible notes for
-  `orient` and query-based `lookup`, without BM25 candidate gating. `searchRecord`
-  uses a current `search` description or falls back to the body, including scope
-  and pointers. `note-search.js:phraseKey` hashes title, body, questions, scope
-  and dependency paths/symbols; old length-based keys and equal-length edits
-  cannot validate a description. Maintenance and `phrase` regenerate missing or
-  obsolete descriptions. Up to two batches run concurrently, each at most 32
-  questions and 30,000 UTF-8 bytes including the whole request. A five-second
-  deadline covers the search; any failed batch discards the partial result.
-  Invalid/archived notes are excluded; hooks additionally exclude stale or
-  already-served notes. Exact IDs and kind-only lookup remain direct.
-  `selectByJev` keeps those at or above `floor`, up to the caller's limit.
-  The earlier reranker sent named fields (`noteRecord`), which beat one
-  prose blob of the same note (false positives 8 to 5). There is no fallback
-  below the floor: a Noul near 0 is the model saying the note does not bear on
-  the request, and serving nothing was right on every labelled task that had
-  nothing useful. Measured on all 54 labelled tasks, two runs, against the
-  same `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.96 of served
-  notes useful, 40 of 70 important notes reached and 33 of 54 tasks served
-  something useful, against the cross-encoder's 0.96, 16 of 70 and 23 of 54 —
-  2.5x the reach at the same precision, ~160 ms and ~10k tokens a prompt. Both
-  runs were identical on the default arm. One judge, one prompt, and Jev was
-  handed the labelled candidate pool.
-  Hosted Jev is the default since 2026-10-06. Setup (`configureJev`) and first
-  retrieval automatically enroll through `infra/jev-proxy/`, an API Gateway and
-  Lambda service on AWS. Revocable client tokens live in `~/.thinker/jev-proxy.json`
-  (mode 0600), expire after 30 days, and renew automatically on expiry. The proxy
-  holds the upstream key in Secrets Manager, checks token validity and reserves
-  minute/day/global request quotas atomically in DynamoDB, and never logs payloads
-  or credentials. Anonymous enrollment is bounded by IP/day and service/day quotas;
-  it is not proof of user identity. Prompt text and candidate note excerpts are
-  sent to the proxy and TypeSafe for inference, separately from telemetry.
-  An optional personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
-  or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
-  stores one; `--no-jev-key` returns to hosted access. Which of the three a
-  machine uses is asked once, in a terminal, and recorded in
-  `~/.thinker/jev-access.json` (`jev.js:recordAccess`, modes `proxy`, `key`,
-  `off`): `setup/steps.js:configureJev` puts the question on a new install and
-  `thinker update` puts it to anyone who installed before hosted access existed,
-  once, since an update run by hand is a deliberate act. A recorded `off` keeps
-  Jev off, though `jev` in the config and `THINKER_JEV` still win, both being
-  more specific than a machine-wide preference. Saving a key records the choice
-  by itself. Nothing is recorded without a terminal, so a scheduled or `--quiet`
-  update asks nothing and the next interactive one still can; `THINKER_TEST`
-  never prompts. Secrets never belong in the
-  repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
-  model, timeoutMs, searchTimeoutMs }` or is `false`; `enabled: "auto"` means hosted or direct
-  Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`
-  controls still apply, including `THINKER_JEV_TIMEOUT` (overrides both deadlines;
-  default search deadline 5000 ms, individual legacy scoring calls 1500 ms).
-  Any transport, quota, timeout or response-validation failure falls back to the
-  local ranking (installed cross-encoder for hooks, lexical otherwise). A low relevance score is a valid decision to omit a
-  note, not a service failure. Tests cannot call either production model path
-  unless they explicitly inject a transport, which only an in-process caller can
-  do: under `THINKER_TEST=1` a child process (a prompt hook, the MCP server)
-  falls back to the cross-encoder in silence. A benchmark that must measure the
-  shipped ranker there sets `THINKER_JEV_ALLOW_NETWORK=1`, which opens direct
-  access only alongside `THINKER_JEV=on` and a personal key, never hosted
-  enrollment (`jev.js:testNetworkAllowed`); the default stays closed.
-  `thinker ranker` reports the path, and the `orient` log line carries `jev`
-  beside `ce`.
+- Jev served the hooks from 2026-10-06 to 2026-10-08 (`jev.js:jevSearch`, all
+  eligible notes, no BM25 gate, floor 0.5, two notes; measured on the labelled
+  tasks at 0.96 precision and 2.5x the cross-encoder's reach, `bench/RESULTS.md`,
+  "Serving: Jev") and was taken out of serving at the user's decision on
+  2026-10-08. On the Click rerun its servings were true, on the fix's own lines,
+  and cost tokens in eight of eight pairs; on mitmproxy it paid once, on a note
+  the lexical path would have found; it returned 503 five times in one evening;
+  and it scored the same cache and prompt at 0.44 under one client and 0.07 under
+  another, unexplained (`research/efficiency-simple/CANARY-MITMPROXY-2026-10-08.md`).
+  Asked whether a passing note is worth serving, mechanism against nearby rule,
+  it ranked the one note that paid seventh of 37. The hooks rank with the
+  cross-encoder, `orient` and `lookup` by words; `jevSearch` stays for the
+  benchmark harness. Jev's learning decisions (`jev-decisions.js`), review
+  narrowing and gates are untouched, and the hosted access, keys and
+  `jev-access.json` below serve those. `THINKER_JEV` and `jev` in the config
+  switch those paths; nothing switches Jev serving back on.
+  Still true of the credentials: hosted Jev enrolls through `infra/jev-proxy/`
+  (API Gateway and Lambda on AWS); revocable client tokens live in
+  `~/.thinker/jev-proxy.json` (mode 0600), expire after 30 days and renew; the
+  proxy holds the upstream key in Secrets Manager and reserves quotas in
+  DynamoDB; a personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
+  `~/.thinker/jev-key`) selects direct access; `thinker ranker --jev-key` stores
+  one, `--no-jev-key` returns to hosted; which a machine uses is recorded in
+  `~/.thinker/jev-access.json` (`jev.js:recordAccess`). Tests cannot call either
+  model path unless they inject a transport; a benchmark that must measure Jev
+  sets `THINKER_JEV_ALLOW_NETWORK=1` with `THINKER_JEV=on` and a personal key.
   A facet vector typed onto the notes was measured and rejected as a serving
   signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
   the notes' own attestation labels, and the `inert` flag would have suppressed
@@ -964,8 +939,12 @@ readable; new behaviors stay local.
   committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
   fixed); the prompt hooks serve no stale note (mutable).
 - **Serving.** A behavior is served like an invariant: at orientation with a
-  small kind prior, by the edit hook when a file it rests on is edited
-  (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s
+  small kind prior, by the edit hook when a definition it rests on is changed
+  by the session's edits (`ops.js:lateNotes`, first among the rules; since
+  2026-10-08 a rule on another definition of the same file is not served,
+  nor is a note about code on an edit of its test alone: each dep on the
+  edited file is hashed on HEAD's text and the working tree's, and only a
+  dep whose two hashes differ bears on the edit), and in `thinker review`'s
   consulted set with the highest kind weight.
 
 ## Reviewing a change against the cache

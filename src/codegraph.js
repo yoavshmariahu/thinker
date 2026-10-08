@@ -51,7 +51,7 @@ function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
     return null; // not a git repository, timeout, or git missing: unknown
   }
 }
-const isTestPath = p => /(^|\/)(tests?|__tests__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
+export const isTestPath = p => /(^|\/)(tests?|__tests__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
 const parseLine = l => { const m = /^(.+?):(\d+):(.*)$/.exec(l); return m ? { path: m[1], line: Number(m[2]), text: m[3] } : null; };
 
 // Where `name` occurs in files of the family of `file` (every tracked file when there is none):

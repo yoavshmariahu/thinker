@@ -1,0 +1,74 @@
+[
+  {
+    "id": "mitm-8175",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8175",
+    "fixed": "ca58cd8e07127467c4b1d23de304ef794cebe101",
+    "test_file": "test/mitmproxy/addons/test_dumper.py",
+    "acceptance": "test_http_connect_error",
+    "prompt": "When a CONNECT request fails (for example the upstream host is unreachable), mitmdump prints nothing for it, unlike other failed flows. Make failed CONNECT requests show up in mitmdump's output.",
+    "base": "d482bbaa20af168f8307a504f1de8927144f7f99"
+  },
+  {
+    "id": "mitm-8176",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8176",
+    "fixed": "cc58fc9f38e5865c4fa1eb07d7cc598eca1ebd4d",
+    "test_file": "test/mitmproxy/tools/test_main.py",
+    "acceptance": "test_options_includes_addon_options or test_options_without_scripts",
+    "prompt": "Custom options defined by a script addon passed with -s are missing when mitmproxy dumps its options at startup, because the scripts have not been loaded yet at that point. Make pending scripts load before the options are dumped.",
+    "base": "bf16594f4495938ec699e39f087cb6f4d3912f94"
+  },
+  {
+    "id": "mitm-8214",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8214",
+    "fixed": "b464cbf82308547f461a916b18db96d05c399944",
+    "test_file": "test/mitmproxy/test_certs.py",
+    "acceptance": "test_aki_copies_issuer_ski_non_sha1 or test_aki_falls_back_when_issuer_has_no_ski",
+    "prompt": "Leaf certificates generated for intercepted hosts should carry an AuthorityKeyIdentifier extension copied from the issuing CA's SubjectKeyIdentifier, as required by RFC 5280 \u00a74.2.1.2.",
+    "base": "f478061882670cb612296d43d85ff98848fb4302"
+  },
+  {
+    "id": "mitm-8326",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8326",
+    "fixed": "af35c326cb020793f7c61b6a5c6ef78a3a998c23",
+    "test_file": "test/mitmproxy/proxy/layers/http/test_http.py",
+    "acceptance": "test_upstream_proxy_ipv6",
+    "prompt": "In upstream proxy mode, when the target is an IPv6 literal, the authority in the CONNECT request sent to the upstream proxy is not bracketed. Bracket IPv6 literals in that authority.",
+    "base": "c8e855310865aca74e634aab840fe5e1b026a938"
+  },
+  {
+    "id": "mitm-8333",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8333",
+    "fixed": "04ab3855635c67786522d4a3a407bf22af675451",
+    "test_file": "test/mitmproxy/tools/web/test_app.py",
+    "acceptance": "test_flow_update",
+    "prompt": "In the web interface, editing a response's reason phrase appears to work but the modified reason phrase is never actually sent. Make edits to the reason phrase take effect end to end.",
+    "base": "bbade987f004d3c3ed8bb977685b494a2f4717a0"
+  },
+  {
+    "id": "mitm-8408",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8408",
+    "fixed": "b506c68108e287104045333ade476d92c39c275e",
+    "test_file": "test/mitmproxy/addons/test_browser.py",
+    "acceptance": "test_browser_start_edge or test_browser_start_edge_not_found",
+    "prompt": "Add Microsoft Edge support to the addon that launches an isolated, proxy-configured browser, alongside the existing Chrome and Firefox support.",
+    "base": "2ac5b089d953585c66026a53f678270e094e48e5"
+  },
+  {
+    "id": "mitm-8196",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8196",
+    "fixed": "a8fbfc73fae5334868ca8a4238952572c3863083",
+    "test_file": "test/mitmproxy/utils/test_strutils.py",
+    "acceptance": "test_is_mostly_bin",
+    "prompt": "The heuristic that decides whether some content is 'mostly binary' raises IndexError for very short inputs because of how it looks at the tail of the data. Fix it without changing the result for normal inputs, and add a regression test.",
+    "base": "c9b063bc6565840714a3008f264fc4e76112836e"
+  },
+  {
+    "id": "mitm-8317",
+    "upstream": "https://github.com/mitmproxy/mitmproxy/pull/8317",
+    "fixed": "9362b05c29056b3d1846be920a31d18b7e288c85",
+    "test_file": "test/mitmproxy/tools/web/test_webaddons.py",
+    "acceptance": "test_web_theme_option",
+    "prompt": "Add a theme option to the web interface's addon: a `web_theme` option with the choices `system`, `dark` and `light`, defaulting to `system`, declared the way the addon declares its other web options, with help text saying what each choice does (`system` follows the operating system's preference). The frontend that applies the theme is out of scope here; add a test for the option.",
+    "base": "a4b234a3e1ffc8d9d97fe83ccde009de4c2d01d9"
+  }
+]

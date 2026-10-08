@@ -94,6 +94,25 @@ const mcpSession = (cwd, extra = {}) => {
   const lines = r.stdout.split('\n').filter(Boolean).map(l => JSON.parse(l));
   return { init: lines.find(l => l.id === 1), tools: lines.find(l => l.id === 2)?.result?.tools ?? [] };
 };
+// No instruction asks the agent to save or grade notes, and with learning off the tools are not
+// there either: on the Click rerun of 2026-10-08 every Opus arm told learning was disabled still
+// ended by saving a note, because the server's own instructions asked it to.
+test('the MCP server never asks for notes; remember and feedback are registered only on request, never with learning off', t => {
+  const dir = fresh(t);
+  execFileSync(process.execPath, [CLI, 'setup', '--no-build', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook'], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
+  const retrieval = ['drilldown', 'find', 'lookup', 'orient'];
+  const plain = mcpSession(dir, { THINKER_REPO: '', THINKER_NO_LEARN: '' });
+  assert.deepEqual(plain.tools.map(x => x.name).sort(), retrieval, 'by default the retrieval tools alone: a schema is paid on every request');
+  assert.doesNotMatch(plain.init.result.instructions, /remember|feedback/);
+  const cfg = path.join(dir, '.thinker/config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), mcp: { learningTools: true } }));
+  const asked = mcpSession(dir, { THINKER_REPO: '', THINKER_NO_LEARN: '' });
+  assert.deepEqual(asked.tools.map(x => x.name).sort(), [...retrieval, 'feedback', 'remember'].sort());
+  assert.doesNotMatch(asked.init.result.instructions, /remember|feedback/, 'registered, still not asked for');
+  const off = mcpSession(dir, { THINKER_REPO: '', THINKER_NO_LEARN: '1' });
+  assert.deepEqual(off.tools.map(x => x.name).sort(), retrieval);
+});
+
 test('the MCP server takes the repository from its working directory: tools where it is set up, none elsewhere', t => {
   const dir = fresh(t);
   execFileSync(process.execPath, [CLI, 'setup', '--no-build', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook'], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });

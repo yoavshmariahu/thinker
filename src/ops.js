@@ -5,15 +5,14 @@ import { checkSearchSummaries, SUMMARY_FIDELITY_FLOOR } from './summary-fidelity
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
-import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
+import { hashDep, hashText, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER, tokenize } from './rank.js';
-import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
+import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout, isTestPath } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { anchoringGuard } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
-import { jevConfig, jevSearch } from './jev.js';
 import { phraseKey } from './note-search.js';
 import { derivedVerdict, externalSurface } from './drift.js';
 
@@ -261,20 +260,17 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // Jev searches all eligible descriptions in bounded batches. A note needs no
   // lexical match to be considered. An incomplete/failed search falls through to
   // local ranking; a completed search returning no matches is authoritative.
-  const jevCfg = jevConfig(store);
-  let jev = null, jevTop = null; // jev: what was served; jevTop: the best three scores seen, so a turn that served nothing is still legible
-  if (jevCfg.enabled && (new Set(tokenize(String(task || ''))).size >= 2 || file)) {
-    const before = ranked;
-    const limit = maxNotes <= 2 ? Math.min(maxNotes, jevCfg.maxNotes || maxNotes) : maxNotes;
-    try { ranked = await jevSearch(notes, task + (file ? `\nWorking file: ${normPath(store.repo, file)}` : ''), { ...jevCfg, maxNotes: limit, freshOnly, onScores: rows => { jevTop = rows.map(r => Number(r.jev.toFixed(2))).sort((a, b) => b - a).slice(0, 3); } }); chosen = true; jev = ranked.map(r => Number(r.jev.toFixed(2))); }
-    catch (e) { ranked = before; store.log({ op: 'jev-error', error: String(e.message).slice(0, 200) }); }
-  }
+  // Jev ranked the hooks' candidates from 2026-10-06 to 2026-10-08 and was taken out of serving:
+  // on the Click rerun its servings were true and nearby and cost tokens in eight of eight pairs,
+  // it returned 503 five times in one evening, and it scored the same cache and prompt at 0.44
+  // and 0.07 under two clients. Learning decisions and review still use it (jev-decisions.js,
+  // review.js); the serving ranker is the cross-encoder in the hooks and the lexical ranking here.
   if (!chosen && ceCfg.enabled && ranked.length && maxNotes <= 2) {
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
     try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
     catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
   }
-  if (jev === null && rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
+  if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   // what would have been served had staleness not held it back
   const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
   const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
@@ -296,13 +292,13 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   const packed = pack(top, budget, { minRel: 0.35 });
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
-  const moreCandidates = jev !== null ? ranked : (lexical.length > ranked.length ? lexical : ranked);
-  packed.more = moreCandidates.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, jev === null && lexical.length > ranked.length ? 3 : 6).map(r => r.note);
+  const moreCandidates = lexical.length > ranked.length ? lexical : ranked;
+  packed.more = moreCandidates.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, lexical.length > ranked.length ? 3 : 6).map(r => r.note);
   // a held-out session: what would have been served is logged and nothing is; the notes are not
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, jevTop: jevTop || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -313,7 +309,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, jevTop: jevTop || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -426,11 +422,41 @@ export function lateNotes(store, { session, client, files, edited = false, perEv
   if (!rel.length) return { text: '', included: [] };
   return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
 }
+// An edit serves only the rules resting on what the edits changed. The hook knows the file, and a
+// hub file carries many notes: click's core.py held 33, and serving any rule on the file put one
+// about help-option caching in front of an agent changing flag types, and one about choice options
+// in front of an edit to the test module (the Click rerun of 2026-10-08: about 1.3k tokens an
+// edit of rules about other definitions). Each dep on the edited file is hashed as the cache
+// hashes it (deps.js:hashText), on the file as HEAD has it and as it is now: a symbol dep bears on
+// the edits when the two differ, a whole-file dep when the file does. Without a HEAD side (a new
+// file, no git) the file as a whole counts, as before. A note about code never bears on an edit of
+// a test alone: its test dep is evidence for the note, not what the note is about.
+function editSides(repo, rel) {
+  const sides = new Map();
+  for (const p of rel) {
+    let after = null, before = null;
+    try { after = fs.readFileSync(path.join(repo, p), 'utf8'); } catch {}
+    try { before = execFileSync('git', ['show', `HEAD:${p}`], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).toString(); } catch {}
+    sides.set(p, after === null || before === null ? null : { before, after });
+  }
+  return sides;
+}
+function depBearsOnEdits(note, dep, sides) {
+  if (isTestPath(dep.path) && (note.deps || []).some(d => !isTestPath(d.path))) return false;
+  const s = sides.get(dep.path);
+  if (!s) return true;
+  if (!dep.symbol) return s.before !== s.after;
+  const a = hashText(s.after, dep), b = hashText(s.before, dep);
+  if (a.symbolMissing && b.symbolMissing) return false;
+  return a.hash !== b.hash || Boolean(a.symbolMissing) !== Boolean(b.symbolMissing);
+}
+
 function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
   notes = notes.filter(n => RULE_KINDS.includes(n.kind));
+  if (on === 'edit' && notes.length) { const sides = editSides(store.repo, rel); notes = notes.filter(n => (n.deps || []).some(d => rel.includes(d.path) && depBearsOnEdits(n, d, sides))); }
   // relevance is measured among all notes: among these few the best one would always score 1
   if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
   notes = refresh(store, notes);
@@ -513,17 +539,11 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
   const byId = notes.find(n => n.id === String(query).trim());
   // a kind with no query (`lookup(kind: "behavior")`): every note of the kind, the rules first
   const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
-  let ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
-  let jev;
-  const cfg = jevConfig(store);
-  if (!byId && !all && cfg.enabled && String(query || '').trim()) {
-    try { ranked = await jevSearch(notes, query, { ...cfg, maxNotes }); jev = ranked.map(r => Number(r.jev.toFixed(2))); }
-    catch (e) { store.log({ op: 'jev-error', where: 'lookup', error: String(e.message).slice(0, 200) }); }
-  }
+  const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
   const candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
   addSnippets(store, packed, budget, snippets, false);
-  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, jev, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

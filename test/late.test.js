@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Store } from '../src/store.js';
 import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
 import { rank } from '../src/rank.js';
+import { execFileSync } from 'node:child_process';
 process.env.THINKER_CE = 'off'; // these tests are about the lexical path; the cross-encoder (dense.js) has its own test
 
 function setup() {
@@ -43,6 +44,31 @@ test('late notes on edit: rules only, when the file is edited and the rule bears
   rememberTask(store, 'e2', 'users can launch without the eligibility check');
   assert.deepEqual(lateNotes(store, { session: 'e2', files: ['src/a.py'], edited: true }).included.map(n => n.id), [inv.id]);
   assert.equal(lateNotes(store, { session: 'e2', files: ['src/a.py'], edited: true }).included.length, 0, 'once per session');
+});
+
+// The edit hook serves the rules resting on what the edits changed, not every rule on the file: a hub
+// file carries many, and in the Click rerun of 2026-10-08 an edit to flag types brought a rule about
+// help-option caching. A note about code is not served on an edit of its test alone.
+test('late notes on edit: only the rules on definitions the edits changed; a test-only anchor of a note about code does not count', () => {
+  const { dir, store, inv } = setup();
+  fs.mkdirSync(path.join(dir, 'tests'));
+  fs.writeFileSync(path.join(dir, 'tests/test_a.py'), 'def test_launch():\n    assert True\n');
+  const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd: dir, stdio: 'ignore' });
+  git('init', '-q'); git('add', '.'); git('commit', '-q', '-m', 'base');
+  const edit = createNote(store, { title: 'can_edit decides who may launch', kind: 'rule', answers: ['who may launch'], body: 'src/a.py:can_edit is the only eligibility check', deps: [{ path: 'src/a.py', symbol: 'can_edit' }] }).note;
+  const code = createNote(store, { title: 'launch is covered by test_launch', kind: 'rule', answers: ['launch test'], body: 'src/a.py:launch is checked by tests/test_a.py:test_launch', deps: [{ path: 'src/a.py', symbol: 'launch' }, { path: 'tests/test_a.py', symbol: 'test_launch' }] }).note;
+  const onlyTests = createNote(store, { title: 'test_launch must stay a plain assert', kind: 'rule', answers: ['launch test style'], body: 'tests/test_a.py:test_launch uses a bare assert', deps: [{ path: 'tests/test_a.py', symbol: 'test_launch' }] }).note;
+  // the agent changes can_edit only: the rules resting on it (the launch rule names it in its body),
+  // not the rule that rests on launch alone
+  fs.writeFileSync(path.join(dir, 'src/a.py'), 'def launch():\n    pass\n\ndef can_edit():\n    return False\n');
+  assert.deepEqual(lateNotes(store, { session: 'p1', files: ['src/a.py'], edited: true }).included.map(n => n.id).sort(), [edit.id, inv.id].sort());
+  // committed, then launch changes: the rules on launch, and no longer the one on can_edit
+  git('commit', '-qam', 'can_edit');
+  fs.writeFileSync(path.join(dir, 'src/a.py'), 'def launch():\n    return 1\n\ndef can_edit():\n    return False\n');
+  assert.deepEqual(lateNotes(store, { session: 'p2', files: ['src/a.py'], edited: true }).included.map(n => n.id).sort(), [inv.id, code.id].sort());
+  // an edit to the test file alone: the note about the tests, not the note about the code
+  fs.writeFileSync(path.join(dir, 'tests/test_a.py'), 'def test_launch():\n    assert launch() == 1\n');
+  assert.deepEqual(lateNotes(store, { session: 'p3', files: ['tests/test_a.py'], edited: true }).included.map(n => n.id), [onlyTests.id]);
 });
 
 test('late notes: the limit of a session holds', () => {
