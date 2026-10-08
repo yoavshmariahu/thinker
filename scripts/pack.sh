@@ -18,14 +18,14 @@ mkdir -p "$dist"
 # a checkout (node src/server/cli.js).
 stage="$(mktemp -d)"; trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/src"
-"${tar_pack[@]}" -c --exclude='*.test.js' --exclude='src/server' src package-lock.json README.md | tar -x -C "$stage"
+"${tar_pack[@]}" -c --exclude='*.test.js' --exclude='src/server' src package-lock.json README.md LICENSE | tar -x -C "$stage"
 node --input-type=module - "$stage/package.json" <<'JS'
 import fs from 'node:fs';
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 delete pkg.bin['thinker-server'];
 fs.writeFileSync(process.argv[2], JSON.stringify(pkg, null, 2) + '\n');
 JS
-(cd "$stage" && "${tar_pack[@]}" -czf - src package.json package-lock.json README.md) > "$dist/thinker.tgz"
+(cd "$stage" && "${tar_pack[@]}" -czf - src package.json package-lock.json README.md LICENSE) > "$dist/thinker.tgz"
 node --input-type=module - "$dist/thinker.tgz" "$dist/version.json" <<'JS'
 import fs from 'node:fs';
 import crypto from 'node:crypto';

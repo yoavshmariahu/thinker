@@ -18,6 +18,7 @@ test('the release archive loads without the server: no src/server, no thinker-se
   assert.ok(listing.includes('src/cli.js') && listing.includes('src/review.js') && listing.includes('src/behavior.js') && listing.includes('src/sync-wire.js'));
   assert.ok(!listing.some(f => f.startsWith('src/server')), 'the server is not in the archive');
   assert.ok(!listing.some(f => f.endsWith('.test.js')), 'the tests are not in the archive');
+  assert.ok(listing.includes('LICENSE'), 'the MIT license ships with the archive');
   execFileSync('tar', ['-xzf', path.join(dist, 'thinker.tgz'), '-C', app]);
   const pkg = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8'));
   assert.deepEqual(Object.keys(pkg.bin), ['thinker']);
