@@ -93,7 +93,9 @@ export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
 // fallbackFloor: when nothing clears `floor`, the single best candidate is still served if it scores at least this
 // (null: never). On the 54 labeled tasks it took tasks hit from 19 to 23 at precision 0.96 (from 1.00), and on
 // posthog PR106936 it would have served the note that carried the criterion the agent missed (scored −0.93).
-export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 1, k: 8, queryTokens: 120, fallbackFloor: -1 };
+// Off by default since 2026-10-08: serving is held to what the cross-encoder is confident of, since no measured
+// efficiency gain pays for a note below the floor (the Click canary of 2026-10-07 was costlier with the cache).
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 1, k: 8, queryTokens: 120, fallbackFloor: null };
 export function ceConfig(store) {
   const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
   const e = process.env;

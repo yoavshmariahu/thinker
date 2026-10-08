@@ -737,10 +737,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   ONNX) reads the request, cut to its first 120 tokens, together with each of
   the eight best lexically gated candidates and gives one relevance logit per
   pair; candidates under the floor are dropped and at most `maxNotes` are
-  served in its order. When nothing clears the floor, the single best candidate is still
-  served if it scores at least `fallbackFloor` (default −1; measured 23 tasks
-  hit against 19 at precision 0.96). Defaults `floor: 0, maxNotes: 1,
-  fallbackFloor: -1` (`dense.js:CE_DEFAULTS`),
+  served in its order. When nothing clears the floor, nothing is served. A
+  `fallbackFloor` (a score, e.g. −1) serves the single best candidate anyway if it
+  reaches it (measured 23 tasks hit against 19 at precision 0.96); it was the
+  default until 2026-10-08 and is off since, so that the hooks serve only notes
+  the cross-encoder is confident of. Defaults `floor: 0, maxNotes: 1,
+  fallbackFloor: null` (`dense.js:CE_DEFAULTS`),
   chosen on 54 tasks labeled by a Codex judge against the merged fixes
   (`bench/RESULTS.md`, "Ranking: labels"): 94% of served notes useful, 88%
   important, nothing served when nothing fits, a quarter of the tokens; the
