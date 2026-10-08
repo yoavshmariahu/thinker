@@ -25,7 +25,15 @@ HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('THINKER_EFF_DIR', ROOT / 'bench/runs/efficiency-simple'))
 SOURCE = Path(os.environ.get('THINKER_BENCH_SOURCE', '')).expanduser()
 CLI, WIRE = str(ROOT / 'src/cli.js'), str(ROOT / 'research/performance-canary/wire.mjs')
-PY_BIN = str(ROOT / '.venv-perf/bin/python')
+# The interpreter the tests run under and the import root of the repository's package: Click keeps
+# its package under src/, mitmproxy at the repository root. THINKER_EFF_PYBIN and THINKER_EFF_PYPATH
+# name another repository's; the venv must not hold an installed copy of the package, or the tests
+# would import that rather than the checkout under test.
+PY_BIN = os.environ.get('THINKER_EFF_PYBIN') or str(ROOT / '.venv-perf/bin/python')
+PYPATH = os.environ.get('THINKER_EFF_PYPATH', 'src')
+# Plugin autoload is off for the acceptance run, so a repository whose tests need a plugin names it
+# (mitmproxy: `-p pytest_asyncio -p pytest_timeout`, its asyncio tests collect as plain functions otherwise).
+PYTEST_ARGS = os.environ.get('THINKER_EFF_PYTEST_ARGS', '').split()
 MODELS = {'opus': ('claude', 'claude-opus-5-5'), 'sol': ('codex', 'gpt-6.1-sol')}
 TASKS = json.loads(Path(os.environ.get('THINKER_EFF_TASKS', ROOT / 'research/performance-canary/tasks.json')).read_text())
 ARMS = ['baseline', 'thinker']
@@ -230,7 +238,7 @@ def task_cache(cohort, task, repo):
 
 RULES = ('Work only within this repository. Do not inspect parent or sibling directories, git history, '
          'remotes, reference patches or websites, and do not install dependencies or create commits. '
-         f'Use {PY_BIN} to run tests. Implement the requested change, add appropriate tests, run the '
+         f'Use {PY_BIN} to run tests, with PYTHONPATH={PYPATH}. Implement the requested change, add appropriate tests, run the '
          'relevant tests, and leave the work uncommitted.')
 
 
@@ -260,8 +268,8 @@ def acceptance(repo, task, label):
     """The frozen upstream test, so an arm cannot pass by weakening it."""
     _, tests = gold(task)
     (repo / task['test_file']).write_text(tests.read_text())
-    env = {**os.environ, 'PYTHONPATH': str(repo / 'src'), 'THINKER_TEST': '1', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'}
-    r = subprocess.run([PY_BIN, '-m', 'pytest', '-q', task['test_file'], '-k', task['acceptance']],
+    env = {**os.environ, 'PYTHONPATH': str(repo / PYPATH), 'THINKER_TEST': '1', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'}
+    r = subprocess.run([PY_BIN, '-m', 'pytest', '-q', *PYTEST_ARGS, task['test_file'], '-k', task['acceptance']],
                        cwd=repo, env=env, capture_output=True, text=True, timeout=600)
     (OUT / 'raw' / f'{label}-acceptance.log').write_text(r.stdout + r.stderr)
     return {'returncode': r.returncode, 'passed': r.returncode == 0}
