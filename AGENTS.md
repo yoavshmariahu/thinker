@@ -969,8 +969,12 @@ readable; new behaviors stay local.
   committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
   fixed); the prompt hooks serve no stale note (mutable).
 - **Serving.** A behavior is served like an invariant: at orientation with a
-  small kind prior, by the edit hook when a file it rests on is edited
-  (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s
+  small kind prior, by the edit hook when a definition it rests on is changed
+  by the session's edits (`ops.js:lateNotes`, first among the rules; since
+  2026-10-08 a rule on another definition of the same file is not served,
+  nor is a note about code on an edit of its test alone: each dep on the
+  edited file is hashed on HEAD's text and the working tree's, and only a
+  dep whose two hashes differ bears on the edit), and in `thinker review`'s
   consulted set with the highest kind weight.
 
 ## Reviewing a change against the cache

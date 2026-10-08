@@ -5,9 +5,9 @@ import { checkSearchSummaries, SUMMARY_FIDELITY_FLOOR } from './summary-fidelity
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
-import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
+import { hashDep, hashText, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER, tokenize } from './rank.js';
-import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
+import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout, isTestPath } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
@@ -426,11 +426,41 @@ export function lateNotes(store, { session, client, files, edited = false, perEv
   if (!rel.length) return { text: '', included: [] };
   return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
 }
+// An edit serves only the rules resting on what the edits changed. The hook knows the file, and a
+// hub file carries many notes: click's core.py held 33, and serving any rule on the file put one
+// about help-option caching in front of an agent changing flag types, and one about choice options
+// in front of an edit to the test module (the Click rerun of 2026-10-08: about 1.3k tokens an
+// edit of rules about other definitions). Each dep on the edited file is hashed as the cache
+// hashes it (deps.js:hashText), on the file as HEAD has it and as it is now: a symbol dep bears on
+// the edits when the two differ, a whole-file dep when the file does. Without a HEAD side (a new
+// file, no git) the file as a whole counts, as before. A note about code never bears on an edit of
+// a test alone: its test dep is evidence for the note, not what the note is about.
+function editSides(repo, rel) {
+  const sides = new Map();
+  for (const p of rel) {
+    let after = null, before = null;
+    try { after = fs.readFileSync(path.join(repo, p), 'utf8'); } catch {}
+    try { before = execFileSync('git', ['show', `HEAD:${p}`], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).toString(); } catch {}
+    sides.set(p, after === null || before === null ? null : { before, after });
+  }
+  return sides;
+}
+function depBearsOnEdits(note, dep, sides) {
+  if (isTestPath(dep.path) && (note.deps || []).some(d => !isTestPath(d.path))) return false;
+  const s = sides.get(dep.path);
+  if (!s) return true;
+  if (!dep.symbol) return s.before !== s.after;
+  const a = hashText(s.after, dep), b = hashText(s.before, dep);
+  if (a.symbolMissing && b.symbolMissing) return false;
+  return a.hash !== b.hash || Boolean(a.symbolMissing) !== Boolean(b.symbolMissing);
+}
+
 function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
   notes = notes.filter(n => RULE_KINDS.includes(n.kind));
+  if (on === 'edit' && notes.length) { const sides = editSides(store.repo, rel); notes = notes.filter(n => (n.deps || []).some(d => rel.includes(d.path) && depBearsOnEdits(n, d, sides))); }
   // relevance is measured among all notes: among these few the best one would always score 1
   if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
   notes = refresh(store, notes);
