@@ -535,3 +535,7 @@ For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
 
 - [AGENTS.md](AGENTS.md): how thinker works, per-agent support, repository layout
 - [ONBOARDING.md](ONBOARDING.md): setting up your local cache
+
+## License
+
+MIT. See [LICENSE](LICENSE).
