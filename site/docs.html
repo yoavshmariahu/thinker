@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Thinker is a model-agnostic knowledge cache that combines frontier models with Jev for cache building and serving decisions, helping coding agents catch regressions and complete tasks with fewer tokens.">
+  <meta name="description" content="Thinker is a model-agnostic knowledge cache that uses frontier models to build knowledge from code and merged pull requests, helping coding agents catch regressions and complete tasks with fewer tokens.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -665,7 +665,6 @@
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#overview">Overview</a></li>
           <li class="sidebar-item"><a href="#install">Install and set up</a></li>
-          <li class="sidebar-item"><a href="#jev">Using Jev</a></li>
           <li class="sidebar-item"><a href="#supported-agents">Supported agents</a></li>
         </ul>
       </div>
@@ -714,7 +713,7 @@
       <section id="overview">
         <h1>A knowledge cache to help you catch regressions and boost coding agent efficiency</h1>
         <p class="lead">
-          Thinker’s model-agnostic knowledge cache works across coding models and agents. It combines frontier models with Jev to build and maintain knowledge from code, sessions, and merged pull requests, and make structured decisions about which notes to serve. Dependency-based invalidation and verification keep the cache fresh, helping agents catch regressions and complete tasks with fewer tokens.
+          Thinker’s model-agnostic knowledge cache works across coding models and agents. It uses frontier models to build and maintain knowledge from code, sessions, and merged pull requests, and a small local ranking model to choose which notes to serve. Dependency-based invalidation and verification keep the cache fresh, helping agents catch regressions and complete tasks with fewer tokens.
         </p>
 
         <div class="outcomes">
@@ -795,39 +794,6 @@ thinker setup --build --yes</code></pre>
         </div>
         <p>
           Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. <code>thinker ranker</code> shows the configured ranking mode.
-        </p>
-      </section>
-
-      <section id="jev">
-        <h2>Jev through Thinker</h2>
-        <p>
-          Thinker selects notes with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Access is provided through Thinker's proxy. No TypeSafe account or personal API key is required.</strong>
-        </p>
-        <h3>How it works</h3>
-        <ol>
-          <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically, including with <code>--yes</code>, and keeps the upstream TypeSafe credential on its server. A revocable client token is stored in <code>~/.thinker/jev-proxy.json</code> with owner-only permissions.</li>
-          <li>For each task, Thinker builds a local shortlist. One request through Thinker's proxy asks Jev which notes help with the task.</li>
-          <li>Thinker uses the relevance probabilities to select notes for your coding agent. Your agent still implements the task; learning, verification, and review use your configured agent/model.</li>
-        </ol>
-        <p>
-          Selection defaults are up to eight candidates, a relevance threshold of 0.5, and at most two notes within the serving budget. If nothing qualifies, nothing is served. Prompt hooks withhold stale notes and avoid repeating notes within the session. Broader MCP <code>orient</code> requests keep lexical ranking.
-        </p>
-        <h3>Fallback and local ranking</h3>
-        <p>
-          Hosted Jev uses a 1,500 ms client timeout. Errors, rate limits, invalid responses, and timeouts fall back to the built-in local cross-encoder (23 MB), then lexical ranking if that model is unavailable. <code>thinker ranker</code> reports configuration and local-model availability. <code>thinker ranker fetch</code> downloads a missing model; <code>thinker update</code> repairs a missing runtime.
-        </p>
-        <p>To use local note ranking, set this in <code>.thinker/config.json</code>:</p>
-        <pre><code>{ "jev": false }</code></pre>
-        <p>
-          Or set <code>THINKER_JEV=off</code> in the environment of the agent running Thinker's hooks. This opt-out works with both direct and hosted Jev. It does not change the models used for learning, verification, or review.
-        </p>
-        <h3>What leaves your machine</h3>
-        <p>
-          Your request and candidate-note titles, question phrasings, body excerpts, file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe. The proxy does not log request or note content. Hosted access has usage limits, with local fallback when a limit is reached. The note cache remains stored locally. Hosted enrollment and ranking are separate from Thinker telemetry; <code>THINKER_TELEMETRY=off</code> does not disable model calls.
-        </p>
-        <h3>What has been measured</h3>
-        <p>
-          Across two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes and 96% of served notes were useful, at about 160 ms per task. These runs used a supplied candidate pool and measure retrieval, not production proxy latency or an end-to-end coding speedup. The coding and review benchmarks elsewhere on this page predate the hosted integration.
         </p>
       </section>
 
@@ -1052,11 +1018,11 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
                   <table>
                     <thead><tr><th>Decision</th><th>What happened</th><th>Basis</th></tr></thead>
                     <tbody>
-                      <tr><td>Code assessment</td><td>assessed</td><td>Default configuration; Jev not evaluated</td></tr>
-                      <tr><td>Caller context</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
-                      <tr><td>Split review</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
-                      <tr><td>Verify findings</td><td>skipped</td><td>Default configuration; Jev not evaluated</td></tr>
-                      <tr><td>Run tests</td><td>not-recommended</td><td>Default configuration; Jev not evaluated</td></tr>
+                      <tr><td>Code assessment</td><td>assessed</td><td>Default configuration</td></tr>
+                      <tr><td>Caller context</td><td>skipped</td><td>Default configuration</td></tr>
+                      <tr><td>Split review</td><td>skipped</td><td>Default configuration</td></tr>
+                      <tr><td>Verify findings</td><td>skipped</td><td>Default configuration</td></tr>
+                      <tr><td>Run tests</td><td>not-recommended</td><td>Default configuration</td></tr>
                     </tbody>
                   </table>
                   </div>
@@ -1183,7 +1149,7 @@ thinker system md                   <span class="code-comment"># write them as .
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. <a href="#jev">Hosted Jev</a> scores a shortlist through Thinker’s proxy and Thinker keeps up to two qualifying notes, without requiring a personal API key. API failures fall back to local ranking. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. A local ranking model reads the request with the best lexical candidates and keeps those it scores relevant, one by default; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
@@ -1288,8 +1254,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>jev</code></td><td>Note selection: <code>false</code> uses local ranking; <code>k</code> (8), <code>floor</code> (0.5), and <code>maxNotes</code> (2) tune selection. Hosted access is the default; the client timeout is 1,500 ms. <a href="#jev">Setup and data handling</a></td></tr>
-              <tr><td><code>ce</code></td><td>Local fallback ranker: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to disable it. With Jev also disabled, ranking uses words alone</td></tr>
+              <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
               <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
@@ -1304,7 +1269,7 @@ thinker benchmark report</code></pre>
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> <a href="#jev">Jev ranking</a> sends the request and candidate-note records for model processing; the hosted flow routes them through Thinker’s proxy to TypeSafe. Learning and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Note ranking runs on your machine. Learning, verification and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off

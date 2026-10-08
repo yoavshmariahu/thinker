@@ -262,11 +262,10 @@ workflow will pass.
 
 Review reports include a **Review thoroughness** section whenever the review
 took a second look at a finding, which happens only when the caller asks for the
-`verify` strategy; a review that made no second look renders nothing. Until
-2026-10-08 Jev's step gates chose the optional steps per change and the section
-recorded their scores; measured on five Sol reviews they caught the same bugs for
-86% more tokens (`research/jev-sol-opus-ten/`), so review is the plain ensemble
-again and the steps are explicit caller settings.
+`verify` strategy; a review that made no second look renders nothing. The
+optional steps are explicit caller settings: model-chosen gates were measured on
+five Sol reviews to catch the same bugs for 86% more tokens
+(`research/jev-sol-opus-ten/`) and removed on 2026-10-08.
 
 For each finding checked a second time, `report.thoroughness.verifications`
 keeps the original claim, evidence and severity; the bounded diff and code

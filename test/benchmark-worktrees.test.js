@@ -97,7 +97,7 @@ for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
 
 // Exercise the real entry points without benchmark tasks, caches, agents or model calls.
 // Copies retain their imports; src is a symlink so no implementation is re-created here.
-for (const runner of ['run', 'codex-run', 'gemini-run', 'jev-opus-run', 'criteria']) {
+for (const runner of ['run', 'codex-run', 'gemini-run', 'criteria']) {
   test(`${runner} releases its worker pool with an empty task queue`, t => {
     const f = fixture(t);
     const bench = path.join(f.root, 'bench');

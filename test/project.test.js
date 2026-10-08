@@ -217,7 +217,7 @@ test('adaptive planning is shared by CLI preview, estimates and setup, with expl
   const bin = path.join(repo, 'bin'), captured = path.join(repo, 'prompts.jsonl');
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nlet prompt = ''; process.stdin.on('data', chunk => prompt += chunk); process.stdin.on('end', () => { require('fs').appendFileSync(${JSON.stringify(captured)}, JSON.stringify(prompt) + '\\n'); });\n`, { mode: 0o755 });
-  cli(repo, ['seed', '--agent', 'codex', '--yes'], { PATH: `${bin}${path.delimiter}${process.env.PATH}`, THINKER_JEV: 'off' });
+  cli(repo, ['seed', '--agent', 'codex', '--yes'], { PATH: `${bin}${path.delimiter}${process.env.PATH}` });
   const prompts = fs.readFileSync(captured, 'utf8').trim().split('\n').map(JSON.parse);
   assert.equal(prompts.length, plan.areas.length, 'actual seed runs every planned session');
   for (const [i, prompt] of prompts.entries()) {

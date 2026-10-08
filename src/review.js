@@ -743,9 +743,9 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   report.integrity = scope.state ? null : gateIntegrity(change, reader);
   report.task = task || null;
   if (!change.files.length) { report.empty = true; return report; }
-  // BM25's best six related notes, by shared identifiers (selectNotes). Jev once narrowed a widened
-  // pool here and gated the optional steps; measured on five Sol reviews it caught the same bugs for
-  // 86% more tokens (research/jev-sol-opus-ten), so review is the plain ensemble again.
+  // BM25's best six related notes, by shared identifiers (selectNotes). A model narrowing a widened pool
+  // here was measured on five Sol reviews to catch the same bugs for 86% more tokens
+  // (research/jev-sol-opus-ten), so review is the plain ensemble.
   const RELATED_MAX = 6;
   let { direct, related, exposures, symbols, order, strong } = selectNotes(notes, change, reader, { relatedMax: strat.related ? RELATED_MAX : 0 });
   if (related.length > RELATED_MAX) {

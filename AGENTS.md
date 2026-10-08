@@ -133,7 +133,6 @@ cache at twice the input price and never read again.
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
-| `bench/jev-eval/` | the Jev serving measurement: `hook-jev-arm.mjs` scores the labelled ranking tasks; `catalog-eval.mjs` tests full-corpus description search and note reconciliation (see `research/jev-note-catalog/`); the facet experiments were rejected (`bench/RESULTS.md`, "Serving: Jev") |
 | `.thinker/` | thinker's own notes about this repo |
 
 `bench/repos/` (clones of click, mitmproxy, PostHog) and `bench/runs/` (raw
@@ -413,27 +412,6 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
 - The `verify` log record names the deps that triggered it (`changed`).
-- The surface a note could break on (`drift.js`), typed by Jev and stored as
-  `drift: {surface, confidence, key}`: one of `a_symbol_moving`,
-  `a_number_changing`, `a_path_changing`, `a_flag_or_env_var_changing`,
-  `an_external_tool_changing`. Background maintenance types up to `driftPerRun`
-  (40) notes that have none for their present text, one Choice per note batched
-  twelve to a call (`typeDrift`); `driftKey` follows the note's own text, so an
-  edited note is retyped, and a behavior is never typed. It licenses exactly one
-  decision: a note typed `an_external_tool_changing` is re-baselined in code when
-  its deps change (`derivedVerdict`), with no model call and no confidence bump,
-  because no change in this repository can falsify a claim about a tool outside
-  it and no model reading this repository's diff can settle one. A vanished
-  symbol or file, a type under 0.6 confidence, or a note edited since it was
-  typed all still go to the model, and `update` is never derived: it needs a
-  rewritten body. The `verify` log line carries `derived` with the surface.
-  Deriving a verdict from the numbers a note states was measured and rejected
-  (`bench/RESULTS.md`, "Derived verify verdicts"): of 147 stale notes only 12 had
-  every stated number still bound to the same name, and those matches were
-  incidental numbers in prose — one would have passed with five of its symbols
-  changed. Routing such notes out of verification altogether was also tried and
-  is worse than the waste: the prompt hooks serve no stale note, so a note never
-  re-baselined is never served again.
 - `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
@@ -535,20 +513,8 @@ Each session both consumes and improves the cache:
    learning and maintenance reported are summed from the machine's log and a run stops
    at `dailyTokens` (default 2M tokens a day, about 80 distillations; until 2026-10-04
    the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
-   cap). Since 2026-10-07 that budget covers generative answers alone: Jev's typed
-   decisions are summed apart, against `dailyJevTokens` (default 10M), and
-   `jev-decisions.js:judgeWithJev` asks that cap, never the generative one
-   (`model-usage.js:isJevUsage` tells the two sides apart by provider;
-   `maintain.js:spentToday` and `jevSpentToday` sum them). One call of each is nothing
-   alike: a Noul is a bounded typed request answered through the proxy under its own
-   request quotas, a distillation one long answer on the agent's subscription, and there
-   are many of the first per note written. Summed together the cheap, numerous side closed
-   the day for the other — on 2026-10-07 on this repository the note-catalog scan reported
-   3.03M of the day's 5.28M tokens, 454 calls, and generative learning stopped before noon
-   while the cap had been exceeded on six of the previous eight days. `thinker usage`
-   reports the two totals separately under the build and maintenance table. `maintain` in
-   `.thinker/config.json`
-   overrides `enabled`, `dailyTokens`, `dailyJevTokens`, `verifyPerRun`, `verifyServedDays`,
+   cap). `maintain` in `.thinker/config.json`
+   overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
    `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
@@ -799,71 +765,6 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Jev (`jev.js:jevSearch`), hosted by default, searches all eligible notes for
-  `orient` and query-based `lookup`, without BM25 candidate gating. `searchRecord`
-  uses a current `search` description or falls back to the body, including scope
-  and pointers. `note-search.js:phraseKey` hashes title, body, questions, scope
-  and dependency paths/symbols; old length-based keys and equal-length edits
-  cannot validate a description. Maintenance and `phrase` regenerate missing or
-  obsolete descriptions. Up to two batches run concurrently, each at most 32
-  questions and 30,000 UTF-8 bytes including the whole request. A five-second
-  deadline covers the search; any failed batch discards the partial result.
-  Invalid/archived notes are excluded; hooks additionally exclude stale or
-  already-served notes. Exact IDs and kind-only lookup remain direct.
-  `selectByJev` keeps those at or above `floor`, up to the caller's limit.
-  The earlier reranker sent named fields (`noteRecord`), which beat one
-  prose blob of the same note (false positives 8 to 5). There is no fallback
-  below the floor: a Noul near 0 is the model saying the note does not bear on
-  the request, and serving nothing was right on every labelled task that had
-  nothing useful. Measured on all 54 labelled tasks, two runs, against the
-  same `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.96 of served
-  notes useful, 40 of 70 important notes reached and 33 of 54 tasks served
-  something useful, against the cross-encoder's 0.96, 16 of 70 and 23 of 54 —
-  2.5x the reach at the same precision, ~160 ms and ~10k tokens a prompt. Both
-  runs were identical on the default arm. One judge, one prompt, and Jev was
-  handed the labelled candidate pool.
-  Hosted Jev is the default since 2026-10-06. Setup (`configureJev`) and first
-  retrieval automatically enroll through `infra/jev-proxy/`, an API Gateway and
-  Lambda service on AWS. Revocable client tokens live in `~/.thinker/jev-proxy.json`
-  (mode 0600), expire after 30 days, and renew automatically on expiry. The proxy
-  holds the upstream key in Secrets Manager, checks token validity and reserves
-  minute/day/global request quotas atomically in DynamoDB, and never logs payloads
-  or credentials. Anonymous enrollment is bounded by IP/day and service/day quotas;
-  it is not proof of user identity. Prompt text and candidate note excerpts are
-  sent to the proxy and TypeSafe for inference, separately from telemetry.
-  An optional personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
-  or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
-  stores one; `--no-jev-key` returns to hosted access. Which of the three a
-  machine uses is asked once, in a terminal, and recorded in
-  `~/.thinker/jev-access.json` (`jev.js:recordAccess`, modes `proxy`, `key`,
-  `off`): `setup/steps.js:configureJev` puts the question on a new install and
-  `thinker update` puts it to anyone who installed before hosted access existed,
-  once, since an update run by hand is a deliberate act. A recorded `off` keeps
-  Jev off, though `jev` in the config and `THINKER_JEV` still win, both being
-  more specific than a machine-wide preference. Saving a key records the choice
-  by itself. Nothing is recorded without a terminal, so a scheduled or `--quiet`
-  update asks nothing and the next interactive one still can; `THINKER_TEST`
-  never prompts. Secrets never belong in the
-  repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
-  model, timeoutMs, searchTimeoutMs }` or is `false`; `enabled: "auto"` means hosted or direct
-  Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`
-  controls still apply, including `THINKER_JEV_TIMEOUT` (overrides both deadlines;
-  default search deadline 5000 ms, individual legacy scoring calls 1500 ms).
-  Any transport, quota, timeout or response-validation failure falls back to the
-  local ranking (installed cross-encoder for hooks, lexical otherwise). A low relevance score is a valid decision to omit a
-  note, not a service failure. Tests cannot call either production model path
-  unless they explicitly inject a transport, which only an in-process caller can
-  do: under `THINKER_TEST=1` a child process (a prompt hook, the MCP server)
-  falls back to the cross-encoder in silence. A benchmark that must measure the
-  shipped ranker there sets `THINKER_JEV_ALLOW_NETWORK=1`, which opens direct
-  access only alongside `THINKER_JEV=on` and a personal key, never hosted
-  enrollment (`jev.js:testNetworkAllowed`); the default stays closed.
-  `thinker ranker` reports the path, and the `orient` log line carries `jev`
-  beside `ce`.
-  A facet vector typed onto the notes was measured and rejected as a serving
-  signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
-  the notes' own attestation labels, and the `inert` flag would have suppressed
-  notes sessions were confirmed to act on.
 - Local storage: `.thinker/local/notes/` holds learned notes and is ignored by Git.
   Legacy `.thinker/notes/` files remain readable with local overlays, so upgrading
   does not discard existing notes or corrections. `transfer.js` backs up and
@@ -1016,9 +917,6 @@ review prompt.
   whether or not anything fits: on 16 grafana regression cases every review
   consulted exactly six related notes and none carried the signal, since the
   note that catches a regression arrives `direct`, by dep hash, in 16 of 16.
-  Jev narrowing a widened pool to the notes that bear on the change was shipped
-  2026-10-06 and taken out 2026-10-08 (see "Jev in review" below): a smaller
-  prompt, no reach, and the gates it came with cost more than it saved.
   `thinker maintain --dry`
   persists no statuses.
 - **Without a model** (`deterministicFindings`): a definition the change
@@ -1067,24 +965,6 @@ review prompt.
   nothing at all when only behaviors were consulted. "No findings" on such a
   change is not a clean bill. On 24 bug-introducing PostHog pull requests a
   note rested on the file holding the bug in one.
-- Jev in review, 2026-10-06 to 2026-10-08: `review.js:narrowRelated` kept the
-  related notes Jev judged to bear on the change, and `gates.js` asked Jev in
-  one call which optional steps the change was worth (`worth_reviewing`,
-  `callers`, `verify`, `chunks`, `tests`), with a thoroughness table recording
-  each decision. Measured on five Sol reviews with matched model and effort
-  (`research/jev-sol-opus-ten/`): related notes 26 → 6, the same 4 of 5 target
-  bugs caught, and the verify gate doubled the model calls, +86% tokens and
-  +54% time; the audit of those five verification calls found none withdrew a
-  finding. The published review results (15 of 16 planted and reverted bugs, 12
-  of 12 fix-note regressions on PostHog) were all made by the plain ensemble
-  without it, so on 2026-10-08 the user had it removed: `narrowRelated`,
-  `gates.js`, its test and `bench/jev-sol-review.mjs` are gone (git holds them
-  at `e2a2ff3` and `c5a4734`), `callers`, `verify` and `chunks` are caller
-  settings again, and the thoroughness record keeps only the verification
-  audit, rendered when a second look was made. Serving had gone the same day
-  (PR #134). Jev remains in the learning gates (`jev-decisions.js`). Do not
-  bring it back into review without a paired measurement on held-out cases
-  that separates note selection from verification.
 - Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
   `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
   one call with every consulted note, `nocache` is the same model with no
@@ -1335,91 +1215,38 @@ constructed input only. Seen in the live runs:
   agent can call `orient` at the start and `remember` at the end. In the
   test session it did both unprompted.
 
+## Jev, tried and removed
 
-## Jev learning decisions
+TypeSafe's Jev (System One: calibrated probabilities for typed questions, no
+generated text) was wired into thinker between 2026-10-06 and 2026-10-08 and
+taken out entirely on 2026-10-09, at the user's decision. It had ranked the
+servings (a hosted proxy on AWS, a personal-key path, `thinker ranker --jev-key`),
+narrowed the related notes and gated the optional steps of a review, typed the
+drift surface of every note for derived verify verdicts, chosen the passages a
+distillation saw, and gated what learning wrote: a catalog scan, a relation
+judgment against existing notes, grounding of every claim against the source,
+and a fidelity check of each search description, with a deferral queue under
+`.thinker/state/learning-pending/` for what the gates held back. The
+measurements are in `bench/RESULTS.md` ("Serving: Jev", "Derived verify
+verdicts", "Jev capture selection", "Current Jev versus historical cached
+runs") and under `research/jev-*`. What they showed: a strong offline serving
+result (2.5x the important notes reached at the same precision on 54 labelled
+tasks) that did not pay in live paired runs (costlier in 8 of 8 Click pairs); a
+smaller review prompt with the same catches and, with verification, 86% more
+tokens; archive triage and every intrinsic note facet at AUC ~0.50; capture
+selection that kept 0 of 13 reference facts at three times the tokens; learning
+gates whose thresholds discarded most proposals until retuned, with no paired
+measurement of the gated cache against a plain one. Only the external-tool
+re-baseline in verification was sound, and it covered 5% of stale notes.
 
-`src/jev-decisions.js` shares bounded typed requests, credentials, test transport
-guards, and learning-token accounting. `src/note-learning.js` scans catalog
-descriptions before writing and checks complete bodies for covered / extends /
-contradicts / unrelated relations, then checks proposed claims against source
-evidence. Session and PR commands call this before `saveNotes`; reconciled writes
-never fall back to lexical merging. Contradictions are deferred, not overwritten.
-Human behavior notes cannot be authored or replaced by these learning paths.
-
-The gates of `prepareNotes`, and their bars since 2026-10-07. Every one defers the
-note to `.thinker/state/learning-pending/` rather than writing it, so the bars are
-set so that uncertainty does not discard: discarding is the invisible outcome.
-1. The catalog scan (`selectLearningNotes`, `jev-reconcile-search`): one Noul per
-   live note, "should its full body be read before deciding", floor 0.6, at most
-   four candidates (was 0.35 and twelve: every probed note came back with the full
-   twelve, and each candidate is one more relation judgment below). The card is
-   the note's `search` description, or its whole body when it has no current one
-   (`note-search.js:searchText`), so an undescribed cache scans at several times
-   the cost; a rebuild phrases first.
-2. The relation (`jev-reconcile`, `note-learning.js:relation`): a Choice over
-   covered / extends / contradicts / unrelated, judged on complete bodies. Only a
-   verdict at 0.85 or above acts on an existing note: `covered` skips the proposal,
-   `contradicts` defers it for a person, `extends` merges it (the body must contain
-   the old body literally or a `preserves` Noul must reach 0.9; otherwise the
-   deferral carries the target in its diagnostics for the repair round). Anything
-   less is unrelated and the next candidate is judged. Until 2026-10-07 the chosen
-   option itself had to reach 0.85, `unrelated` included, and the first miss
-   discarded the note with no retry: on five deferred notes against this cache, 24
-   of 60 pairings fell under 0.85, eleven of them unrelated at 0.57-0.84, and all
-   five were lost; 694 relation judgments in one mining run reached ten grounding
-   calls. `extends` leading the distribution but under 0.85 does not act either:
-   the note is written as its own, since deferring it would lose it.
-3. Grounding (`jev-grounding`): each body line is a claim, judged against the
-   source evidence for support (`SUPPORT`, 0.7; was 0.9) and, independently, for
-   conflict (`CONFLICT`, 0.2, unchanged: a claim the source contradicts is the one
-   thing worth stopping for, and missing evidence is not a conflict). A line that
-   fails defers the note with the unsupported lines in its diagnostics.
-4. Metadata (`jev-grounding-metadata`): the title must not misrepresent the
-   grounded body and `applies` must not exceed it, each under 0.2.
-There is no repair round. Until 2026-10-07 pull request mining made one more
-writer call per pull request over the deferrals that carried diagnostics, with the
-same evidence, and checked the revised notes again; measured on this repository
-that day it ran 39 times, proposed 92 revised notes and saved 10, for about a third
-of the mining tokens, and the user had it removed. A deferral is a record in
-`.thinker/state/learning-pending/` for a person to inspect (the extension target
-travels with it), the queue has no consumer, and a pull request whose proposals
-were all deferred is still recorded as mined.
-
-A note's search description is checked against the note before it is kept
-(`src/summary-fidelity.js`): two Jev Nouls, support ("every claim is in the note") and scope ("the
-rule is stated no wider than the note states it"), both at or above `SUMMARY_FIDELITY_FLOOR`, 0.7 since
-2026-10-07. Scope asks about distortion, not completeness: a description may leave conditions and
-exceptions out, and fails only when it turns a conditional rule universal, reverses or loses a
-prohibition, or attaches a condition the note does not state. A description is matched against
-requests and never read as guidance (`jev.js:searchRecord`, `dense.js:ceText`, the learning catalog
-card), so an omission misleads nobody, while an overstated rule pulls the note for the wrong request.
-Until later on 2026-10-07 omission failed too ("drops or changes a material condition"), and on this
-repository's cache that refused 96 of 103 notes at a median scope of 0.41 while support sat at 0.88:
-the writer is told to stay shorter than the note, so a one-sentence description of a six-clause,
-one-line body dropped clauses by construction, and the rewrite, aimed at support ("drop every
-consequence"), shortened it further. The rewrite now names the check that refused it: a support
-refusal is told to drop unsupported claims, a scope refusal to keep every condition and cut
-consequences first (`ops.js:phraseNotes`, `generate` with `retry` counts). An accepted description
-clears an earlier `phraseRefused`. A description the judge refuses is written again once, told to stay inside the note; a second
-refusal is final, and `phraseRefused` records the key and the scores so maintenance leaves the note
-alone until its text changes, rather than paying the writer and the judge for the same refusal every
-run. The note keeps no description and ranks on its body, which is Jev's documented fallback. A check
-that could not run is different from a refusal: `unavailable` (a quota, a transport failure, the
-daily token cap) stores nothing and records nothing, leaving the note to a later run, since one
-capped build marked all 21 of its notes refused for reason `dailyTokens`.
-The floor was 0.9 and kept nothing: 0 of 38 descriptions written by a pinned Opus from mined notes,
-support 0.18 to 0.81. Two causes, measured in `research/phrase-length`. `phraseNotes` asked for
-"3 to 6 plain sentences" of notes whose bodies are one to three lines, so the writer padded, and
-padding is unsupported text; the length is proportional to the note now, and support rose from 0.625
-to 0.90 at the median. And 0.9 is above where this judge sits on faithful text anyway: scope stays
-near 0.86 whatever the length. At 0.7 with the retry, 37 of 38 are kept. `refineLearningPlan` in
-`src/learning-evidence.js` selects numbered source passages across eligible
-sessions; audit samples retain the full trace, failures retain local selection,
-and omitted evidence cannot become an unused assessment.
-
-Deferred findings live in `.thinker/state/learning-pending/`, with source
-references. Transient failures leave checkpoints/PRs eligible for retry.
-`THINKER_JEV=off` or `jev:false` disables these judgments alongside Jev search.
-`THINKER_TEST=1 node bench/jev-eval/learning-smoke.mjs --live` is an explicit
-synthetic integration check using only fictional constants and a personal key;
-never substitute private notes or transcripts without authorization.
+What stands in its place is what was there before: the hooks rank with the
+cross-encoder and the agent's `orient` and `lookup` by words; learning saves what
+the distiller proposes through `saveNotes` (lexical near-duplicate merging, named
+`extends` targets honoured), the distiller shown the notes resting on the files a
+session or pull request touched; `phraseNotes` keeps the description the writer
+returns; every stale note goes to the verify model. The deferral queue is still
+written for assessments of notes a session was shown but did not discuss
+(`learning-pending.js`). One daily token cap (`dailyTokens`) covers learning and
+maintenance. Git holds the removed code at `0cb765c`. Do not bring Jev back
+without a live paired measurement on held-out tasks; the offline labels were not
+predictive of session cost.

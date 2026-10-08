@@ -1,7 +1,0 @@
-{
-  "profile": "yoav",
-  "region": "us-east-1",
-  "account": "442899048927",
-  "stackName": "thinker-jev-proxy",
-  "secretName": "thinker/jev/upstream"
-}

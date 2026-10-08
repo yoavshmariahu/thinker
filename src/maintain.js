@@ -5,27 +5,22 @@
 // on the next activity after they are due, and are bounded by daily caps on the
 // tokens learning and maintenance may use, so it can run unattended. A cap counts the
 // tokens the model calls of learning and maintenance reported in the machine's log; a call
-// that reported none counts as zero. Generative answers and Jev's typed decisions are counted
-// against separate caps (`dailyTokens`, `dailyJevTokens`), since one call of each is nothing
-// alike in volume or in what pays for it. Tokens, not dollars: the agents run on subscriptions as
+// that reported none counts as zero. Tokens, not dollars: the agents run on subscriptions as
 // often as on metered keys, and a dollar figure from list prices misled more than it warned.
 import fs from 'node:fs';
 import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
-import { driftKey as driftKeyOf, driftStale, typeDrift } from './drift.js';
 import { readLog } from './usage.js';
-import { formatTokens, isJevUsage } from './model-usage.js';
+import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
   dailyTokens: 2_000_000, // tokens of reported generative model usage per day, learning and maintenance together (about 80 distillations); 0: no cap
-  dailyJevTokens: 10_000_000, // tokens of reported Jev usage per day, counted apart from dailyTokens (model-usage.js:isJevUsage); 0: no cap
   verifyPerRun: 10, // stale notes re-verified per run, most served first
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
-  driftPerRun: 40,  // notes typed with the surface they could break on per run (one batched Jev call)
   prs: true,        // distill pull requests merged since maintenance first ran here
   prsPerRun: 3,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
@@ -38,27 +33,15 @@ export function maintainConfig(store) {
   return { ...DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
 }
 
-// Tokens the learning and maintenance calls of one side reported since local midnight. The two sides
-// are counted apart (model-usage.js:isJevUsage): generative answers against `dailyTokens`, Jev's typed
-// decisions against `dailyJevTokens`, so neither can close the other's day.
-function spentSince(store, now, include) {
+// Tokens the model calls of learning and maintenance reported since local midnight.
+export function spentToday(store, now = new Date()) {
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const since = start.toISOString();
   let total = 0;
   for (const e of readLog(store)) {
-    if (e.t >= since && e.op === 'model' && ['learning', 'maintenance'].includes(e.phase) && include(e) && typeof e.tokens?.totalTokens === 'number') total += e.tokens.totalTokens;
+    if (e.t >= since && e.op === 'model' && ['learning', 'maintenance'].includes(e.phase) && typeof e.tokens?.totalTokens === 'number') total += e.tokens.totalTokens;
   }
   return total;
-}
-
-// Tokens the generative model calls of learning and maintenance reported since local midnight.
-export function spentToday(store, now = new Date()) {
-  return spentSince(store, now, e => !isJevUsage(e));
-}
-
-// The same for Jev's typed decisions, which have their own budget.
-export function jevSpentToday(store, now = new Date()) {
-  return spentSince(store, now, isJevUsage);
 }
 
 // The daily cap has always been documented as covering learning and maintenance together, but
@@ -70,16 +53,6 @@ export function withinDailyCap(store, { now = new Date(), spentFn = spentToday }
   const cfg = maintainConfig(store);
   const legacyOff = 'dailyCap' in cfg && !cfg.dailyCap && cfg.dailyTokens === DEFAULTS.dailyTokens;
   const cap = legacyOff ? 0 : Number(cfg.dailyTokens);
-  if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };
-  const spent = spentFn(store, now);
-  return { ok: spent < cap, spent, cap };
-}
-
-// The Jev budget. A typed decision asks this, never `withinDailyCap`: a day of distillation must not
-// stop the grounding and reconciliation checks that decide whether a note may be written at all, and
-// a day of catalog scans must not stop distillation. 0 means no cap.
-export function withinJevDailyCap(store, { now = new Date(), spentFn = jevSpentToday } = {}) {
-  const cap = Number(maintainConfig(store).dailyJevTokens);
   if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };
   const spent = spentFn(store, now);
   return { ok: spent < cap, spent, cap };
@@ -183,40 +156,18 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
           if (v.verdict === 'invalid') r.retired++;
           if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
           if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
-          if (v.derived) r.derived = (r.derived || 0) + 1; // settled in code; no model call was made
         } catch { r.errors++; }
       }
     } else r.capped = true;
     // 3. phrasings for notes that have none for their present text
     if (afford()) {
-      // A note whose description was refused twice for claiming more than the note establishes is
-      // left alone until the note itself changes: `phraseRefused.key` is the key it was refused for,
-      // so every run would otherwise pay the writer and the judge again for the same refusal.
       const need = store.list().filter(n => n.status !== 'invalid' && !n.archived
-        && (!n.says?.length || !n.search || n.saysFor !== phraseKey(n))
-        && n.phraseRefused?.key !== phraseKey(n)).slice(0, cfg.phrasePerRun);
+        && (!n.says?.length || !n.search || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
       if (need.length) {
         if (dry) r.phrased = need.length;
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
       }
     } else r.capped = true;
-    // 3b. the surface each note could break on, which verification and the routing above both read.
-    // One batched Jev call for many notes; a note is retyped when its own text changes (driftKey).
-    if (cfg.driftPerRun > 0 && (fns.typeDrift || typeDrift)) {
-      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && n.kind !== 'behavior' && driftStale(n)).slice(0, cfg.driftPerRun);
-      if (need.length) {
-        if (dry) r.typed = need.length;
-        else try {
-          const typed = await (fns.typeDrift || typeDrift)(store, need);
-          for (const t of typed) {
-            const cur = store.get(t.id);
-            // the note may have been corrected while the call was out; its key would no longer match
-            if (cur && t.surface && t.key === driftKeyOf(cur)) store.put({ ...cur, drift: { surface: t.surface, confidence: t.confidence, key: t.key } });
-          }
-          r.typed = typed.length;
-        } catch { r.errors++; }
-      }
-    }
     // 4. pull requests merged since maintenance first ran here; further back is `thinker mine-prs`
     if (cfg.prs && fns.minePrs) {
       if (!state.prsAfter) state.prsAfter = new Date().toISOString();

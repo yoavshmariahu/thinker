@@ -256,18 +256,16 @@ function jaccard(a, b) {
 
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
-export function saveNotes(store, notes, { source, kinds = KINDS, reconciled = false }) {
+export function saveNotes(store, notes, { source, kinds = KINDS }) {
   const existing = store.list();
-  const saved = [], merged = [], skipped = [], deferred = [];
-  for (const candidate of notes) {
-    const { learningTarget, ...n } = candidate;
+  const saved = [], merged = [], skipped = [];
+  for (const n of notes) {
     if (kindOf(n.kind) === 'behavior') { skipped.push({ title: n.title, reason: 'human behaviors cannot be created by automatic learning' }); continue; }
     if (KINDS.includes(kindOf(n.kind)) && !kinds.includes(kindOf(n.kind))) { skipped.push({ title: n.title, reason: `kind ${kindOf(n.kind)} is not served in this repository (archived by thinker archive)` }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);
     if (named && kindOf(named.kind) === 'behavior') { skipped.push({ title: n.title, reason: 'human behaviors cannot be overwritten by automatic learning' }); continue; }
-    if (reconciled && n.extends && (!named || learningTarget !== JSON.stringify({ id: named.id, kind: kindOf(named.kind), title: named.title, body: named.body, applies: named.applies || '' }))) { deferred.push({ title: n.title, note: n, reason: 'extension target changed after reconciliation', status: 'unavailable' }); continue; }
-    const dup = named || (!reconciled && existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && kindOf(e.kind) === kindOf(n.kind)));
+    const dup = named || existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && kindOf(e.kind) === kindOf(n.kind));
     if (dup) {
       if (named || (n.confidence ?? 0.7) >= (dup.confidence ?? 0.7) - 0.1 || dup.status !== 'fresh') {
         const r = createNote(store, { ...n, id: dup.id }, { source, reuseId: true });
@@ -281,7 +279,7 @@ export function saveNotes(store, notes, { source, kinds = KINDS, reconciled = fa
     if (r.error) skipped.push({ title: n.title, reason: r.error });
     else { saved.push(r.note); existing.push(r.note); }
   }
-  return { saved, merged, skipped, deferred, retryable: deferred.length > 0 };
+  return { saved, merged, skipped };
 }
 
 export function transcriptsFor(cwd) {

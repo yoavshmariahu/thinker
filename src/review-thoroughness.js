@@ -1,8 +1,8 @@
 // An audit of the review's second looks, not a claim that a second look establishes correctness.
 // The `verify` strategy re-checks every error and warning with another model call; this record
 // keeps what each check was shown and what it changed, so a person can judge whether the call
-// added evidence. Until 2026-10-08 it also recorded the Jev step gates that chose the optional
-// steps; those went with Jev (research/jev-sol-opus-ten: same catches, 86% more tokens).
+// added evidence. Until 2026-10-08 it also recorded model-chosen step gates; those were removed
+// (research/jev-sol-opus-ten: same catches, 86% more tokens).
 
 export function startThoroughness({ dry = false } = {}) {
   return { version: 2, assessment: 'unassessed', dry, verifications: [] };
