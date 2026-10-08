@@ -16,6 +16,21 @@ import { hasBin } from './agents.js';
 export const TOKENS_PER_AREA = 400_000;
 export const TOKENS_PER_PR = 14_000;
 
+// Build depth. `full` is what the build determines for this repository: every exploration area the
+// source is grouped into and the default count of merged pull requests. `shallow` is 30% of each,
+// taken from the front of the same order (areas by size and churn, pull requests newest and fixes
+// first), so a shallow build is the most valuable third of a full one, not a different build.
+export const SHALLOW_SHARE = 0.3;
+export const DEPTHS = ['full', 'shallow'];
+export function depthLimits(repo, { depth = 'full', areas, prs = 60, directories = null } = {}) {
+  if (depth !== 'shallow') return { areas, prs };
+  const n = areas === 0 ? 0 : planAreas(repo, { limit: areas, directories }).areas.length;
+  return {
+    areas: n ? Math.max(1, Math.ceil(n * SHALLOW_SHARE)) : areas,
+    prs: prs > 0 ? Math.max(1, Math.ceil(prs * SHALLOW_SHARE)) : prs,
+  };
+}
+
 export function estimateCacheBuild(repo, { areas, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null, directories = null } = {}) {
   let commitCount = 0;
   try {

@@ -1,4 +1,5 @@
 import { parseAreaLimit } from '../topology.js';
+import { DEPTHS } from '../setup/estimate.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
@@ -324,7 +325,9 @@ export async function setup(ctx) {
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
   // asking for a size is asking for the build; --no-build (or both --no-seed and --no-prs) is a no
-  const askedToBuild = Boolean(flags.build) || flags.areas !== undefined || flags.prs !== undefined;
+  const depth = typeof flags.depth === 'string' ? flags.depth : null;
+  if (depth && !DEPTHS.includes(depth)) { out(`--depth takes ${DEPTHS.join(' or ')}`); process.exit(2); }
+  const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.areas !== undefined || flags.prs !== undefined;
   const build = flags['no-build'] || (flags['no-seed'] && flags['no-prs']) ? false : (askedToBuild ? true : null);
 
   await runSetup({
@@ -339,6 +342,7 @@ export async function setup(ctx) {
     prs,
     prNumber: flags.pr ? Number(flags.pr) : null,
     build,
+    depth,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
     noSeed: Boolean(flags['no-seed']) || build === false,

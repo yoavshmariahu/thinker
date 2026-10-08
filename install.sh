@@ -20,6 +20,7 @@
 #   --no-build          do not build a cache; only wire up the hooks and the MCP server
 #   --no-seed           with --build: skip architectural subsystem exploration
 #   --areas <n>         with --build: cap exploration sessions (default: adaptive to selected source code)
+#   --depth <d>         with --build: full (default) or shallow, 30% of the full build
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
 #   --benchmark         run paired PR benchmark during setup
@@ -83,7 +84,7 @@ path_hint() {
 }
 
 main() {
-  local cache="" build="" areas="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; build=0; shift 2 ;;
@@ -92,6 +93,7 @@ main() {
       --no-seed) no_seed=1; shift ;;
       -y|--yes) yes=1; shift ;;
       --areas) areas="${2:-}"; shift 2 ;;
+      --depth) depth="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
       --pr) pr_target="${2:-}"; shift 2 ;;
       --benchmark) benchmark=1; shift ;;
@@ -123,6 +125,45 @@ main() {
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   say() { printf '%s\n' "$*"; }
   die() { printf 'thinker: %s\n' "$*" >&2; exit 1; }
+  # --- look: colors, boxes and spinners on a terminal, plain lines anywhere else --------------
+  local fancy=0 bold="" dim="" cyan="" green="" yellow="" red="" magenta="" reset=""
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ] && [ -z "${CI:-}" ]; then
+    fancy=1 bold=$'\033[1m' dim=$'\033[2m' cyan=$'\033[36m' green=$'\033[32m' yellow=$'\033[33m' red=$'\033[31m' magenta=$'\033[35m' reset=$'\033[0m'
+  fi
+  # box <color> <line>...: a rounded box 74 columns wide, as setup draws it; a line may carry color codes, padded on its plain text
+  box() {
+    local color="$1"; shift
+    local width=68 line plain
+    printf '%s╭%s╮%s\n' "$color" "$(printf '─%.0s' $(seq 1 $((width + 4))))" "$reset"
+    for line in "$@"; do
+      plain="$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')"
+      printf '%s│%s  %s%*s  %s│%s\n' "$color" "$reset" "$line" $((width - ${#plain})) "" "$color" "$reset"
+    done
+    printf '%s╰%s╯%s\n' "$color" "$(printf '─%.0s' $(seq 1 $((width + 4))))" "$reset"
+  }
+  # spin <label> <command...>: runs the command with a turning frame and the time so far, then a ✓ or ✗
+  # line; its output is kept and shown only if it fails. Off a terminal: the label, then the command.
+  spin() {
+    local label="$1"; shift
+    if [ "$fancy" != 1 ]; then say "  $label…"; "$@"; return; fi
+    local log; log="$(mktemp)"
+    "$@" >"$log" 2>&1 &
+    local pid=$! i=0 start=$SECONDS code=0
+    local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+    while kill -0 "$pid" 2>/dev/null; do
+      printf '\r\033[2K  %s%s%s %s %s· %ss%s' "$cyan" "${frames[$((i % 10))]}" "$reset" "$label" "$dim" "$((SECONDS - start))" "$reset"
+      i=$((i + 1)); sleep 0.1
+    done
+    wait "$pid" || code=$?
+    if [ "$code" -eq 0 ]; then
+      printf '\r\033[2K  %s✓%s %s %s· %ss%s\n' "$green" "$reset" "$label" "$dim" "$((SECONDS - start))" "$reset"
+    else
+      printf '\r\033[2K  %s✗%s %s\n' "$red" "$reset" "$label"
+      cat "$log" >&2
+    fi
+    rm -f "$log"
+    return "$code"
+  }
   # the GitHub CLI is optional: it is only asked for a token when none is set
   if [ -z "$token" ] && command -v gh >/dev/null; then token="$(gh auth token 2>/dev/null || true)"; fi
   # gh_fetch <api endpoint in the thinker repo> <output file>
@@ -168,14 +209,24 @@ main() {
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
   say ""
-  say "thinker"
-  say "Codebase knowledge for your coding agent"
+  if [ "$fancy" = 1 ]; then
+    local sparkle="${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
+    box "$cyan" "$sparkle  ${bold}${cyan}thinker${reset}  $sparkle" "${bold}A knowledge cache for coding & review agents${reset}" \
+      "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
+      "${dim}Learns from your merged fixes, flags the change that would undo one,${reset}" \
+      "${dim}and hands your coding agents what the repository already knows.${reset}"
+  else
+    say "thinker"
+    say "A knowledge cache for coding & review agents"
+  fi
   say ""
-  say "  Downloading release…"
   if [ -n "$dist" ]; then
     case "$dist" in https://*) ;; *) die "verified distributions must be downloaded over HTTPS" ;; esac
-    curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" || die "could not download $dist"
-    curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json" || die "could not download release manifest"
+    download_release() {
+      curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" &&
+        curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json"
+    }
+    spin "Downloading the release" download_release || die "could not download $dist or its release manifest"
     say "  Verifying download…"
     node --input-type=module - "$tmp/thinker.tgz" "$tmp/version.json" <<'JS'
 import fs from 'node:fs';
@@ -274,10 +325,9 @@ EOF
   # ranking by words alone, and the MCP server is left out (thinker connect registers it once npm ci has run).
   if command -v npm >/dev/null; then
     mcp=1
-    say "  Installing dependencies (the ranking runtime is most of it)…"
-    (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent) || die "npm ci failed in $home/app"
-    say "  Fetching the ranking model…"
-    "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
+    install_deps() { cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent; }
+    spin "Installing dependencies (the ranking runtime is most of it)" install_deps || die "npm ci failed in $home/app"
+    spin "Fetching the ranking model" "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
   else
     say "npm was not found: the dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev --ignore-scripts, then thinker ranker fetch and thinker connect). Notes are ranked by words alone until then."
     mcp=0
@@ -292,12 +342,21 @@ EOF
     [ "$mcp" = 1 ] || cargs="$cargs --no-mcp"
     # shellcheck disable=SC2086
     if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" connect $cargs < /dev/tty; else "$thinker" connect $cargs; fi
-    say ""
-    say "Installed thinker v$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?') into $home and wired it into your agents."
-    say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
-    say ""
-    say "  thinker setup"
+    local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
     path_hint
+    say ""
+    if [ "$fancy" = 1 ]; then
+      box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· thinker v$version${reset}" "" \
+        "Installed into $home and wired into your agents." \
+        "This is not a git repository, so no cache was set up here." \
+        "Inside a repository, run: ${cyan}thinker setup${reset}" "" \
+        "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
+    else
+      say "Install complete: thinker v$version, installed into $home and wired into your agents."
+      say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
+      say ""
+      say "  thinker setup"
+    fi
     exit 0
   fi
 
@@ -332,19 +391,21 @@ EOF
     [ "$build" = 1 ] && args="$args --build"
     [ "$no_seed" = 1 ] && args="$args --no-seed"
     [ -n "$areas" ] && args="$args --areas $areas"
+    [ -n "$depth" ] && args="$args --depth $depth"
     [ -n "$prs" ] && args="$args --prs $prs"
     [ -n "$pr_target" ] && args="$args --pr $pr_target"
     [ "$benchmark" = 1 ] && args="$args --benchmark"
     [ "$benchmark" = 0 ] && args="$args --no-benchmark"
   fi
+  # setup draws the closing box, so the PATH hint goes first; THINKER_INSTALLER keeps setup from
+  # drawing the opening box a second time
+  path_hint
   # shellcheck disable=SC2086
   if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then
-    "$thinker" setup $args --repo "$repo" < /dev/tty
+    THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo" < /dev/tty
   else
-    "$thinker" setup $args --repo "$repo"
+    THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo"
   fi
-
-  path_hint
 }
 
 main "$@"

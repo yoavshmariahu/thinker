@@ -2,15 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { formatTokens } from './model-usage.js';
+import { spinner, spinnerEnabled } from './setup/ui.js';
 
 export const oneLine = value => stripVTControlCharacters(String(value)).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim();
 
-// Keep terminal output bounded; retain individual results for troubleshooting.
-export function batchProgress({ dir, name, total, out, verbose = false, every = 5, intervalMs = 30_000 }) {
+// Keep terminal output bounded; retain individual results for troubleshooting. On a terminal the
+// item in progress is a live spinner line; elsewhere a heartbeat line every `intervalMs` says the
+// batch is still working.
+export function batchProgress({ dir, name, total, out, verbose = false, every = 5, intervalMs = 30_000, live = out === console.log && spinnerEnabled() }) {
   const file = path.join(dir, 'state', `${name.toLowerCase().replace(/\W+/g, '-')}-${Date.now()}-${process.pid}.jsonl`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify({ event: 'batch', name, total }) + '\n');
-  let completed = 0, saved = 0, empty = 0, failed = 0, current = '', timer;
+  let completed = 0, saved = 0, empty = 0, failed = 0, current = '', timer, spin = null;
   const reasons = new Map();
   const started = Date.now();
   const elapsed = () => `${Math.round((Date.now() - started) / 1000)}s`;
@@ -20,12 +23,17 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
     if (verbose) out(`        ${oneLine(JSON.stringify(record))}`);
   };
   return {
-    pause() { clearInterval(timer); },
+    pause() { clearInterval(timer); spin?.stop(); spin = null; },
     start(label) {
       current = oneLine(label).slice(0, 70);
       detail({ event: 'start', item: label });
-      if (completed === 0 || every === 1) out(`        ${name}: ${completed}/${total} processed · working on ${current}…`);
       clearInterval(timer);
+      if (live) {
+        const text = `${name}: ${completed}/${total} · working on ${current}`;
+        if (spin) spin.set(text); else spin = spinner(text, { indent: '        ' });
+        return;
+      }
+      if (completed === 0 || every === 1) out(`        ${name}: ${completed}/${total} processed · working on ${current}…`);
       timer = setInterval(() => out(`        ${status()} · still working on ${current} (${elapsed()} elapsed)`), intervalMs);
       timer.unref();
     },
@@ -46,6 +54,7 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
     // their usage; no dollar figure, since the agent's login may be a subscription
     finish({ retry, tokens = 0 } = {}) {
       clearInterval(timer);
+      spin?.stop(); spin = null;
       out(`        ${status()} · ${elapsed()}${tokens ? ` · ~${formatTokens(tokens)} tokens of ${name === 'Exploration' ? 'agent' : 'model'} usage` : ''}`);
       if (failed) {
         const summary = [...reasons].slice(0, 3).map(([reason, count]) => `${reason} (${count})`).join('; ');

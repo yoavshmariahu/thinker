@@ -40,8 +40,70 @@ export function box(lines, { title = '', width = 76, borderColor = 'cyan' } = {}
   return [bColor(topBorder), ...formattedLines, bColor(bottomBorder)].join('\n');
 }
 
+export const HEADLINE = 'A knowledge cache for coding & review agents';
+
+// The opening of `thinker setup` (and of the installer, which draws the same box in shell).
 export function banner() {
-  return `${c.bold(c.cyan('thinker'))}\n${c.dim('Codebase knowledge for your coding agent')}`;
+  return box([
+    `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('thinker'))}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`,
+    c.bold(HEADLINE),
+    c.magenta('~'.repeat(HEADLINE.length)),
+    '',
+    c.dim('Learns from your merged fixes, flags the change that would undo one,'),
+    c.dim('and hands your coding agents what the repository already knows.'),
+  ], { width: 74 });
+}
+
+// The close of `thinker setup`: one box that says clearly whether it is done, and what next.
+export function finishBox(lines, { ok = true } = {}) {
+  if (ok) lines = [...lines, '', `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold('all done · happy shipping')}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`];
+  return box(lines, { title: ok ? 'Setup complete' : 'Setup finished with items to review', width: 74, borderColor: ok ? 'green' : 'yellow' });
+}
+
+// A live line for work that takes a while: a turning frame, the label and the time so far, redrawn
+// in place on a terminal. Anything else written to the stream meanwhile clears the line first and
+// the spinner redraws below it. Off the terminal (a pipe, a test, CI) it draws nothing, so the
+// output stays the plain lines it was. `stop(final)` clears the line and prints `final` if given.
+const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+export function spinnerEnabled(stream = process.stdout) {
+  return Boolean(stream.isTTY) && !process.env.THINKER_TEST && process.env.TERM !== 'dumb' && !process.env.CI;
+}
+export function spinner(label, { stream = process.stdout, enabled = spinnerEnabled(stream), indent = '  ' } = {}) {
+  if (!enabled) return { active: false, set() {}, stop(final) { if (final) stream.write(final + '\n'); } };
+  // the stream's own `write` (process.stdout has it on the prototype): put back exactly as found
+  const own = Object.prototype.hasOwnProperty.call(stream, 'write') ? stream.write : undefined;
+  const write = stream.write.bind(stream);
+  const started = Date.now();
+  let text = label, i = 0, shown = false, stopped = false;
+  const clear = () => { if (shown) { write('\r\x1b[2K'); shown = false; } };
+  const draw = () => {
+    const secs = Math.round((Date.now() - started) / 1000);
+    const plain = `${indent}${FRAMES[0]} ${stripAnsi(text)} · ${formatDuration(secs)}`;
+    const cols = (stream.columns || 80) - 1;
+    const body = plain.length > cols ? `${stripAnsi(text)}`.slice(0, Math.max(10, cols - indent.length - 12)) + '…' : text;
+    write(`\r\x1b[2K${indent}${c.cyan(FRAMES[i++ % FRAMES.length])} ${body} ${c.dim('· ' + formatDuration(secs))}`);
+    shown = true;
+  };
+  stream.write = (chunk, ...rest) => { clear(); return write(chunk, ...rest); };
+  const timer = setInterval(draw, 100);
+  timer.unref?.();
+  draw();
+  return {
+    active: true,
+    set(next) { text = next; },
+    stop(final) {
+      if (stopped) return; stopped = true;
+      clearInterval(timer); clear();
+      if (own) stream.write = own; else delete stream.write;
+      if (final) write(final + '\n');
+    },
+  };
+}
+
+// Run `fn` under a spinner when `out` is the terminal; the result line replaces the spinner.
+export async function withSpinner(out, label, fn, { indent = '  ' } = {}) {
+  const spin = spinner(label, { indent, enabled: out === console.log && spinnerEnabled() });
+  try { return await fn(spin); } finally { spin.stop(); }
 }
 
 export function stepBanner(stepNum, totalSteps, title, subtitle = '') {

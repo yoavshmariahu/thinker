@@ -11,7 +11,7 @@ import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
-import { c, formatBytes, selectMenu } from './ui.js';
+import { c, formatBytes, selectMenu, withSpinner } from './ui.js';
 import { githubSlug } from './agents.js';
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
@@ -222,8 +222,7 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
 
   if (notes.length && !noPhrase && provider()) {
     try {
-      out('        Generating search phrasings…');
-      const res = await phraseNotes(store, notes, { model, phase: 'init' });
+      const res = await withSpinner(out, `Generating search phrasings for ${notes.length} notes`, () => phraseNotes(store, notes, { model, phase: 'init' }), { indent: '        ' });
       out(`        ${c.green('✔')} Search phrasings generated for ${res.done.length}/${notes.length} notes`);
     } catch (e) {
       warnings++;
@@ -232,7 +231,7 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
   }
 
   try {
-    const result = await proposeFn(store, { model });
+    const result = await withSpinner(out, 'Drafting desired behaviors from the strongest rules', () => proposeFn(store, { model }), { indent: '        ' });
     out(`        ${c.green('✔')} ${result.proposals.length} behavior drafts from ${result.sources} source notes; inspect with thinker system propose`);
   } catch (e) {
     warnings++;
@@ -255,10 +254,13 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
 // merged pull requests and explore its code now. Everything else setup does is free, and
 // declining leaves a working install whose cache grows from the user's own sessions.
 // Asked before the agent login flow, so nobody logs in for a step they did not want.
-export async function confirmCacheBuild({ estimates, agent, out = console.log }) {
+// Returns 'full', 'shallow' (30% of the full build, its most valuable part) or false.
+export async function confirmCacheBuild({ estimates, shallow = null, agent, out = console.log }) {
+  const cost = e => `${e.timing.formatted}${e.tokenEstimate > 0 ? `, ~${formatTokens(e.tokenEstimate)} tokens` : ''}`;
   const usage = estimates.tokenEstimate > 0 ? `, about ${c.cyan(`${formatTokens(estimates.tokenEstimate)} tokens`)} of your ${agent || 'agent'} usage` : '';
   out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional')}`);
-  out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
+  out(`    • Full: mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
+  if (shallow) out(`    • Shallow: the most valuable 30% of that (largest, most-changed areas; newest pull requests): ${c.cyan(cost(shallow))}`);
   printExplorationPlan(estimates, out);
   out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
   out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);
@@ -270,13 +272,15 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
     const choice = await selectMenu({
       items: [
         { label: 'Learn as you work · build from future sessions', value: 'later' },
-        { label: 'Build a cache now · use the estimate above', value: 'build' },
+        { label: `Full build · ${cost(estimates)}`, value: 'full' },
+        ...(shallow ? [{ label: `Shallow build · about 30% · ${cost(shallow)}`, value: 'shallow' }] : []),
       ],
       defaultIndex: 0,
       out,
     });
-    out(`  ${c.dim(choice?.value === 'build' ? 'Build a cache now' : 'Learn as you work')}`);
-    return choice?.value === 'build';
+    const picked = choice?.value === 'full' || choice?.value === 'shallow' ? choice.value : false;
+    out(`  ${c.dim(picked === 'full' ? 'Full build' : picked === 'shallow' ? 'Shallow build' : 'Learn as you work')}`);
+    return picked;
   } catch {
     out(`  ${c.dim('Cache not built. Run thinker setup --build any time.')}`);
     return false;
