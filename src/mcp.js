@@ -22,6 +22,9 @@ let repo = pinned ? findRepoRoot(pinned) : inRepo(process.cwd()) ? findRepoRoot(
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 const off = process.env.THINKER_MCP === 'off';
+// THINKER_NO_LEARN=1 switches off every learning path (cli.js): here the learning tools. Nothing
+// asks for them in any case (cache-guidance.js); they are there for an agent a person asks.
+const learn = !/^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // A repository where `thinker setup` has not run has no cache: the server offers no tools there and
 // creates nothing, so a machine-wide registration does not start a cache in every checkout.
 let store = off || !repo ? null : new Store(repo);
@@ -68,7 +71,7 @@ function registerTools() {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);
@@ -126,6 +129,7 @@ function registerTools() {
   // than some clients allow — and its findings need a person. `thinker review` has every capability
   // the tool had, verification runs included (--run, --start, --status). See "Reviewing a change"
   // in AGENTS.md and the README.
+  if (!learn) return;
   retrieval('remember', {
     title: 'Save a reusable note',
     description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: rule (what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and why), map (where something is handled, a call path, a module map), howto, behavior. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,

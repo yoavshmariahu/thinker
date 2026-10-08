@@ -10,8 +10,12 @@ export const CACHE_USAGE_GUIDE = `Use thinker as a map to the code, then do the 
 
 If these tools are listed as deferred names rather than callable tools, load them first (in Claude Code: ToolSearch \`select:mcp__thinker__orient,mcp__thinker__lookup,mcp__thinker__find,mcp__thinker__drilldown\`).`;
 
-// Benchmark runs expose only orient and lookup, so keep the learning tools separate.
-export const CACHE_LEARNING_GUIDE = `If a note was wrong, call feedback with its id and the correction. Save a reusable call path, rule, or gotcha with remember as soon as substantial investigation establishes it, while the evidence is in context. Include the reason, constraints, and concrete file:symbol dependencies. This is the primary learning path; background learning sees only selected evidence and may miss the discovery. Do not save a one-off task summary.`;
+// No guidance asks the agent to save or grade notes (decided 2026-10-08): learning happens offline,
+// in the background distillation of the session, never on the critical path of the task. Until then
+// the MCP instructions, the hook bundle and the workflow block all asked for `remember` and
+// `feedback`, and on the Click rerun of that day every Opus arm ended by saving a note, two turns
+// the baseline could not spend. The tools stay registered while learning is on, for an agent a
+// person asks to save something; nothing prompts them.
 
 export const MORE_NOTES_INTRO = 'Other cached titles. Use lookup only if one directly answers a question still open for this task:';
 
@@ -27,7 +31,6 @@ export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT } = {}) {
   const sections = [
     `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.`,
     CACHE_USAGE_GUIDE,
-    CACHE_LEARNING_GUIDE,
   ];
   const text = () => sections.join('\n\n');
   while (sections.length > 1 && text().length > limit) sections.pop();
@@ -46,7 +49,7 @@ export const cacheBundleIntro = ({ stale = false } = {}) =>
 // THINKER_MCP=off and THINKER_NO_LEARN=1 and to apply it only where .thinker/ exists: on the Click
 // canary a Codex agent spent its first turn running `printenv THINKER_MCP THINKER_NO_LEARN; test -d
 // .thinker` to comply. The hooks and the server enforce those switches; the agent never needs to.
-export function agentWorkflow({ cli, repo, mcp = true, learn = true } = {}) {
+export function agentWorkflow({ cli, repo, mcp = true } = {}) {  // `learn` is accepted and ignored: no line asks for notes
   const quote = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
   const command = cli ? `node ${quote(cli)}` : 'thinker';
   const suffix = repo ? ` --repo ${quote(repo)}` : '';
@@ -58,6 +61,5 @@ Use ${tools} as a map to the code, then do the work. If they are unavailable, co
 
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, ${call('orient', '"<task>"')} once.
 - Reach code through pointers before the first grep or file read: ${call('drilldown', '"path:Symbol"')} for a note's file:symbol pointers, ${call('find', '"<code terms or identifier>"')} for code no note maps. Ordinary search and reads are the fallback. ${call('lookup', '"<question or note id>"')} answers one question a note left open.
-- Then edit and test. Do not keep retrieving notes.
-${learn ? `- Save a reusable rule, call path or gotcha with ${mcp ? '`remember`' : call('add', '"<note.json>" --source agent') + ' (JSON with title, kind map/howto/rule, answers, body, deps)'} while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with ${mcp ? '`feedback` (its id, useful: false, the corrected body)' : call('feedback', '"<feedback.json>"') + ' (JSON with id, useful: false, correction)'}.` : '- Learning is disabled here: do not save notes or feedback.'}`;
+- Then edit and test. Do not keep retrieving notes.`;
 }

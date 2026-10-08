@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { updateInstructions } from '../src/agent-instructions.js';
-import { agentWorkflow, cacheInstructions, cacheBundleIntro, CACHE_LEARNING_GUIDE, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
+import { agentWorkflow, cacheInstructions, cacheBundleIntro, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
 import { installClient, refreshWiring, uninstallClients, uninstallWiring } from '../src/clients.js';
 import { piExtension } from '../src/integrations/pi.js';
 import { opencodePlugin } from '../src/integrations/opencode.js';
@@ -23,8 +23,9 @@ function fixture(t) {
 }
 const read = file => fs.readFileSync(file, 'utf8');
 function checkWorkflow(text, cliOnly = false) {
-  for (const name of ['orient', 'lookup', 'find', 'drilldown', 'feedback']) assert.ok(text.includes(name), name);
-  assert.ok(text.includes(cliOnly ? 'add ' : '`remember`'));
+  for (const name of ['orient', 'lookup', 'find', 'drilldown']) assert.ok(text.includes(name), name);
+  // nothing asks the agent to save or grade notes: learning is offline (2026-10-08)
+  assert.doesNotMatch(text, /remember|feedback/);
   // the four decisions, one line each; nothing about environment switches or whether .thinker/ exists,
   // which had a Codex agent spend its first turn checking them (the Click canary of 2026-10-07)
   assert.match(text, /Read an injected <thinker-cache> bundle first/);
@@ -116,8 +117,7 @@ test('disabled integrations and learning are respected, and CLI instructions quo
   assert.equal(fs.existsSync(path.join(config.repo, 'AGENTS.md')), false);
   installClient('codex', { ...config, mcp: false, learn: false });
   const text = read(path.join(config.repo, 'AGENTS.md'));
-  assert.match(text, /Learning is disabled/);
-  assert.doesNotMatch(text, /Use the Thinker MCP|call `remember`/);
+  assert.doesNotMatch(text, /Use the Thinker MCP|remember|feedback/);
   const oc = await opencodePlugin({ ...config, mcp: false })();
   const c = {}; await oc.config(c);
   assert.equal(c.mcp, undefined); assert.equal(c.instructions.length, 1);
@@ -171,14 +171,14 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
     const text = cacheInstructions({ repo });
     assert.ok(text.length <= INSTRUCTIONS_LIMIT, `${repo}: ${text.length}`);
     assert.ok(text.includes(repo));
-    assert.ok(text.endsWith(CACHE_LEARNING_GUIDE), `${repo} lost the learning guide`);
-    for (const name of ['orient', 'lookup', 'find', 'drilldown', 'remember', 'feedback']) assert.ok(text.includes(name), name);
+    assert.doesNotMatch(text, /remember|feedback/, 'no instruction asks the agent to save or grade notes');
+    for (const name of ['orient', 'lookup', 'find', 'drilldown']) assert.ok(text.includes(name), name);
     assert.match(text, /bears on the task/);
     assert.match(text, /before the first grep or file read/);
   }
   // A cap below one section drops whole sections rather than handing the host half a sentence.
   const tight = cacheInstructions({ repo: '/r', limit: 600 });
-  assert.ok(tight.length <= 600 && !tight.includes(CACHE_LEARNING_GUIDE));
+  assert.ok(tight.length <= 600 && !tight.includes('drilldown'));
   assert.match(cacheBundleIntro(), /match the working tree/);
   assert.match(cacheBundleIntro({ stale: true }), /STALE/);
   for (const t of [cacheBundleIntro(), cacheBundleIntro({ stale: true })]) {

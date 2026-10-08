@@ -94,6 +94,20 @@ const mcpSession = (cwd, extra = {}) => {
   const lines = r.stdout.split('\n').filter(Boolean).map(l => JSON.parse(l));
   return { init: lines.find(l => l.id === 1), tools: lines.find(l => l.id === 2)?.result?.tools ?? [] };
 };
+// No instruction asks the agent to save or grade notes, and with learning off the tools are not
+// there either: on the Click rerun of 2026-10-08 every Opus arm told learning was disabled still
+// ended by saving a note, because the server's own instructions asked it to.
+test('the MCP server never asks for notes, and THINKER_NO_LEARN=1 leaves remember and feedback out', t => {
+  const dir = fresh(t);
+  execFileSync(process.execPath, [CLI, 'setup', '--no-build', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook'], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
+  const on = mcpSession(dir, { THINKER_REPO: '', THINKER_NO_LEARN: '' });
+  assert.ok(on.tools.some(x => x.name === 'remember') && on.tools.some(x => x.name === 'feedback'));
+  assert.doesNotMatch(on.init.result.instructions, /remember|feedback/);
+  const off = mcpSession(dir, { THINKER_REPO: '', THINKER_NO_LEARN: '1' });
+  assert.deepEqual(off.tools.map(x => x.name).sort(), ['drilldown', 'find', 'lookup', 'orient']);
+  assert.doesNotMatch(off.init.result.instructions, /remember|feedback/);
+});
+
 test('the MCP server takes the repository from its working directory: tools where it is set up, none elsewhere', t => {
   const dir = fresh(t);
   execFileSync(process.execPath, [CLI, 'setup', '--no-build', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook'], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });

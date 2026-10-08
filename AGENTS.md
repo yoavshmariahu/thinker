@@ -6,7 +6,6 @@ Use the Thinker MCP tools (if they are listed as deferred, load them with the ho
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
 - Reach code through pointers before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps. Ordinary search and reads are the fallback. `lookup` answers one question a note left open.
 - Then edit and test. Do not keep retrieving notes.
-- Save a reusable rule, call path or gotcha with `remember` while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
 <!-- thinker:workflow:end -->
 
 # thinker: internals and working context
@@ -461,8 +460,14 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    is told that a rule about things changing together must name the
    mechanism (a generator, registry, schema, mirror or test), not list the
    files one session touched, since git history holds that already.
-2. **Agent-authored**: the `remember` MCP tool, for agents that finish
-   working something out.
+2. **Agent-authored**: the `remember` MCP tool, for an agent a person asks to
+   save something. Since 2026-10-08 no instruction asks for it: the MCP
+   server's instructions, the hook bundle and the workflow block all did, and
+   on the Click rerun of that day every Opus arm whose learning was switched
+   off still ended by saving a note, two turns the baseline could not spend.
+   Learning happens offline, in the distillation below, never on the critical
+   path of a task; with `THINKER_NO_LEARN=1` the server registers neither
+   `remember` nor `feedback`.
 3. **Human**: `thinker add note.json`.
 
 ## The learning loop
