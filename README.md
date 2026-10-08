@@ -7,6 +7,8 @@ curl -fsSL https://zerotime.dev/dist/install.sh | bash
 Run it inside a repository to set that repository up too. Requires git, curl, tar, Node 20+
 and a logged-in coding agent. [More on install](#install-and-start).
 
+Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
+
 Every merged fix leaves knowledge behind that the next change can quietly undo.
 `thinker` learns from your repository's merged pull requests, its fixes first,
 and keeps what it learns as short notes keyed to the code they describe. A
