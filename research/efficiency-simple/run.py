@@ -368,6 +368,17 @@ def measure(cohort, arm, task, seed=1):
     (OUT / 'raw' / f'{label}.patch').write_text(git(['diff', '--cached'], repo))
     row['served'] = servings(repo)
     row['cacheReached'] = arm == 'thinker' and row['served'] > 0
+    if arm == 'thinker':
+        # The same cache and prompt scored 0.44 at probe time and 0.06 during a Jev outage (2026-10-08,
+        # mitm-8196 on Sol): the 503s were refused above, the degraded 200s were not, and three thinker
+        # arms ran as baselines. A run whose prompt-time top score falls far below the probe's is refused.
+        probed = OUT / f'probe-{cohort}.json'
+        top = next((r.get('scores') or [None] for r in json.loads(probed.read_text()) if r['task'] == task['id']), [None])[0] if probed.exists() else None
+        rows = [json.loads(l) for l in (repo / '.thinker/log.jsonl').read_text().splitlines() if l.strip()] if (repo / '.thinker/log.jsonl').exists() else []
+        seen = next((r.get('jevTop') or [None] for r in rows if r.get('op') == 'orient' and r.get('client') != 'mcp'), [None])[0]
+        row['jevTopProbe'], row['jevTopRun'] = top, seen
+        if top is not None and seen is not None and top >= 0.5 and seen < top - 0.25:
+            raise SystemExit(f'{label}: Jev scored the cache at {seen} in the run against {top} at probe time; the ranking service is degraded, rerun later')
     if arm == 'thinker' and not row['served']:
         print(f'  {label}: WARNING the cache served nothing; this arm is a baseline', flush=True)
     record.write_text(json.dumps(row, indent=2) + '\n')
