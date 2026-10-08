@@ -3,6 +3,10 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## mitmproxy canary: the cache pays where its note holds the mechanism (2026-10-08)
+
+[Record](../research/efficiency-simple/CANARY-MITMPROXY-2026-10-08.md): a second repository, two caches of 120 mined commits, two tasks covered. **Where the served note held the mechanism of the code being changed (mitm-8196, Opus, three seeds) the cache arm was 27% cheaper in every seed; where the notes were merely nearby (mitm-8317, Sol) it was 65% costlier.** The other two pairs are invalid: one task's acceptance checks a list against a tuple the prompt never named, and under the Codex hook Jev scored the on-target note at 0.07 against 0.44 under the Claude-shaped probe on the same cache and prompt, an open question. Jev returned 503 five times during the run; the harness now refuses degraded rankings and retries.
+
 ## Click rerun on tasks that reopen a remembered fix (2026-10-08)
 
 [Record](../research/efficiency-simple/CANARY-2026-10-08.md): four Click pull requests whose changed definitions carry notes of the day's caches, three seeds per arm, Opus 5.5 through Claude Code and GPT-6.1 Sol through Codex. All 48 runs pass the upstream acceptance test; **the cache arm used more input tokens in eight of eight pairs**, +10% to +49%, with on-target notes and no contamination. Opus reached the edit at the same call and ran the tests more; Sol added `find`/`drilldown` calls before its edit rather than replacing reads. The gate caught every Opus arm saving a note at the end because the MCP server's instructions asked for it; learning is now never requested of the agent, the edit hook serves only rules on the definitions the edits changed, the learning tools are opt-in, and a request-complexity gate was measured and rejected (AUC 0.60). Next measurement: another repository.
