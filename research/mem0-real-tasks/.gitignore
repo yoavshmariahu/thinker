@@ -1,0 +1,16 @@
+raw/server.log
+raw/*-stdout.txt
+raw/*-stderr.txt
+raw/llm-*.json
+raw/preflight-pytest9/
+raw/*-suite.xml
+raw/*-acceptance.xml
+raw/*-suite.log
+raw/*-acceptance.log
+raw/thinker-tests.log
+# Full frozen traces, prompts, patches and gold code are in raw-evidence.tar.gz.
+raw/*
+!raw/protocol.json
+!raw/summary.json
+!raw/mem0-model-usage.json
+!raw/*-validation.json
