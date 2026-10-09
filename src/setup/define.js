@@ -48,6 +48,7 @@ export function behaviorSessionPrompt(store) {
   ];
   if (pending.length) L.push(`5. Go through the waiting drafts with me as well: for each, accept it (\`thinker system accept <id>\`, with \`--fixed\` if I want it blocking), or leave it for me to discard in \`thinker ui\`.`);
   L.push(`${pending.length ? '6' : '5'}. When we stop, run \`thinker system\` and summarize what we added. I can review and edit everything afterwards with \`thinker ui\`. If thinker was installed during this session, tell me to start a new agent session: its hooks and tools load when a session starts.`);
+  L.push(`${pending.length ? '7' : '6'}. Then offer me a first code review. Run \`gh pr list --state open --limit 10\` here (skip this step if gh is missing, not signed in, or there are no open pull requests) and ask whether I'd like to try \`thinker review\` on one of them. If I pick one and the working tree is clean, note the current branch, run \`gh pr checkout <number>\` and \`thinker review --base origin/<its base branch>\`, walk me through the findings, then check out the branch I was on again. If the working tree has uncommitted changes, do not switch branches: tell me to commit or stash first. Post nothing to the pull request. If the cache build is still running, say the review will know more once it finishes.`);
   L.push('', 'Start with the area you think matters most, and ask me your first question.');
   return L.join('\n');
 }

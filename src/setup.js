@@ -10,7 +10,9 @@ import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, exploreAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
 import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
-import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild } from './setup/steps.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild, openDashboard } from './setup/steps.js';
 import { stepPrBenchmark } from './setup/pr-benchmark.js';
 export * from './setup/ui.js';
 export * from './setup/agents.js';
@@ -55,9 +57,13 @@ export async function runSetup({
   seedFn,
   minePrsFn,
   checkAuthFn = checkAgentAuth,
+  dashboard = false,
+  openDashboardFn = openDashboard,
 }) {
   // Validate explicit/saved selections before setup writes agent settings.
   projectFromFlags(repo, projectFlags);
+  // first time here: no .thinker/config.json yet (store.init writes it), so the local page opens at the end
+  const firstSetup = !fs.existsSync(path.join(store.dir, 'config.json'));
   store.init();
   ignoreLocalState(store.dir);
 
@@ -215,6 +221,7 @@ export async function runSetup({
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
   done.push(c.dim('Notes and behaviors stay in .thinker/ here; Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
+  if (dashboard && firstSetup && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
 
   return { built: building, warnings: cacheRes.warnings || 0, error: buildError };
 }

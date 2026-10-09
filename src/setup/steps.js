@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
 import { linkNotes, phraseNotes } from '../ops.js';
 import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser } from '../clients.js';
@@ -119,6 +119,16 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
 }
 
 // Machine-local state in .thinker/ that no checkout should commit.
+// The local page, opened once when setup first sets a repository up: a detached `thinker ui --from-setup`
+// (commands/cache.js:uiCommand) that opens the browser itself and exits when nobody has used it for a while,
+// so setup still finishes and returns the terminal (or the agent's command) at once.
+export function openDashboard({ repo, cliPath, spawnFn = spawn }) {
+  try {
+    spawnFn(process.execPath, [cliPath, 'ui', '--from-setup', '--repo', repo], { cwd: repo, detached: true, stdio: 'ignore' }).unref();
+    return true;
+  } catch { return false; }
+}
+
 export function ignoreLocalState(dir) {
   const gi = path.join(dir, '.gitignore');
   const ignored = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';

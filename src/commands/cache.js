@@ -145,13 +145,24 @@ async function usageCommand(ctx) {
 }
 
 // `thinker ui`: the local page (ui/server.js) until Ctrl+C. Usage, the notes in the cache, and the desired behaviors with the
-// ones waiting for a decision.
+// ones waiting for a decision. --from-setup is how setup opens it (setup/steps.js:openDashboard): detached, with no
+// terminal to press Ctrl+C in, so it opens the browser itself, shows the page's how-to-come-back hint, and exits once
+// no request has come for UI_IDLE_MS.
+const UI_IDLE_MS = 30 * 60 * 1000;
 async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
   const { createUiServer, openBrowser, DEFAULT_PORT } = await import('../ui/server.js');
   const { box, c } = await import('../setup/ui.js');
   const ui = createUiServer(store);
-  const { url, port } = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
+  const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
+  const { port } = listening;
+  if (flags['from-setup']) {
+    openBrowser(`${listening.url}&from=setup`);
+    await new Promise(resolve => { const t = setInterval(() => { if (ui.idleMs() > UI_IDLE_MS) { clearInterval(t); resolve(); } }, 60 * 1000); });
+    await ui.close();
+    return;
+  }
+  const { url } = listening;
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
