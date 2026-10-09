@@ -49,7 +49,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
   setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
-        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo]
+        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--behaviors | --no-behaviors]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from the code and merged pull requests with pre-flight estimates, and
@@ -101,6 +101,8 @@ const HELP = `thinker — knowledge cache for coding agents
   system accept <id…> [--fixed | --mutable]
                                  accept a behavior an agent proposed (remember with kind behavior)
   system propose                 review behavior drafts and rule notes that could be promoted
+  system define [--no-copy]      print (and copy) a prompt for your coding agent: it interviews you about how each
+                                 part of the system must behave and saves only the behaviors you approve
   system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
@@ -149,6 +151,8 @@ const HELP = `thinker — knowledge cache for coding agents
   impact link-review <run-id> --pr n   attach an earlier local review to its PR
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
+  ui [--port n] [--no-open]       open the local page: usage, and the system behaviors (accept, edit or discard the
+                                 ones waiting, describe new ones); 127.0.0.1 only, Ctrl+C stops it
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
@@ -176,7 +180,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
+const CACHE_COMMANDS = ['ui', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };

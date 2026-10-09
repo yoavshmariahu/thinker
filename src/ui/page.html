@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thinker · local</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
+  <style>
+    /* The public site's look (site/index.html, site/docs.html): white, near-black text, system type,
+       gray kickers, #fafafa cards with a #e5e7eb hairline, green for gains, the paired bars. */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%; width: 100%; overflow-x: hidden;
+      background: #ffffff; color: #111111;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    }
+    code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    button, input, textarea, select { font-family: inherit; }
+
+    nav {
+      position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+      padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .brand { display: flex; align-items: baseline; gap: 0.45rem; }
+    .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
+    .brand-sub { font-size: 0.85rem; color: #6b7280; }
+    .nav-right { display: flex; gap: 0.35rem; }
+    .nav-link {
+      color: #444444; background: transparent; font-size: 0.85rem; font-weight: 500;
+      padding: 0.45rem 0.75rem; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+      transition: all 0.15s ease; letter-spacing: -0.01em; line-height: 1.2;
+    }
+    .nav-link:hover { color: #000; background: #f5f5f5; }
+    .nav-link.active { color: #000; background: #fff; border-color: #e5e7eb; }
+    .count { display: inline-block; margin-left: 0.35rem; min-width: 1.2rem; padding: 0 0.35rem; border-radius: 999px; background: #111; color: #fff; font-size: 0.7rem; line-height: 1.2rem; text-align: center; }
+
+    main { max-width: 980px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
+    h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
+    .lede { font-size: 0.95rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
+    .kicker { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
+    .section { margin-top: 2.25rem; }
+    .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .section-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
+    .muted { color: #6b7280; }
+    .gain { color: #15803d; font-weight: 600; }
+    .loss { color: #b45309; font-weight: 600; }
+
+    .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 1.4rem; }
+    .seg { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px; background: #fafafa; }
+    .seg button { border: none; background: transparent; padding: 0.38rem 0.75rem; border-radius: 6px; font-size: 0.8rem; color: #444; cursor: pointer; }
+    .seg button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 500; }
+
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
+    @media (max-width: 860px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+    .card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.2rem 1rem; min-width: 0; }
+    .metric-num { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1; color: #111; font-variant-numeric: tabular-nums; }
+    .metric-num.gain { color: #15803d; }
+    .metric-label { font-size: 0.8rem; color: #444; margin-top: 0.5rem; line-height: 1.4; }
+    .metric-rows { list-style: none; margin-top: 0.8rem; padding-top: 0.7rem; border-top: 1px solid #ebebeb; display: flex; flex-direction: column; gap: 0.32rem; }
+    .metric-rows li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.76rem; color: #6b7280; font-variant-numeric: tabular-nums; }
+    .metric-rows li span:last-child { color: #111; font-weight: 600; white-space: nowrap; }
+
+    /* paired bars, as in the site's benchmark modal */
+    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.74rem; color: #6b7280; margin-bottom: 0.75rem; }
+    .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; background: #111; margin-right: 0.35rem; vertical-align: middle; }
+    .swatch.before { background: #b4b4bb; }
+    .bench-rows { display: flex; flex-direction: column; gap: 0.9rem; }
+    .bench-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 120px; gap: 0 1rem; align-items: center; }
+    .bench-model-name { font-size: 0.86rem; font-weight: 600; letter-spacing: -0.01em; }
+    .bench-model-sub { font-size: 0.72rem; color: #9ca3af; margin-top: 0.1rem; }
+    .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .bar { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem; align-items: center; gap: 0.5rem; height: 16px; font-size: 0.74rem; color: #444; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bar i { display: block; height: 10px; width: var(--w); max-width: 100%; border-radius: 0 4px 4px 0; background: #111; }
+    .bar.before i { background: #b4b4bb; }
+    .bar.after { color: #111; font-weight: 600; }
+    .bench-delta { text-align: right; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; color: #15803d; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bench-delta.flat { color: #6b7280; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.2rem 1.3rem; }
+    .note-line { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin-top: 0.9rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* behaviors */
+    .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .chip { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 999px; padding: 0.32rem 0.75rem; font-size: 0.78rem; cursor: pointer; transition: all 0.15s ease; }
+    .chip:hover { background: #f5f5f5; color: #000; }
+    .chip.on { background: #111; border-color: #111; color: #fff; }
+    .search { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.42rem 0.7rem; font-size: 0.82rem; min-width: 220px; outline: none; }
+    .search:focus { border-color: #111; }
+    .list { display: flex; flex-direction: column; gap: 0.85rem; margin-top: 1rem; }
+    .bcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.25rem; }
+    .bcard.waiting { background: #fff; border-color: #d4d4d8; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+    .bcard-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+    .btitle { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; }
+    .bbody { font-size: 0.86rem; color: #333; line-height: 1.6; margin-top: 0.55rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bbody code, .meta code { font-size: 0.8em; background: #f0f0f2; border-radius: 4px; padding: 0.05rem 0.3rem; }
+    .meta { font-size: 0.76rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.55; overflow-wrap: anywhere; }
+    .meta b { color: #444; font-weight: 600; }
+    .pill { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 0.18rem 0.55rem; white-space: nowrap; border: 1px solid #e5e7eb; color: #444; background: #fff; }
+    .pill.fixed { background: #111; color: #fff; border-color: #111; }
+    .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
+    .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
+    .pill.ok { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.95rem; }
+    .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
+    .btn:hover { background: #222; }
+    .btn.ghost { background: #fff; color: #111; border-color: #d4d4d8; }
+    .btn.ghost:hover { border-color: #111; }
+    .btn.text { background: transparent; border-color: transparent; color: #991b1b; }
+    .btn.text:hover { background: #fef2f2; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.75rem; }
+    .field label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
+    .field input, .field textarea, .field select { border: 1px solid #d4d4d8; border-radius: 8px; padding: 0.55rem 0.7rem; font-size: 0.88rem; line-height: 1.5; outline: none; background: #fff; color: #111; }
+    .field textarea { min-height: 120px; resize: vertical; font-size: 0.85rem; }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color: #111; }
+    .empty { text-align: center; color: #6b7280; font-size: 0.88rem; padding: 2.2rem 1rem; border: 1px dashed #e5e7eb; border-radius: 10px; }
+    .describe { margin-top: 1.4rem; }
+    .describe textarea { min-height: 70px; }
+
+    .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #111; color: #fff; font-size: 0.84rem; padding: 0.6rem 1rem; border-radius: 8px; opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 50; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.err { background: #991b1b; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d4d4d8; border-top-color: #111; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.4rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 640px) {
+      nav { padding: 0.85rem 1rem; }
+      main { padding: 1.5rem 1rem 3rem; }
+      h1 { font-size: 1.5rem; }
+      .bench-row { grid-template-columns: minmax(0, 1fr) 104px; row-gap: 0.35rem; }
+      .bench-row > div:first-child { grid-column: 1 / -1; }
+      .bcard-top { flex-direction: column; }
+      .pills { justify-content: flex-start; }
+      .search { min-width: 0; width: 100%; }
+      .brand-sub { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub" id="repo-name">/ local</span></div>
+    <div class="nav-right">
+      <button class="nav-link active" data-tab="usage">Usage</button>
+      <button class="nav-link" data-tab="behaviors">System behaviors<span class="count" id="wait-count" hidden></span></button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Usage -->
+    <section id="tab-usage">
+      <div class="kicker">On this machine</div>
+      <h1>How the cache is working for you</h1>
+      <p class="lede">What was served to your agents, what they acted on, what was learned, and what it cost in tokens. Read from your local log; nothing leaves this machine.</p>
+      <div class="controls">
+        <div class="seg" id="scope-seg"><button data-scope="here" class="on">This repository</button><button data-scope="all">All repositories</button></div>
+        <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
+      </div>
+      <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+    </section>
+
+    <!-- Behaviors -->
+    <section id="tab-behaviors" hidden>
+      <div class="kicker">System behaviors</div>
+      <h1>The rules every change must keep</h1>
+      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> flags a change that breaks one; a <b>fixed</b> behavior blocks it. Drafts and agent proposals are not requirements until you accept them.</p>
+      <div class="controls">
+        <div class="chips" id="chips"></div>
+        <input class="search" id="search" placeholder="Search behaviors">
+      </div>
+      <div class="list" id="b-list"></div>
+
+      <div class="describe panel">
+        <div class="kicker">Define them with your coding agent</div>
+        <p class="bbody" style="margin-top:0.2rem;color:#444">The best way to write behaviors down is a conversation: your agent asks you how each part of the system must behave, drafts each rule against the code, and saves only the ones you approve.</p>
+        <div class="actions"><button class="btn" id="session-copy">Copy the interview prompt</button><span class="muted" style="font-size:0.8rem;align-self:center">Paste it into a new session of your agent in this repository.</span></div>
+      </div>
+
+      <div class="describe panel">
+        <div class="kicker">Or describe one in your own words</div>
+        <div class="field"><textarea id="describe-text" placeholder="e.g. Test runs never send telemetry."></textarea></div>
+        <div class="actions"><button class="btn" id="describe-go">Draft it against the code</button><span class="muted" id="describe-status" style="font-size:0.8rem;align-self:center"></span></div>
+        <div id="describe-draft"></div>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+
+<script>
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get('t') || sessionStorage.getItem('thinker-token') || '';
+try { if (TOKEN) sessionStorage.setItem('thinker-token', TOKEN); } catch {}
+const api = async (p, body) => {
+  const r = await fetch(p, { method: body ? 'POST' : 'GET', headers: { 'x-thinker-token': TOKEN, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// path:Symbol pointers in a body read as code
+const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
+const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
+const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+let toastTimer;
+function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2600); }
+
+// tabs
+document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
+function show(tab) {
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-behaviors').hidden = tab !== 'behaviors';
+  history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}`);
+  if (tab === 'behaviors') loadBehaviors(); else loadUsage();
+}
+
+// ---- usage -------------------------------------------------------------------------------
+let scope = 'here', days = 30;
+document.querySelectorAll('#scope-seg button').forEach(b => b.onclick = () => { scope = b.dataset.scope; segOn('#scope-seg', b); loadUsage(); });
+document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
+function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
+
+async function loadUsage() {
+  try { renderUsage(await api(`/api/usage?scope=${scope}${days ? `&days=${days}` : ''}`)); }
+  catch (e) { $('#usage-body').innerHTML = `<div class="empty">Could not read usage: ${esc(e.message)}</div>`; }
+}
+function card(kicker, num, label, rows, gain) {
+  return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
+}
+function pairRow(name, sub, a, b, fmtv) {
+  const max = Math.max(a, b) || 1, d = a ? Math.round(100 * (b - a) / a) : 0;
+  return `<div class="bench-row"><div><div class="bench-model-name">${esc(name)}</div><div class="bench-model-sub">${esc(sub)}</div></div>
+    <div class="bench-bars"><div class="bar before"><i style="--w:${100 * a / max}%"></i>${fmtv(a)}</div><div class="bar after"><i style="--w:${100 * b / max}%"></i>${fmtv(b)}</div></div>
+    <div class="bench-delta${d >= 0 ? ' flat' : ''}">${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}%</div></div>`;
+}
+function renderUsage(u) {
+  const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
+  const served = Object.values(u.servings || {}).reduce((a, b) => a + b, 0);
+  const learned = (u.learned?.notes || 0) + (u.learned?.prNotes || 0);
+  const v = u.verified || {};
+  let h = `<div class="cards">
+    ${card('Notes served', fmt(served), `${fmt(u.notesServed)} distinct notes, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)]])}
+    ${card('Acted on', pct(as.confirmed || 0, judged), `of the servings sessions were judged on: the agent used the note`, [['Acted on', fmt(as.confirmed || 0)], ['Corrected by the session', fmt(as.contradicted || 0)], ['Not used', fmt(as.unused || 0)]], true)}
+    ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], ['Notes in this cache', fmt(u.notesInCache)]])}
+    ${card('Kept current', fmt((v.still_valid || 0) + (v.update || 0) + (v.invalid || 0)), `re-checks after the code under a note changed`, [['Still valid', fmt(v.still_valid || 0)], ['Rewritten', fmt(v.update || 0)], ['Retired', fmt(v.invalid || 0)]])}
+    ${card('Model usage', fmt(u.spending.tokens), `tokens for learning, upkeep and review, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
+    ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
+  </div>`;
+  const ho = u.holdout;
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">Measured on your own sessions</div><div class="section-title">With notes, against sessions that had them withheld</div></div></div><div class="panel">`;
+  if (ho && ho.enough && ho.served?.sessions && ho.heldOut?.sessions) {
+    h += `<div class="bench-legend"><span><i class="swatch before"></i>notes withheld</span><span><i class="swatch"></i>with notes</span></div><div class="bench-rows">
+      ${pairRow('Tool calls', 'median per session', ho.heldOut.toolCalls || 0, ho.served.toolCalls || 0, fmt)}
+      ${pairRow('Input tokens', 'median per session', ho.heldOut.inputTokens || 0, ho.served.inputTokens || 0, fmt)}
+    </div><div class="note-line">${ho.served.sessions} sessions with notes, ${ho.heldOut.sessions} held out. A share of sessions is served nothing on purpose so this can be measured; few sessions make for a noisy median.</div>`;
+  } else {
+    h += `<div class="note-line" style="margin-top:0">Not enough sessions yet: the comparison appears once five sessions stand on each side (${ho?.served?.sessions || 0} with notes, ${ho?.heldOut?.sessions || 0} held out so far).</div>`;
+  }
+  h += `</div></div>`;
+  if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${scope === 'all' ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${scope === 'all' ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;
+  if (scope === 'all' && u.repos?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">By repository</div><div class="section-title">Where thinker is working</div></div></div><div class="panel"><table><thead><tr><th>Repository</th><th class="num">Requests</th><th class="num">Served</th><th class="num">Learned</th><th class="num">Tokens</th></tr></thead><tbody>${u.repos.map(r => `<tr><td>${esc(String(r.repo).replace(/^github\.com\//, ''))}</td><td class="num">${fmt(r.requests)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.learned)}</td><td class="num">${fmt(r.tokens)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  $('#usage-body').innerHTML = h;
+}
+
+// ---- behaviors ---------------------------------------------------------------------------
+let B = { active: [], pending: [] }, filter = 'waiting', query = '', editing = null;
+const FILTERS = [
+  ['waiting', 'Waiting for you', b => b.waiting],
+  ['active', 'In force', b => !b.waiting],
+  ['fixed', 'Fixed', b => !b.waiting && b.mutability === 'fixed'],
+  ['mutable', 'Mutable', b => !b.waiting && b.mutability !== 'fixed'],
+  ['attention', 'Needs attention', b => !b.waiting && (b.state === 'violated' || b.state === 'unverified')],
+  ['all', 'All', () => true],
+];
+$('#search').oninput = e => { query = e.target.value.toLowerCase(); renderBehaviors(); };
+
+async function loadBehaviors() {
+  try {
+    const r = await api('/api/behaviors');
+    B = r; $('#repo-name').textContent = `/ ${r.repo}`;
+    const n = r.pending.length; const c = $('#wait-count'); c.hidden = !n; c.textContent = n;
+    if (filter === 'waiting' && !n) filter = 'active';
+    renderBehaviors();
+  } catch (e) { $('#b-list').innerHTML = `<div class="empty">Could not read behaviors: ${esc(e.message)}</div>`; }
+}
+function all() { return [...B.pending.map(b => ({ ...b, waiting: true })), ...B.active.map(b => ({ ...b, waiting: false }))]; }
+function renderBehaviors() {
+  const items = all();
+  $('#chips').innerHTML = FILTERS.map(([k, label, f]) => `<button class="chip${k === filter ? ' on' : ''}" data-f="${k}">${label} · ${items.filter(f).length}</button>`).join('');
+  document.querySelectorAll('.chip').forEach(c => c.onclick = () => { filter = c.dataset.f; editing = null; renderBehaviors(); });
+  const f = FILTERS.find(x => x[0] === filter)[2];
+  const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
+  if (!shown.length) {
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'Nothing is waiting for a decision. Describe a behavior below, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet.'}</div>`;
+    return;
+  }
+  $('#b-list').innerHTML = shown.map(bcard).join('');
+  wire();
+}
+function pills(b) {
+  if (b.waiting) return `<span class="pill wait">Waiting · ${b.origin === 'draft' ? 'build draft' : 'agent proposal'}</span>`;
+  const st = b.state === 'violated' ? `<span class="pill bad">Violated</span>` : b.state === 'unverified' ? `<span class="pill wait">Unverified</span>` : `<span class="pill ok">Holds</span>`;
+  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability}</span>`;
+}
+function bcard(b) {
+  const key = (b.waiting ? 'p:' : 'a:') + b.id;
+  if (editing === key) return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">
+    <div class="kicker">${b.waiting ? 'Edit, then accept' : 'Edit behavior'}</div>
+    <div class="field"><label>Title</label><input data-in="title" value="${esc(b.title)}"></div>
+    <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea data-in="body">${esc(b.body)}</textarea></div>
+    <div class="field"><label>When a change breaks it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Mutable · review warns</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Fixed · review blocks the change</option></select></div>
+    <div class="actions"><button class="btn" data-act="save">${b.waiting ? 'Save and accept' : 'Save'}</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div>`;
+  const meta = [
+    b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
+    b.waiting ? `<b>${b.origin === 'draft' ? 'Drafted from' : 'From'}</b> ${esc(b.evidence)}` : `<b>Origin</b> ${esc(b.origin)}`,
+    b.waiting && b.reason ? `<b>Why</b> ${esc(b.reason)}` : '',
+    !b.waiting && b.state === 'violated' ? `<b>Broken since</b> ${esc(b.since || '?')}: ${esc(b.reason)}` : '',
+    !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
+  ].filter(Boolean).join('<br>');
+  const actions = b.waiting
+    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as fixed</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
+    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">Make ${b.mutability === 'fixed' ? 'mutable' : 'fixed'}</button>`;
+  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}"><div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
+    <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
+}
+function wire() {
+  document.querySelectorAll('.bcard').forEach(el => {
+    const key = el.dataset.key, b = all().find(x => (x.waiting ? 'p:' : 'a:') + x.id === key);
+    el.querySelectorAll('[data-act]').forEach(btn => btn.onclick = async () => {
+      const act = btn.dataset.act;
+      if (act === 'edit') { editing = key; return renderBehaviors(); }
+      if (act === 'cancel') { editing = null; return renderBehaviors(); }
+      btn.disabled = true;
+      try {
+        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as fixed: review now blocks a change that breaks it' : 'Accepted: review now flags a change that breaks it'); }
+        else if (act === 'discard') { await api('/api/behaviors/discard', { id: b.id }); toast('Discarded'); }
+        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(`Now ${b.mutability === 'fixed' ? 'mutable' : 'fixed'}`); }
+        else if (act === 'save') {
+          const v = k => el.querySelector(`[data-in="${k}"]`).value;
+          if (b.waiting) await api('/api/behaviors/accept', { id: b.id, title: v('title'), body: v('body'), mutability: v('mutability') });
+          else await api('/api/behaviors/edit', { id: b.id, title: v('title'), body: v('body'), mutability: v('mutability') });
+          toast(b.waiting ? 'Saved and accepted' : 'Saved');
+        }
+        editing = null; await loadBehaviors();
+      } catch (e) { btn.disabled = false; toast(e.message, true); }
+    });
+  });
+}
+
+// describe one: the agent drafts it against the code, the person accepts it
+$('#describe-go').onclick = async () => {
+  const text = $('#describe-text').value.trim(); if (!text) return;
+  const go = $('#describe-go'); go.disabled = true; $('#describe-status').innerHTML = '<span class="spinner"></span>Finding where the code upholds it…'; $('#describe-draft').innerHTML = '';
+  try {
+    const { draft } = await api('/api/behaviors/describe', { text });
+    $('#describe-status').textContent = draft.deps.length ? '' : `The code shown does not uphold it yet: ${draft.question}`;
+    const body = draft.body + (draft.deps.length ? '' : `\nUpheld at ${draft.candidates?.[0] || 'path:Symbol'}.`);
+    $('#describe-draft').innerHTML = `<div class="bcard waiting" style="margin-top:1rem"><div class="kicker">Draft · edit anything before you accept</div>
+      <div class="field"><label>Title</label><input id="d-title" value="${esc(draft.title)}"></div>
+      <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea id="d-body">${esc(body)}</textarea></div>
+      ${draft.candidates?.length ? `<div class="meta"><b>Closest code</b> ${draft.candidates.slice(0, 6).map(p => `<code>${esc(p)}</code>`).join(' ')}</div>` : ''}
+      <div class="actions"><button class="btn" id="d-accept">Accept</button><button class="btn ghost" id="d-fixed">Accept as fixed</button><button class="btn text" id="d-discard">Discard</button></div></div>`;
+    const save = async m => {
+      try { await api('/api/behaviors/create', { title: $('#d-title').value, body: $('#d-body').value, deps: draft.deps, mutability: m }); toast('Saved as a ' + m + ' behavior'); $('#describe-draft').innerHTML = ''; $('#describe-text').value = ''; filter = 'active'; loadBehaviors(); }
+      catch (e) { toast(e.message, true); }
+    };
+    $('#d-accept').onclick = () => save('mutable'); $('#d-fixed').onclick = () => save('fixed');
+    $('#d-discard').onclick = () => { $('#describe-draft').innerHTML = ''; };
+  } catch (e) { $('#describe-status').textContent = 'Could not draft it: ' + e.message; }
+  go.disabled = false;
+};
+
+$('#session-copy').onclick = async () => {
+  try {
+    const { prompt } = await api('/api/behaviors/session-prompt');
+    await navigator.clipboard.writeText(prompt);
+    toast('Copied. Paste it into your coding agent.');
+  } catch (e) { toast('Could not copy: ' + e.message, true); }
+};
+
+const startTab = new URLSearchParams(location.hash.slice(1)).get('tab') || 'usage';
+show(startTab);
+api('/api/behaviors').then(r => { $('#repo-name').textContent = `/ ${r.repo}`; const c = $('#wait-count'); c.hidden = !r.pending.length; c.textContent = r.pending.length; }).catch(() => {});
+</script>
+</body>
+</html>

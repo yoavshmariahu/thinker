@@ -343,6 +343,7 @@ export async function setup(ctx) {
     prNumber: flags.pr ? Number(flags.pr) : null,
     build,
     depth,
+    behaviors: flags.behaviors ? true : flags['no-behaviors'] ? false : null,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
     noSeed: Boolean(flags['no-seed']) || build === false,
