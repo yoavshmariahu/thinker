@@ -28,7 +28,7 @@ function mainAreas(repo, max = 8) {
 // interview starts at once. Left out when the repository is set up and its cache has notes.
 function setupStep(store) {
   const build = `start \`thinker setup --build --yes --no-behaviors\` as a background command and do not wait for it: it reads the merged pull requests into the cache and takes several minutes. It can be stopped any time and keeps what it saved. Start the interview now, and tell me when it finishes.`;
-  if (!store) return [`0. Set thinker up here first. If the repository root has no .thinker/ folder, run \`thinker setup --yes --no-build --no-behaviors\` (a few seconds: it connects the agents and creates the cache, which \`thinker system add\` needs). Then, if the cache has no notes yet, ${build}`];
+  if (!store) return [`0. Set thinker up here first. Behaviors belong to one repository: if this folder is not inside a git repository, ask me which repository to set up and work there. If the repository root has no .thinker/ folder, run \`thinker setup --yes --no-build --no-behaviors\` (a few seconds: it connects the agents and creates the cache, which \`thinker system add\` needs). Then, if the cache has no notes yet, ${build}`];
   if (!store.list().length) return [`0. The cache has no notes yet: ${build}`];
   return [];
 }
@@ -43,11 +43,11 @@ export function behaviorSessionPrompt(store) {
     ...setupStep(store),
     `1. Get oriented first. Run \`thinker system\` for the behaviors already in force${active ? ` (${active.length} now)` : ''}${pending.length ? ` and \`thinker system propose\` for the ${pending.length} drafts waiting for my decision` : ''}. Skim the main areas of the code${areas.length ? `: ${areas.join(', ')}` : ''}.`,
     `2. Interview me, one area at a time. Ask two or three short questions per area about how it must behave: what users and other systems rely on, security and privacy rules, data that must never be lost or exposed, how failures must be handled, limits and defaults that matter, and anything that broke before and must not break again. Ask, then wait for my answer. Do not assume an answer from the code: the code says what it does, I say what it must do.`,
-    `3. For each rule we agree on, find where the code upholds it (thinker's find and drilldown tools, or search) and show me a draft: a title stating the requirement, two to five sentences, the path:Symbol pointers that enforce it, and whether it should be fixed (a change that breaks it is blocked) or mutable (a change that breaks it gets a warning). Say plainly if no code enforces it yet.`,
+    `3. For each rule we agree on, find where the code upholds it (thinker's find and drilldown tools; in a session started before thinker was installed, the \`thinker find\` and \`thinker drilldown\` commands; or search) and show me a draft: a title stating the requirement, two to five sentences, the path:Symbol pointers that enforce it, and whether it should be fixed (a change that breaks it is blocked) or mutable (a change that breaks it gets a warning). Say plainly if no code enforces it yet.`,
     `4. Save a behavior only after I say yes to that draft. Write it as JSON, {"title": ..., "body": ..., "answers": [two or three ways someone would ask about it], "deps": [{"path": ..., "symbol": ...}]}, to a temporary file, then run \`thinker system add <file> --fixed\` or \`--mutable\`. Never save one I have not approved, and never weaken or remove an existing behavior unless I ask.`,
   ];
   if (pending.length) L.push(`5. Go through the waiting drafts with me as well: for each, accept it (\`thinker system accept <id>\`, with \`--fixed\` if I want it blocking), or leave it for me to discard in \`thinker ui\`.`);
-  L.push(`${pending.length ? '6' : '5'}. When we stop, run \`thinker system\` and summarize what we added. I can review and edit everything afterwards with \`thinker ui\`.`);
+  L.push(`${pending.length ? '6' : '5'}. When we stop, run \`thinker system\` and summarize what we added. I can review and edit everything afterwards with \`thinker ui\`. If thinker was installed during this session, tell me to start a new agent session: its hooks and tools load when a session starts.`);
   L.push('', 'Start with the area you think matters most, and ask me your first question.');
   return L.join('\n');
 }
