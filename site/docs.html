@@ -727,7 +727,7 @@
           <div class="loop-step">
             <span class="step-badge">1</span>
             <h4>Build</h4>
-            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first, and one exploration session per source area.</p>
+            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">2</span>
@@ -753,8 +753,8 @@
         <pre><code><span class="code-comment"># Connect the agents, then ask whether to build the cache</span>
 thinker setup
 
-<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60)
-# and exploration sessions sized to the source (--areas n caps them)</span>
+<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60);
+# --areas n also has your agent explore n source areas</span>
 thinker setup --build
 
 <span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
@@ -848,13 +848,13 @@ thinker setup --build --yes</code></pre>
       <section id="build">
         <h2>Building the cache</h2>
         <p>
-          <code>thinker setup --build</code> fills the cache from two sources, and prints what it will cost in tokens and minutes before spending anything:
+          <code>thinker setup --build</code> fills the cache from merged pull requests, and prints what it will cost in tokens and minutes before spending anything. Ctrl-C stops it at any time and keeps every note saved so far; the cache keeps growing from your sessions and a few merged pull requests per background run.
         </p>
         <ul>
           <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a review draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
-          <li><strong>Exploration sessions sized to the source.</strong> The source is grouped into areas by size and structure, an agent is sent through each, and what it worked out is distilled into maps and howtos. <code>--areas n</code> caps the number of sessions and names the areas left out.</li>
+          <li><strong>Exploration sessions, only when asked.</strong> With <code>--areas n</code> (or <code>thinker seed</code>) the source is grouped into areas by size and structure, an agent is sent through up to n of them, and what it worked out is distilled into maps and howtos. It costs far more per note than mining, so a build leaves it out by default.</li>
         </ul>
-        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, more areas</span>
+        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, and explore 20 areas</span>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
 thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
         <p>

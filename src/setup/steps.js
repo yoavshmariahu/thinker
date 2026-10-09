@@ -151,8 +151,12 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
     out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
     if (estimates.tokenEstimate > 0) {
-      out(`    • ${c.bold('Agent usage:')}       ${c.dim(`~${formatTokens(estimates.tokenEstimate)} tokens through your ${agent || provider()} login, most of them cached prompt reads`)}`);
+      out(`    • ${c.bold('Agent usage:')}       ${c.dim(`~${formatTokens(estimates.tokenEstimate)} tokens through your ${agent || provider()} login`)}`);
     }
+    // notes are saved, and each change marked mined, as it finishes (src/commands/learn.js:minePrs)
+    out(`    • ${c.bold('Stop any time:')}      ${c.dim('Ctrl-C keeps every note saved so far, and the cache works with whatever it has.')}`);
+    out(`      ${c.dim('It keeps growing as you work, from your sessions and a few merged PRs per background run;')}`);
+    out(`      ${c.dim('thinker mine-prs continues the mining where it stopped.')}`);
   } else {
     out(`  ${c.bold('Not reading the code or the pull requests now.')} ${c.dim('thinker setup --build does that.')}`);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
@@ -209,7 +213,7 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
   } else {
     const reason = !building
       ? 'not building the cache now'
-      : noSeed ? '--no-seed requested'
+      : noSeed ? 'off unless --areas n; thinker seed runs it any time'
       : (!agent ? 'no authenticated agent available' : 'run `thinker seed` any time');
     out(`  ${c.dim(`[2/3] Subsystem exploration · Skipped (${reason})`)}`);
   }

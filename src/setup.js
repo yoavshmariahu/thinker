@@ -130,13 +130,13 @@ export async function runSetup({
       yes,
       out,
       purpose: 'build the knowledge cache',
-      actionName: 'subsystem exploration',
+      actionName: effectiveNoSeed ? 'PR mining' : 'PR mining and code exploration',
       allowSkip: false,
     checkAuthFn,
     });
     if (!authResult.ok) {
       // the repository is already wired up by step 1: say what was not built, and go on
-      out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the code and the merged pull requests needs an authenticated agent.`);
+      out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the merged pull requests needs an authenticated agent.`);
       out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}', then: ${c.cyan('thinker setup --build')}`);
       out(`    ${c.dim('thinker is set up either way; without a built cache it grows from your own sessions.')}\n`);
       buildError = authResult.error;

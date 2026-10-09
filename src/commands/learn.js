@@ -425,7 +425,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null } = {}) {
+export async function minePrs(ctx, slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -461,9 +461,12 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
   let tokens = 0, saved = 0;
-  for (const pr of prs) {
+  // a few changes at once: each is one independent model call, and a setup run mines dozens
+  const queue = [...prs];
+  const mineOne = async pr => {
     const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
-    progress.start(pr.hash ? `commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
+    const item = pr.hash ? `commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`;
+    progress.start(item);
     try {
       const accounting = { store, phase, pr: pr.number, dry: !!dry };
       if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; PR will retry');
@@ -472,7 +475,7 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       const existing = store.list().filter(n => n.status !== 'invalid' && (n.deps || []).some(d => touched.has(d.path))).slice(0, 12);
       const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
       tokens += r.tokens || 0;
-      if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ proposed: r.notes }); continue; }
+      if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ item, proposed: r.notes }); return; }
       const source = { type: 'pr', ref: refId };
       // Persist incompleteness before any note can be saved: a process interruption
       // must not let legacy note-source inference turn a partial PR into a success.
@@ -480,9 +483,13 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       if (directories) recordMinedPrs(store, recSlug, [], { failed: [pr] });
       const s2 = saveNotes(store, r.notes, { source, kinds: distillKinds(store) });
       saved += s2.saved.length + s2.merged.length;
-      progress.complete({ ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
-    } catch (e) { failed.add(pr.number); progress.complete({ ref: refId, title: pr.title, error: e.message }); }
-  }
+      // mined as soon as its notes are saved, so an interrupted run does not pay for this change again
+      recordMinedPrs(store, scopeKey, [pr]);
+      if (directories) recordMinedPrs(store, recSlug, [pr]);
+      progress.complete({ item, ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
+    } catch (e) { failed.add(pr.number); progress.complete({ item, ref: refId, title: pr.title, error: e.message }); }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, prs.length)) }, async () => { while (queue.length) await mineOne(queue.shift()); }));
   // PRs the filter passed over are recorded too; failed ones and candidates deferred by the limit are not, so the next run takes them again
   if (!dry) {
     const completed = listed.filter(p => !failed.has(p.number) && !deferred.has(p.number));
