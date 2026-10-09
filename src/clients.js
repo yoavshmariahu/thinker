@@ -299,7 +299,16 @@ const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?:
 const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
 const commandOf = g => (g?.hooks ? g.hooks[0] : g)?.command;
-const codexMcpScript = text => { const a = text.indexOf(TOML_START), b = a < 0 ? -1 : text.indexOf(TOML_END, a); if (a < 0 || b < 0) return null; const m = text.slice(a, b).match(/^args = \[(.*)\]$/m); try { return m ? JSON.parse(`[${m[1]}]`).map(String).find(x => /mcp\.js$/.test(x)) || null : null; } catch { return null; } };
+// The script of thinker's Codex MCP entry: the managed block, or a bare [mcp_servers.thinker] table.
+// Codex rewrites config.toml when hooks are trusted and drops comments, the block's markers with
+// them; the table it keeps is still thinker's server (installClient leaves such a table as it is).
+const codexMcpScript = text => {
+  const a = text.indexOf(TOML_START), b = a < 0 ? -1 : text.indexOf(TOML_END, a);
+  let table = a >= 0 && b >= 0 ? text.slice(a, b) : null;
+  if (table === null) { const m = text.match(/^\[mcp_servers\.thinker\]\s*\n((?:(?!\[).*\n?)*)/m); if (!m) return null; table = m[1]; }
+  const m = table.match(/^args = \[(.*)\]$/m);
+  try { return m ? JSON.parse(`[${m[1]}]`).map(String).find(x => /mcp\.js$/.test(x)) || null : null; } catch { return null; }
+};
 
 // What one client's files say about how thinker was wired in, at `scope`: null when it was not.
 // `scripts` are the thinker scripts the entries run; `custom` names a command the installer
