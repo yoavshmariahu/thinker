@@ -46,7 +46,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 ```bash
 thinker review --base origin/main   # check this branch against the notes and behaviors
 thinker system define               # interview prompt for writing system behaviors
-thinker ui                          # local page: usage, and behaviors to accept or edit
+thinker ui                          # local page: usage, the cache, behaviors to accept or edit
 thinker benchmark                   # compare your agent with and without the cache
 thinker usage --here                # what the cache cost and what it saved
 ```

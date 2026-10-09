@@ -15,13 +15,14 @@ system, drafts each behavior against the code, and saves only the ones you appro
 
 ```bash
 thinker system define   # the interview prompt for your coding agent
-thinker ui              # usage, and the behaviors: accept, edit or discard the ones waiting
+thinker ui              # usage, the cache, and the behaviors: accept, edit or discard the ones waiting
 ```
 
-`thinker ui` opens a local page with two views: how the cache has been used (notes
-served, what agents acted on, what was learned, the tokens it cost, and the holdout
-comparison), and the system behaviors, filtered by waiting, in force, fixed, mutable or
-needing attention. Drafts from a build and behaviors an agent saved wait there until you
+`thinker ui` opens a local page with three views, each for one repository or all of
+them: how the cache has been used (notes served, what agents acted on, what was learned,
+the tokens it cost, and the holdout comparison), the notes in the cache (filter, search,
+archive or restore), and the system behaviors, filtered by proposed, active, blocking,
+warn only, or broken or unverified. Drafts from a build and behaviors an agent saved wait there until you
 accept them as written, edit them, or discard them; until then review does not hold a
 change to them. The page listens on 127.0.0.1 only and reads and writes nothing but
 this machine's cache.
