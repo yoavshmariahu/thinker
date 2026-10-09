@@ -150,7 +150,7 @@ async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
   const { createUiServer, openBrowser, DEFAULT_PORT } = await import('../ui/server.js');
   const { box, c } = await import('../setup/ui.js');
-  const ui = createUiServer(store, { model: flags.model });
+  const ui = createUiServer(store);
   const { url, port } = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,

@@ -123,7 +123,6 @@
     .field input:focus, .field textarea:focus, .field select:focus { border-color: #111; }
     .empty { text-align: center; color: #6b7280; font-size: 0.88rem; padding: 2.2rem 1rem; border: 1px dashed #e5e7eb; border-radius: 10px; }
     .describe { margin-top: 1.4rem; }
-    .describe textarea { min-height: 70px; }
 
     .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #111; color: #fff; font-size: 0.84rem; padding: 0.6rem 1rem; border-radius: 8px; opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -182,13 +181,6 @@
         <div class="kicker">Define them with your coding agent</div>
         <p class="bbody" style="margin-top:0.2rem;color:#444">The best way to write behaviors down is a conversation: your agent asks you how each part of the system must behave, drafts each rule against the code, and saves only the ones you approve.</p>
         <div class="actions"><button class="btn" id="session-copy">Copy the interview prompt</button><span class="muted" style="font-size:0.8rem;align-self:center">Paste it into a new session of your agent in this repository.</span></div>
-      </div>
-
-      <div class="describe panel">
-        <div class="kicker">Or describe one in your own words</div>
-        <div class="field"><textarea id="describe-text" placeholder="e.g. Test runs never send telemetry."></textarea></div>
-        <div class="actions"><button class="btn" id="describe-go">Draft it against the code</button><span class="muted" id="describe-status" style="font-size:0.8rem;align-self:center"></span></div>
-        <div id="describe-draft"></div>
       </div>
     </section>
   </main>
@@ -353,29 +345,6 @@ function wire() {
     });
   });
 }
-
-// describe one: the agent drafts it against the code, the person accepts it
-$('#describe-go').onclick = async () => {
-  const text = $('#describe-text').value.trim(); if (!text) return;
-  const go = $('#describe-go'); go.disabled = true; $('#describe-status').innerHTML = '<span class="spinner"></span>Finding where the code upholds it…'; $('#describe-draft').innerHTML = '';
-  try {
-    const { draft } = await api('/api/behaviors/describe', { text });
-    $('#describe-status').textContent = draft.deps.length ? '' : `The code shown does not uphold it yet: ${draft.question}`;
-    const body = draft.body + (draft.deps.length ? '' : `\nUpheld at ${draft.candidates?.[0] || 'path:Symbol'}.`);
-    $('#describe-draft').innerHTML = `<div class="bcard waiting" style="margin-top:1rem"><div class="kicker">Draft · edit anything before you accept</div>
-      <div class="field"><label>Title</label><input id="d-title" value="${esc(draft.title)}"></div>
-      <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea id="d-body">${esc(body)}</textarea></div>
-      ${draft.candidates?.length ? `<div class="meta"><b>Closest code</b> ${draft.candidates.slice(0, 6).map(p => `<code>${esc(p)}</code>`).join(' ')}</div>` : ''}
-      <div class="actions"><button class="btn" id="d-accept">Accept</button><button class="btn ghost" id="d-fixed">Accept as fixed</button><button class="btn text" id="d-discard">Discard</button></div></div>`;
-    const save = async m => {
-      try { await api('/api/behaviors/create', { title: $('#d-title').value, body: $('#d-body').value, deps: draft.deps, mutability: m }); toast('Saved as a ' + m + ' behavior'); $('#describe-draft').innerHTML = ''; $('#describe-text').value = ''; filter = 'active'; loadBehaviors(); }
-      catch (e) { toast(e.message, true); }
-    };
-    $('#d-accept').onclick = () => save('mutable'); $('#d-fixed').onclick = () => save('fixed');
-    $('#d-discard').onclick = () => { $('#describe-draft').innerHTML = ''; };
-  } catch (e) { $('#describe-status').textContent = 'Could not draft it: ' + e.message; }
-  go.disabled = false;
-};
 
 $('#session-copy').onclick = async () => {
   try {
