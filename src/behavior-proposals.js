@@ -70,10 +70,20 @@ export async function generateBehaviorProposals(store, { model, limit = 12, comp
   return { proposals, sources: notes.length, skipped: (r.json?.proposals || []).length - proposals.length };
 }
 
-export function acceptBehaviorProposal(store, id, { fixed = false } = {}) {
+// `edit`: the person's own title and body. A draft accepted as written must still stand on its source
+// note and code; one a person rewrote is theirs, so it needs only to point at code that exists.
+export function acceptBehaviorProposal(store, id, { fixed = false, edit = null } = {}) {
   const proposals = listBehaviorProposals(store);
   const p = proposals.find(x => x.id === id);
   if (!p) return { error: 'no such behavior proposal' };
+  const edited = edit && ((edit.title && edit.title.trim() !== p.title) || (edit.body && edit.body.trim() !== p.body));
+  if (edited) {
+    const r = addBehavior(store, { title: (edit.title || p.title).trim(), body: (edit.body || p.body).trim(), answers: p.answers, deps: p.deps },
+      { mutability: fixed ? 'fixed' : 'mutable', source: { type: 'human', proposedFrom: p.sourceId, evidence: p.source, edited: true } });
+    if (r.error) return r;
+    writeProposals(store, proposals.filter(x => x.id !== id));
+    return r;
+  }
   const source = store.get(p.sourceId);
   if (!source) return { error: 'source note is missing; regenerate proposals' };
   if (sourceHash(source) !== p.sourceHash || checkNote(store.repo, source).changed.length) return { error: 'source note or code changed; regenerate proposals' };
@@ -84,7 +94,21 @@ export function acceptBehaviorProposal(store, id, { fixed = false } = {}) {
   const r = addBehavior(store, { title: p.title, body: p.body, answers: p.answers, deps: p.deps },
     { mutability: fixed ? 'fixed' : 'mutable', source: { type: 'human', proposedFrom: p.sourceId, evidence: p.source } });
   if (r.error) return r;
-  fs.writeFileSync(fileOf(store), JSON.stringify({ generatedAt: new Date().toISOString(),
-    proposals: proposals.filter(x => x.id !== id) }, null, 2) + '\n');
+  writeProposals(store, proposals.filter(x => x.id !== id));
   return r;
+}
+
+function writeProposals(store, proposals) {
+  fs.mkdirSync(store.localDir, { recursive: true });
+  fs.writeFileSync(fileOf(store), JSON.stringify({ generatedAt: new Date().toISOString(), proposals }, null, 2) + '\n');
+}
+
+// A person decided a draft is not a requirement: it leaves the list and is not drafted again until
+// the build drafts afresh.
+export function discardBehaviorProposal(store, id) {
+  const proposals = listBehaviorProposals(store);
+  if (!proposals.some(x => x.id === id)) return { error: 'no such behavior proposal' };
+  writeProposals(store, proposals.filter(x => x.id !== id));
+  store.log({ op: 'behavior', id, action: 'discard-draft' });
+  return { discarded: id };
 }

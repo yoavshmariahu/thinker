@@ -848,13 +848,13 @@ thinker setup --build --yes</code></pre>
       <section id="build">
         <h2>Building the cache</h2>
         <p>
-          <code>thinker setup --build</code> fills the cache from two sources, and prints what it will cost in tokens and minutes before spending anything:
+          <code>thinker setup --build</code> fills the cache from merged pull requests, and prints what it will cost in tokens and minutes before spending anything. Ctrl-C stops it at any time and keeps every note saved so far; the cache keeps growing from your sessions and a few merged pull requests per background run.
         </p>
         <ul>
           <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a review draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
-          <li><strong>One exploration session per source area.</strong> An agent is sent through each area (12 by default) and what it worked out is distilled into maps and howtos.</li>
+          <li><strong>Exploration sessions, only when asked.</strong> With <code>--areas n</code> (or <code>thinker seed</code>) the source is grouped into areas by size and structure, an agent is sent through up to n of them, and what it worked out is distilled into maps and howtos. It costs far more per note than mining, so a build leaves it out by default.</li>
         </ul>
-        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, more areas</span>
+        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, and explore 20 areas</span>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
 thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
         <p>
@@ -894,10 +894,10 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
       <section id="review">
         <h2>Reviewing a change</h2>
         <p>
-          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. The MCP tool <code>review</code> is the same thing for an agent before it commits.
+          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. It runs from the command line, before a commit or on a pull request.
         </p>
         <p>
-          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Across 100 reversed historical fixes in seven open-source repositories, Thinker caught 91% versus 67% without the cache. This includes one failed baseline response counted as a miss; the cache had learned the target fixes. The benchmark modal shows percentages by model and explains the scoring.
+          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Across 100 tests in seven open-source repositories, each a fix reversed so the change brings its bug back, review with Thinker missed 73% fewer bugs than the same model without it. The cache had learned the fixes being tested. The benchmark modal shows the results by model and explains the scoring.
         </p>
         <pre><code>thinker review                      <span class="code-comment"># the working tree against HEAD</span>
 thinker review --staged             <span class="code-comment"># what is about to be committed</span>
@@ -1034,7 +1034,7 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
         <div class="gh-legend">
           <div class="gh-legend-item">
             <span class="gh-tag tag-agent">supplied by the agent</span>
-            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, its open questions, and acceptance criteria linked to named tests (<code>task.json</code> on the CLI, the <code>review</code> tool over MCP). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
+            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, its open questions, and acceptance criteria linked to named tests (<code>task.json</code>). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
           </div>
           <div class="gh-legend-item">
             <span class="gh-tag tag-runner">observed by the runner</span>
@@ -1094,7 +1094,7 @@ thinker review --state src/auth/    <span class="code-comment"># no change: the 
         <h3>What the proof establishes</h3>
         <p>A named test pass establishes that the test ran successfully on the captured snapshot. Thinker labels its reading of the assertions and code as a model assessment, and calls out skipped or unobserved tests, missing criterion coverage, and possible weakening of test or CI gates. The reviewer decides whether that evidence covers the request.</p>
         <p>This is practical correctness evidence with an explicit scope. It is not a mathematical proof, a signed CI attestation, or a guarantee that every edge case is covered. Ordinary <code>thinker review --post</code> posts a code assessment without executing tests; use <code>--run</code> or a completed verification run for execution evidence. Your existing CI checks still apply.</p>
-        <p><a href="https://github.com/yoavshmariahu/thinker/blob/main/docs/task-verification.md">Execution contract, MCP usage, and full verification reference &rarr;</a></p>
+        <p><a href="https://github.com/yoavshmariahu/thinker/blob/main/docs/task-verification.md">Execution contract and full verification reference &rarr;</a></p>
       </section>
 
       <section id="ci">
@@ -1137,12 +1137,12 @@ thinker system md                   <span class="code-comment"># write them as .
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets relevant notes, with the code behind their pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol they name. A local ranking model reads the request with the best lexical candidates and keeps those it scores relevant, one by default; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves one note, only when it scores it relevant; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
         <p>
-          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task, made fewer tool calls and finished faster, with correctness held. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
+          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
         </p>
       </section>
 
@@ -1159,7 +1159,6 @@ thinker system md                   <span class="code-comment"># write them as .
               <tr><td><code>lookup</code></td><td>One specific question, or a note by id; <code>kind: "behavior"</code> for the desired behaviors</td></tr>
               <tr><td><code>find</code></td><td>The definitions whose name or body carry the words of a query, as pointers with their lines, when no note answers it</td></tr>
               <tr><td><code>drilldown</code></td><td>A definition whole, with one hop of callers and callees and the notes resting on it</td></tr>
-              <tr><td><code>review</code></td><td>The current change against the cache, before a commit</td></tr>
               <tr><td><code>remember</code>, <code>feedback</code></td><td>Save a note the agent worked out; confirm or correct one it was served</td></tr>
             </tbody>
           </table>

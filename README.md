@@ -166,6 +166,30 @@ Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
 Old sync settings are ignored.
 
+## System behaviors and the local page
+
+A system behavior is a rule every future change must keep, written by you and anchored
+to the code that enforces it. `thinker review` flags a change that breaks one, and blocks
+it when the behavior is **fixed**.
+
+The best way to write them is a conversation with your own coding agent. `thinker system
+define` (also offered at the end of `thinker setup`) prints a prompt and copies it to
+your clipboard: paste it into your agent, and it interviews you about each part of the
+system, drafts each behavior against the code, and saves only the ones you approve.
+
+```bash
+thinker system define   # the interview prompt for your coding agent
+thinker ui              # usage, and the behaviors: accept, edit or discard the ones waiting
+```
+
+`thinker ui` opens a local page with two views: how the cache has been used (notes
+served, what agents acted on, what was learned, the tokens it cost, and the holdout
+comparison), and the system behaviors, filtered by waiting, in force, fixed, mutable or
+needing attention. Drafts from a build and behaviors an agent saved wait there until you
+accept them as written, edit them, or discard them; until then review does not hold a
+change to them. The page listens on 127.0.0.1 only and reads and writes nothing but
+this machine's cache.
+
 ## Proof of correctness
 
 Thinker can post a PR report connecting the requested behavior to executed test

@@ -27,6 +27,7 @@ import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
 import { startThoroughness, finishThoroughness, renderThoroughness } from './review-thoroughness.js';
+import { isBehavior, proposed } from './behavior.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
 // bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
@@ -732,7 +733,9 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   const change = collectChange(repo, scope, { paths });
   change.task = task;
   change.state = !!scope.state; change.head = scope.head === 'worktree' || scope.head === 'index' ? scope.head : 'commit';
-  const notes = only ? store.list().filter(n => only.has(n.kind)) : store.list();
+  // a behavior an agent saved is a proposal until a person accepts it (behavior.js:proposed): it is
+  // not a requirement yet, so a review does not hold a change to it
+  const notes = (only ? store.list().filter(n => only.has(n.kind)) : store.list()).filter(n => !(isBehavior(n) && proposed(n)));
   const report = { scope: scope.label, state: !!scope.state, strategy: strat, kinds: only ? [...only] : undefined, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], intentEvidence: [], criterionSupport: [], findings: [], cost: 0, tokens: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
   if (scope.state) {
     // the current code of the given files (every file the notes rest on when none is named)
