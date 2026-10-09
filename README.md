@@ -1,5 +1,7 @@
 # thinker — a knowledge cache for coding & review agents
 
+![Pixel-art blue sky with white clouds](docs/images/sky.png)
+
 Every merged fix leaves knowledge behind that the next change can quietly undo.
 `thinker` learns from your repository's merged pull requests and your agent
 sessions, and keeps what it learns as short notes tied to the code they describe.
