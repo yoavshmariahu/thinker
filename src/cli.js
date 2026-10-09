@@ -52,7 +52,7 @@ const HELP = `thinker — knowledge cache for coding agents
         [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
-                                 knowledge cache from the code and merged pull requests with pre-flight estimates, and
+                                 knowledge cache from merged pull requests with pre-flight estimates (--areas n also has your agent explore the code), and
                                  an optional PR change benchmark. --build opts into building; --yes also skips the scope menu. --no-build only wires
                                  things up and lets the cache grow from your sessions; --depth shallow builds 30% of the full
                                  build (the largest, most-changed areas and the newest pull requests); a build also drafts

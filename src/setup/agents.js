@@ -460,8 +460,8 @@ export async function selectAndAuthenticateAgent({
 
   const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
   const retryCmd = purpose === 'run the benchmark' ? 'thinker benchmark' : 'thinker setup';
-  out(`\n  ${c.yellow('○')} ${pausedPrefix} Subsystem exploration requires an authenticated agent (Claude, Gemini/Agy, Codex, Cursor).`);
+  out(`\n  ${c.yellow('○')} ${pausedPrefix} Building the cache requires an authenticated agent (Claude, Gemini/Agy, Codex, Cursor).`);
   out(`    Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan(retryCmd)} again.`);
-  out(`    ${c.dim('Tip: To build a basic cache without agent exploration, use: thinker setup --no-seed')}\n`);
+  out(`    ${c.dim('Tip: To set up without building the cache now, use: thinker setup --no-build')}\n`);
   return { ok: false, agent: selectedAgent, error: 'unauthenticated', loginCmd: auth.loginCmd };
 }

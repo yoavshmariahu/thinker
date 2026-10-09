@@ -320,15 +320,17 @@ export async function setup(ctx) {
   const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
-  const areas = flags['no-seed'] ? 0 : parseAreaLimit(flags.areas);
+  // exploring the code costs far more than it has given back, so a build mines merged changes only unless --areas asks for it
+  const explore = flags.areas !== undefined && !flags['no-seed'];
+  const areas = explore ? parseAreaLimit(flags.areas) : 0;
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
-  // asking for a size is asking for the build; --no-build (or both --no-seed and --no-prs) is a no
+  // asking for a size is asking for the build; --no-build (or --no-prs without --areas) is a no
   const depth = typeof flags.depth === 'string' ? flags.depth : null;
   if (depth && !DEPTHS.includes(depth)) { out(`--depth takes ${DEPTHS.join(' or ')}`); process.exit(2); }
   const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.areas !== undefined || flags.prs !== undefined;
-  const build = flags['no-build'] || (flags['no-seed'] && flags['no-prs']) ? false : (askedToBuild ? true : null);
+  const build = flags['no-build'] || (!explore && flags['no-prs']) ? false : (askedToBuild ? true : null);
 
   await runSetup({
     repo,
@@ -345,7 +347,7 @@ export async function setup(ctx) {
     depth,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
-    noSeed: Boolean(flags['no-seed']) || build === false,
+    noSeed: !explore || build === false,
     noPrs: Boolean(flags['no-prs']) || build === false,
     noPhrase: Boolean(flags['no-phrase']),
     model: flags.model,

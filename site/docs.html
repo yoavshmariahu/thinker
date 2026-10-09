@@ -727,7 +727,7 @@
           <div class="loop-step">
             <span class="step-badge">1</span>
             <h4>Build</h4>
-            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first, and one exploration session per source area.</p>
+            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">2</span>
@@ -753,8 +753,8 @@
         <pre><code><span class="code-comment"># Connect the agents, then ask whether to build the cache</span>
 thinker setup
 
-<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60)
-# and one exploration per source area (--areas n, default 12)</span>
+<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60);
+# --areas n also has your agent explore n source areas</span>
 thinker setup --build
 
 <span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
