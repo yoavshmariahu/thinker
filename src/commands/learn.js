@@ -483,6 +483,9 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       if (directories) recordMinedPrs(store, recSlug, [], { failed: [pr] });
       const s2 = saveNotes(store, r.notes, { source, kinds: distillKinds(store) });
       saved += s2.saved.length + s2.merged.length;
+      // mined as soon as its notes are saved, so an interrupted run does not pay for this change again
+      recordMinedPrs(store, scopeKey, [pr]);
+      if (directories) recordMinedPrs(store, recSlug, [pr]);
       progress.complete({ item, ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
     } catch (e) { failed.add(pr.number); progress.complete({ item, ref: refId, title: pr.title, error: e.message }); }
   };
