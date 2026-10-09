@@ -325,37 +325,13 @@
       gap: 1rem;
     }
 
-    .prompt-box {
-      align-items: flex-start;
-      padding-top: 0.65rem;
-      padding-bottom: 0.65rem;
-    }
-
-    .prompt-box pre {
+    .cmd-label {
       flex: 1 1 0%;
       min-width: 0;
-      margin: 0;
-      max-height: 9.5rem;
-      overflow-y: auto;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.78rem;
-      line-height: 1.5;
+      font-size: 0.92rem;
+      font-weight: 500;
       color: #111827;
       text-align: left;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-
-    .install-note {
-      max-width: 660px;
-      margin-top: 0.6rem;
-      font-size: 0.8rem;
-      line-height: 1.5;
-      color: #6b7280;
-    }
-
-    .install-alt {
-      margin-top: 1.4rem;
     }
 
     .cmd-box:hover {
@@ -409,65 +385,6 @@
     }
 
     /* Benchmark cards: one per framing */
-    .how {
-      margin-top: 2.25rem;
-      width: 100%;
-      max-width: 680px;
-      text-align: left;
-    }
-
-    .how h2 {
-      font-size: 1.05rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-      margin: 0 0 0.85rem;
-      color: #111827;
-    }
-
-    .how ol {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .how li {
-      display: flex;
-      gap: 0.8rem;
-      align-items: flex-start;
-      font-size: 0.9rem;
-      line-height: 1.55;
-      color: #4b5563;
-    }
-
-    .how li strong {
-      color: #111827;
-      font-weight: 600;
-    }
-
-    .how-num {
-      flex-shrink: 0;
-      width: 1.5rem;
-      height: 1.5rem;
-      border-radius: 50%;
-      background: #111827;
-      color: #ffffff;
-      font-size: 0.75rem;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 0.1rem;
-    }
-
-    .how-local {
-      margin: 1rem 0 0;
-      font-size: 0.82rem;
-      line-height: 1.5;
-      color: #6b7280;
-    }
-
     .benchmark-cards {
       margin-top: 1.75rem;
       width: 100%;
@@ -888,19 +805,14 @@
     <div class="install-container">
 
       <div class="command-wrapper" id="command-view">
-        <div class="install-instruction">Paste into your coding agent, opened in your repository</div>
-        <div class="cmd-box prompt-box">
-          <pre id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
-1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
-2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</pre>
-          <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')">Copy</button>
-        </div>
-        <div class="install-note">It installs Thinker, builds the cache in the background and interviews you about the behaviors your code must keep. Everything stays in your repository. Start a new agent session afterwards to load the hooks and tools.</div>
-        <div class="install-instruction install-alt">Or install from a terminal, then run <code>thinker setup</code> inside your repository</div>
         <div class="cmd-box">
-          <code id="cmd">curl -fsSL https://zerotime.dev/dist/install.sh | bash</code>
-          <button class="btn-copy" id="copy-btn" onclick="copyText('cmd', 'copy-btn')">Copy</button>
+          <span class="cmd-label">Paste one prompt into your coding agent to set up Thinker</span>
+          <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')">Copy prompt</button>
         </div>
+        <template id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
+1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
+2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</template>
+      </div>
       </div>
     </div>
 
@@ -929,17 +841,6 @@
         <div class="metric-cta">See the results &rarr;</div>
       </div>
     </div>
-
-    <section class="how" aria-labelledby="how-title">
-      <h2 id="how-title">How it works</h2>
-      <ol>
-        <li><span class="how-num">1</span><div><strong>It learns from your history.</strong> Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.</div></li>
-        <li><span class="how-num">2</span><div><strong>It hands your agent what fits.</strong> When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code. Your agent starts from what the repository already learned instead of searching for it.</div></li>
-        <li><span class="how-num">3</span><div><strong>It checks changes against your rules.</strong> You and your agent write down the behaviors your system must keep. <code>thinker review</code> flags a change that brings back a fixed bug or breaks one of them, before it merges.</div></li>
-        <li><span class="how-num">4</span><div><strong>It keeps itself current.</strong> When the code under a note changes, the note is marked stale and checked again in the background; until it passes, it is never handed over as fact. New pull requests and sessions add notes in the background.</div></li>
-      </ol>
-      <p class="how-local">Everything stays in your repository's <code>.thinker/</code> folder. Model calls go through the coding agent you already use, on its own login.</p>
-    </section>
 
     <a class="ci-link" href="docs.html#review">See how CI review catches regressions &rarr;</a>
 
@@ -1037,14 +938,15 @@
 
   <script>
     function copyText(sourceId, buttonId) {
-      const code = document.getElementById(sourceId).innerText;
+      const code = document.getElementById(sourceId).content?.textContent || document.getElementById(sourceId).innerText;
       if (!code) return;
       navigator.clipboard.writeText(code).then(() => {
         const btn = document.getElementById(buttonId);
+        const label = btn.dataset.label || (btn.dataset.label = btn.innerText);
         btn.innerText = 'Copied';
         btn.classList.add('copied');
         setTimeout(() => {
-          btn.innerText = 'Copy';
+          btn.innerText = label;
           btn.classList.remove('copied');
         }, 2000);
       });
