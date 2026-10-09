@@ -662,3 +662,19 @@ test('CLI retrieval attributed to a Windsurf trajectory produces one visible sto
     assert.equal(hook(dir, 'stop', 'windsurf', event, ['--no-distill']), '');
   }
 });
+
+test('a Codex MCP table whose thinker markers Codex dropped still counts as wired, and a rewire leaves it alone', () => {
+  const dir = repo();
+  installClient('codex', opts(dir));
+  const file = path.join(dir, '.codex/config.toml');
+  // Codex rewrites config.toml when it records trusted hooks, and comments do not survive
+  const bare = fs.readFileSync(file, 'utf8').split('\n').filter(l => !l.startsWith('# thinker:')).join('\n') + '\n[features]\nhooks = true\n';
+  fs.writeFileSync(file, bare);
+  const w = inferWiring(dir, 'codex');
+  assert.equal(w.mcp, true);
+  assert.ok(w.scripts.includes('/x/mcp.js'));
+  installClient('codex', opts(dir));
+  const toml = fs.readFileSync(file, 'utf8');
+  assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1, 'not added a second time');
+  assert.ok(toml.includes('[features]'));
+});
