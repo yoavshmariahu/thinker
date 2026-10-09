@@ -183,6 +183,7 @@ export async function runSetup({
     out(`\n  ${c.bold('Define your system behaviors with your coding agent?')} ${c.dim('— optional')}`);
     out(`    • ${c.dim('Rules every future change must keep; review flags a change that breaks one, and blocks it if the rule is fixed.')}`);
     out(`    • ${c.dim('You get a prompt to paste into your agent: it interviews you about each part of the system, drafts each behavior against the code, and saves only the ones you approve.')}`);
+    out(`    • ${c.dim('Everything stays local: behaviors are files in this repository\'s .thinker/ folder, and Thinker uploads none of them.')}`);
     if (n) out(`    • ${c.cyan(n)} ${c.dim('drafts from your merged fixes are already waiting; the session goes through them too.')}`);
     const choice = await selectMenu({ out, items: [
       { label: 'Not now · later with thinker system define', value: 'later' },
@@ -223,7 +224,10 @@ export async function runSetup({
   if (!building) done.push(`Build from existing code later: ${c.cyan('thinker setup --build')}`);
   const left = waiting();
   done.push(left ? `${left} behavior${left === 1 ? '' : 's'} waiting for your decision: ${c.cyan('thinker ui')}` : `Usage and behaviors in your browser: ${c.cyan('thinker ui')}`);
+  if (!defineNow) done.push(`Define behaviors with your agent: ${c.cyan('thinker system define')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
+  // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
+  done.push(c.dim('Notes and behaviors stay in .thinker/ here; Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
 
   return { built: building, warnings: cacheRes.warnings || 0, error: buildError };

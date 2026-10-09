@@ -55,7 +55,8 @@ export function printBehaviorSession(store, { out = console.log, copy = true } =
   const copied = copy && Boolean(process.stdout.isTTY) && copyToClipboard(prompt);
   out(`\n  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold('Define your system behaviors with your coding agent')}`);
   out(c.dim(`  Paste this into a new session of your coding agent in this repository${copied ? ' (it is on your clipboard)' : ''}.`));
-  out(c.dim(`  It will interview you about each part of the system and save only the behaviors you approve.\n`));
+  out(c.dim(`  It will interview you about each part of the system and save only the behaviors you approve.`));
+  out(c.dim(`  Everything stays local: behaviors are files in this repository's .thinker/ folder, and Thinker uploads none of them.\n`));
   out(c.dim('─'.repeat(74)));
   out(prompt);
   out(c.dim('─'.repeat(74)));

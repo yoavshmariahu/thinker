@@ -349,13 +349,18 @@ EOF
       box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
         "Installed into $home and wired into your agents." \
         "This is not a git repository, so no cache was set up here." \
-        "Inside a repository, run: ${cyan}thinker setup${reset}" "" \
+        "Inside a repository, run: ${cyan}thinker setup${reset}" \
+        "Then define its behaviors with your agent: ${cyan}thinker system define${reset}" \
+        "${dim}Notes and behaviors stay in the repository; Thinker uploads none.${reset}" "" \
         "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     else
       say "Install complete: Thinker v$version, installed into $home and wired into your agents."
       say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
       say ""
       say "  thinker setup"
+      say ""
+      say "Then define its behaviors with your agent: thinker system define"
+      say "Notes and behaviors stay in the repository; Thinker uploads none."
     fi
     exit 0
   fi
