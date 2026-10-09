@@ -67,7 +67,7 @@ async function systemCommand(ctx) {
   } else if (sub === 'define') {
     // the prompt that starts an interview with the person's own coding agent (setup/define.js)
     const { printBehaviorSession } = await import('../setup/define.js');
-    printBehaviorSession(store, { out, copy: !flags['no-copy'] });
+    printBehaviorSession(store.exists() ? store : null, { out, copy: !flags['no-copy'] });
   } else if (sub === 'md') {
     out(`wrote ${path.relative(repo, writeSystemMarkdown(store, { force: true }))}`);
   } else {

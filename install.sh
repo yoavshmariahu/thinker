@@ -344,13 +344,15 @@ EOF
     if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" connect $cargs < /dev/tty; else "$thinker" connect $cargs; fi
     local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
     path_hint
+    # the prompt that starts defining a repository's behaviors with the agent, ready to paste after setup there
+    "$thinker" system define || true
     say ""
     if [ "$fancy" = 1 ]; then
       box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
         "Installed into $home and wired into your agents." \
         "This is not a git repository, so no cache was set up here." \
         "Inside a repository, run: ${cyan}thinker setup${reset}" \
-        "Then define its behaviors with your agent: ${cyan}thinker system define${reset}" \
+        "Then paste the behaviors prompt above into your agent there." \
         "${dim}Notes and behaviors stay in the repository; Thinker uploads none.${reset}" "" \
         "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     else
@@ -359,7 +361,7 @@ EOF
       say ""
       say "  thinker setup"
       say ""
-      say "Then define its behaviors with your agent: thinker system define"
+      say "Then paste the behaviors prompt above into your agent there."
       say "Notes and behaviors stay in the repository; Thinker uploads none."
     fi
     exit 0
