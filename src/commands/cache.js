@@ -144,7 +144,7 @@ async function usageCommand(ctx) {
   return;
 }
 
-// `thinker ui`: the local page (ui/server.js) until Ctrl+C. Usage, and the desired behaviors with the
+// `thinker ui`: the local page (ui/server.js) until Ctrl+C. Usage, the notes in the cache, and the desired behaviors with the
 // ones waiting for a decision.
 async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
@@ -155,7 +155,7 @@ async function uiCommand(ctx) {
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Usage and system behaviors at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Usage, cache and system behaviors at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

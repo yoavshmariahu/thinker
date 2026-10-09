@@ -9,6 +9,7 @@
     /* The public site's look (site/index.html, site/docs.html): white, near-black text, system type,
        gray kickers, #fafafa cards with a #e5e7eb hairline, green for gains, the paired bars. */
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 17px; }
     html, body {
       min-height: 100%; width: 100%; overflow-x: hidden;
       background: #ffffff; color: #111111;
@@ -26,6 +27,9 @@
     .brand { display: flex; align-items: baseline; gap: 0.45rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.85rem; color: #6b7280; }
+    .repo-sel { font-size: 0.85rem; font-weight: 500; color: #111; border: none; border-radius: 6px; padding: 0.3rem 1.5rem 0.3rem 0.45rem; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 0.55rem center; appearance: none; -webkit-appearance: none; cursor: pointer; max-width: 260px; text-overflow: ellipsis; }
+    .repo-sel:hover, .repo-sel:focus { outline: none; background-color: #f5f5f5; }
+    .repo-tag { display: inline-block; font-size: 0.78rem; color: #6b7280; margin-bottom: 0.3rem; }
     .nav-right { display: flex; gap: 0.35rem; }
     .nav-link {
       color: #444444; background: transparent; font-size: 0.85rem; font-weight: 500;
@@ -34,12 +38,12 @@
     }
     .nav-link:hover { color: #000; background: #f5f5f5; }
     .nav-link.active { color: #000; background: #fff; border-color: #e5e7eb; }
-    .count { display: inline-block; margin-left: 0.35rem; min-width: 1.2rem; padding: 0 0.35rem; border-radius: 999px; background: #111; color: #fff; font-size: 0.7rem; line-height: 1.2rem; text-align: center; }
+    .count { display: inline-block; margin-left: 0.35rem; min-width: 1.2rem; padding: 0 0.35rem; border-radius: 999px; background: #111; color: #fff; font-size: 0.78rem; line-height: 1.2rem; text-align: center; }
 
     main { max-width: 980px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
     h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
-    .lede { font-size: 0.95rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
-    .kicker { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
+    .lede { font-size: 1rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
+    .kicker { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
     .section { margin-top: 2.25rem; }
     .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
     .section-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
@@ -58,21 +62,21 @@
     .card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.2rem 1rem; min-width: 0; }
     .metric-num { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1; color: #111; font-variant-numeric: tabular-nums; }
     .metric-num.gain { color: #15803d; }
-    .metric-label { font-size: 0.8rem; color: #444; margin-top: 0.5rem; line-height: 1.4; }
+    .metric-label { font-size: 0.86rem; color: #444; margin-top: 0.5rem; line-height: 1.4; }
     .metric-rows { list-style: none; margin-top: 0.8rem; padding-top: 0.7rem; border-top: 1px solid #ebebeb; display: flex; flex-direction: column; gap: 0.32rem; }
-    .metric-rows li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.76rem; color: #6b7280; font-variant-numeric: tabular-nums; }
+    .metric-rows li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; color: #6b7280; font-variant-numeric: tabular-nums; }
     .metric-rows li span:last-child { color: #111; font-weight: 600; white-space: nowrap; }
 
     /* paired bars, as in the site's benchmark modal */
-    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.74rem; color: #6b7280; margin-bottom: 0.75rem; }
+    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.78rem; color: #6b7280; margin-bottom: 0.75rem; }
     .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; background: #111; margin-right: 0.35rem; vertical-align: middle; }
     .swatch.before { background: #b4b4bb; }
     .bench-rows { display: flex; flex-direction: column; gap: 0.9rem; }
     .bench-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 120px; gap: 0 1rem; align-items: center; }
     .bench-model-name { font-size: 0.86rem; font-weight: 600; letter-spacing: -0.01em; }
-    .bench-model-sub { font-size: 0.72rem; color: #9ca3af; margin-top: 0.1rem; }
+    .bench-model-sub { font-size: 0.78rem; color: #9ca3af; margin-top: 0.1rem; }
     .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .bar { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem; align-items: center; gap: 0.5rem; height: 16px; font-size: 0.74rem; color: #444; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bar { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem; align-items: center; gap: 0.5rem; height: 16px; font-size: 0.78rem; color: #444; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .bar i { display: block; height: 10px; width: var(--w); max-width: 100%; border-radius: 0 4px 4px 0; background: #111; }
     .bar.before i { background: #b4b4bb; }
     .bar.after { color: #111; font-weight: 600; }
@@ -81,8 +85,8 @@
     .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.2rem 1.3rem; }
     .note-line { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin-top: 0.9rem; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th { text-align: left; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }
     td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -98,11 +102,11 @@
     .bcard.waiting { background: #fff; border-color: #d4d4d8; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
     .bcard-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
     .btitle { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; }
-    .bbody { font-size: 0.86rem; color: #333; line-height: 1.6; margin-top: 0.55rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bbody { font-size: 0.92rem; color: #333; line-height: 1.6; margin-top: 0.55rem; white-space: pre-wrap; overflow-wrap: anywhere; }
     .bbody code, .meta code { font-size: 0.8em; background: #f0f0f2; border-radius: 4px; padding: 0.05rem 0.3rem; }
-    .meta { font-size: 0.76rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.55; overflow-wrap: anywhere; }
+    .meta { font-size: 0.84rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.55; overflow-wrap: anywhere; }
     .meta b { color: #444; font-weight: 600; }
-    .pill { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 0.18rem 0.55rem; white-space: nowrap; border: 1px solid #e5e7eb; color: #444; background: #fff; }
+    .pill { display: inline-block; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 0.18rem 0.55rem; white-space: nowrap; border: 1px solid #e5e7eb; color: #444; background: #fff; }
     .pill.fixed { background: #111; color: #fff; border-color: #111; }
     .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
     .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
@@ -117,12 +121,15 @@
     .btn.text:hover { background: #fef2f2; }
     .btn:disabled { opacity: 0.5; cursor: default; }
     .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.75rem; }
-    .field label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
+    .field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
     .field input, .field textarea, .field select { border: 1px solid #d4d4d8; border-radius: 8px; padding: 0.55rem 0.7rem; font-size: 0.88rem; line-height: 1.5; outline: none; background: #fff; color: #111; }
     .field textarea { min-height: 120px; resize: vertical; font-size: 0.85rem; }
     .field input:focus, .field textarea:focus, .field select:focus { border-color: #111; }
     .empty { text-align: center; color: #6b7280; font-size: 0.88rem; padding: 2.2rem 1rem; border: 1px dashed #e5e7eb; border-radius: 10px; }
     .describe { margin-top: 1.4rem; }
+    .bbody.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+    .more { font-size: 0.78rem; color: #6b7280; margin-top: 0.3rem; cursor: pointer; background: none; border: none; padding: 0; }
+    .more:hover { color: #111; }
 
     .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #111; color: #fff; font-size: 0.84rem; padding: 0.6rem 1rem; border-radius: 8px; opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -146,9 +153,10 @@
 </head>
 <body>
   <nav>
-    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub" id="repo-name">/ local</span></div>
+    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">/</span><select class="repo-sel" id="repo-sel" aria-label="Repository"><option value="">this repository</option></select></div>
     <div class="nav-right">
       <button class="nav-link active" data-tab="usage">Usage</button>
+      <button class="nav-link" data-tab="cache">Cache</button>
       <button class="nav-link" data-tab="behaviors">System behaviors<span class="count" id="wait-count" hidden></span></button>
     </div>
   </nav>
@@ -160,17 +168,33 @@
       <h1>How the cache is working for you</h1>
       <p class="lede">What was served to your agents, what they acted on, what was learned, and what it cost in tokens. Read from your local log; nothing leaves this machine.</p>
       <div class="controls">
-        <div class="seg" id="scope-seg"><button data-scope="here" class="on">This repository</button><button data-scope="all">All repositories</button></div>
         <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
       </div>
       <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+    </section>
+
+    <!-- Cache -->
+    <section id="tab-cache" hidden>
+      <div class="kicker">The cache</div>
+      <h1>What thinker has learned</h1>
+      <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them.</p>
+      <div class="controls">
+        <div class="chips" id="c-chips"></div>
+      </div>
+      <div class="cards section" id="c-stats" style="margin-top:1.4rem"></div>
+      <div class="controls" style="margin-top:1.2rem">
+        <div class="seg" id="sort-seg"><button data-sort="hits" class="on">Most hits</button><button data-sort="new">Newest</button><button data-sort="old">Oldest</button></div>
+        <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button></div>
+        <input class="search" id="c-search" placeholder="Search notes">
+      </div>
+      <div class="list" id="c-list"><div class="empty"><span class="spinner"></span>Reading the cache…</div></div>
     </section>
 
     <!-- Behaviors -->
     <section id="tab-behaviors" hidden>
       <div class="kicker">System behaviors</div>
       <h1>The rules every change must keep</h1>
-      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> flags a change that breaks one; a <b>fixed</b> behavior blocks it. Drafts and agent proposals are not requirements until you accept them.</p>
+      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. Proposed behaviors (build drafts and agent proposals) are not requirements until you accept them.</p>
       <div class="controls">
         <div class="chips" id="chips"></div>
         <input class="search" id="search" placeholder="Search behaviors">
@@ -196,6 +220,11 @@ const api = async (p, body) => {
   return j;
 };
 const $ = s => document.querySelector(s);
+// the repository every view shows: one id from /api/repos, or 'all'
+let REPO = new URLSearchParams(location.hash.slice(1)).get('repo') || '';
+const ALL = () => REPO === 'all';
+const rq = () => `repo=${encodeURIComponent(REPO)}`;
+let TAB = 'usage';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // path:Symbol pointers in a body read as code
 const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
@@ -208,19 +237,20 @@ function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.classNa
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-behaviors').hidden = tab !== 'behaviors';
-  history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}`);
-  if (tab === 'behaviors') loadBehaviors(); else loadUsage();
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-behaviors').hidden = tab !== 'behaviors';
+  TAB = tab;
+  history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${REPO ? `&repo=${encodeURIComponent(REPO)}` : ''}`);
+  if (tab === 'behaviors') loadBehaviors(); else if (tab === 'cache') loadCache(); else loadUsage();
 }
 
 // ---- usage -------------------------------------------------------------------------------
-let scope = 'here', days = 30;
-document.querySelectorAll('#scope-seg button').forEach(b => b.onclick = () => { scope = b.dataset.scope; segOn('#scope-seg', b); loadUsage(); });
+let days = 30;
 document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 
 async function loadUsage() {
-  try { renderUsage(await api(`/api/usage?scope=${scope}${days ? `&days=${days}` : ''}`)); }
+  $('#usage-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the log…</div>`;
+  try { renderUsage(await api(`/api/usage?${rq()}${days ? `&days=${days}` : ''}`)); }
   catch (e) { $('#usage-body').innerHTML = `<div class="empty">Could not read usage: ${esc(e.message)}</div>`; }
 }
 function card(kicker, num, label, rows, gain) {
@@ -256,58 +286,146 @@ function renderUsage(u) {
     h += `<div class="note-line" style="margin-top:0">Not enough sessions yet: the comparison appears once five sessions stand on each side (${ho?.served?.sessions || 0} with notes, ${ho?.heldOut?.sessions || 0} held out so far).</div>`;
   }
   h += `</div></div>`;
-  if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${scope === 'all' ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${scope === 'all' ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;
-  if (scope === 'all' && u.repos?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">By repository</div><div class="section-title">Where thinker is working</div></div></div><div class="panel"><table><thead><tr><th>Repository</th><th class="num">Requests</th><th class="num">Served</th><th class="num">Learned</th><th class="num">Tokens</th></tr></thead><tbody>${u.repos.map(r => `<tr><td>${esc(String(r.repo).replace(/^github\.com\//, ''))}</td><td class="num">${fmt(r.requests)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.learned)}</td><td class="num">${fmt(r.tokens)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${ALL() ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${ALL() ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;
+  if (ALL() && u.repos?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">By repository</div><div class="section-title">Where thinker is working</div></div></div><div class="panel"><table><thead><tr><th>Repository</th><th class="num">Requests</th><th class="num">Served</th><th class="num">Learned</th><th class="num">Tokens</th></tr></thead><tbody>${u.repos.map(r => `<tr><td>${esc(String(r.repo).replace(/^github\.com\//, ''))}</td><td class="num">${fmt(r.requests)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.learned)}</td><td class="num">${fmt(r.tokens)}</td></tr>`).join('')}</tbody></table></div></div>`;
   $('#usage-body').innerHTML = h;
+}
+
+// ---- cache -------------------------------------------------------------------------------
+let C = { notes: [] }, cFilter = 'serving', cKind = '', cQuery = '', expanded = new Set();
+const C_FILTERS = [
+  ['serving', 'Served', n => n.status === 'fresh' || n.status === 'stale'],
+  ['fresh', 'Fresh', n => n.status === 'fresh'],
+  ['stale', 'Stale', n => n.status === 'stale'],
+  ['archived', 'Archived', n => n.status === 'archived'],
+  ['retired', 'Retired', n => n.status === 'retired'],
+  ['all', 'All', () => true],
+];
+const C_MAX = 200;
+let cSort = 'hits';
+document.querySelectorAll('#sort-seg button').forEach(b => b.onclick = () => { cSort = b.dataset.sort; segOn('#sort-seg', b); renderCache(); });
+const ageDays = n => n.created ? Math.max(0, (Date.now() - Date.parse(n.created)) / 86400_000) : null;
+const age = d => d == null ? 'age unknown' : d < 1 ? 'today' : d < 14 ? `${Math.floor(d)} day${Math.floor(d) === 1 ? '' : 's'}` : d < 60 ? `${Math.floor(d / 7)} weeks` : d < 730 ? `${Math.floor(d / 30)} months` : `${Math.floor(d / 365)} years`;
+const median = xs => { const v = xs.filter(x => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+const SORTS = {
+  hits: (a, b) => b.uses - a.uses || String(b.lastUsed || '').localeCompare(String(a.lastUsed || '')) || a.title.localeCompare(b.title),
+  new: (a, b) => String(b.created || '').localeCompare(String(a.created || '')),
+  old: (a, b) => String(a.created || '9').localeCompare(String(b.created || '9')),
+};
+$('#c-search').oninput = e => { cQuery = e.target.value.toLowerCase(); renderCache(); };
+document.querySelectorAll('#kind-seg button').forEach(b => b.onclick = () => { cKind = b.dataset.kind; segOn('#kind-seg', b); renderCache(); });
+const day = s => s ? String(s).slice(0, 10) : '';
+
+async function loadCache() {
+  if (!C.notes.length || C.repoKey !== REPO) { $('#c-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the cache…</div>`; $('#c-stats').innerHTML = ''; }
+  try { C = await api(`/api/cache?${rq()}`); C.repoKey = REPO; renderCache(); }
+  catch (e) { $('#c-list').innerHTML = `<div class="empty">Could not read the cache: ${esc(e.message)}</div>`; }
+}
+function renderCache() {
+  const byKind = C.notes.filter(n => !cKind || n.kind === cKind);
+  $('#c-chips').innerHTML = C_FILTERS.map(([k, label, f]) => `<button class="chip${k === cFilter ? ' on' : ''}" data-f="${k}">${label} · ${byKind.filter(f).length}</button>`).join('');
+  document.querySelectorAll('#c-chips .chip').forEach(c => c.onclick = () => { cFilter = c.dataset.f; renderCache(); });
+  const f = C_FILTERS.find(x => x[0] === cFilter)[2];
+  const shown = byKind.filter(f).filter(n => !cQuery || (n.title + ' ' + n.body + ' ' + n.pointers.join(' ')).toLowerCase().includes(cQuery))
+    .sort(SORTS[cSort]);
+  const inView = byKind.filter(f), hits = inView.reduce((a, n) => a + n.uses, 0), hit = inView.filter(n => n.uses > 0).length, ages = inView.map(ageDays);
+  const fresh7 = inView.filter(n => { const d = ageDays(n); return d != null && d < 7; }).length;
+  $('#c-stats').innerHTML = inView.length ? `
+    ${card('Notes', fmt(inView.length), 'in this view', [['Rules', fmt(inView.filter(n => n.kind === 'rule').length)], ['Maps', fmt(inView.filter(n => n.kind === 'map').length)], ['How-tos', fmt(inView.filter(n => n.kind === 'howto').length)]])}
+    ${card('Cache hits', fmt(hits), 'times these notes were served to an agent', [['Notes served at least once', `${fmt(hit)} (${pct(hit, inView.length)})`], ['Never served', fmt(inView.length - hit)], ['Hits per served note', hit ? (hits / hit).toFixed(1) : '—']])}
+    ${card('Age', age(median(ages)), 'median age, since each note was written', [['Written this week', fmt(fresh7)], ['Newest', age(Math.min(...ages.filter(x => x != null)))], ['Oldest', age(Math.max(...ages.filter(x => x != null)))]])}` : '';
+  if (!shown.length) {
+    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty. Build it with <code>thinker setup --build</code>, or let it grow from your sessions.'}</div>`;
+    return;
+  }
+  $('#c-list').innerHTML = shown.slice(0, C_MAX).map(ncard).join('') + (shown.length > C_MAX ? `<div class="note-line">Showing ${C_MAX} of ${shown.length}, most used first. Search to narrow them down.</div>` : '');
+  wireCache();
+}
+function npills(n) {
+  const st = { fresh: '<span class="pill ok">Fresh</span>', stale: '<span class="pill wait">Stale</span>', archived: '<span class="pill">Archived</span>', retired: '<span class="pill bad">Retired</span>' }[n.status];
+  return `${st}<span class="pill">${esc(n.kind)}</span>`;
+}
+function ncard(n) {
+  const open = expanded.has(n.repo + '|' + n.id), long = n.body.length > 360, d = ageDays(n);
+  const meta = [
+    n.pointers.length ? `<b>Points at</b> ${n.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
+    `<b>${fmt(n.uses)} hit${n.uses === 1 ? '' : 's'}</b>${n.lastUsed ? `, last on ${day(n.lastUsed)}` : n.uses ? '' : ', never served yet'} · <b>Age</b> ${age(d)} · <b>Confidence</b> ${Math.round(100 * n.confidence)}%`,
+    `<b>From</b> ${esc(n.source || 'unknown')}${n.created ? ` · <b>Written</b> ${day(n.created)}` : ''}${n.verified ? ` · <b>Verified</b> ${day(n.verified)}` : ''}${n.scope === 'repo' ? ' · committed with the repository' : ''}`,
+    n.status === 'stale' && n.changed.length ? `<b>Code changed</b> ${n.changed.map(esc).join(', ')} · re-checked on the next maintenance run, or <code>thinker verify ${esc(n.id)}</code>` : '',
+    n.status === 'archived' ? `<b>Archived</b> ${day(n.archived?.at)}${n.archived?.reason ? `: ${esc(n.archived.reason)}` : ''}` : '',
+    n.status === 'retired' && n.invalidReason ? `<b>Retired</b> ${esc(n.invalidReason)}` : '',
+  ].filter(Boolean).join('<br>');
+  const act = n.status === 'archived' ? `<button class="btn ghost" data-act="restore">Restore to serving</button>`
+    : n.status === 'retired' ? '' : `<button class="btn ghost" data-act="archive">Archive</button>`;
+  return `<div class="bcard" data-id="${esc(n.id)}" data-repo="${esc(n.repo)}">${ALL() ? `<div class="repo-tag">${esc(n.repoName)}</div>` : ''}<div class="bcard-top"><div class="btitle">${esc(n.title)}</div><div class="pills">${npills(n)}</div></div>
+    <div class="bbody${long && !open ? ' clamp' : ''}" data-act="expand">${rich(n.body)}</div>${long ? `<button class="more" data-act="expand">${open ? 'Show less' : 'Show more'}</button>` : ''}
+    <div class="meta">${meta}</div>${act ? `<div class="actions">${act}</div>` : ''}</div>`;
+}
+function wireCache() {
+  document.querySelectorAll('#c-list .bcard').forEach(el => {
+    const id = el.dataset.id, repo = el.dataset.repo, key = repo + '|' + id;
+    el.querySelectorAll('[data-act]').forEach(btn => btn.onclick = async () => {
+      const act = btn.dataset.act;
+      if (act === 'expand') { expanded.has(key) ? expanded.delete(key) : expanded.add(key); return renderCache(); }
+      btn.disabled = true;
+      try {
+        await api(`/api/cache/${act}`, { id, repo });
+        toast(act === 'archive' ? 'Archived: no longer served, still read by review' : 'Restored: served again');
+        await loadCache();
+      } catch (e) { btn.disabled = false; toast(e.message, true); }
+    });
+  });
 }
 
 // ---- behaviors ---------------------------------------------------------------------------
 let B = { active: [], pending: [] }, filter = 'waiting', query = '', editing = null;
 const FILTERS = [
-  ['waiting', 'Waiting for you', b => b.waiting],
-  ['active', 'In force', b => !b.waiting],
-  ['fixed', 'Fixed', b => !b.waiting && b.mutability === 'fixed'],
-  ['mutable', 'Mutable', b => !b.waiting && b.mutability !== 'fixed'],
-  ['attention', 'Needs attention', b => !b.waiting && (b.state === 'violated' || b.state === 'unverified')],
+  ['waiting', 'Proposed', b => b.waiting],
+  ['active', 'Active', b => !b.waiting],
+  ['fixed', 'Blocking', b => !b.waiting && b.mutability === 'fixed'],
+  ['mutable', 'Warn only', b => !b.waiting && b.mutability !== 'fixed'],
+  ['attention', 'Broken or unverified', b => !b.waiting && (b.state === 'violated' || b.state === 'unverified')],
   ['all', 'All', () => true],
 ];
 $('#search').oninput = e => { query = e.target.value.toLowerCase(); renderBehaviors(); };
 
 async function loadBehaviors() {
   try {
-    const r = await api('/api/behaviors');
-    B = r; $('#repo-name').textContent = `/ ${r.repo}`;
-    const n = r.pending.length; const c = $('#wait-count'); c.hidden = !n; c.textContent = n;
+    const r = await api(`/api/behaviors?${rq()}`);
+    B = r; waitCount(r);
+    const n = r.pending.length;
     if (filter === 'waiting' && !n) filter = 'active';
     renderBehaviors();
   } catch (e) { $('#b-list').innerHTML = `<div class="empty">Could not read behaviors: ${esc(e.message)}</div>`; }
 }
+const bkey = b => (b.waiting ? 'p:' : 'a:') + b.repo + '|' + b.id;
+function waitCount(r) { const c = $('#wait-count'); c.hidden = !r.pending.length; c.textContent = r.pending.length; }
 function all() { return [...B.pending.map(b => ({ ...b, waiting: true })), ...B.active.map(b => ({ ...b, waiting: false }))]; }
 function renderBehaviors() {
   const items = all();
   $('#chips').innerHTML = FILTERS.map(([k, label, f]) => `<button class="chip${k === filter ? ' on' : ''}" data-f="${k}">${label} · ${items.filter(f).length}</button>`).join('');
-  document.querySelectorAll('.chip').forEach(c => c.onclick = () => { filter = c.dataset.f; editing = null; renderBehaviors(); });
+  document.querySelectorAll('#chips .chip').forEach(c => c.onclick = () => { filter = c.dataset.f; editing = null; renderBehaviors(); });
   const f = FILTERS.find(x => x[0] === filter)[2];
   const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
   if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'Nothing is waiting for a decision. Describe a behavior below, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet.'}</div>`;
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Copy the interview prompt below to write some with your agent, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet.'}</div>`;
     return;
   }
   $('#b-list').innerHTML = shown.map(bcard).join('');
   wire();
 }
 function pills(b) {
-  if (b.waiting) return `<span class="pill wait">Waiting · ${b.origin === 'draft' ? 'build draft' : 'agent proposal'}</span>`;
+  if (b.waiting) return `<span class="pill wait">Proposed · ${b.origin === 'draft' ? 'build draft' : 'agent proposal'}</span>`;
   const st = b.state === 'violated' ? `<span class="pill bad">Violated</span>` : b.state === 'unverified' ? `<span class="pill wait">Unverified</span>` : `<span class="pill ok">Holds</span>`;
-  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability}</span>`;
+  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability === 'fixed' ? 'Blocking' : 'Warn only'}</span>`;
 }
 function bcard(b) {
-  const key = (b.waiting ? 'p:' : 'a:') + b.id;
+  const key = bkey(b);
   if (editing === key) return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">
     <div class="kicker">${b.waiting ? 'Edit, then accept' : 'Edit behavior'}</div>
     <div class="field"><label>Title</label><input data-in="title" value="${esc(b.title)}"></div>
     <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea data-in="body">${esc(b.body)}</textarea></div>
-    <div class="field"><label>When a change breaks it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Mutable · review warns</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Fixed · review blocks the change</option></select></div>
+    <div class="field"><label>When a change breaks it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Warn only · review flags the change</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Blocking · review stops the change</option></select></div>
     <div class="actions"><button class="btn" data-act="save">${b.waiting ? 'Save and accept' : 'Save'}</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div>`;
   const meta = [
     b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
@@ -317,27 +435,27 @@ function bcard(b) {
     !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
   ].filter(Boolean).join('<br>');
   const actions = b.waiting
-    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as fixed</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
-    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">Make ${b.mutability === 'fixed' ? 'mutable' : 'fixed'}</button>`;
-  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}"><div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
+    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as blocking</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
+    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make warn only' : 'Make blocking'}</button>`;
+  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">${ALL() ? `<div class="repo-tag">${esc(b.repoName)}</div>` : ''}<div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
     <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
 }
 function wire() {
-  document.querySelectorAll('.bcard').forEach(el => {
-    const key = el.dataset.key, b = all().find(x => (x.waiting ? 'p:' : 'a:') + x.id === key);
+  document.querySelectorAll('#b-list .bcard').forEach(el => {
+    const key = el.dataset.key, b = all().find(x => bkey(x) === key);
     el.querySelectorAll('[data-act]').forEach(btn => btn.onclick = async () => {
       const act = btn.dataset.act;
       if (act === 'edit') { editing = key; return renderBehaviors(); }
       if (act === 'cancel') { editing = null; return renderBehaviors(); }
       btn.disabled = true;
       try {
-        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as fixed: review now blocks a change that breaks it' : 'Accepted: review now flags a change that breaks it'); }
-        else if (act === 'discard') { await api('/api/behaviors/discard', { id: b.id }); toast('Discarded'); }
-        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(`Now ${b.mutability === 'fixed' ? 'mutable' : 'fixed'}`); }
+        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, repo: b.repo, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as blocking: review now stops a change that breaks it' : 'Accepted: review now flags a change that breaks it'); }
+        else if (act === 'discard') { await api('/api/behaviors/discard', { id: b.id, repo: b.repo }); toast('Discarded'); }
+        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, repo: b.repo, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(b.mutability === 'fixed' ? 'Now warn only' : 'Now blocking'); }
         else if (act === 'save') {
           const v = k => el.querySelector(`[data-in="${k}"]`).value;
-          if (b.waiting) await api('/api/behaviors/accept', { id: b.id, title: v('title'), body: v('body'), mutability: v('mutability') });
-          else await api('/api/behaviors/edit', { id: b.id, title: v('title'), body: v('body'), mutability: v('mutability') });
+          if (b.waiting) await api('/api/behaviors/accept', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
+          else await api('/api/behaviors/edit', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
           toast(b.waiting ? 'Saved and accepted' : 'Saved');
         }
         editing = null; await loadBehaviors();
@@ -348,15 +466,25 @@ function wire() {
 
 $('#session-copy').onclick = async () => {
   try {
-    const { prompt } = await api('/api/behaviors/session-prompt');
+    if (ALL()) return toast('Pick one repository at the top first', true);
+    const { prompt } = await api(`/api/behaviors/session-prompt?${rq()}`);
     await navigator.clipboard.writeText(prompt);
     toast('Copied. Paste it into your coding agent.');
   } catch (e) { toast('Could not copy: ' + e.message, true); }
 };
 
-const startTab = new URLSearchParams(location.hash.slice(1)).get('tab') || 'usage';
-show(startTab);
-api('/api/behaviors').then(r => { $('#repo-name').textContent = `/ ${r.repo}`; const c = $('#wait-count'); c.hidden = !r.pending.length; c.textContent = r.pending.length; }).catch(() => {});
+// ---- repository picker -------------------------------------------------------------------
+$('#repo-sel').onchange = e => { REPO = e.target.value; e.target.blur(); B = { active: [], pending: [] }; $('#b-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading behaviors…</div>`; expanded.clear(); editing = null; refreshWaitCount(); show(TAB); };
+function refreshWaitCount() { api(`/api/behaviors?${rq()}`).then(waitCount).catch(() => {}); }
+async function loadRepos() {
+  try {
+    const { repos } = await api('/api/repos');
+    if (!REPO || (REPO !== 'all' && !repos.some(r => r.id === REPO))) REPO = repos.find(r => r.current)?.id || '';
+    $('#repo-sel').innerHTML = repos.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('')
+      + `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>`;
+  } catch {}
+}
+loadRepos().then(() => { show(new URLSearchParams(location.hash.slice(1)).get('tab') || 'usage'); refreshWaitCount(); });
 </script>
 </body>
 </html>
