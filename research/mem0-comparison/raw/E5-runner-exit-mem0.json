@@ -1,0 +1,100 @@
+{
+  "id": "E5-runner-exit-mem0",
+  "wall_ms": 7576.654624999996,
+  "duration_api_ms": 7333,
+  "stop_reason": "end_turn",
+  "session_id": "acf345ea-c674-46b8-adf9-cbf24919d4ad",
+  "total_cost_usd": 0.024095000000000002,
+  "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 2981,
+    "cache_read_input_tokens": 13265,
+    "output_tokens": 951,
+    "output_tokens_details": {
+      "thinking_tokens": 20
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 2981,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "modelUsage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 4,
+      "outputTokens": 951,
+      "cacheReadInputTokens": 13265,
+      "cacheCreationInputTokens": 2981,
+      "webSearchRequests": 0,
+      "costUSD": 0.024095000000000002,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 20,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "fast_mode_disabled_reason": "sdk_opt_in_required",
+  "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+      "background": 0,
+      "foreground": 0,
+      "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+      "parent": 0,
+      "user": 0,
+      "system": 0
+    },
+    "refused": {
+      "depth_limit": 0,
+      "concurrency_limit": 0,
+      "budget": 0
+    },
+    "by_type": {}
+  },
+  "is_error": false,
+  "num_turns": 2,
+  "subtype": "success",
+  "api_error_status": null,
+  "result": "**Separate stdout/stderr capture** — `src/click/testing.py:CliRunner.invoke` (line 596) uses `CliRunner.isolation` (line 399). `isolation` swaps `sys.stdout` and `sys.stderr` for separate fake streams and yields `(stdout, stderr, output)` BytesIO objects. `output` is a `BytesIOCopy` that mirrors both streams in order. In `invoke`'s `finally` block (lines ~726-728), `getvalue()` is called on each to get `stdout`, `stderr` and `output`. These are passed to `Result` (line 730).\n\nWith `capture=\"fd\"` (added in 8.4.0), `invoke` also creates `_FDCapture(1)` and `_FDCapture(2)` (lines 658-659). It merges the bytes they capture into those same buffers.\n\n**Exit code** — in the `try` block of `CliRunner.invoke` (lines ~676-710):\n- **Normal return:** `exit_code = 0`.\n- **`SystemExit`** (line 688): `exc_info = sys.exc_info()` is always recorded.\n  - A `None` code becomes 0.\n  - An int code is used as is (`exit_code = e_code`, line 703).\n  - A non-int code is written to stdout with a newline, and `exit_code` is 1.\n  - `exception` is set only when the code is nonzero.\n- **Other `Exception`** (lines ~709-710):\n  - If `catch_exceptions` is false, the exception is re-raised. A per-call value overrides the runner's unless it is `None`.\n  - Otherwise `exit_code = 1`, and both `exception` and `exc_info = sys.exc_info()` are set.\n- **`KeyboardInterrupt` and other `BaseException` subclasses** are not caught.\n\n**Where the exception is stored** — on the returned `Result`, in `src/click/testing.py:Result.__init__` (lines 271-280):\n- `Result.exception` holds the exception instance (line 279).\n- `Result.exc_info` holds the `(type, value, traceback)` tuple (line 280).\n\n`invoke` passes both in at lines 737-738.",
+  "ttft_ms": 1233,
+  "type": "result",
+  "duration_ms": 7386,
+  "uuid": "152d3fb2-a319-42e6-9827-0b6e68f5a51a",
+  "ttft_stream_ms": 1065,
+  "time_to_request_ms": 34,
+  "first_content_frame_ms": 1066,
+  "queued_turn_count": 0,
+  "result_index": 0,
+  "tools": {
+    "calls": 1,
+    "byTool": {
+      "Grep": 1
+    },
+    "thinkerCalls": 0,
+    "cbmCalls": 0,
+    "filesRead": 0,
+    "edits": 0,
+    "greps": 1,
+    "bash": 0
+  }
+}

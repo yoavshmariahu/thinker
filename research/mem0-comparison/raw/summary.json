@@ -1,0 +1,307 @@
+[
+  {
+    "task": "E1-flag-parsing",
+    "arm": "thinker",
+    "wall_s": 14.521173375,
+    "api_s": 14.279,
+    "tools": {
+      "calls": 4,
+      "byTool": {
+        "Grep": 1,
+        "Read": 3
+      },
+      "thinkerCalls": 0,
+      "cbmCalls": 0,
+      "filesRead": 1,
+      "edits": 0,
+      "greps": 1,
+      "bash": 0
+    },
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 7389,
+      "cache_read_input_tokens": 22087,
+      "output_tokens": 1669,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 7389,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-sonnet-5-5": {
+        "inputTokens": 6,
+        "outputTokens": 1669,
+        "cacheReadInputTokens": 22087,
+        "cacheCreationInputTokens": 7389,
+        "webSearchRequests": 0,
+        "costUSD": 0.050675399999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-sonnet-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "retrieval_ms": 352.472583,
+    "warm_retrieval_ms": 35.25962499999997,
+    "context_chars": 0,
+    "grade": {
+      "score": 0.5,
+      "missing": [
+        "Parser-side file:symbol: parser.py:_Option.takes_value, _Option.process, add_option, _match_long_opt (why flags take no value)",
+        "Non-boolean flags with no default end up None via Command.parse_args converting UNSET to None (core.py:1336-1338)",
+        "Parameter.consume_value as the default/envvar/default_map chain, and Parameter.__init__ _default_explicit",
+        "Flag-ness conditions: decorators.py prebuilt options set is_flag=True; secondary-opt implicit flag detail",
+        "Note that flags don't get nargs=0 / count+is_flag is rejected; count=True is not a flag"
+      ],
+      "wrong": [
+        "Claims explicit is_flag=False is simply used; the reference notes is_flag=False with _flag_needs_value logic modifies _flag_needs_value, a minor nuance",
+        "States _flag_needs_value exception only loosely; the reference says that check precedes the secondary_opts branch, roughly consistent but imprecise",
+        "Says consume_value swaps a command-line True for flag_value; reference says from any source more explicit than DEFAULT_MAP (minor)"
+      ],
+      "reason": "The main points are right: the flag decision is in Option.__init__, add_to_parser uses _const actions and two registrations for bool flags with secondary opts, and the default chain covers __init__ defaults, get_default, and the process_value backstop. It omits several key symbols and facts from the reference: the parser-side functions, the Parameter.consume_value chain, and the residual UNSET to None conversion in Command.parse_args. The details are therefore incomplete."
+    }
+  },
+  {
+    "task": "E1-flag-parsing",
+    "arm": "mem0",
+    "wall_s": 12.056283083999999,
+    "api_s": 11.816,
+    "tools": {
+      "calls": 5,
+      "byTool": {
+        "Grep": 1,
+        "Read": 4
+      },
+      "thinkerCalls": 0,
+      "cbmCalls": 0,
+      "filesRead": 1,
+      "edits": 0,
+      "greps": 1,
+      "bash": 0
+    },
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 6938,
+      "cache_read_input_tokens": 22743,
+      "output_tokens": 1607,
+      "output_tokens_details": {
+        "thinking_tokens": 15
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 6938,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-sonnet-5-5": {
+        "inputTokens": 6,
+        "outputTokens": 1607,
+        "cacheReadInputTokens": 22743,
+        "cacheCreationInputTokens": 6938,
+        "webSearchRequests": 0,
+        "costUSD": 0.0483826,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 15,
+        "canonicalModel": "claude-sonnet-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "retrieval_ms": 39.96704199999999,
+    "warm_retrieval_ms": 17.216062000000022,
+    "context_chars": 2606,
+    "grade": {
+      "score": 0.5,
+      "missing": [
+        "Option.__init__ pre-seeds default=False for bool flags (core.py:3008-3010) — the primary mechanism for 'bool flag absent => False'; the answer omits it",
+        "Non-boolean flags end up None via Command.parse_args converting UNSET to None (core.py:1336-1338)",
+        "Parameter.consume_value as the default/envvar chain entry point",
+        "Parser-side: _Option.takes_value (parser.py) making flags value-less, _Option.process writing const",
+        "explicit is_flag=True as a trigger (decorators), and that count is not a flag",
+        "The secondary-opts branch ignores flag_value"
+      ],
+      "wrong": [
+        "Says count_const is a possible action; reference says count_const is unreachable since count+is_flag raises TypeError",
+        "Says the multiple-flag default=() requires 'no prompt' and 'not required' conditions; reference says any flag with multiple=True and no explicit default gets ()",
+        "Says process_value bool-flag backstop is the main way the False default arises, missing the __init__ seeding; implies callback behavior details not in reference"
+      ],
+      "reason": "The answer correctly identifies Option.__init__ as the decision point, Option.add_to_parser for registration (the _const action and two-option registration for bool flags with secondary opts), and Option.get_default and Option.process_value for the default. It omits the key mechanism, the __init__ pre-seeding of False for bool flags. It also omits the None result for non-boolean flags and the parser-side details. It makes a few small inaccurate claims, such as count_const being reachable."
+    }
+  },
+  {
+    "task": "E5-runner-exit",
+    "arm": "mem0",
+    "wall_s": 7.576654624999995,
+    "api_s": 7.333,
+    "tools": {
+      "calls": 1,
+      "byTool": {
+        "Grep": 1
+      },
+      "thinkerCalls": 0,
+      "cbmCalls": 0,
+      "filesRead": 0,
+      "edits": 0,
+      "greps": 1,
+      "bash": 0
+    },
+    "usage": {
+      "input_tokens": 4,
+      "cache_creation_input_tokens": 2981,
+      "cache_read_input_tokens": 13265,
+      "output_tokens": 951,
+      "output_tokens_details": {
+        "thinking_tokens": 20
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 2981,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-sonnet-5-5": {
+        "inputTokens": 4,
+        "outputTokens": 951,
+        "cacheReadInputTokens": 13265,
+        "cacheCreationInputTokens": 2981,
+        "webSearchRequests": 0,
+        "costUSD": 0.024095000000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 20,
+        "canonicalModel": "claude-sonnet-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "retrieval_ms": 18.382291000000123,
+    "warm_retrieval_ms": 13.490479499999878,
+    "context_chars": 2689,
+    "grade": {
+      "score": 0.5,
+      "missing": [
+        "StreamMixer (testing.py:138) as the class that creates the stdout/stderr/output buffers",
+        "BytesIOCopy is what stdout and stderr each are, with copy_to=output",
+        "_NamedTextIOWrapper wrapping sys.stdout/sys.stderr, with stderr using errors=backslashreplace",
+        "fd-mode detail: fd bytes are appended to the BytesIOCopy buffers at the end, so they are not interleaved in output",
+        "Exit code 1 is fixed for non-SystemExit exceptions; Command.main converts most errors to SystemExit",
+        "Result.exc_info is also set for a zero-code SystemExit while exception is None"
+      ],
+      "wrong": [
+        "Says `output` is a BytesIOCopy. In the reference, `output` is a plain io.BytesIO. `stdout` and `stderr` are the BytesIOCopy objects, and each mirrors into `output`.",
+        "States that capture='fd' was added in 8.4.0. The reference does not support this version claim."
+      ],
+      "reason": "The answer gets the exit-code logic and the Result.exception and exc_info locations right. It misattributes the BytesIOCopy mirroring to `output` instead of to stdout and stderr, and it leaves out StreamMixer, the key class behind the separate capture. It also adds an unsupported version claim, so it gets partial credit."
+    }
+  },
+  {
+    "task": "E5-runner-exit",
+    "arm": "thinker",
+    "wall_s": 8.940460250000005,
+    "api_s": 8.703,
+    "tools": {
+      "calls": 2,
+      "byTool": {
+        "Grep": 1,
+        "Read": 1
+      },
+      "thinkerCalls": 0,
+      "cbmCalls": 0,
+      "filesRead": 1,
+      "edits": 0,
+      "greps": 1,
+      "bash": 0
+    },
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 1581,
+      "cache_read_input_tokens": 23678,
+      "output_tokens": 1092,
+      "output_tokens_details": {
+        "thinking_tokens": 20
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1581,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-sonnet-5-5": {
+        "inputTokens": 6,
+        "outputTokens": 1092,
+        "cacheReadInputTokens": 23678,
+        "cacheCreationInputTokens": 1581,
+        "webSearchRequests": 0,
+        "costUSD": 0.0219916,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 20,
+        "canonicalModel": "claude-sonnet-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "retrieval_ms": 51.51816699999995,
+    "warm_retrieval_ms": 34.40545850000001,
+    "context_chars": 2040,
+    "grade": {
+      "score": 0.5,
+      "missing": [
+        "BytesIOCopy details (copy_to, writes mirrored before self) and _NamedTextIOWrapper wrapping of sys.stdout/sys.stderr in isolation (stderr with backslashreplace)",
+        "isolation yields the 3-tuple (stdout, stderr, output); collection happens in invoke's finally with flush",
+        "Details of fd capture: _FDCapture uses os.dup/dup2 to a temp file, started before isolation, falls back on OSError; _original_fd for fileno()",
+        "In fd mode, bytes are appended at the end of output rather than interleaved",
+        "Why SystemExit is always caught regardless of catch_exceptions; how Command.main converts errors into SystemExit (core.py)",
+        "Result.exception is None on success; exc_info populated even for zero-code SystemExit",
+        "Result constructed outside the isolation block"
+      ],
+      "wrong": [
+        "Says the `outstreams[0]`/`outstreams[1]` stream setup is in `isolation` (around line 443) with little precision; the reference puts the sys.stdout/sys.stderr wrapping at lines 459 and 466, and outstreams are indexes of the yielded tuple in invoke, not created by isolation directly",
+        "Describes the non-int SystemExit case as 'Otherwise exit_code is the code itself', which is loosely stated but not wrong; mostly imprecise rather than incorrect"
+      ],
+      "reason": "The main points are correct: StreamMixer with separate buffers mirrored into a combined one, the SystemExit and other-exception exit-code logic, and Result.exception and Result.exc_info at lines 279 and 280. However, the answer leaves out several of the reference's key details. It doesn't mention how sys.stdout and sys.stderr are replaced with wrappers, and it says little about how fd capture works. It also doesn't explain that SystemExit is always caught, or that exception is None on success. It gives few precise file:symbol line references. That is enough to be partially complete, not fully complete."
+    }
+  }
+]

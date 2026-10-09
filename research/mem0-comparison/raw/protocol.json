@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-04",
+  "author": "Codex with Yoav Shmariahu",
+  "thinker_commit": "b8b8f80",
+  "mem0_commit": "abb81c88e1f738a8117d8293530fbc31a5ef8fd9",
+  "evaluation_commit": "4b61c5d31b9c668a12b4f5e78064248a02c82d2b",
+  "click_commit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "model": "claude-sonnet-5-5",
+  "tasks": [
+    "E1-flag-parsing",
+    "E5-runner-exit"
+  ],
+  "learning_sessions": [
+    "L1-option-value-path",
+    "L5-testing"
+  ],
+  "seeds": {
+    "L1-option-value-path.events.json": "210b999c4309878063fd933a93b466d868abda34fb360080c842db403aa95b75",
+    "L5-testing.events.json": "95a5e052c7d9861225863ad221a3d0f2f1fc1ff145253b923e47cb616ff74916"
+  },
+  "memory_budget_estimated_tokens": 750,
+  "estimator": "ceil(chars / 3.6)",
+  "repetitions": 1,
+  "order": [
+    "E1 thinker",
+    "E1 mem0",
+    "E5 mem0",
+    "E5 thinker"
+  ],
+  "mem0_embedding": "BAAI/bge-small-en-v1.5 (384d), FastEmbed; Qdrant local",
+  "mem0_nlp": "optional spaCy models absent; SDK fallback used",
+  "machine": "macOS-14.6.1-arm64-arm-64bit",
+  "python": "Python 3.13.14",
+  "node": "v24.15.0",
+  "controls": [
+    "Independent fresh memory builds from identical raw session evidence; no existing thinker notes",
+    "No learner receives held-out task prompts or gold answers",
+    "Same solver, code checkout, tools, generic prompt and memory budget",
+    "Single prefetched context; no ongoing MCP lookup, learning, or edits",
+    "All telemetry disabled; official managed Mem0 service not used"
+  ],
+  "limitations": [
+    "Two read-only questions, one repetition, no no-memory baseline",
+    "Different native extraction policies: thinker condenses its trace, Mem0 receives full normalized messages",
+    "Timing includes CLI overhead and prompt-cache effects; not a steady-state production benchmark",
+    "LoCoMo is truncated to first session and first two questions whose evidence is wholly in that session; not full benchmark"
+  ],
+  "excluded": [
+    "Preflight with differing model aliases",
+    "Preflight with different token estimator for Mem0",
+    "Initial LoCoMo adapter forwarded unsupported timestamp; corrected adapter drops it like upstream wrapper"
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "context": "### [map] CliRunner.invoke/isolation/Result flow in click.testing  (id: clirunner-invoke-isolation-result-flow-in-click-testing, confidence 85%)\nAll in `src/click/testing.py`.\n- `CliRunner.invoke`: optional `_FDCapture(1/2)` (capture=\"fd\"; falls back to sys on OSError, ctor rejects fd on Windows) -> `with self.isolation(...)` -> `cli.main(args, prog_name, **extra)` -> build `Result`. String args use `shlex.split`.\n- `CliRunner.isolation`: `StreamMixer` has stdout/stderr (`BytesIOCopy`, mirror writes to `output`) so `Result.output` is interleaved order. Wraps in `_NamedTextIOWrapper` (close is no-op). stdin via `make_input_stream`; `echo_stdin` uses `EchoingStdin` (+`_pause_echo` during prompts/getchar).\n- Patches restored in `finally`: `termui.visible_prompt_func/hidden_prompt_func/_getchar`, `utils`/`_compat.should_strip_ansi`, `formatting.FORCED_WIDTH=80`, `pdb.Pdb.__init__`. Env: `make_env` merges runner and per-call env; `None` deletes key; restored via `old_env`.\n- Exit handling in `invoke`: SystemExit -> exc_info always set, None code->0, `exception` only if nonzero, non-int code printed to stdout and exit_code=1. Other Exception: re-raised if catch_exceptions false (per-call overrides runner when not None), else exit_code=1. BaseException like KeyboardInterrupt is not caught.\n- fd mode: captured bytes are written into the stdout/stderr buffers after the command, which mirrors into output.\n- `Result`: stdout_bytes/stderr_bytes/output_bytes, return_value, exit_code, exception, exc_info, runner; text properties `stdout/stderr/output` decode with runner.charset, errors=replace, \\r\\n->\\n.\n→ pointers: src/click/testing.py:CliRunner.invoke:L596 [469 call sites in 23 files], src/click/testing.py:CliRunner.isolation:L398 [8 call sites in 6 files], src/click/testing.py:Result:L231 [1 call site in 2 files], src/click/testing.py:_FDCapture:L80 [2 call sites in 1 file], src/click/testing.py:BytesIOCopy:L117 [4 call sites in 2 files], src/click/testing.py:Result.output:L282 [537 references in 28 files] (+1 more)",
+  "result": {
+    "text": "### [map] CliRunner.invoke/isolation/Result flow in click.testing  (id: clirunner-invoke-isolation-result-flow-in-click-testing, confidence 85%)\nAll in `src/click/testing.py`.\n- `CliRunner.invoke`: optional `_FDCapture(1/2)` (capture=\"fd\"; falls back to sys on OSError, ctor rejects fd on Windows) -> `with self.isolation(...)` -> `cli.main(args, prog_name, **extra)` -> build `Result`. String args use `shlex.split`.\n- `CliRunner.isolation`: `StreamMixer` has stdout/stderr (`BytesIOCopy`, mirror writes to `output`) so `Result.output` is interleaved order. Wraps in `_NamedTextIOWrapper` (close is no-op). stdin via `make_input_stream`; `echo_stdin` uses `EchoingStdin` (+`_pause_echo` during prompts/getchar).\n- Patches restored in `finally`: `termui.visible_prompt_func/hidden_prompt_func/_getchar`, `utils`/`_compat.should_strip_ansi`, `formatting.FORCED_WIDTH=80`, `pdb.Pdb.__init__`. Env: `make_env` merges runner and per-call env; `None` deletes key; restored via `old_env`.\n- Exit handling in `invoke`: SystemExit -> exc_info always set, None code->0, `exception` only if nonzero, non-int code printed to stdout and exit_code=1. Other Exception: re-raised if catch_exceptions false (per-call overrides runner when not None), else exit_code=1. BaseException like KeyboardInterrupt is not caught.\n- fd mode: captured bytes are written into the stdout/stderr buffers after the command, which mirrors into output.\n- `Result`: stdout_bytes/stderr_bytes/output_bytes, return_value, exit_code, exception, exc_info, runner; text properties `stdout/stderr/output` decode with runner.charset, errors=replace, \\r\\n->\\n.\n→ pointers: src/click/testing.py:CliRunner.invoke:L596 [469 call sites in 23 files], src/click/testing.py:CliRunner.isolation:L398 [8 call sites in 6 files], src/click/testing.py:Result:L231 [1 call site in 2 files], src/click/testing.py:_FDCapture:L80 [2 call sites in 1 file], src/click/testing.py:BytesIOCopy:L117 [4 call sites in 2 files], src/click/testing.py:Result.output:L282 [537 references in 28 files] (+1 more)",
+    "included": [
+      {
+        "id": "clirunner-invoke-isolation-result-flow-in-click-testing",
+        "title": "CliRunner.invoke/isolation/Result flow in click.testing",
+        "kind": "map",
+        "answers": [
+          "How does CliRunner isolate stdin/stdout/stderr and env?",
+          "How does CliRunner.invoke compute exit_code and exception?",
+          "What does click.testing.Result expose?",
+          "What does capture='fd' do in CliRunner?"
+        ],
+        "body": "All in `src/click/testing.py`.\n- `CliRunner.invoke`: optional `_FDCapture(1/2)` (capture=\"fd\"; falls back to sys on OSError, ctor rejects fd on Windows) -> `with self.isolation(...)` -> `cli.main(args, prog_name, **extra)` -> build `Result`. String args use `shlex.split`.\n- `CliRunner.isolation`: `StreamMixer` has stdout/stderr (`BytesIOCopy`, mirror writes to `output`) so `Result.output` is interleaved order. Wraps in `_NamedTextIOWrapper` (close is no-op). stdin via `make_input_stream`; `echo_stdin` uses `EchoingStdin` (+`_pause_echo` during prompts/getchar).\n- Patches restored in `finally`: `termui.visible_prompt_func/hidden_prompt_func/_getchar`, `utils`/`_compat.should_strip_ansi`, `formatting.FORCED_WIDTH=80`, `pdb.Pdb.__init__`. Env: `make_env` merges runner and per-call env; `None` deletes key; restored via `old_env`.\n- Exit handling in `invoke`: SystemExit -> exc_info always set, None code->0, `exception` only if nonzero, non-int code printed to stdout and exit_code=1. Other Exception: re-raised if catch_exceptions false (per-call overrides runner when not None), else exit_code=1. BaseException like KeyboardInterrupt is not caught.\n- fd mode: captured bytes are written into the stdout/stderr buffers after the command, which mirrors into output.\n- `Result`: stdout_bytes/stderr_bytes/output_bytes, return_value, exit_code, exception, exc_info, runner; text properties `stdout/stderr/output` decode with runner.charset, errors=replace, \\r\\n->\\n.",
+        "tags": [
+          "testing",
+          "clirunner"
+        ],
+        "deps": [
+          {
+            "path": "src/click/testing.py",
+            "symbol": "CliRunner.invoke",
+            "hash": "sha256:241afb80c432246c67e5cf41",
+            "line": 596,
+            "missing": false,
+            "fanout": {
+              "files": 23,
+              "sites": 469,
+              "refs": 501
+            }
+          },
+          {
+            "path": "src/click/testing.py",
+            "symbol": "CliRunner.isolation",
+            "hash": "sha256:5aefe16bd24736d40fd3bcd8",
+            "line": 398,
+            "missing": false,
+            "fanout": {
+              "files": 6,
+              "sites": 8,
+              "refs": 16
+            }
+          },
+          {
+            "path": "src/click/testing.py",
+            "symbol": "Result",
+            "hash": "sha256:ff8114626bf48ba433e5895c",
+            "line": 231,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 1,
+              "refs": 4
+            }
+          },
+          {
+            "path": "src/click/testing.py",
+            "symbol": "_FDCapture",
+            "hash": "sha256:92d407513232d6c038eb554c",
+            "line": 80,
+            "missing": false,
+            "fanout": {
+              "files": 1,
+              "sites": 2,
+              "refs": 5
+            }
+          },
+          {
+            "path": "src/click/testing.py",
+            "symbol": "BytesIOCopy",
+            "hash": "sha256:d46d5695655eafb176abb0f0",
+            "line": 117,
+            "missing": false,
+            "fanout": {
+              "files": 2,
+              "sites": 4,
+              "refs": 10
+            }
+          },
+          {
+            "path": "src/click/testing.py",
+            "symbol": "Result.output",
+            "hash": "sha256:3d8f6646e966fc44bb24d5ac",
+            "line": 282,
+            "missing": false,
+            "fanout": {
+              "files": 28,
+              "sites": 0,
+              "refs": 537
+            }
+          },
+          {
+            "path": "src/click/_compat.py",
+            "symbol": "should_strip_ansi",
+            "hash": "sha256:0a15d12a8bd71fa8a3becd20",
+            "line": 502,
+            "missing": false,
+            "fanout": {
+              "files": 4,
+              "sites": 3,
+              "refs": 11
+            }
+          }
+        ],
+        "source": {
+          "type": "agent",
+          "session": "L5-testing"
+        },
+        "created": "2026-10-05T05:32:08.269Z",
+        "verified": "2026-10-05T05:32:08.269Z",
+        "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+        "confidence": 0.85,
+        "status": "fresh",
+        "uses": 0,
+        "related": []
+      }
+    ],
+    "omitted": [],
+    "tokens": 567,
+    "more": [],
+    "held": []
+  },
+  "timings_ms": [
+    51.51816699999995,
+    37.822374999999965,
+    35.12741699999992,
+    33.85895899999991,
+    33.19033399999989,
+    38.87720799999988,
+    32.685249999999996,
+    32.807832999999846,
+    33.52083399999992,
+    37.06133299999988,
+    34.951958000000104
+  ],
+  "first_ms": 51.51816699999995,
+  "warm_median_ms": 34.40545850000001,
+  "context_chars": 2040
+}

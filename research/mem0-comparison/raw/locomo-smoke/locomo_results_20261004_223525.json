@@ -1,0 +1,324 @@
+{
+  "metadata": {
+    "benchmark": "locomo",
+    "project_name": "first-session-smoke",
+    "run_id": "5e636e26",
+    "timestamp": "20261004_223525",
+    "answerer_model": "claude-sonnet-5-5",
+    "judge_model": "claude-sonnet-5-5",
+    "provider": "openai",
+    "top_k": 20,
+    "top_k_cutoffs": [
+      "top_20"
+    ],
+    "total_questions": 2,
+    "categories": [
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "metrics_by_cutoff": {
+    "top_20": {
+      "overall": {
+        "total": 2,
+        "correct": 2,
+        "accuracy": 100.0,
+        "avg_score": 100.0
+      },
+      "by_category": {
+        "temporal": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 100.0,
+          "avg_score": 100.0
+        }
+      }
+    }
+  },
+  "evaluations": [
+    {
+      "question_id": "conv0_q0",
+      "conversation_idx": 0,
+      "category": 2,
+      "category_name": "temporal",
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "ground_truth_answer": "7 May 2023",
+      "evidence": [
+        "D1:3"
+      ],
+      "user_id": "locomo_0_5e636e26",
+      "reference_date": "1:56 pm on 8 May, 2023",
+      "retrieval": {
+        "search_query": "When did Caroline go to the LGBTQ support group?",
+        "search_results": [
+          {
+            "memory": "Caroline attended an LGBTQ support group on October 4, 2026 and found it very powerful",
+            "score": 0.9150889126480326,
+            "id": "09a25e0c-155a-4004-b7e2-9261f811a11e",
+            "created_at": "2026-10-05T05:34:40.545422+00:00",
+            "updated_at": "2026-10-05T05:34:40.545422+00:00"
+          },
+          {
+            "memory": "Caroline found the transgender stories at the LGBTQ support group she attended around October 4, 2026 very inspiring, and felt happy and thankful for all the support she received",
+            "score": 0.9086515480924,
+            "id": "c30748cf-d93d-45ab-a6fe-37b8ae3390d7",
+            "created_at": "2026-10-05T05:34:44.895237+00:00",
+            "updated_at": "2026-10-05T05:34:44.895237+00:00"
+          },
+          {
+            "memory": "Caroline says the LGBTQ support group she attended around October 4, 2026 has made her feel accepted and given her courage to embrace herself",
+            "score": 0.8988284112609014,
+            "id": "2794cde2-4caf-45f0-b6a9-e53ec5039dab",
+            "created_at": "2026-10-05T05:34:50.452531+00:00",
+            "updated_at": "2026-10-05T05:34:50.452531+00:00"
+          },
+          {
+            "memory": "Melanie loved the painting of a woman on a wall in the image Caroline shared on October 5, 2026, and thought it was great that Caroline found such a helpful LGBTQ support group",
+            "score": 0.8511986036844787,
+            "id": "101cbbed-9be1-45ab-8531-343cda46c6d7",
+            "created_at": "2026-10-05T05:34:48.618214+00:00",
+            "updated_at": "2026-10-05T05:34:48.618214+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that taking care of ourselves is vital, and said she was going swimming with her kids",
+            "score": 0.5835215517861714,
+            "id": "defc2ccc-271b-4c8a-b0fe-2be40db4b186",
+            "created_at": "2026-10-05T05:35:13.433481+00:00",
+            "updated_at": "2026-10-05T05:35:13.433481+00:00"
+          },
+          {
+            "memory": "Caroline agreed with Melanie on October 5, 2026 that relaxing and expressing oneself is key, and said she was going off to do some research",
+            "score": 0.5693423019875035,
+            "id": "4e05c11e-7ea4-4a66-8a8a-d86c0d90b8f6",
+            "created_at": "2026-10-05T05:35:11.568146+00:00",
+            "updated_at": "2026-10-05T05:35:11.568146+00:00"
+          },
+          {
+            "memory": "Caroline is keen on pursuing counseling or working in mental health as a career, because she would love to support people with similar issues to her own, as of October 5, 2026",
+            "score": 0.47729028721454214,
+            "id": "810bbb77-e8d9-458e-bdb5-f6753b215177",
+            "created_at": "2026-10-05T05:34:58.007764+00:00",
+            "updated_at": "2026-10-05T05:34:58.007764+00:00"
+          },
+          {
+            "memory": "Caroline shared an image on October 5, 2026 (search query: transgender pride flag mural) showing a dog walking past a wall with a painting of a woman",
+            "score": 0.3583179926740676,
+            "id": "0f596358-c209-4e44-9e80-fbe0a35f0430",
+            "created_at": "2026-10-05T05:34:44.895260+00:00",
+            "updated_at": "2026-10-05T05:34:44.895260+00:00"
+          },
+          {
+            "memory": "Caroline plans to continue her education and check out career options, and feels excited about it as of October 5, 2026",
+            "score": 0.3121511170146664,
+            "id": "b61e9a25-45b1-4766-b584-4c9c1f0bc138",
+            "created_at": "2026-10-05T05:34:53.410298+00:00",
+            "updated_at": "2026-10-05T05:34:53.410298+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that she would be a great counselor and that her empathy and understanding will really help the people she works with",
+            "score": 0.31009112246171433,
+            "id": "a505dd52-7aa0-4b44-9e35-1ff2b8b05839",
+            "created_at": "2026-10-05T05:35:00.287194+00:00",
+            "updated_at": "2026-10-05T05:35:00.287194+00:00"
+          },
+          {
+            "memory": "Melanie painted the lake sunrise painting she shared with Caroline around 2025 (last year relative to October 5, 2026) and says it is special to her",
+            "score": 0.2914206737682075,
+            "id": "ff6f9f5f-330d-4b6f-85fe-d5ebcc78c03c",
+            "created_at": "2026-10-05T05:35:05.204084+00:00",
+            "updated_at": "2026-10-05T05:35:05.204084+00:00"
+          },
+          {
+            "memory": "Caroline asked Melanie on October 5, 2026 whether the painting of a sunset over a lake that Melanie shared is Melanie's own painting, and thanked Melanie for her kind words about being a great counselor",
+            "score": 0.28696405568662964,
+            "id": "308ccb79-f100-4f20-9c7c-704497354179",
+            "created_at": "2026-10-05T05:35:03.398877+00:00",
+            "updated_at": "2026-10-05T05:35:03.398877+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that painting is a fun way for her to express her feelings and be creative, and that it is a great way to relax after a long day",
+            "score": 0.28434163069950563,
+            "id": "2abc414d-4307-4eb1-bbad-e6272cd5f315",
+            "created_at": "2026-10-05T05:35:08.981876+00:00",
+            "updated_at": "2026-10-05T05:35:08.981876+00:00"
+          },
+          {
+            "memory": "Caroline told Melanie on October 5, 2026 that the colors in Melanie's lake sunrise painting blend nicely, and that painting looks like a great outlet for expressing oneself",
+            "score": 0.2785849786082708,
+            "id": "4866c597-3cc7-4b77-b211-26ee0c32339f",
+            "created_at": "2026-10-05T05:35:07.224450+00:00",
+            "updated_at": "2026-10-05T05:35:07.224450+00:00"
+          },
+          {
+            "memory": "Melanie is swamped with her kids and work as of October 5, 2026",
+            "score": 0.2609194801897615,
+            "id": "fef9af60-0be5-47cf-93b1-b5856ffc6b7b",
+            "created_at": "2026-10-05T05:34:37.372910+00:00",
+            "updated_at": "2026-10-05T05:34:37.372910+00:00"
+          },
+          {
+            "memory": "Melanie shared an image on October 5, 2026 (search query: painting sunrise) showing a photo of a painting of a sunset over a lake",
+            "score": 0.24248784335142654,
+            "id": "e7f45967-50ea-4058-a04d-70222461a216",
+            "created_at": "2026-10-05T05:35:00.287214+00:00",
+            "updated_at": "2026-10-05T05:35:00.287214+00:00"
+          }
+        ],
+        "search_latency_ms": 10.1,
+        "total_results": 16
+      },
+      "cutoff_results": {
+        "top_20": {
+          "judgment": "CORRECT",
+          "score": 1.0,
+          "generated_answer": "7 May 2023 (the day before the conversation)",
+          "memories_evaluated": 16,
+          "reason": "The generated answer gives the date 7 May 2023, which exactly matches the gold answer; the parenthetical is extra detail."
+        }
+      }
+    },
+    {
+      "question_id": "conv0_q1",
+      "conversation_idx": 0,
+      "category": 2,
+      "category_name": "temporal",
+      "question": "When did Melanie paint a sunrise?",
+      "ground_truth_answer": "2022",
+      "evidence": [
+        "D1:12"
+      ],
+      "user_id": "locomo_0_5e636e26",
+      "reference_date": "1:56 pm on 8 May, 2023",
+      "retrieval": {
+        "search_query": "When did Melanie paint a sunrise?",
+        "search_results": [
+          {
+            "memory": "Melanie shared an image on October 5, 2026 (search query: painting sunrise) showing a photo of a painting of a sunset over a lake",
+            "score": 0.8889956331337645,
+            "id": "e7f45967-50ea-4058-a04d-70222461a216",
+            "created_at": "2026-10-05T05:35:00.287214+00:00",
+            "updated_at": "2026-10-05T05:35:00.287214+00:00"
+          },
+          {
+            "memory": "Melanie painted the lake sunrise painting she shared with Caroline around 2025 (last year relative to October 5, 2026) and says it is special to her",
+            "score": 0.8876649918747636,
+            "id": "ff6f9f5f-330d-4b6f-85fe-d5ebcc78c03c",
+            "created_at": "2026-10-05T05:35:05.204084+00:00",
+            "updated_at": "2026-10-05T05:35:05.204084+00:00"
+          },
+          {
+            "memory": "Caroline told Melanie on October 5, 2026 that the colors in Melanie's lake sunrise painting blend nicely, and that painting looks like a great outlet for expressing oneself",
+            "score": 0.8443758096295513,
+            "id": "4866c597-3cc7-4b77-b211-26ee0c32339f",
+            "created_at": "2026-10-05T05:35:07.224450+00:00",
+            "updated_at": "2026-10-05T05:35:07.224450+00:00"
+          },
+          {
+            "memory": "Caroline asked Melanie on October 5, 2026 whether the painting of a sunset over a lake that Melanie shared is Melanie's own painting, and thanked Melanie for her kind words about being a great counselor",
+            "score": 0.728011133332632,
+            "id": "308ccb79-f100-4f20-9c7c-704497354179",
+            "created_at": "2026-10-05T05:35:03.398877+00:00",
+            "updated_at": "2026-10-05T05:35:03.398877+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that painting is a fun way for her to express her feelings and be creative, and that it is a great way to relax after a long day",
+            "score": 0.6169793753504933,
+            "id": "2abc414d-4307-4eb1-bbad-e6272cd5f315",
+            "created_at": "2026-10-05T05:35:08.981876+00:00",
+            "updated_at": "2026-10-05T05:35:08.981876+00:00"
+          },
+          {
+            "memory": "Melanie loved the painting of a woman on a wall in the image Caroline shared on October 5, 2026, and thought it was great that Caroline found such a helpful LGBTQ support group",
+            "score": 0.6062478636216527,
+            "id": "101cbbed-9be1-45ab-8531-343cda46c6d7",
+            "created_at": "2026-10-05T05:34:48.618214+00:00",
+            "updated_at": "2026-10-05T05:34:48.618214+00:00"
+          },
+          {
+            "memory": "Caroline shared an image on October 5, 2026 (search query: transgender pride flag mural) showing a dog walking past a wall with a painting of a woman",
+            "score": 0.37359988701160585,
+            "id": "0f596358-c209-4e44-9e80-fbe0a35f0430",
+            "created_at": "2026-10-05T05:34:44.895260+00:00",
+            "updated_at": "2026-10-05T05:34:44.895260+00:00"
+          },
+          {
+            "memory": "Melanie is swamped with her kids and work as of October 5, 2026",
+            "score": 0.3614928324226066,
+            "id": "fef9af60-0be5-47cf-93b1-b5856ffc6b7b",
+            "created_at": "2026-10-05T05:34:37.372910+00:00",
+            "updated_at": "2026-10-05T05:34:37.372910+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that taking care of ourselves is vital, and said she was going swimming with her kids",
+            "score": 0.322795402931942,
+            "id": "defc2ccc-271b-4c8a-b0fe-2be40db4b186",
+            "created_at": "2026-10-05T05:35:13.433481+00:00",
+            "updated_at": "2026-10-05T05:35:13.433481+00:00"
+          },
+          {
+            "memory": "Melanie told Caroline on October 5, 2026 that she would be a great counselor and that her empathy and understanding will really help the people she works with",
+            "score": 0.3126843919352368,
+            "id": "a505dd52-7aa0-4b44-9e35-1ff2b8b05839",
+            "created_at": "2026-10-05T05:35:00.287194+00:00",
+            "updated_at": "2026-10-05T05:35:00.287194+00:00"
+          },
+          {
+            "memory": "Caroline agreed with Melanie on October 5, 2026 that relaxing and expressing oneself is key, and said she was going off to do some research",
+            "score": 0.3025141396943373,
+            "id": "4e05c11e-7ea4-4a66-8a8a-d86c0d90b8f6",
+            "created_at": "2026-10-05T05:35:11.568146+00:00",
+            "updated_at": "2026-10-05T05:35:11.568146+00:00"
+          },
+          {
+            "memory": "Caroline found the transgender stories at the LGBTQ support group she attended around October 4, 2026 very inspiring, and felt happy and thankful for all the support she received",
+            "score": 0.23769334005624893,
+            "id": "c30748cf-d93d-45ab-a6fe-37b8ae3390d7",
+            "created_at": "2026-10-05T05:34:44.895237+00:00",
+            "updated_at": "2026-10-05T05:34:44.895237+00:00"
+          },
+          {
+            "memory": "Caroline says the LGBTQ support group she attended around October 4, 2026 has made her feel accepted and given her courage to embrace herself",
+            "score": 0.22567315903382693,
+            "id": "2794cde2-4caf-45f0-b6a9-e53ec5039dab",
+            "created_at": "2026-10-05T05:34:50.452531+00:00",
+            "updated_at": "2026-10-05T05:34:50.452531+00:00"
+          },
+          {
+            "memory": "Caroline attended an LGBTQ support group on October 4, 2026 and found it very powerful",
+            "score": 0.21714732094793412,
+            "id": "09a25e0c-155a-4004-b7e2-9261f811a11e",
+            "created_at": "2026-10-05T05:34:40.545422+00:00",
+            "updated_at": "2026-10-05T05:34:40.545422+00:00"
+          },
+          {
+            "memory": "Caroline plans to continue her education and check out career options, and feels excited about it as of October 5, 2026",
+            "score": 0.21498774087492267,
+            "id": "b61e9a25-45b1-4766-b584-4c9c1f0bc138",
+            "created_at": "2026-10-05T05:34:53.410298+00:00",
+            "updated_at": "2026-10-05T05:34:53.410298+00:00"
+          },
+          {
+            "memory": "Caroline is keen on pursuing counseling or working in mental health as a career, because she would love to support people with similar issues to her own, as of October 5, 2026",
+            "score": 0.21307002102191594,
+            "id": "810bbb77-e8d9-458e-bdb5-f6753b215177",
+            "created_at": "2026-10-05T05:34:58.007764+00:00",
+            "updated_at": "2026-10-05T05:34:58.007764+00:00"
+          }
+        ],
+        "search_latency_ms": 15.0,
+        "total_results": 16
+      },
+      "cutoff_results": {
+        "top_20": {
+          "judgment": "CORRECT",
+          "score": 1.0,
+          "generated_answer": "Melanie painted the lake sunrise in 2022, the year before the 8 May 2023 conversation.",
+          "memories_evaluated": 16,
+          "reason": "The generated answer states Melanie painted the sunrise in 2022, which matches the gold answer."
+        }
+      }
+    }
+  ]
+}

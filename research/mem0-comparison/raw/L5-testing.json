@@ -1,0 +1,101 @@
+{
+  "id": "L5-testing",
+  "wall_ms": 20075.528667,
+  "duration_api_ms": 19564,
+  "stop_reason": "end_turn",
+  "session_id": "3388d491-e8bf-47d2-8bd9-0daada251b60",
+  "total_cost_usd": 0.08142459999999999,
+  "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 13319,
+    "cache_read_input_tokens": 19883,
+    "output_tokens": 2416,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 13319,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "modelUsage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 6,
+      "outputTokens": 2416,
+      "cacheReadInputTokens": 19883,
+      "cacheCreationInputTokens": 13319,
+      "webSearchRequests": 0,
+      "costUSD": 0.08142459999999999,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "fast_mode_disabled_reason": "sdk_opt_in_required",
+  "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+      "background": 0,
+      "foreground": 0,
+      "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+      "parent": 0,
+      "user": 0,
+      "system": 0
+    },
+    "refused": {
+      "depth_limit": 0,
+      "concurrency_limit": 0,
+      "budget": 0
+    },
+    "by_type": {}
+  },
+  "is_error": false,
+  "num_turns": 3,
+  "subtype": "success",
+  "api_error_status": null,
+  "result": "All references are to `src/click/testing.py`.\n\n## Overview\n\n`CliRunner.invoke` does three things:\n1. It optionally starts fd capture.\n2. It enters `CliRunner.isolation`, which swaps in fake streams, environment values and prompt hooks.\n3. It calls `cli.main(...)`, turns the outcome into an exit code and exception, and returns a `Result`.\n\nThe class docstring says this \"changes the global interpreter state\", so it is not safe for concurrent use.\n\n## Isolation: `CliRunner.isolation`\n\n**stdin**\n- `make_input_stream` converts `input` to a binary stream. A `str` is encoded with `runner.charset`, `None` becomes `b\"\"`, and an existing file-like object goes through `_find_binary_reader`.\n- The stream is wrapped in `_NamedTextIOWrapper` (name `<stdin>`, mode `r`) and assigned to `sys.stdin`.\n- If `echo_stdin=True`, the binary stream is first wrapped in `EchoingStdin`. It copies everything read from stdin into the stdout buffer. `text_input._CHUNK_SIZE = 1` forces unbuffered reads so the echo isn't emitted early.\n- `_pause_echo` turns that echo off while prompts and `getchar` run. Prompts echo the input themselves, so it would be doubled otherwise.\n\n**stdout and stderr**\n- `StreamMixer` holds three `BytesIO` objects: `stdout` and `stderr` (both `BytesIOCopy`), plus `output`.\n- `BytesIOCopy.write` and `BytesIOCopy.flush` also forward to `copy_to`, which is `output`. That gives separate `stdout` and `stderr` buffers and a third buffer holding both in the order they were written.\n- `sys.stdout` and `sys.stderr` are replaced with `_NamedTextIOWrapper` objects over those buffers. Stderr uses `errors=\"backslashreplace\"`.\n- `_NamedTextIOWrapper.close` is a no-op so that garbage collection can't close the shared buffer.\n\n**Click internals patched (restored in `finally`)**\n- `termui.visible_prompt_func`, `termui.hidden_prompt_func` and `termui._getchar` are replaced by `visible_input`, `hidden_input` and `_getchar`. These read from the fake stdin. They raise `EOFError` when input runs out.\n- `utils.should_strip_ansi` and `_compat.should_strip_ansi` are replaced so that colour is stripped unless `color=True`. An explicit `color=` argument on a call still overrides this.\n- `formatting.FORCED_WIDTH` is set to 80.\n- `pdb.Pdb.__init__` is patched via `_patched_pdb_init` to default to `sys.__stdin__` and `sys.__stdout__`, so debuggers can still reach the terminal.\n\n**Environment**\n- `make_env` merges the runner's `env` with the per-call `env`.\n- Each key's old value is saved in `old_env` and then applied to `os.environ`. A value of `None` deletes the key.\n- The `finally` block restores or deletes each key and restores `sys.*`, so the changes are undone even if the command raises.\n- `isolation` yields `(stdout, stderr, output)` as `BytesIO` objects.\n\n**Optional fd-level capture (`capture=\"fd\"`)**\n- `invoke` creates `_FDCapture(1)` and `_FDCapture(2)` before isolation, so they hold the real fds.\n- `_FDCapture.start` saves the fd with `os.dup` and points it at a temp file with `os.dup2`. `stop` restores the fd and returns the bytes.\n- This also catches output from C extensions, subprocesses and stale stream references.\n- `_NamedTextIOWrapper._original_fd` is set to the saved fd, so `fileno()` keeps working for things like `faulthandler`.\n- After the command runs, the captured bytes are written into the `stdout` and `stderr` buffers. `BytesIOCopy` then mirrors them into `output`.\n- If starting capture raises `OSError`, `invoke` falls back to `sys` mode. The constructor rejects `fd` on Windows.\n\n## Exceptions and exit code: `CliRunner.invoke`\n\n`invoke` calls `cli.main(args=..., prog_name=..., **extra)`. A string `args` is split with `shlex.split`. `prog_name` comes from `extra`, or from `get_default_prog_name`, which returns `cli.name` or `\"root\"`.\n\n- **Normal return:** `return_value` is whatever `main` returned (this works because `standalone_mode` is not forced), and `exit_code` is 0.\n- **`SystemExit`:**\n  - `exc_info` is always recorded.\n  - A `None` code becomes 0.\n  - `exception` is set only when the code is nonzero.\n  - A non-int code is written to stdout followed by a newline, and the exit code becomes 1.\n- **Other `Exception`:** if `catch_exceptions` is false (the per-call value overrides the runner's value when it isn't `None`), the exception is re-raised. Otherwise `exception` and `exc_info` are set and `exit_code` is 1.\n- **`finally`:** it flushes stdout and stderr, stops the fd capture and merges those bytes, then reads the three buffers with `getvalue()`.\n\n`KeyboardInterrupt` and other `BaseException` subclasses are not caught.\n\n## `Result`\n\n`Result` stores these attributes:\n- `stdout_bytes`, `stderr_bytes` and `output_bytes`\n- `return_value`\n- `exit_code`\n- `exception`\n- `exc_info`, a `(type, instance, traceback)` tuple\n- `runner`\n\nIt also has three decoded text properties: `stdout`, `stderr` and `output`.\n- **Decoding:** each decodes with `runner.charset` using `errors=\"replace\"` and normalizes `\\r\\n` to `\\n`.\n- **`output`:** it is stdout and stderr interleaved in write order, as a user would see them in a terminal. It is not an alias for `stdout`.\n- **`__repr__`:** it prints `<Result okay>` or `<Result {exception!r}>`.",
+  "ttft_ms": 2296,
+  "type": "result",
+  "duration_ms": 19863,
+  "uuid": "4dc10094-8770-4a62-996b-ab6617611c4a",
+  "ttft_stream_ms": 1571,
+  "time_to_request_ms": 39,
+  "first_content_frame_ms": 1572,
+  "queued_turn_count": 0,
+  "result_index": 0,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Grep": 1,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "cbmCalls": 0,
+    "filesRead": 1,
+    "edits": 0,
+    "greps": 1,
+    "bash": 0
+  }
+}

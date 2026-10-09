@@ -1,0 +1,17 @@
+{
+  "config": {
+    "enabled": true,
+    "floor": 0,
+    "maxNotes": 1,
+    "k": 8,
+    "queryTokens": 120,
+    "fallbackFloor": -1
+  },
+  "lexical": [
+    {
+      "id": "option-value-pipeline-raw-argv-string-to-typed-callback-kwar",
+      "rel": 1
+    }
+  ],
+  "selected": []
+}

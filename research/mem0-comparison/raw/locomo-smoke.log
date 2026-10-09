@@ -1,0 +1,16 @@
+INFO - Ingesting conversation 0: Caroline & Melanie, 1 sessions, 18 chunks
+LOCOMO Benchmark | project=first-session-smoke run_id=5e636e26
+  Answerer: claude-sonnet-5-5 (openai)
+  Judge: claude-sonnet-5-5 (openai)
+  Conversations: 0
+  Cutoffs: 20
+Ingest conv 0:   0%|          | 0/18 [00:00<?, ?it/s]Ingest conv 0:   6%|▌         | 1/18 [00:01<00:32,  1.94s/it]Ingest conv 0:  11%|█         | 2/18 [00:04<00:39,  2.47s/it]Ingest conv 0:  17%|█▋        | 3/18 [00:07<00:39,  2.60s/it]Ingest conv 0:  22%|██▏       | 4/18 [00:08<00:29,  2.13s/it]Ingest conv 0:  28%|██▊       | 5/18 [00:11<00:31,  2.42s/it]Ingest conv 0:  33%|███▎      | 6/18 [00:15<00:34,  2.86s/it]Ingest conv 0:  39%|███▉      | 7/18 [00:17<00:27,  2.53s/it]Ingest conv 0:  44%|████▍     | 8/18 [00:18<00:21,  2.11s/it]Ingest conv 0:  50%|█████     | 9/18 [00:20<00:17,  2.00s/it]Ingest conv 0:  56%|█████▌    | 10/18 [00:21<00:14,  1.77s/it]Ingest conv 0:  61%|██████    | 11/18 [00:24<00:15,  2.25s/it]Ingest conv 0:  67%|██████▋   | 12/18 [00:27<00:13,  2.26s/it]Ingest conv 0:  72%|███████▏  | 13/18 [00:30<00:12,  2.52s/it]Ingest conv 0:  78%|███████▊  | 14/18 [00:32<00:09,  2.30s/it]Ingest conv 0:  83%|████████▎ | 15/18 [00:34<00:06,  2.22s/it]Ingest conv 0:  89%|████████▉ | 16/18 [00:35<00:04,  2.08s/it]Ingest conv 0:  94%|█████████▍| 17/18 [00:38<00:02,  2.23s/it]Ingest conv 0: 100%|██████████| 18/18 [00:40<00:00,  2.12s/it]Ingest conv 0: 100%|██████████| 18/18 [00:40<00:00,  2.25s/it]
+Questions conv 0:   0%|          | 0/2 [00:00<?, ?it/s]Questions conv 0:  50%|█████     | 1/2 [00:06<00:06,  6.68s/it]Questions conv 0: 100%|██████████| 2/2 [00:11<00:00,  5.83s/it]Questions conv 0: 100%|██████████| 2/2 [00:11<00:00,  5.95s/it]
+
+--- top_20 ---
+  Overall: 2/2 (100.0%) avg=100.0%
+  temporal: 2/2 (100.0%)
+
+Results saved to: /Users/yoavshmariahu/src/thinker/.worktrees/mem0-comparison/research/mem0-comparison/raw/locomo-smoke/locomo_results_20261004_223525.json
+
+Total questions processed: 2
