@@ -325,6 +325,39 @@
       gap: 1rem;
     }
 
+    .prompt-box {
+      align-items: flex-start;
+      padding-top: 0.65rem;
+      padding-bottom: 0.65rem;
+    }
+
+    .prompt-box pre {
+      flex: 1 1 0%;
+      min-width: 0;
+      margin: 0;
+      max-height: 9.5rem;
+      overflow-y: auto;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #111827;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .install-note {
+      max-width: 660px;
+      margin-top: 0.6rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: #6b7280;
+    }
+
+    .install-alt {
+      margin-top: 1.4rem;
+    }
+
     .cmd-box:hover {
       border-color: #d1d5db;
     }
@@ -796,10 +829,18 @@
     <div class="install-container">
 
       <div class="command-wrapper" id="command-view">
-        <div class="install-instruction">Run anywhere to install, then <code>thinker setup</code> inside your repository</div>
+        <div class="install-instruction">Paste into your coding agent, opened in your repository</div>
+        <div class="cmd-box prompt-box">
+          <pre id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
+1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
+2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</pre>
+          <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')">Copy</button>
+        </div>
+        <div class="install-note">It installs Thinker, builds the cache in the background and interviews you about the behaviors your code must keep. Everything stays in your repository. Start a new agent session afterwards to load the hooks and tools.</div>
+        <div class="install-instruction install-alt">Or install from a terminal, then run <code>thinker setup</code> inside your repository</div>
         <div class="cmd-box">
           <code id="cmd">curl -fsSL https://zerotime.dev/dist/install.sh | bash</code>
-          <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
+          <button class="btn-copy" id="copy-btn" onclick="copyText('cmd', 'copy-btn')">Copy</button>
         </div>
       </div>
     </div>
@@ -925,11 +966,11 @@
   </div>
 
   <script>
-    function copyInstall() {
-      const code = document.getElementById('cmd').innerText;
+    function copyText(sourceId, buttonId) {
+      const code = document.getElementById(sourceId).innerText;
       if (!code) return;
       navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById('copy-btn');
+        const btn = document.getElementById(buttonId);
         btn.innerText = 'Copied';
         btn.classList.add('copied');
         setTimeout(() => {

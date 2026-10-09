@@ -1,5 +1,17 @@
 # thinker — a knowledge cache for coding & review agents
 
+Paste this into your coding agent, opened in your repository:
+
+```text
+Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
+1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
+2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.
+```
+
+The agent installs Thinker, connects the repository, builds the cache in the background
+and interviews you about the behaviors the code must keep. Start a new agent session
+afterwards: hooks and tools load when a session starts. Or install from a terminal:
+
 ```bash
 curl -fsSL https://zerotime.dev/dist/install.sh | bash
 ```

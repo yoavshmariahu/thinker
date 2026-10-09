@@ -7,7 +7,7 @@ import { projectFromFlags } from './project.js';
 import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
-import { c, banner, stepBanner, finishBox, withSpinner, selectMenu } from './setup/ui.js';
+import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, exploreAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
 import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
 import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild } from './setup/steps.js';
@@ -172,24 +172,11 @@ export async function runSetup({
     minePrsFn,
   });
 
-  // Optional: write down the desired behaviors together with the person's own coding agent. Setup
-  // hands over the prompt that starts the interview (setup/define.js); it does not run it. Asked only at
-  // a terminal; --behaviors answers yes, --no-behaviors no.
+  // The desired behaviors, written down with the person's own coding agent: setup prints the prompt
+  // that starts the interview (setup/define.js) and does not run it. --no-behaviors leaves it out.
   const { pendingBehaviors } = await import('./behavior-workbench.js');
   const waiting = () => pendingBehaviors(store).length;
-  let defineNow = behaviors;
-  if (defineNow === null && process.stdin.isTTY && !yes) {
-    const n = waiting();
-    out(`\n  ${c.bold('Define your system behaviors with your coding agent?')} ${c.dim('— optional')}`);
-    out(`    • ${c.dim('Rules every future change must keep; review flags a change that breaks one, and blocks it if the rule is fixed.')}`);
-    out(`    • ${c.dim('You get a prompt to paste into your agent: it interviews you about each part of the system, drafts each behavior against the code, and saves only the ones you approve.')}`);
-    if (n) out(`    • ${c.cyan(n)} ${c.dim('drafts from your merged fixes are already waiting; the session goes through them too.')}`);
-    const choice = await selectMenu({ out, items: [
-      { label: 'Not now · later with thinker system define', value: 'later' },
-      { label: 'Give me the prompt', value: 'now' },
-    ] });
-    defineNow = choice?.value === 'now';
-  }
+  const defineNow = behaviors !== false;
   if (defineNow) (defineFn || (await import('./setup/define.js')).printBehaviorSession)(store, { out });
 
   if (exportFile) {
@@ -223,7 +210,10 @@ export async function runSetup({
   if (!building) done.push(`Build from existing code later: ${c.cyan('thinker setup --build')}`);
   const left = waiting();
   done.push(left ? `${left} behavior${left === 1 ? '' : 's'} waiting for your decision: ${c.cyan('thinker ui')}` : `Usage and behaviors in your browser: ${c.cyan('thinker ui')}`);
+  if (!defineNow) done.push(`Define behaviors with your agent: ${c.cyan('thinker system define')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
+  // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
+  done.push(c.dim('Notes and behaviors stay in .thinker/ here; Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
 
   return { built: building, warnings: cacheRes.warnings || 0, error: buildError };
