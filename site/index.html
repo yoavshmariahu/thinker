@@ -409,6 +409,65 @@
     }
 
     /* Benchmark cards: one per framing */
+    .how {
+      margin-top: 2.25rem;
+      width: 100%;
+      max-width: 680px;
+      text-align: left;
+    }
+
+    .how h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.85rem;
+      color: #111827;
+    }
+
+    .how ol {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .how li {
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: #4b5563;
+    }
+
+    .how li strong {
+      color: #111827;
+      font-weight: 600;
+    }
+
+    .how-num {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: #111827;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.1rem;
+    }
+
+    .how-local {
+      margin: 1rem 0 0;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: #6b7280;
+    }
+
     .benchmark-cards {
       margin-top: 1.75rem;
       width: 100%;
@@ -870,6 +929,17 @@
         <div class="metric-cta">See the results &rarr;</div>
       </div>
     </div>
+
+    <section class="how" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <ol>
+        <li><span class="how-num">1</span><div><strong>It learns from your history.</strong> Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.</div></li>
+        <li><span class="how-num">2</span><div><strong>It hands your agent what fits.</strong> When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code. Your agent starts from what the repository already learned instead of searching for it.</div></li>
+        <li><span class="how-num">3</span><div><strong>It checks changes against your rules.</strong> You and your agent write down the behaviors your system must keep. <code>thinker review</code> flags a change that brings back a fixed bug or breaks one of them, before it merges.</div></li>
+        <li><span class="how-num">4</span><div><strong>It keeps itself current.</strong> When the code under a note changes, the note is marked stale and checked again in the background; until it passes, it is never handed over as fact. New pull requests and sessions add notes in the background.</div></li>
+      </ol>
+      <p class="how-local">Everything stays in your repository's <code>.thinker/</code> folder. Model calls go through the coding agent you already use, on its own login.</p>
+    </section>
 
     <a class="ci-link" href="docs.html#review">See how CI review catches regressions &rarr;</a>
 

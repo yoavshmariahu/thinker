@@ -33,6 +33,15 @@ The cache keeps itself current: when the code under a note changes, the note is
 re-verified in the background under a daily token cap, and a stale note is never
 served as fact. See [Review a change against the cache](#review-a-change-against-the-cache).
 
+## How it works
+
+1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
+2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code. Your agent starts from what the repository already learned instead of searching for it.
+3. **It checks changes against your rules.** You and your agent write down the behaviors your system must keep. `thinker review` flags a change that brings back a fixed bug or breaks one of them, before it merges.
+4. **It keeps itself current.** When the code under a note changes, the note is marked stale and checked again in the background; until it passes, it is never handed over as fact. New pull requests and sessions add notes in the background.
+
+Everything stays in your repository's `.thinker/` folder. Model calls go through the coding agent you already use, on its own login.
+
 **Code review: bugs missed.** 100 real bug fixes from seven open-source repositories,
 each reversed so the change brings the bug back, then reviewed by the same model
 with and without thinker.
