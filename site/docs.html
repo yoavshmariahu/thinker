@@ -690,6 +690,7 @@
       <div class="sidebar-group">
         <div class="sidebar-heading">Reference</div>
         <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#local-page">The local page</a></li>
           <li class="sidebar-item"><a href="#cli-reference">CLI</a></li>
           <li class="sidebar-item"><a href="#configuration">Configuration</a></li>
           <li class="sidebar-item"><a href="#telemetry">Privacy and telemetry</a></li>
@@ -1123,7 +1124,8 @@ thinker review --base origin/main --pr 142 --post   <span class="code-comment">#
 thinker system add file.json --fixed
 thinker system promote &lt;id&gt;         <span class="code-comment"># a rule the cache already holds becomes a behavior</span>
 thinker system propose              <span class="code-comment"># drafts from the build, and rules worth promoting</span>
-thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span></code></pre>
+thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span>
+thinker ui                          <span class="code-comment"># accept, edit or discard them in the browser</span></code></pre>
         <p>
           A <code>fixed</code> behavior makes a change that stops upholding it an error, with the behavior quoted in full at the top of the review. A <code>mutable</code> one is a warning, and may be revised by a change that edits the note itself. Before a merge the behavior is the truth; once the change is merged, the behavior is revised to match the code, with the old text in its history. Agents can propose one with <code>remember</code> (listed as proposed until <code>thinker system accept</code>) and read them all with <code>lookup</code> and <code>kind: "behavior"</code>.
         </p>
@@ -1191,7 +1193,7 @@ thinker benchmark report</code></pre>
       <section id="usage">
         <h2>Usage and the holdout</h2>
         <p>
-          <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data.
+          <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data. The same numbers, with the notes your agents saw most, are in the Usage view of <a href="#local-page"><code>thinker ui</code></a>.
         </p>
         <p>
           One number in it is measured rather than estimated. The hooks serve nothing in 15% of sessions, chosen by a hash of the session id so a session is held out for its whole length, and every session's cost is recorded from its own transcript. The holdout section compares the sessions that got notes with the ones that had notes withheld, as medians per model, once five sessions stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
@@ -1199,6 +1201,28 @@ thinker benchmark report</code></pre>
       </section>
 
       <div class="part-label">Reference</div>
+
+      <section id="local-page">
+        <h2>The local page</h2>
+        <p>
+          <code>thinker ui</code> opens a page in your browser with three views of the cache. A dropdown at the top picks the repository, or all of them on this machine.
+        </p>
+        <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
+thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>View</th><th>What it shows</th></tr></thead>
+            <tbody>
+              <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
+              <tr><td>Cache</td><td>Every note, filtered by status and kind, searched and sorted by hits or age, with the code it points at and where it came from; archive a note or restore it to serving</td></tr>
+              <tr><td>System behaviors</td><td>The <a href="#behaviors">desired behaviors</a>, filtered by proposed, active, blocking, warn only, or broken or unverified; accept a proposed one as written or as blocking, edit it, or discard it</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The page listens on 127.0.0.1 only, every request carries a token minted for that run, and it reads and writes nothing but this machine's cache.
+        </p>
+      </section>
 
       <section id="cli-reference">
         <h2>CLI</h2>
@@ -1212,6 +1236,7 @@ thinker benchmark report</code></pre>
               <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
               <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
+              <tr><td><code>thinker ui [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: usage, the notes in the cache, and the behaviors waiting to be accepted</td></tr>
               <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
               <tr><td><code>thinker impact [--pr n]</code></td><td>Reviews and agent work connected to the pull requests they went into</td></tr>
               <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
