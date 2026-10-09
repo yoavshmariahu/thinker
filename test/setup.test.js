@@ -296,6 +296,36 @@ test('runSetup completes compact setup flow in clean repo', async () => {
   }
 });
 
+// The local page opens once, after the first setup of a repository; running setup again leaves it closed.
+test('runSetup opens the local page after a repository\'s first setup only', async () => {
+  const repo = createMockGitRepo();
+  const opened = [];
+  const run = () => runSetup({
+    repo,
+    store: new Store(repo),
+    cliPath: path.resolve('src/cli.js'),
+    mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
+    clients: ['claude'],
+    build: false,
+    noSeed: true,
+    noPrs: true,
+    noBenchmark: true,
+    behaviors: false,
+    yes: true,
+    out: () => {},
+    dashboard: true,
+    openDashboardFn: o => { opened.push(o); return true; },
+  });
+  try {
+    await run();
+    assert.deepEqual(opened.map(o => o.repo), [repo]);
+    await run();
+    assert.equal(opened.length, 1);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('runSetup mines git history when GitHub origin is unavailable', async () => {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-gitmine-')));
   execFileSync('git', ['init', '-q', repo]);

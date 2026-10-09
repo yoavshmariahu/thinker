@@ -110,7 +110,7 @@ const readBody = req => new Promise((resolve, reject) => {
 
 export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex') } = {}) {
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
-  let port = 0, known = null;
+  let port = 0, known = null, lastRequest = Date.now();
   const repos = () => known ||= machineRepos(store);
   const opened = new Map([[store.repo, store]]);
   const open = checkout => { if (!opened.has(checkout)) opened.set(checkout, new Store(checkout)); return opened.get(checkout); };
@@ -122,6 +122,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     const r = entry(id); return r ? [[r, open(r.checkout)]] : null;
   };
   const server = http.createServer(async (req, res) => {
+    lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
     const host = String(req.headers.host || '');
     if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) return json(res, 403, { error: 'wrong host' });
@@ -190,11 +191,12 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       });
     },
     close: () => new Promise(r => server.close(r)),
+    idleMs: () => Date.now() - lastRequest,
   };
 }
 
 export function openBrowser(url) {
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
   const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-  try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); return true; } catch { return false; }
+  try { const p = spawn(cmd, args, { stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); return true; } catch { return false; }
 }

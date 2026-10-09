@@ -26,3 +26,16 @@ test('behavior prompt: setup step only where the repository is not set up or not
   assert.doesNotMatch(built, /^0\./m);
   assert.match(built, /behaviors already in force \(0 now\)/);
 });
+
+// After the interview the prompt offers a first review on an open pull request, without touching uncommitted work
+// or posting anything.
+test('behavior prompt: ends by offering thinker review on an open pull request', t => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-define-'));
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  for (const p of [behaviorSessionPrompt(null), behaviorSessionPrompt(new Store(repo).init())]) {
+    assert.match(p, /gh pr list --state open/);
+    assert.match(p, /thinker review --base origin\//);
+    assert.match(p, /do not switch branches/);
+    assert.match(p, /Post nothing to the pull request/);
+  }
+});

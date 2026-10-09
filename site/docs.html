@@ -1205,7 +1205,7 @@ thinker benchmark report</code></pre>
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser with three views of the cache. A dropdown at the top picks the repository, or all of them on this machine.
+          <code>thinker ui</code> opens a page in your browser with three views of the cache. A dropdown at the top picks the repository, or all of them on this machine. The first <code>thinker setup</code> in a repository opens it for you (<code>--no-ui</code> leaves it closed); that page stops by itself after half an hour unused.
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
 thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>

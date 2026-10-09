@@ -15,6 +15,7 @@ import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, un
 import { githubSlug } from './shared.js';
 import { seed, minePrs } from './learn.js';
 import { readLog } from '../usage.js';
+import { isTestMode } from '../test-mode.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -364,6 +365,9 @@ export async function setup(ctx) {
     out,
     seedFn: async (opts) => seed(ctx, opts),
     minePrsFn: async (slug, opts) => minePrs(ctx, slug, { ...opts, repo, phase: 'init' }),
+    // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
+    // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
+    dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
   });
 }
 
