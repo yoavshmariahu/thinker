@@ -384,6 +384,32 @@
       border-color: #16a34a;
     }
 
+    /* Split copy button: the setup prompt | the bare install command */
+    .btn-split {
+      display: inline-flex;
+      flex-shrink: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    .btn-split .btn-copy {
+      border-radius: 0;
+      border: none;
+    }
+
+    .btn-split .btn-copy + .btn-copy {
+      box-shadow: inset 1px 0 0 rgba(255,255,255,0.22);
+      color: #d4d4d8;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+      min-width: 0;
+    }
+
+    .btn-split .btn-copy + .btn-copy:hover {
+      color: #ffffff;
+    }
+
     /* Benchmark cards: one per framing */
     .benchmark-cards {
       margin-top: 1.75rem;
@@ -807,8 +833,12 @@
       <div class="command-wrapper" id="command-view">
         <div class="cmd-box">
           <span class="cmd-label">Paste one prompt into your coding agent to set up Thinker</span>
-          <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')">Copy prompt</button>
+          <div class="btn-split" role="group" aria-label="Copy setup">
+            <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')" title="Copy the setup prompt for your coding agent">Copy prompt</button>
+            <button class="btn-copy" id="copy-cli-btn" onclick="copyText('cli', 'copy-cli-btn')" title="Copy only the install command: curl -fsSL https://zerotime.dev/dist/install.sh | bash">CLI only</button>
+          </div>
         </div>
+        <template id="cli">curl -fsSL https://zerotime.dev/dist/install.sh | bash</template>
         <template id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
 1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
 2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</template>
