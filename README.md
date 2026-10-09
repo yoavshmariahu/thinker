@@ -1,3 +1,5 @@
+![Pixel-art lab: a scientist, server racks, monitors, a glowing orb in a containment chamber, a robot arm and a Tesla coil](docs/images/lab-header.png)
+
 # thinker — a knowledge cache for coding & review agents
 
 Every merged fix leaves knowledge behind that the next change can quietly undo.
