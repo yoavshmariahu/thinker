@@ -16,6 +16,7 @@ import { commands as hookCommands } from './commands/hooks.js';
 import { commands as setupCommands } from './commands/setup.js';
 import { commands as telemetryCommands } from './commands/telemetry.js';
 import { commands as benchmarkCommands } from './commands/benchmark.js';
+import { commands as doctorCommands } from './commands/doctor.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -67,6 +68,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
                                  server, for every repository that is set up (elsewhere thinker does nothing);
                                  setup runs it first, and so does the installer
+  doctor [--fix] [--json]        check that thinker is installed and wired correctly: Node, dependencies, PATH, the
+                                 agents' hooks and MCP server, this checkout's setup and git hooks, the MCP server
+                                 starting, the ranking model; --fix repairs what it can and checks again
   uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
                                  --user also removes the machine-wide wiring from your agent settings
   review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--dry] [--json]
@@ -186,7 +190,7 @@ const HELP = `thinker — knowledge cache for coding agents
 const CACHE_COMMANDS = ['ui', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands };
 
 async function main() {
   if (cmd === 'share' || cmd === 'sync' || flags.shared) {

@@ -52,6 +52,12 @@ does it explicitly. Prompt hooks also refresh connected installations. Restart t
 host afterward to reload persistent instructions. `thinker uninstall --user` removes
 the user-scope blocks; repository uninstall removes project instructions.
 
+`thinker doctor` checks the install end to end: Node, dependencies, `thinker` on
+PATH, each agent's hooks and MCP entry, wiring left by another or a deleted copy,
+this checkout's setup and git hooks, the MCP server answering `tools/list`, and the
+ranking model. `thinker doctor --fix` repairs what it can (dependencies, missing or
+stale wiring, PATH, the model) and checks again.
+
 Pi, Windsurf and Copilot receive CLI commands rather than unavailable MCP tool
 names. They save notes with `thinker add note.json --source agent` and correct notes
 with `thinker feedback feedback.json` (or JSON on stdin):
