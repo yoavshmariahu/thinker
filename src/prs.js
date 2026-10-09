@@ -268,6 +268,21 @@ Rules:
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
+// Files whose diff teaches nothing reusable: lockfiles, snapshots, minified, generated and vendored code.
+const NOISE_FILE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.lock|go\.sum|Gemfile\.lock|composer\.lock)$|\.(snap|min\.js|min\.css|map|svg|png|jpg|gif|ico|pdf)$|__snapshots__\/|(^|\/)(vendor|dist|node_modules)\/|\.generated\.|_pb2\.py$|\.pb\.go$/;
+const DIFF_CHARS = 30000, FILE_CHARS = 8000;
+
+// The diff without noise files, each file capped so one large file does not crowd out the rest.
+export function trimDiff(diff) {
+  const files = diff.split(/(?=^diff --git )/m);
+  const kept = files.filter(f => {
+    const m = f.match(/^diff --git a\/(\S+)/);
+    return !m || !NOISE_FILE.test(m[1]);
+  }).map(f => f.length > FILE_CHARS ? f.slice(0, FILE_CHARS) + '\n… (file diff truncated)\n' : f);
+  const dropped = files.length - kept.length;
+  return kept.join('').slice(0, DIFF_CHARS) + (dropped ? `\n(${dropped} lockfile/generated/snapshot file diffs omitted)\n` : '');
+}
+
 export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [] } = {}) {
   let diff = pr.diff || '';
   if (!diff && repo && pr.hash) {
@@ -285,12 +300,13 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, 
       diff = gh('pr', 'diff', String(pr.number), '--repo', slug);
     } catch {}
   }
-  diff = (diff || '').slice(0, 45000);
+  diff = trimDiff(diff || '');
   // review comments: as given (CI sends them with the diff), else from GitHub
   const comments = Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
   const evidence = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
   const prompt = evidence + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
-  const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
+  // no prompt cache: each change's evidence is sent once, and a cache write costs more than plain input
+  const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, cache: false, accounting });
   return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r), evidence };
 }

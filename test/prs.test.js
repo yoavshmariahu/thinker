@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs } from '../src/prs.js';
+import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs, trimDiff } from '../src/prs.js';
 
 const day = n => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
 const ALL = Array.from({ length: 12 }, (_, i) => ({ number: i + 1, mergedAt: day(i + 1) }));
@@ -171,4 +171,13 @@ test('retry markers also suppress numeric-looking commit hashes inferred from no
   assert.equal(minedPrs(s,'local').mined.has('12345678'),false);
   recordMinedPrs(s,'local',[pr]);
   assert.equal(minedPrs(s,'local').mined.has('12345678'),true);
+});
+
+test('trimDiff drops lockfile and snapshot diffs and caps a large file', () => {
+  const file = (p, body) => `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n${body}\n`;
+  const out = trimDiff(file('package-lock.json', '+"x": 1') + file('src/a.js', '+' + 'x'.repeat(20000)) + file('test/__snapshots__/a.snap', '+snap') + file('src/b.js', '+fix()'));
+  assert.doesNotMatch(out, /package-lock|__snapshots__/);
+  assert.match(out, /src\/a\.js[\s\S]*file diff truncated[\s\S]*src\/b\.js[\s\S]*\+fix\(\)/);
+  assert.match(out, /2 lockfile\/generated\/snapshot file diffs omitted/);
+  assert.ok(out.length < 9000);
 });
