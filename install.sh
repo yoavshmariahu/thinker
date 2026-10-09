@@ -211,12 +211,12 @@ main() {
   say ""
   if [ "$fancy" = 1 ]; then
     local sparkle="${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
-    box "$cyan" "$sparkle  ${bold}${cyan}thinker${reset}  $sparkle" "${bold}A knowledge cache for coding & review agents${reset}" \
+    box "$cyan" "$sparkle  ${bold}${cyan}Thinker${reset}  $sparkle" "${bold}A knowledge cache for coding & review agents${reset}" \
       "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
       "${dim}Learns from your merged fixes, flags the change that would undo one,${reset}" \
       "${dim}and hands your coding agents what the repository already knows.${reset}"
   else
-    say "thinker"
+    say "Thinker"
     say "A knowledge cache for coding & review agents"
   fi
   say ""
@@ -346,13 +346,13 @@ EOF
     path_hint
     say ""
     if [ "$fancy" = 1 ]; then
-      box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· thinker v$version${reset}" "" \
+      box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
         "Installed into $home and wired into your agents." \
         "This is not a git repository, so no cache was set up here." \
         "Inside a repository, run: ${cyan}thinker setup${reset}" "" \
         "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     else
-      say "Install complete: thinker v$version, installed into $home and wired into your agents."
+      say "Install complete: Thinker v$version, installed into $home and wired into your agents."
       say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
       say ""
       say "  thinker setup"

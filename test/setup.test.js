@@ -119,7 +119,7 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   assert.match(b, /╰─+╯/);
 
   const bannerText = banner();
-  assert.match(bannerText, /thinker/);
+  assert.match(bannerText, /Thinker/);
 
   const step = stepBanner(1, 3, 'Connect Harness CLIs', 'Test subtitle');
   assert.match(step, /1\/3/);

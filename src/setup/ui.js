@@ -45,7 +45,7 @@ export const HEADLINE = 'A knowledge cache for coding & review agents';
 // The opening of `thinker setup` (and of the installer, which draws the same box in shell).
 export function banner() {
   return box([
-    `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('thinker'))}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`,
+    `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))}  ${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}`,
     c.bold(HEADLINE),
     c.magenta('~'.repeat(HEADLINE.length)),
     '',
