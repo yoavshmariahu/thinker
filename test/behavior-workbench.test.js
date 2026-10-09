@@ -122,3 +122,38 @@ test('the local page answers only this host, with this run\'s token, and acts th
   assert.ok(!JSON.stringify(usage).includes('reportedCost'), 'no dollars on the page');
   assert.equal(usageView(store, {}).spending.tokens, 0);
 });
+
+test('the local page lists the cache, archives and restores a note, and is scoped by repository', async t => {
+  const { store } = fixture(t);
+  process.env.THINKER_LOG = 'local';
+  t.after(() => { delete process.env.THINKER_LOG; });
+  const ui = createUiServer(store, { token: 'a'.repeat(32) });
+  const { port } = await ui.listen(0);
+  t.after(() => ui.close());
+  const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
+  const { repos } = await get('/api/repos');
+  assert.equal(repos.length, 1);
+  assert.ok(repos[0].current);
+  const cache = await get('/api/cache');
+  assert.deepEqual(cache.notes.map(n => n.id), ['other-returns-one'], 'behaviors have their own view');
+  const n = cache.notes[0];
+  assert.equal(n.status, 'fresh');
+  assert.deepEqual(n.pointers, ['src/guard.js:other']);
+  assert.equal(n.source, 'o/r#7');
+  assert.equal(n.repo, repos[0].id);
+  assert.deepEqual((await get(`/api/cache?repo=${encodeURIComponent(repos[0].id)}`)).notes.length, 1);
+  assert.equal((await get('/api/cache?repo=all')).notes.length, 1);
+  assert.equal((await call(port, '/api/cache?repo=%2Fetc', { token: 'a'.repeat(32) })).status, 400, 'only a listed repository');
+  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'guard-rejects-empty' } })).status, 400, 'a behavior is not archived from here');
+  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'other-returns-one', repo: repos[0].id } })).status, 200);
+  assert.ok(store.get('other-returns-one').archived);
+  assert.equal((await get('/api/cache')).notes[0].status, 'archived');
+  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'other-returns-one' } })).status, 400, 'already archived');
+  assert.equal((await call(port, '/api/cache/restore', { token: 'a'.repeat(32), body: { id: 'other-returns-one' } })).status, 200);
+  assert.ok(!store.get('other-returns-one').archived);
+  const all = await get('/api/behaviors?repo=all');
+  assert.equal(all.pending.length, 2);
+  assert.ok(all.active.every(b => b.repo === repos[0].id));
+  assert.equal((await call(port, '/api/behaviors/session-prompt?repo=all', { token: 'a'.repeat(32) })).status, 400, 'the interview is for one repository');
+  assert.equal((await get('/api/usage?repo=all')).scope, 'machine');
+});
