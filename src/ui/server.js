@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { summarize } from '../usage.js';
 import { behaviorSessionPrompt } from '../setup/define.js';
 import { execFileSync } from 'node:child_process';
-import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior, draftFromDescription, acceptDraft } from '../behavior-workbench.js';
+import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../behavior-workbench.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_PORT = 4848;
@@ -53,7 +53,7 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), model, draftFn = draftFromDescription } = {}) {
+export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex') } = {}) {
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0;
   const server = http.createServer(async (req, res) => {
@@ -82,8 +82,6 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(store, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(store, b.id);
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(store, b.id, { title: b.title, body: b.body, mutability: b.mutability });
-      else if (url.pathname === '/api/behaviors/describe') r = { draft: await draftFn(store, String(b.text || ''), { model }) };
-      else if (url.pathname === '/api/behaviors/create') r = acceptDraft(store, { title: b.title, body: b.body, deps: b.deps || [], answers: [] }, { mutability: b.mutability || 'mutable' });
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });
       return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft });

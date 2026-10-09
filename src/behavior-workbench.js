@@ -2,15 +2,11 @@
 // and the decisions. Two things wait: drafts the build wrote from the strongest rule notes
 // (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember`
 // (behavior.js:proposed). Neither is a requirement until a person accepts it, as written or
-// edited. A person may also describe a behavior in their own words, and the agent drafts it against
-// the code (draftFromDescription), for the person to accept. `thinker system define` (the terminal)
-// and `thinker ui` (the local page) are the two ways in; both call only what is here.
-import { listBehaviors, isBehavior, proposed, addBehavior, promoteBehavior, writeSystemMarkdown } from './behavior.js';
+// edited. `thinker system define` (the terminal) and `thinker ui` (the local page) are the two ways
+// in; both call only what is here.
+import { listBehaviors, isBehavior, proposed, promoteBehavior, writeSystemMarkdown } from './behavior.js';
 import { listBehaviorProposals, acceptBehaviorProposal, discardBehaviorProposal } from './behavior-proposals.js';
 import { createNote, MUTABILITY } from './ops.js';
-import { findSymbols } from './codegraph.js';
-import { symbolText } from './deps.js';
-import { complete } from './llm.js';
 
 const pointers = deps => (deps || []).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}`);
 
@@ -83,29 +79,3 @@ export function editBehavior(store, id, { title, body, mutability } = {}) {
   return { note: store.get(id) };
 }
 
-const DRAFT_SCHEMA = { type: 'object', properties: {
-  title: { type: 'string' }, body: { type: 'string' }, answers: { type: 'array', items: { type: 'string' } },
-  deps: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, symbol: { type: 'string' } }, required: ['path'] } },
-  question: { type: 'string' },
-}, required: ['title', 'body', 'deps'] };
-
-// The person says what the system must do; the agent finds where the code does it and writes the
-// behavior as a draft, anchored to definitions that exist. Nothing is saved here: the person accepts
-// it (acceptDraft) as written or edited. `question` is set when the code does not show where the
-// rule is upheld, for the person to answer before it can be anchored.
-export async function draftFromDescription(store, description, { model, completeFn = complete } = {}) {
-  const found = findSymbols(store.repo, description, { limit: 8 })?.hits || [];
-  const existing = activeBehaviors(store).map(b => b.title).slice(0, 30);
-  const code = found.slice(0, 6).map(h => `${h.path}:${h.symbol}\n${String(symbolText(store.repo, { path: h.path, symbol: h.symbol }, 40) || '').slice(0, 2500)}`).join('\n\n---\n\n');
-  const system = `A person is writing down a desired behavior of their system: something every future change must keep true. Turn their words into one behavior note. The title states the requirement in product terms. The body is 2-5 sentences: the requirement, why it matters if they said so, and where the code upholds it as path:Symbol pointers. Use only definitions from the CODE shown, and list each one you cite in deps. Do not invent intent beyond what the person said. If none of the code shown upholds it, return deps empty and ask, in question, which code does.`;
-  const prompt = `THE PERSON'S WORDS:\n${description}\n\nBEHAVIORS ALREADY IN FORCE (do not duplicate):\n${existing.join('; ') || '(none)'}\n\nCODE:\n${code || '(no matching definitions found)'}`;
-  const r = await completeFn({ system, prompt, model, schema: DRAFT_SCHEMA, maxTokens: 1500, accounting: { store, purpose: 'behavior-define', phase: 'learning' } });
-  const raw = r.json || {};
-  const allowed = new Set(found.map(h => `${h.path}|${h.symbol}`));
-  const deps = (raw.deps || []).filter(d => d.symbol && allowed.has(`${d.path}|${d.symbol}`)).map(d => ({ path: d.path, symbol: d.symbol }));
-  return { title: String(raw.title || '').trim(), body: String(raw.body || '').trim(), answers: (raw.answers || []).map(String), deps, question: deps.length ? '' : String(raw.question || 'Which code upholds this?').trim(), candidates: found.map(h => `${h.path}:${h.symbol}`) };
-}
-
-export function acceptDraft(store, draft, { mutability = 'mutable' } = {}) {
-  return addBehavior(store, { title: draft.title, body: draft.body, answers: draft.answers || [], deps: draft.deps || [] }, { mutability, source: { type: 'human', defined: true } });
-}

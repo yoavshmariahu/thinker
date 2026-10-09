@@ -154,7 +154,7 @@ const HELP = `thinker — knowledge cache for coding agents
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
   ui [--port n] [--no-open]       open the local page: usage, and the system behaviors (accept, edit or discard the
-                                 ones waiting, describe new ones); 127.0.0.1 only, Ctrl+C stops it
+                                 ones waiting); 127.0.0.1 only, Ctrl+C stops it
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
