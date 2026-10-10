@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initAst, astStatus, astReady, astFindSymbol, definitions, grammarOf, resetAst } from '../src/ast.js';
 import { findSymbol, locateSymbol, hashDep, checkNote, symbolBlock } from '../src/deps.js';
+import { setDiskCache } from '../src/disk-cache.js';
 import { Store } from '../src/store.js';
 import { createNote, refresh } from '../src/ops.js';
 
@@ -107,4 +108,55 @@ when('deps hashed by the regex are upgraded in place when the parser sees the sa
   assert.deepEqual(r2.deps[0], byParser); // kept as the parser recorded it, nothing to write
   fs.writeFileSync(path.join(repo, 'src/b.js'), JS.replace('return s;', 'return s + s;'));
   assert.equal(checkNote(repo, { deps: [byParser] }).changed[0].reason, 'symbol body changed');
+});
+
+when('one name of a declaration group is its own lines, and a single declaration keeps its keyword and export', async () => {
+  await initAst();
+  const go = 'package p\n\nconst (\n\t// A is the first\n\tA = 1\n\tB = 2\n)\n\nvar (\n\tX = map[string]int{\n\t\t"a": 1,\n\t}\n\tY = 2\n)\n\nconst Single = 3\n\ntype (\n\tT1 struct {\n\t\ta int\n\t}\n\tT2 int\n)\n';
+  const at = (text, sym, file) => { const l = astFindSymbol(text, sym, file); return l && [l.start + 1, l.end]; };
+  assert.deepEqual(at(go, 'A', 'x.go'), [4, 5]); // with its comment, without the rest of the group
+  assert.deepEqual(at(go, 'B', 'x.go'), [6, 6]);
+  assert.deepEqual(at(go, 'X', 'x.go'), [10, 12]);
+  assert.deepEqual(at(go, 'Y', 'x.go'), [13, 13]);
+  assert.deepEqual(at(go, 'Single', 'x.go'), [16, 16]);
+  assert.deepEqual(at(go, 'T1', 'x.go'), [19, 21]);
+  assert.deepEqual(at(go, 'T2', 'x.go'), [22, 22]);
+  const js = 'export const a = 1,\n  b = () => {\n    return 2;\n  };\n\nexport const alone = {\n  k: 1,\n};\n';
+  assert.deepEqual(at(js, 'b', 'x.js'), [2, 4]);
+  assert.deepEqual(at(js, 'alone', 'x.js'), [6, 8]);
+});
+
+when('a definition with a parse error in it is not trusted: the regex takes over', async () => {
+  await initAst();
+  // syntax the pinned grammar does not read (Go 1.26 new(expr)); the parser still returns a tree, with errors in it
+  const go = 'package p\n\nfunc Clean() int {\n\treturn 1\n}\n\nfunc Uses() *int {\n\tv := new(compute(1, 2))\n\treturn v\n}\n\nfunc After() int {\n\treturn 2\n}\n';
+  const defs = definitions(go, 'x.go');
+  const by = n => defs.find(d => d.name === n);
+  if (!by('Uses')?.broken) return; // a grammar that reads it: nothing to fall back from
+  assert.equal(by('Clean').broken, undefined);
+  assert.equal(astFindSymbol(go, 'Uses', 'x.go'), null);
+  const loc = locateSymbol(go, 'Uses', 'x.go');
+  assert.equal(loc.engine, 'regex');
+  assert.deepEqual([loc.start + 1, loc.end], [7, 10]);
+  assert.equal(locateSymbol(go, 'Clean', 'x.go').engine, 'ast');
+});
+
+when('definitions are read back from disk by the text they came from', async t => {
+  await initAst();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-astcache-'));
+  setDiskCache(dir);
+  t.after(() => { setDiskCache(undefined); fs.rmSync(dir, { recursive: true, force: true }); });
+  const text = 'function cachedOne() {\n  return 1;\n}\n';
+  const first = definitions(text, 'x.js');
+  const stored = fs.readdirSync(dir, { recursive: true }).map(String).filter(f => f.startsWith('ast') && f.endsWith('.json'));
+  assert.equal(stored.length, 1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, stored[0]), 'utf8')), first);
+  // a later process (nothing in memory) takes what is on disk, without parsing
+  fs.writeFileSync(path.join(dir, stored[0]), JSON.stringify([{ name: 'fromDisk', kind: 'function', start: 0, end: 3, parent: null }]));
+  const fresh = 'function cachedTwo() {\n  return 1;\n}\n';
+  definitions(fresh, 'x.js');
+  for (let i = 0; i < 301; i++) definitions(`const filler${i} = ${i};\n`, 'x.js'); // push the first text out of memory
+  assert.equal(definitions(text, 'x.js')[0].name, 'fromDisk');
+  // another text is another entry
+  assert.equal(definitions(text + '\n', 'x.js')[0].name, 'cachedOne');
 });
