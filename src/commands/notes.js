@@ -4,10 +4,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
-import { listBehaviorProposals, acceptBehaviorProposal } from '../behavior-proposals.js';
+import { listBehaviorProposals, acceptBehaviorProposal, generateBehaviorProposals } from '../behavior-proposals.js';
 import { annotateFanout } from '../codegraph.js';
 import { formatTokens } from '../model-usage.js';
-import { orient, trackTurn, phraseNotes, phraseKey, lookup, drilldown, find, createNote, feedback, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
+import { orient, trackTurn, phraseBatches, phraseKey, lookup, drilldown, find, createNote, feedback, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
 async function orientCommand(ctx) {
   const { pos, flags, store, out } = ctx;
@@ -59,6 +59,13 @@ async function systemCommand(ctx) {
       out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`);
     }
   } else if (sub === 'propose') {
+    // --refresh drafts them again from the rule notes of merged changes: the step a cache build ends with
+    if (flags.refresh) {
+      try {
+        const r = await generateBehaviorProposals(store, { model: flags.model });
+        out(`${r.proposals.length} behavior drafts from ${r.sources} source notes${r.failed ? ` (${r.failed} source notes not read: ${String(r.lastError?.message || '').slice(0, 120)})` : ''}`);
+      } catch (e) { out(`behavior drafts failed: ${String(e.message).slice(0, 200)}`); process.exitCode = 1; return; }
+    }
     const drafts = listBehaviorProposals(store);
     for (const p of drafts) out(`${p.id}\n  ${p.title}\n  ${p.body}\n  Evidence: ${p.source?.ref || p.source?.type || p.sourceId}; ${p.reason}\n  Accept: thinker system accept ${p.id}`);
     const c = proposeBehaviors(store);
@@ -175,17 +182,9 @@ async function phraseCommand(ctx) {
   // how a user would put what each note is about; notes that have it for their present text are left (--force)
   let notes = store.list().filter(n => n.status !== 'invalid' && (!pos.length || pos.includes(n.id)));
   if (!flags.force) notes = notes.filter(n => !n.says?.length || !n.search || n.saysFor !== phraseKey(n));
-  const per = 8, conc = Number(flags.conc) || 4;
-  const groups = []; for (let i = 0; i < notes.length; i += per) groups.push(notes.slice(i, i + per));
-  let n = 0, tokens = 0;
-  await Promise.all(Array.from({ length: conc }, async () => {
-    while (groups.length) {
-      const g = groups.shift();
-      try { const r = await phraseNotes(store, g, { model: flags.model }); n += r.done.length; tokens += r.tokens || 0; }
-      catch (e) { out(`phrase: ${g.length} notes skipped (${String(e.message).slice(0, 120)})`); }
-    }
-  }));
-  out(`phrasings written for ${n} of ${notes.length} notes${tokens ? ` (~${formatTokens(tokens)} tokens)` : ''}`);
+  const { done, tokens } = await phraseBatches(store, notes, { model: flags.model, conc: Number(flags.conc) || 4,
+    onError: (e, g) => out(`phrase: ${g.length} notes skipped (${String(e.message).slice(0, 120)})`) });
+  out(`phrasings written for ${done.length} of ${notes.length} notes${tokens ? ` (~${formatTokens(tokens)} tokens)` : ''}`);
   return;
 }
 

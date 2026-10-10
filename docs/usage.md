@@ -30,8 +30,8 @@ neither side. This is what the notes do for your own work, on your own
 repository, by your own agent, and it is the number to hold the cache's
 spending against.
 
-The report separates cache initialization (exploration, PR mining, seed distillation
-and phrasings), ongoing session distillation, and maintenance. It records reported
+The report separates cache initialization (PR mining and phrasings; exploration in logs
+from before it was removed), ongoing session distillation, and maintenance. It records reported
 input/output tokens, provider prompt-cache reads/writes, and missing usage. Model calls that produce no notes, dry-run distillations, and
 failed attempts count too. Tokens reported before an invalid model answer are retained;
 failures without counters remain unknown. Nothing is given in dollars: the agents run on

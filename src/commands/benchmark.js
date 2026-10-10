@@ -58,7 +58,7 @@ async function benchmarkCommand(ctx) {
     actionName: 'benchmark',
     allowSkip: false,
   });
-  if (!authRes.ok || !authRes.agent || authRes.skip || authRes.skipExploration) {
+  if (!authRes.ok || !authRes.agent || authRes.skip) {
     process.exitCode = 1;
     return;
   }

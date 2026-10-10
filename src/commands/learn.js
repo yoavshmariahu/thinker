@@ -2,22 +2,17 @@ import { projectFromFlags, includesPath, projectRecordKey } from '../project.js'
 import { learningPlan } from '../learning-evidence.js';
 import { deferLearning, safeLearningAssessments } from '../learning-pending.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
-// maintenance run, verification, the exploration sessions of setup (seed), and mining merged pull
+// maintenance run, verification, and mining merged pull
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { execFile } from 'node:child_process';
-import { cleanErrorMessage } from '../benchmark.js';
 import { condense, parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
-import { available, provider, findBin, resolveModel, BINS } from '../llm.js';
+import { provider } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
-import { logModelUsage, streamModelUsage, normalizeModelUsage, formatTokens } from '../model-usage.js';
+import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
-import { selectMenu, getAgentDisplayName } from '../setup.js';
-import { planAreas, parseAreaLimit } from '../topology.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
@@ -80,16 +75,6 @@ async function checkCommand(ctx) {
     out(`${stale.length}/${notes.length} notes stale`);
   }
   if (flags.verify && stale.length) await verifyAll(ctx, stale);
-  return;
-}
-
-async function seedCommand(ctx) {
-  const { flags } = ctx;
-  // Bootstrap coverage: one exploration session per source area, distilled.
-  const project = projectFromFlags(ctx.repo, flags, { save: !flags.dry });
-  if (project) ctx.out(`Cache build: ${project.name} (${project.directories.join(', ')})`);
-  const r = await seed(ctx, { directories: project?.directories || null, areas: parseAreaLimit(flags.areas), model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
-  if (r && r.ok === 0 && !r.skipped && !flags.dry) process.exitCode = 1;
   return;
 }
 
@@ -228,188 +213,6 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   }
 }
 
-export async function seed(ctx, { areas, model, dry, prompts, agent, directories = null }) {
-  const { flags, repo, store, out } = ctx;
-  if (prompts && directories) throw new Error('--prompts cannot be combined with a project selection; use --full-repo for custom prompts.');
-  const { areas: areaList, omitted } = planAreas(repo, { limit: areas, directories });
-  const list = prompts ? JSON.parse(fs.readFileSync(prompts, 'utf8')).map(p => ({ prompt: p })) : areaList.map(a => {
-    if (a.isFile) {
-      return {
-        dir: a.label, n: a.n, files: a.files,
-        prompt: `Orient a new contributor in ${a.dir}: what this module is responsible for, its primary classes and functions (cite file:symbol), how control and data flow into and out of it, the key invariants and conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
-      };
-    }
-    return {
-      dir: a.label, n: a.n, files: a.files,
-      prompt: `Orient a new contributor in ${a.dir}/ (${a.n} source files): what this subsystem is responsible for, its main entry points and how control flows into and out of it (cite file:symbol), the two or three things that must change together when extending it, local conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
-    };
-  });
-  if (!prompts && omitted.length) out(`Exploring ${areaList.length} of ${areaList.length + omitted.length} areas (--areas ${areas}); omitted: ${omitted.map(a => a.label).join(', ')}`);
-  for (const a of list) if (a.files) a.prompt += `\nSource files assigned to this session:\n${a.files.map(f => JSON.stringify(f)).join('\n')}\nFocus on these files; follow other files only as needed to explain their dependencies.`;
-  if (!list.length) { out(areas === 0 ? 'Exploration skipped (--areas 0).' : 'No source areas found in the selected directories.'); return { ok: 0, total: 0, tokens: 0, failures: [], skipped: areas === 0 }; }
-  if (directories) for (const a of list) a.prompt += `\nCache project directories: ${directories.join(', ')}. Focus on this area; follow dependencies outside these directories only when needed to explain it. Use repository-relative file:symbol pointers.`;
-  if (dry) {
-    for (const a of list) {
-      out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`);
-      if (a.files) for (const file of a.files) out(`  ${JSON.stringify(file)}`);
-    }
-    return;
-  }
-  let activeAgent = agent || exploreAgent();
-  if (!activeAgent) {
-    out('\n❌ cache init failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');
-    process.exitCode = 1;
-    return { ok: 0, total: list.length, tokens: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
-  }
-
-  let tokens = 0, ok = 0;
-  const failures = [];
-  const progress = batchProgress({ dir: store.dir, name: 'Exploration', total: list.length, out, every: 1, verbose: Boolean(flags.verbose) });
-  for (const a of list) {
-    const label = a.dir || a.prompt.slice(0, 40);
-    progress.start(label);
-    let r = await explore(ctx, activeAgent, a.prompt, model);
-
-    if (r.error) {
-      progress.pause();
-      progress.detail({ area: label, agent: activeAgent, error: r.error });
-      const otherAgents = available().filter(ag => ag !== activeAgent && ['claude', 'gemini', 'codex', 'cursor'].includes(ag));
-      if (process.stdin.isTTY && !flags.yes && otherAgents.length) {
-        out(`        ${getAgentDisplayName(activeAgent)} failed: ${oneLine(cleanErrorMessage(r.error)).slice(0, 120)}`);
-        const items = [
-          ...otherAgents.map((ag, idx) => ({
-            label: getAgentDisplayName(ag),
-            value: ag,
-            key: String(idx + 1),
-            name: getAgentDisplayName(ag),
-          })),
-          {
-            label: 'Exit',
-            value: 'exit',
-            key: 'e',
-            name: 'Exit',
-          },
-        ];
-        const selected = await selectMenu({
-          header: '        Choose another agent to retry this area, or exit:',
-          hint: 'Use ↑/↓ to navigate, Enter to select:',
-          items,
-          defaultIndex: 0,
-          out,
-        });
-        const chosen = selected && selected.value !== 'exit' ? selected.value : null;
-        if (chosen) {
-          activeAgent = chosen;
-          process.env.THINKER_LLM = chosen;
-          out(`        Retrying with ${getAgentDisplayName(chosen)}…`);
-          progress.start(label);
-          r = await explore(ctx, activeAgent, a.prompt, model);
-        }
-      }
-      if (r.error) {
-        failures.push({ area: label, error: r.error });
-        progress.complete({ error: r.error });
-        break;
-      }
-    }
-
-    tokens += r.tokens || 0;
-    try {
-      const result = await distillFile(ctx, r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: true, incremental: false, phase: 'init' });
-      tokens += result?.tokens || 0;
-      ok++;
-      progress.complete({ notes: result?.notes || [], agent: activeAgent });
-    } catch (e) {
-      failures.push({ area: label, error: e.message });
-      progress.complete({ error: e.message });
-    } finally {
-      if (r.temp) fs.rmSync(r.transcript, { force: true });
-    }
-  }
-  const result = progress.finish({ tokens, retry: 'Check your agent login, then retry with: thinker seed (or thinker seed --agent <name>).' });
-  if (ok === 0 && list.length > 0) process.exitCode = 1;
-  return { ok, total: list.length, saved: result.saved, tokens, agent: activeAgent, failures };
-}
-
-// the agent that explores: THINKER_LLM if it names one, else the first installed in fallback order (claude, gemini, codex, cursor)
-export function exploreAgent() {
-  const agents = available().filter(p => ['claude', 'gemini', 'codex', 'cursor'].includes(p));
-  return agents.includes(process.env.THINKER_LLM) ? process.env.THINKER_LLM : agents[0] || null;
-}
-
-// One read-only exploration session with the given agent; returns the file
-// holding its transcript (the agent's own, or its streamed output).
-export async function explore(ctx, agent, prompt, model) {
-  const { store } = ctx;
-  let response = { provider: agent, model: resolveModel(agent, model), usage: null, cost: null };
-  let result;
-  try {
-    result = await exploreOnce(ctx, agent, prompt, model, fields => { response = { ...response, ...fields }; });
-    if (result && !result.error) result.tokens = normalizeModelUsage(agent, response.usage).totalTokens || 0;
-    return result;
-  } finally {
-    logModelUsage(store, { purpose: 'explore', phase: 'init' }, { ...response, failed: !result || !!result.error });
-  }
-}
-
-export async function exploreOnce(ctx, agent, prompt, model, onUsage) {
-  const { repo, store } = ctx;
-  const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', IS_SANDBOX: '1' };
-  const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
-  const bin = findBin(BINS[agent] || []);
-  if (!bin) return { error: `the ${agent} CLI was not found` };
-  const stream = path.join(store.dir, 'state', `explore-${Date.now()}.jsonl`);
-  fs.mkdirSync(path.dirname(stream), { recursive: true });
-  const m = resolveModel(agent, model);
-  if (agent === 'claude') {
-    const r = await exploreCommand(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'plan', '--tools', 'Read,Glob,Grep', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
-    if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `claude exited ${r.status}`).slice(0, 200) };
-    let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
-    onUsage({ usage: j.usage || j.stats || null, cost: j.total_cost_usd ?? null, model: j.model || m });
-    if (j.is_error) return { error: String(j.result || j.error || 'claude error').slice(0, 200) };
-    const transcript = transcriptsFor(repo).find(f => f.includes(j.session_id));
-    return transcript ? { transcript, cost: j.total_cost_usd || 0, turns: j.num_turns } : { error: 'no transcript found' };
-  }
-  if (path.basename(bin) === 'agy') {
-    const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--mode=plan'];
-    const r = await exploreCommand(bin, agyArgs, { ...opts, cwd: repo });
-    if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `agy exited ${r.status}`).slice(0, 200) };
-    let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
-    onUsage({ usage: j.usage || j.stats || null, cost: j.total_cost_usd ?? null, model: j.model || m });
-    if (j.is_error) return { error: String(j.result || j.error || 'agy error').slice(0, 200) };
-    const convId = j.conversation_id;
-    if (convId) {
-      const transcript = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
-      if (fs.existsSync(transcript)) return { transcript, cost: 0, turns: j.num_turns };
-    }
-    return { error: 'agy transcript not found: ' + (r.stderr || r.stdout || '').slice(0, 200) };
-  }
-  let r;
-  if (agent === 'codex') r = await exploreCommand(bin, ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
-  else if (agent === 'cursor') r = await exploreCommand(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
-  else r = await exploreCommand(bin, ['--output-format', 'stream-json', '--approval-mode=plan', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
-  if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
-  onUsage(streamModelUsage(agent, r.stdout));
-  // failures these CLIs report inside their output (usage limits, auth)
-  for (const l of String(r.stdout).split('\n')) {
-    let j; try { j = JSON.parse(l); } catch { continue; }
-    if (j.type === 'turn.failed' || (j.type === 'result' && j.is_error)) return { error: String(j.error?.message || j.result || j.message || 'failed').slice(0, 200) };
-  }
-  fs.writeFileSync(stream, r.stdout);
-  return { transcript: stream, temp: true };
-}
-
-// Asynchronous child collection lets progress updates continue during long explorations.
-export function exploreCommand(bin, args, { input, ...opts }) {
-  return new Promise(resolve => {
-    const child = execFile(bin, args, opts, (error, stdout, stderr) => {
-      resolve({ status: error ? (error.code || 1) : 0, stdout, stderr: stderr || error?.message || '' });
-    });
-    child.stdin.on('error', () => {}); // the agent can exit before consuming stdin
-    child.stdin.end(input);
-  });
-}
-
 // mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first
 export async function mineMore(ctx, { slug, ...opts }) {
   const { repo, store, out } = ctx;
@@ -509,6 +312,5 @@ export const commands = {
   'outcome': outcomeCommand,
   'verify': verifyCommand,
   'check': checkCommand,
-  'seed': seedCommand,
   'mine-prs': minePrsCommand,
 };

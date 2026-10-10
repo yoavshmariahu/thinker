@@ -9,12 +9,11 @@ installs the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
 Cursor, their desktop apps included). Run from inside a repository, it also
 sets that repository up; anywhere else, `thinker setup` inside a repository
-does that later. `setup` offers to build the cache from the repository's code
-and merged pull requests (`--build` says yes without asking, `--no-build` says
+does that later. `setup` offers to build the cache from the repository's
+merged pull requests (`--build` says yes without asking, `--no-build` says
 no; without it the cache grows from your own sessions). The build comes in two
-depths: **full**, everything the build determines for the repository, or
-**shallow**, the most valuable 30% of it (the largest, most-changed areas and the
-newest pull requests), for a quicker, cheaper start. Setup offers both with their
+depths: **full**, the newest 60 merged pull requests, or
+**shallow**, the most valuable 30% of them (the newest), for a quicker, cheaper start. Setup offers both with their
 estimates; `--depth full` or `--depth shallow` picks one without asking. The wiring is
 everywhere, the cache is per repository: in a repository that has not been
 set up the agents are served nothing and learn nothing.
@@ -49,9 +48,9 @@ Notes:
 - **What it does.** Installs the tool under `~/.thinker`, wires it into the
   agents found on the machine (their own settings; `thinker uninstall --user`
   takes it out again), and builds a cache of notes from the repository's git
-  history, merged pull requests and source areas.
-- **Usage.** Building runs through about 5.5M tokens of your agent's usage with
-  the defaults, most of them cached prompt reads, and takes about twenty
+  history and merged pull requests.
+- **Usage.** Building runs through roughly 700k to 900k tokens of your agent's
+  usage with the defaults (60 merged pull requests) and takes about ten
   minutes. The estimate, in tokens and minutes, is printed before anything runs;
   nothing is given in dollars, since the agent's login is often a subscription.
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
@@ -68,7 +67,6 @@ You can also create the selection without running setup:
 
 ```bash
 thinker project init apps/web packages/ui --name "Web app"
-thinker seed --dry          # preview the exploration areas, without model calls
 thinker setup --build       # build using the saved project
 ```
 
@@ -82,22 +80,17 @@ The project file is small and editable:
 }
 ```
 
-Paths are relative to the repository root. `setup`, `seed`, and `mine-prs` use
+Paths are relative to the repository root. `setup` and `mine-prs` use
 this file automatically; `--project other.project.json` selects another file,
-and `--full-repo` uses the whole repository for one run. Setup builds from
-merged changes only; agent exploration of the code is off unless you ask for it
-with `--areas N` (or run `thinker seed`). Exploration adapts to source size and
-directory structure: small related files share a session, and large directories
-split into groups with explicit file lists. `--areas N` caps sessions and reports
-the areas left unexplored. Preview the groups with `thinker seed --dry`.
-Setup estimates usage from the resulting session count before building.
+and `--full-repo` uses the whole repository for one run. A build reads
+merged changes only: it does not explore the code, and there is no command that
+does. Setup estimates usage from the number of pull requests before building.
 `thinker project show` prints the selection.
 The file can be committed or kept personal using `.git/info/exclude`.
 
-Project builds explore selected directories and mine changes touching them.
+Project builds mine the changes touching the selected directories.
 GitHub history is scanned in bounded batches; `thinker mine-prs` continues
-through older history on later runs. Exploration may follow dependencies outside
-the selection to explain the selected code. All notes go into the same local
+through older history on later runs. All notes go into the same local
 repository cache: retrieval, review, and ongoing learning remain repository-wide.
 File and symbol dependencies already connect notes to relevant paths for retrieval;
 the project file adds no retrieval filter.

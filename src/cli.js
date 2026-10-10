@@ -48,21 +48,21 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
+  setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--prs n] [--pr <num>]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
         [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--behaviors | --no-behaviors] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
-                                 knowledge cache from merged pull requests with pre-flight estimates (--areas n also has your agent explore the code), and
+                                 knowledge cache from merged pull requests with pre-flight estimates (a build reads pull requests and does not explore the code), and
                                  an optional PR change benchmark. --build opts into building; --yes also skips the scope menu. --no-build only wires
                                  things up and lets the cache grow from your sessions; --depth shallow builds 30% of the full
-                                 build (the largest, most-changed areas and the newest pull requests); a build also drafts
+                                 build (the newest pull requests); a build also drafts
                                  system behaviors for human review; --verbose adds per-item details; the first setup of a
                                  repository opens the local page (thinker ui) in the browser, --no-ui leaves it closed
   project [show]                show the saved thinker.project.json cache build selection
   project init <dir> [dir…] [--name name] [--project file]
                                  save repository-relative directories for future cache builds (no model calls)
-                                 setup, seed and mine-prs use thinker.project.json when present; --project selects
+                                 setup and mine-prs use thinker.project.json when present; --project selects
                                  another file, --full-repo ignores it for one run. Retrieval always uses the whole cache.
   connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
@@ -105,7 +105,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  make a note that states a rule (invariant, convention, gotcha) a desired behavior
   system accept <id…> [--fixed | --mutable]
                                  accept a behavior an agent proposed (remember with kind behavior)
-  system propose                 review behavior drafts and rule notes that could be promoted
+  system propose [--refresh]     review behavior drafts and rule notes that could be promoted; --refresh drafts them again
   system define [--no-copy]      print (and copy) a prompt for your coding agent: it interviews you about how each
                                  part of the system must behave and saves only the behaviors you approve; where the
                                  repository is not set up or built, the prompt has the agent set it up and build the
@@ -143,7 +143,6 @@ const HELP = `thinker — knowledge cache for coding agents
                                  learn from new session evidence (edits, failures, corrections), with sampled full-trace audits;
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
-  seed [--project file | --full-repo] [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: adaptive source areas; --areas caps sessions
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
   mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
@@ -185,7 +184,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --schedule / --unschedule manages hourly background telemetry
 `;
 
-// Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
+// Commands that read or maintain an existing cache. Not `setup`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
 const CACHE_COMMANDS = ['ui', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 

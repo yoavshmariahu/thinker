@@ -19,8 +19,8 @@ export function githubSlug(repo) {
   } catch { return null; }
 }
 
-// the agent that explores: THINKER_LLM if set, else first available
-export function exploreAgent() {
+// the agent a build runs through: THINKER_LLM if set, else first available
+export function buildAgent() {
   const agents = available().filter(p => ['claude', 'gemini', 'codex', 'cursor'].includes(p));
   return agents.includes(process.env.THINKER_LLM) ? process.env.THINKER_LLM : agents[0] || null;
 }
@@ -224,7 +224,7 @@ export async function selectAndAuthenticateAgent({
   stdin = process.stdin,
   stdout = process.stdout,
   purpose = 'build the knowledge cache',
-  actionName = 'subsystem exploration',
+  actionName = 'the cache build',
   allowSkip = false,
 } = {}) {
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
@@ -261,7 +261,7 @@ export async function selectAndAuthenticateAgent({
       defaultIdx = agentStatuses.findIndex(s => s.agent === clients[0]);
     }
     if (defaultIdx === -1) {
-      const preferred = exploreAgent();
+      const preferred = buildAgent();
       defaultIdx = agentStatuses.findIndex(s => s.agent === preferred && s.auth.authenticated);
     }
     if (defaultIdx === -1) {
@@ -325,7 +325,7 @@ export async function selectAndAuthenticateAgent({
     if (allowSkip) {
       out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
       out(`    Proceeding with ${actionName} skipped.\n`);
-      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+      return { ok: true, agent: selectedAgent, skip: true };
     }
     out(`  ${c.red('✖')} ${c.bold('Authentication required:')} The selected tool (${agentName}) is not signed in.`);
     out(`    Run '${c.cyan(auth.loginCmd)}' to authenticate, or run setup with another tool: thinker setup --agent <agent>\n`);
@@ -380,9 +380,7 @@ export async function selectAndAuthenticateAgent({
     ];
 
     if (allowSkip) {
-      const skipLabel = actionName === 'subsystem exploration' || actionName === 'agent exploration'
-        ? 'Proceed without agent exploration'
-        : `Proceed without ${actionName}`;
+      const skipLabel = `Proceed without ${actionName}`;
       items.push({
         label: skipLabel,
         value: { action: 'skip' },
@@ -413,7 +411,7 @@ export async function selectAndAuthenticateAgent({
 
     if (choice.action === 'skip') {
       out(`  Proceeding with ${actionName} skipped.\n`);
-      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+      return { ok: true, agent: selectedAgent, skip: true };
     }
 
     if (choice.action === 'exit') {
@@ -447,14 +445,12 @@ export async function selectAndAuthenticateAgent({
 
   if (allowSkip) {
     const rl3 = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
-    const skipPrompt = actionName === 'subsystem exploration' || actionName === 'agent exploration'
-      ? '  Proceed without agent exploration? [Y/n] '
-      : `  Proceed without ${actionName}? [Y/n] `;
+    const skipPrompt = `  Proceed without ${actionName}? [Y/n] `;
     const contAns = await rl3.question(skipPrompt);
     rl3.close();
     if (!/^n/i.test(contAns.trim())) {
       out(`  Proceeding with ${actionName} skipped.\n`);
-      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+      return { ok: true, agent: selectedAgent, skip: true };
     }
   }
 

@@ -1,4 +1,3 @@
-import { parseAreaLimit } from '../topology.js';
 import { DEPTHS } from '../setup/estimate.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
@@ -13,7 +12,7 @@ import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry } from '../telemetry.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
-import { seed, minePrs } from './learn.js';
+import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 
@@ -315,23 +314,22 @@ async function updateCommand(ctx) {
 }
 
 // The one command that sets a repository up: wire it into the agents, then offer to build the
-// cache from its code and merged pull requests. The offer is the only step that spends anything,
+// cache from its merged pull requests. The offer is the only step that spends anything,
 // so it is a question (--build answers yes, --no-build answers no and leaves the wiring alone).
 export async function setup(ctx) {
   const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
-  // exploring the code costs far more than it has given back, so a build mines merged changes only unless --areas asks for it
-  const explore = flags.areas !== undefined && !flags['no-seed'];
-  const areas = explore ? parseAreaLimit(flags.areas) : 0;
+  // a build mines merged changes and nothing else: exploring the code cost far more than it gave back and was
+  // removed (--areas and --no-seed from old scripts are ignored)
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
-  // asking for a size is asking for the build; --no-build (or --no-prs without --areas) is a no
+  // asking for a size is asking for the build; --no-build (or --no-prs) is a no
   const depth = typeof flags.depth === 'string' ? flags.depth : null;
   if (depth && !DEPTHS.includes(depth)) { out(`--depth takes ${DEPTHS.join(' or ')}`); process.exit(2); }
-  const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.areas !== undefined || flags.prs !== undefined;
-  const build = flags['no-build'] || (!explore && flags['no-prs']) ? false : (askedToBuild ? true : null);
+  const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.prs !== undefined;
+  const build = flags['no-build'] || flags['no-prs'] ? false : (askedToBuild ? true : null);
 
   await runSetup({
     repo,
@@ -340,7 +338,6 @@ export async function setup(ctx) {
     mcpEntry: mcpEntry(),
     userMcpEntry: ctx.userMcpEntry(),
     clients,
-    areas,
     projectFlags: flags,
     prs,
     prNumber: flags.pr ? Number(flags.pr) : null,
@@ -349,7 +346,6 @@ export async function setup(ctx) {
     behaviors: flags.behaviors ? true : flags['no-behaviors'] ? false : null,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
-    noSeed: !explore || build === false,
     noPrs: Boolean(flags['no-prs']) || build === false,
     noPhrase: Boolean(flags['no-phrase']),
     model: flags.model,
@@ -363,7 +359,6 @@ export async function setup(ctx) {
     noTrust: Boolean(flags['no-trust']),
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
-    seedFn: async (opts) => seed(ctx, opts),
     minePrsFn: async (slug, opts) => minePrs(ctx, slug, { ...opts, repo, phase: 'init' }),
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui

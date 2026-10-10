@@ -688,6 +688,22 @@ export async function phraseNotes(store, notes, { model, max = 5, phase = 'maint
   return { done, cost, tokens };
 }
 
+// Phrasings for many notes: a few per call, some calls at once. One call for a whole cache asks for
+// more output than a call may write (the agent CLI exits 1 past its cap), and a batch that fails
+// costs its own notes only.
+export async function phraseBatches(store, notes, { model, phase, per = 8, conc = 4, phraseFn = phraseNotes, onError = () => {} } = {}) {
+  const groups = []; for (let i = 0; i < notes.length; i += per) groups.push(notes.slice(i, i + per));
+  const done = []; let tokens = 0, failed = 0, lastError = null;
+  await Promise.all(Array.from({ length: Math.min(conc, groups.length) }, async () => {
+    while (groups.length) {
+      const g = groups.shift();
+      try { const r = await phraseFn(store, g, { model, ...(phase ? { phase } : {}) }); done.push(...r.done); tokens += r.tokens || 0; }
+      catch (e) { failed += g.length; lastError = e; onError(e, g); }
+    }
+  }));
+  return { done, tokens, failed, lastError };
+}
+
 function gitDiffFor(repo, fromCommit, paths) {
   if (!fromCommit) return '';
   try {

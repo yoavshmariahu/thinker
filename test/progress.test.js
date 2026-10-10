@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { batchProgress } from '../src/progress.js';
 
 function temp(t) {
@@ -41,7 +41,7 @@ test('batch output is bounded, keeps diagnostics, and stops heartbeat after comp
 
 test('verbose output includes details and an empty batch has a readable log', t => {
   const dir = temp(t), lines = [];
-  const p = batchProgress({ dir, name: 'Exploration', total: 0, out: s => lines.push(s), verbose: true });
+  const p = batchProgress({ dir, name: 'PR mining', total: 0, out: s => lines.push(s), verbose: true });
   p.detail({ diagnostic: 'full detail' });
   p.finish();
   assert.match(lines.join('\n'), /full detail/);
@@ -69,45 +69,4 @@ test('mine-prs summarizes mixed outcomes and leaves failures unmarked', t => {
   const details = fs.readFileSync(output.split('\n').find(l => l.includes('Details:')).trim().slice('Details: '.length), 'utf8');
   assert.match(details, /raw diagnostic/);
   assert.match(details, /handle-requests-safely/);
-});
-
-test('seed reports an agent failure once and exits without claiming success', t => {
-  const dir = temp(t), bin = path.join(dir, 'bin');
-  fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nconsole.log(JSON.stringify({type:'turn.failed', error:{message:'agent timed out'}}));\n`, { mode: 0o755 });
-  const prompts = path.join(dir, 'prompts.json');
-  fs.writeFileSync(prompts, JSON.stringify(['Explore source area', 'Explore another area']));
-  const result = spawnSync(process.execPath, [path.resolve('src/cli.js'), 'seed', '--repo', dir, '--prompts', prompts, '--agent', 'codex', '--yes'], {
-    encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off', THINKER_HOME: path.join(dir, 'home') },
-  });
-  assert.equal(result.status, 1, result.stderr);
-  assert.match(result.stdout, /1\/2 processed · 0 notes saved · 1 failed/);
-  assert.equal((result.stdout.match(/Warning:/g) || []).length, 1);
-  assert.match(result.stdout, /thinker seed --agent/);
-  assert.doesNotMatch(result.stdout, /successfully explored|notes generated/);
-});
-
-test('seed counts saved notes and treats failed distillation as an area failure', t => {
-  const dir = temp(t), bin = path.join(dir, 'bin');
-  fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(dir, 'source.js'), 'export const value = 1;\n');
-  const events = [
-    { type: 'item.completed', item: { type: 'command_execution', command: 'cat source.js', aggregated_output: 'export const value = 1;', exit_code: 0 } },
-    { type: 'item.completed', item: { type: 'agent_message', text: 'source.js exports value.' } },
-  ];
-  fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nprocess.stdin.resume(); process.stdin.on('end', () => console.log(${JSON.stringify(events.map(e => JSON.stringify(e)).join('\n'))}));\n`, { mode: 0o755 });
-  const prompts = path.join(dir, 'prompts.json');
-  fs.writeFileSync(prompts, JSON.stringify(['Explore source.js']));
-  const model = path.join(bin, 'model');
-  const note = { title: 'Shared source value', kind: 'convention', body: 'Import source.js:value for the shared value.', answers: ['Where is the shared value?'], applies: 'value', deps: [{ path: 'source.js' }], tags: [], confidence: 0.9 };
-  fs.writeFileSync(model, `#!${process.execPath}\nprocess.stdin.resume(); process.stdin.on('end', () => { if (process.env.FAIL_DISTILL) { console.error('distillation failed'); process.exit(1); } console.log(${JSON.stringify(JSON.stringify({ notes: [note], assessments: [] }))}); });\n`, { mode: 0o755 });
-  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, THINKER_LLM: 'command', THINKER_LLM_CMD: model, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off', THINKER_HOME: path.join(dir, 'home') };
-  const args = [path.resolve('src/cli.js'), 'seed', '--repo', dir, '--prompts', prompts, '--agent', 'codex', '--yes'];
-  const success = spawnSync(process.execPath, args, { encoding: 'utf8', env });
-  assert.equal(success.status, 0, success.stderr);
-  assert.match(success.stdout, /1\/1 processed · 1 note saved/);
-  assert.doesNotMatch(success.stdout, /shared-source-value/);
-  const failure = spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...env, FAIL_DISTILL: '1' } });
-  assert.equal(failure.status, 1, failure.stderr);
-  assert.match(failure.stdout, /1\/1 processed · 0 notes saved · 1 failed/);
 });
