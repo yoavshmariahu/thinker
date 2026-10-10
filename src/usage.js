@@ -186,8 +186,6 @@ export function summarize(store, { days, all = false } = {}) {
     holdout: null,
     repos: [], top: [],
   };
-  const sessionLines = new Map();  // origin|session → the last `session` line (what the session cost)
-  const servedIn = new Map();      // origin|session → { served, withheld, holdout }
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
   const repos = new Map();      // origin → its line in the summary
   const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0, spending: emptySpend() }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
@@ -221,15 +219,10 @@ export function summarize(store, { days, all = false } = {}) {
       if (!(e.saved || []).length) u.distillation.noNewNotes++;
       if (!(e.saved || []).length && !(e.merged || []).length) u.distillation.noChanges++;
     }
-    if (e.op === 'session' && e.session && e.session !== 'unknown') { sessionLines.set(`${e.origin}|${sessionKey(e.session)}`, e); continue; }
+    if (e.op === 'session') continue;   // what a session cost: read by holdoutOf
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const cl = normalizeClient(e.client, e.session);
       const ids = e.served || [];
-      if (e.op !== 'lookup' && e.session && e.session !== 'unknown') {
-        const k = `${e.origin}|${sessionKey(e.session)}`, x = servedIn.get(k) || { served: 0, withheld: 0, holdout: false };
-        if (e.holdout) { x.holdout = true; x.withheld += (e.withheld || []).length; } else x.served += ids.length;
-        servedIn.set(k, x);
-      }
       if (e.op !== 'late') {
         u.requests++;
         r.requests++;
@@ -281,7 +274,7 @@ export function summarize(store, { days, all = false } = {}) {
     else if (e.op === 'feedback') u.feedback[e.useful ? 'useful' : 'notUseful']++;
     else if (e.op === 'outcome' && !e.positive) u.corrections++;
   }
-  u.holdout = holdoutSummary(sessionLines, servedIn);
+  u.holdout = holdoutOf(events);
   const namedSessions = [...sessions.values()].filter(x => x.named);
   u.sessions = namedSessions.length;
   for (const x of namedSessions) {
@@ -333,10 +326,29 @@ const num = n => Math.round(n).toLocaleString('en-US');
 // served are left out of both sides; they tell nothing about the notes. Medians, since a few long
 // sessions dominate a mean. With fewer than MIN_HOLDOUT sessions on a side the numbers are shown
 // as too few to compare. It is a measurement of this machine's own work, not an estimate.
+// Each side also carries its sums and how many sessions measured each (`sums`, `measured`): means
+// can be pooled across machines where medians cannot, so those are what telemetry.js sends.
 export const MIN_HOLDOUT = 5;
+const HOLDOUT_FIELDS = ['toolCalls', 'turns', 'inputTokens', 'outputTokens'];
+// The comparison over a set of log events: summarize's window, or telemetry's own 30 days.
+export function holdoutOf(events) {
+  const sessionLines = new Map();  // origin|session → the last `session` line (what the session cost)
+  const servedIn = new Map();      // origin|session → { served, withheld, holdout }
+  for (const e of events) {
+    if (!e.session || e.session === 'unknown') continue;
+    const k = `${e.origin}|${sessionKey(e.session)}`;
+    if (e.op === 'session') sessionLines.set(k, e);
+    else if (e.op === 'orient' || e.op === 'late') {
+      const x = servedIn.get(k) || { served: 0, withheld: 0, holdout: false };
+      if (e.holdout) { x.holdout = true; x.withheld += (e.withheld || []).length; } else x.served += (e.served || []).length;
+      servedIn.set(k, x);
+    }
+  }
+  return holdoutSummary(sessionLines, servedIn);
+}
 const median = xs => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
 export function holdoutSummary(sessionLines, servedIn) {
-  const side = () => ({ sessions: 0, toolCalls: [], inputTokens: [], turns: [] });
+  const side = () => ({ sessions: 0, toolCalls: [], inputTokens: [], turns: [], outputTokens: [] });
   const groups = { served: side(), heldOut: side() }, byModel = {};
   let noNotes = 0, unmeasured = 0;
   for (const [k, x] of servedIn) {
@@ -345,9 +357,10 @@ export function holdoutSummary(sessionLines, servedIn) {
     const line = sessionLines.get(k);
     if (!line) { unmeasured++; continue; }
     const m = byModel[line.model || 'unknown'] ||= { served: side(), heldOut: side() };
-    for (const t of [groups[g], m[g]]) { t.sessions++; t.toolCalls.push(line.toolCalls); t.inputTokens.push(line.inputTokens); t.turns.push(line.turns); }
+    for (const t of [groups[g], m[g]]) { t.sessions++; for (const f of HOLDOUT_FIELDS) t[f].push(line[f]); }
   }
-  const fold = t => ({ sessions: t.sessions, toolCalls: median(t.toolCalls), inputTokens: median(t.inputTokens), turns: median(t.turns) });
+  const total = (t, f) => Object.fromEntries(HOLDOUT_FIELDS.map(k => [k, f(t[k].filter(Number.isFinite))]));
+  const fold = t => ({ sessions: t.sessions, toolCalls: median(t.toolCalls), inputTokens: median(t.inputTokens), turns: median(t.turns), sums: total(t, a => a.reduce((n, x) => n + x, 0)), measured: total(t, a => a.length) });
   const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), noNotes, unmeasured, byModel: {} };
   for (const [m, g] of Object.entries(byModel)) out.byModel[m] = { served: fold(g.served), heldOut: fold(g.heldOut) };
   out.enough = out.served.sessions >= MIN_HOLDOUT && out.heldOut.sessions >= MIN_HOLDOUT;

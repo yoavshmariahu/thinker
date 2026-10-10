@@ -13,6 +13,7 @@ import { createNote, orient, lookup, lateNotes, rememberTask, holdoutSession, ho
 import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 import { holdoutSummary, renderHoldout, summarize, renderUsage } from '../src/usage.js';
 import { parseTranscript } from '../src/transcripts.js';
+import { holdoutMetrics, buildTelemetryPayload } from '../src/telemetry.js';
 
 process.env.THINKER_TELEMETRY = 'off';
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -128,6 +129,28 @@ test('usage reads session and holdout lines from the log into the summary', () =
   assert.equal(u.holdout.served.toolCalls, 3); assert.equal(u.holdout.heldOut.toolCalls, 6);
   assert.match(renderUsage(u, {}), /Holdout/);
   assert.equal(u.servings.prompt, 1, 'a withheld note is not a serving');
+}));
+
+test('telemetry carries the holdout as sums and session counts per side over 30 days, and nothing from an opted-out repository', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: undefined, THINKER_NO_BG_VERIFY: '1' }, async () => {
+  const store = new Store(gitRepo()).init();
+  createNote(store, { title: 'fetchRows reads the rows table', kind: 'callpath', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  for (const [session, holdout] of [['a', false], ['b', true], ['c', false]]) await orient(store, { task: 'how are rows fetched by fetchRows', session, client: 'claude', holdout });
+  store.log({ op: 'session', session: 'a', model: 'm', toolCalls: 3, inputTokens: 1000, outputTokens: 10, turns: 2 });
+  store.log({ op: 'session', session: 'b', model: 'm', holdout: true, toolCalls: 6, inputTokens: 3000, outputTokens: 30, turns: 4 });
+  store.log({ op: 'session', session: 'c', model: 'n', toolCalls: 5, inputTokens: null, outputTokens: null, turns: 1 }); // a transcript without usage
+  const h = holdoutMetrics(store, { all: false });
+  assert.equal(h.schemaVersion, 1); assert.equal(h.windowDays, 30);
+  assert.deepEqual(h.served, { sessions: 2, sums: { toolCalls: 8, turns: 3, inputTokens: 1000, outputTokens: 10 }, measured: { toolCalls: 2, turns: 2, inputTokens: 1, outputTokens: 1 } });
+  assert.deepEqual(h.heldOut, { sessions: 1, sums: { toolCalls: 6, turns: 4, inputTokens: 3000, outputTokens: 30 }, measured: { toolCalls: 1, turns: 1, inputTokens: 1, outputTokens: 1 } });
+  assert.deepEqual(Object.keys(h.byModel).sort(), ['m', 'n']);
+  assert.equal(h.byModel.m.heldOut.sums.inputTokens, 3000); assert.equal(h.byModel.n.served.measured.inputTokens, 0);
+  // numbers and model names only
+  assert.doesNotMatch(JSON.stringify(h), /fetchRows|thinker-holdout-|"a"|"b"/);
+  assert.deepEqual(buildTelemetryPayload(store, { all: false, home: path.join(store.repo, 'home') }).holdout, h);
+  assert.equal(holdoutMetrics(store, { all: false, now: Date.now() + 31 * 86400_000 }).served.sessions, 0, 'older than the window');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ telemetry: false }));
+  const off = holdoutMetrics(store, { all: false });
+  assert.equal(off.served.sessions, 0); assert.equal(off.heldOut.sessions, 0);
 }));
 
 test('archiving: kinds the sessions never acted on, and notes unserved for a month; rank, lookup, late notes and verification skip them; review keeps them', () => withEnv({ THINKER_LOG: 'local', THINKER_NO_BG_VERIFY: '1' }, async () => {

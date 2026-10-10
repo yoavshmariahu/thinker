@@ -1280,7 +1280,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Note ranking runs on your machine. Learning, verification and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings, and the totals of the holdout comparison: session counts and summed tool calls and tokens of sessions with and without notes) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Note ranking runs on your machine. Learning, verification and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off

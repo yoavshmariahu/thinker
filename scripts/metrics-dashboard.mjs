@@ -2,6 +2,7 @@
 // Local Metabase backed by durable Docker volumes; production access is read-only.
 import fs from 'node:fs';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
+import { holdoutQuestions } from './holdout-dashboard.mjs';
 import path from 'node:path';
 import net from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -103,7 +104,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -156,13 +157,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
+    if (existingId && (question.holdout ? state.holdoutCardVersion === 1 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 4; state.deliveryCardVersion = 2; save();
+  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -252,6 +253,27 @@ async function provision() {
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.holdoutId) {
+    state.holdoutId = (await api('/dashboard', 'POST', { name: 'Holdout: what the notes save', collection_id: state.collectionId,
+      description: 'Sessions served notes against sessions with notes withheld, pooled over the latest 30-day snapshot per device. Averages, with session counts.' })).id;
+    save();
+  }
+  if (state.holdoutDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What do the notes save?\nEvery client withholds notes from a share of sessions (15% by default) and records what each session cost from its own transcript. These cards pool that comparison over the latest 30-day snapshot per known device (installation fallback).\n**Read with the session counts:** these are averages, so a few very long sessions move them. Clients older than this block report nothing: unknown, not zero. Cache building and maintenance tokens are not subtracted.' } }];
+    holdoutQuestions.forEach((q, i) => {
+      const scalar = i < 4, j = i - 4;
+      cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
+        col: scalar ? i * 6 : q.fullWidth ? 0 : j % 2 * 12, size_x: scalar ? 6 : q.fullWidth ? 24 : 12, size_y: scalar ? 4 : 8,
+        parameter_mappings: mappings(state.cards[q.name]) });
+    });
+    await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters, dashcards: cards });
+    state.holdoutDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.holdoutId}`);
+    await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.messagesCardId) {
     state.messagesCardId = (await api('/card', 'POST', {
       name: 'Website messages', display: 'table', collection_id: state.collectionId,
@@ -274,6 +296,7 @@ async function provision() {
   }
   console.log(`Messages: http://localhost:3030/dashboard/${state.messagesId}`);
   console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
+  console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
@@ -305,6 +328,12 @@ async function verify() {
       if (result.status !== 'completed' || result.data.rows[0][0] !== 0) throw new Error(`Delivery filter did not restrict data: ${id}`);
     }
     console.log('PASS: delivery layout and filters.');
+  }
+  if (state.holdoutId) {
+    const holdout = await api(`/dashboard/${state.holdoutId}`);
+    if (holdoutQuestions.some(q => !holdout.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Holdout dashboard is missing cards');
+    if (filterDefs.some(([id]) => !holdout.parameters.some(p => p.id === id) || holdout.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped holdout filter');
+    console.log('PASS: holdout layout and filters.');
   }
   if (performanceCardNames.some(name => !dashboard.dashcards.some(card => card.card_id === state.cards[name]))) {
     throw new Error('Starter dashboard is missing cards');

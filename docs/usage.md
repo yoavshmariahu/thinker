@@ -26,7 +26,9 @@ cost by its own transcript: tool calls, model turns, input tokens. The
 "Holdout" section of `thinker usage` compares the sessions that got notes with
 the ones that had notes withheld, as medians per model, once five sessions
 stand on each side. Sessions where nothing would have been served are on
-neither side. This is what the notes do for your own work, on your own
+neither side. Telemetry, unless you opted out, sends the totals behind this
+comparison (session counts and summed tool calls, turns and tokens per side
+and per model, over 30 days), nothing about the sessions themselves. This is what the notes do for your own work, on your own
 repository, by your own agent, and it is the number to hold the cache's
 spending against.
 
