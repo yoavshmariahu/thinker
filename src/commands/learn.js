@@ -94,6 +94,7 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const canMine = provider() && (slug ? hasBin('gh') : true);
   const r = await maintain(store, repo, { dry, fns: {
     minePrs: canMine ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+    docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
   } });
   if (!quiet) out(renderMaintain(r));
 }
