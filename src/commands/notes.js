@@ -79,6 +79,8 @@ async function systemCommand(ctx) {
       if (flags.dry) { for (const d of r.docs) out(d); out(`${r.docs.length} of ${r.found} design documents to read${r.remaining ? `, ${r.remaining} more after these` : ''}`); return; }
       for (const b of r.saved) out(`saved ${b.id}  ${b.title}  (${b.doc})`);
       for (const x of r.rejected) out(`left out: ${x.title}  (${x.doc}: ${x.reason})`);
+      for (const b of r.reworded) out(`follows the new wording: ${b.id}  ${b.title}  (${b.doc})`);
+      for (const b of r.unstated) out(`no longer stated: ${b.id}  ${b.title}  (${b.doc})`);
       out(docBehaviorsLine(r));
     } catch (e) { out(`design documents not read: ${String(e.message).slice(0, 200)}`); process.exitCode = 1; }
   } else if (sub === 'md') {

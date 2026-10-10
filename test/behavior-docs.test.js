@@ -7,7 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { designDocs, deriveDocBehaviors, docBehaviorsLine } from '../src/behavior-docs.js';
 import { listBehaviors, proposed } from '../src/behavior.js';
-import { activeBehaviors, pendingBehaviors, discardPending } from '../src/behavior-workbench.js';
+import { activeBehaviors, pendingBehaviors, discardPending, editBehavior } from '../src/behavior-workbench.js';
+import { maintain, maintenanceNotice } from '../src/maintain.js';
 
 const README = `# Billing
 
@@ -93,13 +94,76 @@ test('a document is read once per content, and a discarded behavior does not com
   assert.match(docBehaviorsLine(second), /all read already/);
   assert.equal(listBehaviors(store).length, 0);
   fs.appendFileSync(path.join(repo, 'src/billing/README.md'), '\nA new paragraph.\n');
+  // the document changed and is read again: what a person discarded stays out
   const third = await deriveDocBehaviors(store, { completeFn });
   assert.deepEqual(third.docs, ['src/billing/README.md']);
-  assert.equal(third.saved.length, 1);
-  // the same rule read again from an unchanged-in-substance document is not saved twice
-  const fourth = await deriveDocBehaviors(store, { completeFn, again: true });
-  assert.equal(fourth.saved.length, 0);
-  assert.equal(listBehaviors(store).length, 1);
+  assert.equal(calls, 2);
+  assert.equal(third.saved.length, 0);
+  assert.equal(third.rejected[0].reason, 'discarded by a person');
+  assert.equal(listBehaviors(store).length, 0);
+});
+
+const refund = { title: 'A refund is written to the ledger before the provider is called',
+  body: 'src/billing/ledger.js:recordRefund records the refund first.',
+  quote: 'Refunds are always written to the ledger before the provider is called.', answers: ['when is a refund recorded'],
+  deps: [{ path: 'src/billing/ledger.js', symbol: 'recordRefund' }] };
+
+test('a changed document is followed: an edited behavior keeps its link, a reworded rule its new sentence, a dropped rule is marked', async t => {
+  const { repo, store } = fixture(t);
+  const doc = path.join(repo, 'src/billing/README.md');
+  const first = await deriveDocBehaviors(store, { completeFn: async ({ prompt }) => ({ json: { behaviors: prompt.includes('DOCUMENT src/billing/README.md') ? [charge, refund] : [] } }) });
+  const [chargeId, refundId] = first.saved.map(b => b.id);
+
+  // a person rewrites one: it is theirs, still tied to the document, and not read in a second time
+  assert.ok(!editBehavior(store, chargeId, { title: 'Charges need an idempotency key' }).error);
+  let a = activeBehaviors(store).find(b => b.id === chargeId);
+  assert.equal(a.origin, 'design document src/billing/README.md, edited by a person');
+  assert.equal(a.quote, charge.quote);
+
+  // the document rewords the refund rule and keeps the charge rule
+  fs.writeFileSync(doc, README.replace('Refunds are always\nwritten to the ledger before the provider is called.', 'Every refund reaches the ledger first; only then is the provider called.'));
+  assert.doesNotMatch(fs.readFileSync(doc, 'utf8'), /Refunds are always/);
+  let asked = '';
+  const second = await deriveDocBehaviors(store, { completeFn: async ({ prompt }) => { asked = prompt; return { tokens: { totalTokens: 120 }, json: {
+    kept: [{ id: refundId, quote: 'Every refund reaches the ledger first; only then is the provider called.' }], behaviors: [charge] } }; } });
+  assert.match(asked, new RegExp(`REWORDED[^]*${refundId}: `));
+  assert.doesNotMatch(asked.split('DOCUMENT ')[0].split('REWORDED')[1], new RegExp(chargeId), 'a sentence still in the document is not asked about');
+  assert.equal(second.saved.length, 0, 'the edited behavior is not saved again under its old title');
+  assert.equal(second.rejected[0].reason, 'already a behavior');
+  assert.deepEqual(second.reworded.map(b => b.id), [refundId]);
+  assert.equal(second.tokens, 120);
+  assert.equal(activeBehaviors(store).find(b => b.id === refundId).quote, 'Every refund reaches the ledger first; only then is the provider called.');
+  assert.equal(listBehaviors(store).length, 2);
+
+  // the document drops the refund rule: the behavior stays in force, marked, for the person to decide
+  fs.writeFileSync(doc, fs.readFileSync(doc, 'utf8').replace(' Every refund reaches the ledger first; only then is the provider called.', ''));
+  fs.appendFileSync(doc, '\n' + 'The rest of this page is background on how the folder came to be. '.repeat(4) + '\n');
+  const third = await deriveDocBehaviors(store, { completeFn: async () => ({ json: { kept: [{ id: refundId, quote: 'a sentence that is not in the document' }], behaviors: [] } }) });
+  assert.deepEqual(third.unstated.map(b => b.id), [refundId]);
+  assert.match(docBehaviorsLine(third), /1 no longer stated by its document/);
+  a = activeBehaviors(store).find(b => b.id === refundId);
+  assert.equal(a.unstated, true);
+  assert.equal(listBehaviors(store).length, 2);
+
+  // the document is deleted: the rest of its behaviors are marked without a model call
+  fs.rmSync(doc);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  const fourth = await deriveDocBehaviors(store, { completeFn: async () => { throw new Error('called'); } });
+  assert.deepEqual(fourth.unstated.map(b => b.id), [chargeId]);
+  assert.equal(listBehaviors(store).length, 2);
+});
+
+test('maintenance reads new and changed design documents and says so once', async t => {
+  const { store, repo } = fixture(t);
+  const limits = [];
+  const r = await maintain(store, repo, { fns: { spentToday: () => 0, verify: async () => ({}), phrase: async () => ({ done: [] }),
+    docs: async ({ limit }) => { limits.push(limit); return { saved: [{ id: 'a' }, { id: 'b' }], unstated: [{ id: 'c' }], tokens: 300 }; } } });
+  assert.deepEqual(limits, [3]);
+  assert.equal(r.docs, 2); assert.equal(r.unstated, 1); assert.equal(r.tokens, 300);
+  const notice = maintenanceNotice(store);
+  assert.match(notice, /2 behaviors from design documents; see thinker system/);
+  assert.match(notice, /1 behavior no longer stated by a design document; keep or discard in thinker ui/);
+  assert.equal(maintenanceNotice(store), '');
 });
 
 test('--dry lists the documents without a model call, and a failed document is tried again', async t => {

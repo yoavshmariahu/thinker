@@ -434,7 +434,7 @@ function bcard(b) {
     b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
     b.waiting ? `<b>${b.origin === 'draft' ? 'Drafted from' : 'From'}</b> ${esc(b.evidence)}` : `<b>Origin</b> ${esc(b.origin)}`,
     b.waiting && b.reason ? `<b>Why</b> ${esc(b.reason)}` : '',
-    !b.waiting && b.quote ? `<b>The document says</b> “${esc(b.quote)}”` : '',
+    !b.waiting && b.quote ? (b.unstated ? `<b>The document no longer says</b> “${esc(b.quote)}” · keep it as yours by editing it, or discard it` : `<b>The document says</b> “${esc(b.quote)}”`) : '',
     !b.waiting && b.state === 'violated' ? `<b>Broken since</b> ${esc(b.since || '?')}: ${esc(b.reason)}` : '',
     !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
   ].filter(Boolean).join('<br>');
