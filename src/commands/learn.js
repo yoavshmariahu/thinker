@@ -13,7 +13,7 @@ import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maint
 import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
-import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
+import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs, mineable } from '../prs.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
@@ -82,7 +82,7 @@ async function checkCommand(ctx) {
 async function minePrsCommand(ctx) {
   const { pos, flags, repo } = ctx;
   // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again],
-  // or --from <commit>: the --limit commits of git history that end at that commit
+  // or --from <commit>: the newest --limit changes worth distilling in the git history that ends at that commit
   await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
   return;
 }
@@ -249,7 +249,8 @@ export async function minePrs(ctx, slug, { from, before, after, again, limit = 2
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const fresh = p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
-  const listed = from ? listMergedCommits(repo, { from, limit, directories }).filter(fresh) : before || after
+  // --from scans twice the limit and no further: a recent cache as of that commit, not a search for older fixes
+  const listed = from ? listMergedCommits(repo, { from, limit: limit * 2, directories }).filter(fresh) : before || after
     ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length) {
@@ -259,17 +260,10 @@ export async function minePrs(ctx, slug, { from, before, after, again, limit = 2
   }
   const failed = new Set();
   const scoped = listed.filter(p => !directories || (p.files || []).some(f => includesPath(directories, typeof f === 'string' ? f : f.path || '')));
-  const filtered = scoped
-    .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
-      (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (useGit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
-  let candidates = filtered.length ? filtered : scoped.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
-  // --fixes: only changes whose message says they fix something (git history has no labels; a repository
-  // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
-  if (fixes) candidates = candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`));
+  const candidates = mineable(scoped, { fixes, git: useGit });
   if (directories) out(`        ${scoped.length}/${listed.length} scanned changes touch project directories; later runs continue scanning older history.`);
-  // --from names its commits exactly: each one is distilled, with no filter and no ranking choosing among them
-  if (from) candidates = scoped;
-  const prs = from ? candidates : pickPrs(candidates, limit);
+  // --from: the newest changes worth distilling at that commit, in order; no ranking chooses among them
+  const prs = from ? candidates.slice(0, limit) : pickPrs(candidates, limit);
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });

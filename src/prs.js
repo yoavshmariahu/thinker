@@ -22,7 +22,7 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
 // no pull requests, and its fix commits are what review wants.
 export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
 export function listMergedCommits(repo, { before, after, limit = 100, directories = null, from = null } = {}) {
-  // from: exactly the `limit` commits that end at that commit, so nothing merged after it can be listed
+  // from: the `limit` commits that end at that commit and no more, so nothing merged after it can be listed
   const args = ['log', '--first-parent', '-n', String(from ? limit : Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
   if (before) args.push(`--before=${before}`);
   if (after) args.push(`--after=${after}`);
@@ -220,6 +220,19 @@ export function stratifyPrs(prs, limit = 20) {
     idx++;
   }
   return selected;
+}
+
+// The listed changes worth distilling: not chores, dependency bumps, docs, reverts or CI, and a fix or
+// a change that says something about itself, of a size a note can describe. When nothing passes,
+// whatever is not a chore or a bump.
+export function mineable(prs, { fixes = false, git = false } = {}) {
+  const filtered = prs
+    .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
+      (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (git ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
+  const candidates = filtered.length ? filtered : prs.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
+  // --fixes: only changes whose message says they fix something (git history has no labels; a repository
+  // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
+  return fixes ? candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`)) : candidates;
 }
 
 // Which of the candidates to distill this run: fixes first, since the record of a fix is what a

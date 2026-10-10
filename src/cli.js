@@ -155,8 +155,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
-                                 --from <commit>: exactly the --limit commits of git history that end at that commit, each one
-                                 distilled and nothing merged after it read (a cache as it would have been at that point)
+                                 --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
+                                 worth distilling among the 2 x limit commits that end there; nothing merged after it is read
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
   impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
