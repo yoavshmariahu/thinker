@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs, trimDiff } from '../src/prs.js';
+import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs, mineable, trimDiff } from '../src/prs.js';
 
 const day = n => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
 const ALL = Array.from({ length: 12 }, (_, i) => ({ number: i + 1, mergedAt: day(i + 1) }));
@@ -101,6 +101,30 @@ test('listMergedCommits extracts commits, merge titles, bodies, and numstats', (
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('listMergedCommits from a commit lists exactly the commits that end there, none merged after it', () => {
+  const dir = createMockPrRepo();
+  try {
+    const all = listMergedCommits(dir);                     // newest first
+    const at = all[1].hash;                                 // one commit was merged after this one
+    const two = listMergedCommits(dir, { from: at, limit: 2 });
+    assert.deepEqual(two.map(c => c.hash), [all[1].hash, all[2].hash]);
+    assert.ok(!listMergedCommits(dir, { from: at, limit: 50 }).some(c => c.hash === all[0].hash));
+    assert.equal(listMergedCommits(dir, { from: at, limit: 50 }).length, all.length - 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('mineable passes over dependency bumps, docs and changes too small or too large to describe', () => {
+  const pr = (title, extra = {}) => ({ title, body: 'Explains what changed and why.', additions: 20, ...extra });
+  const kept = mineable([
+    pr('Bump ruff from 0.4 to 0.5'), pr('docs: fix a typo'), pr('fix: retry the connection'),
+    pr('Add a replay command'), pr('Add a constant', { additions: 1 }), pr('Rewrite the parser', { additions: 5000 }),
+    pr('fix the race in drain', { body: '' }), pr('Tidy imports', { body: '' }),
+  ], { git: true }).map(p => p.title);
+  assert.deepEqual(kept, ['fix: retry the connection', 'Add a replay command', 'fix the race in drain']);
 });
 
 test('nextPrs with listMergedCommits handles git history and tracks mined commits in local store', () => {
