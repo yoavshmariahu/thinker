@@ -17,16 +17,21 @@ enforces it. A document is read once per content, so a later run reads only new 
 changed ones (`--dry` lists them without a model call). These behaviors are in force
 without a further step; make one blocking, reword it or discard it in `thinker ui`.
 
-The documents rarely say everything. The best way to write the rest is a conversation
-with your own coding agent. `thinker system
-define` (also offered at the end of `thinker setup`) prints a prompt and copies it to
-your clipboard: paste it into your agent, and it reads the documents, goes through what
-they state with you, then interviews you about each part of the
-system, drafts each behavior against the code, and saves only the ones you approve.
+The documents are the source: to add a behavior, state the rule in a README beside the
+code or in a design file. Nothing asks you how the system must behave.
+
+Thinker follows the documents. Maintenance (after a commit or a prompt, at most every four
+hours) reads up to three new or changed documents per run; `thinker system docs` does it
+at once. When a document changes, a behavior whose quoted sentence is still there stands,
+one whose sentence was reworded takes the new sentence, and one the document no longer
+states is marked "the document no longer says" and stays in force until you keep it (edit
+it) or discard it; Thinker never removes one for you. A behavior you edited keeps its link
+to the document and is not read in again, and one you discarded stays out when the
+document changes. `maintain.docs: false` in `.thinker/config.json` turns the background
+reading off.
 
 ```bash
 thinker system docs     # behaviors from the READMEs and design documents checked in
-thinker system define   # the interview prompt for your coding agent
 thinker ui              # usage, the cache, and the behaviors: accept, edit or discard the ones waiting
 ```
 

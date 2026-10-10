@@ -244,8 +244,8 @@ for one run. Choosing Full repo in the menu updates an existing default file to
 `directories: ["."]`.
 
 `planAreas` / `discoverAreas` use literal git pathspecs before clustering and
-cannot widen a selected deep directory into its parent. They now serve only the
-behavior interview's list of main areas (`setup/define.js`). Groups use
+cannot widen a selected deep directory into its parent. No command calls them now
+(the behavior interview that listed the main areas is removed, with `thinker system define`). Groups use
 128 KiB of source (roughly 32k tokens) and 80 files as per-session working-set
 heuristics, not a repository coverage limit. Small sibling groups share a session;
 oversized directories split recursively, including flat directories split into
@@ -524,7 +524,9 @@ Each session both consumes and improves the cache:
    the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
    cap). `maintain` in `.thinker/config.json`
    overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
-   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
+   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`, `docs`, `docsPerRun` (a run also reads up to
+   three new or changed design documents into behaviors and reconciles the ones a changed
+   document produced: `behavior-docs.js:deriveDocBehaviors`). What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
    `THINKER_NO_LEARN=1` switches it off with the rest of learning.

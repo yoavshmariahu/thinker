@@ -13,18 +13,6 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 
 ## Install
 
-**Prompt Installation**
-
-Paste this into your coding agent, opened in your repository:
-
-```text
-Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
-1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
-2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it writes down the system behaviors this repository's design documents (READMEs) state, goes through them with me, and interviews me about the rest while the cache builds in the background. Ask me one question at a time and wait for my answers. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.
-```
-
-**Standard CLI Installation**
-
 Run this in a terminal, inside your repository:
 
 ```bash
@@ -39,7 +27,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 
 1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
 2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code.
-3. **It checks changes against your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code), and you and your agent write down the rest. `thinker review` flags a change that brings back a fixed bug or breaks one of them.
+3. **It checks changes against your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code). `thinker review` flags a change that brings back a fixed bug or breaks one of them.
 4. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
@@ -50,7 +38,6 @@ the coding agent you already use, on its own login.
 ```bash
 thinker review --base origin/main   # check this branch against the notes and behaviors
 thinker system docs                 # behaviors from the READMEs and design documents checked in
-thinker system define               # interview prompt for writing more system behaviors
 thinker ui                          # local page: usage, the cache, behaviors to accept or edit
 thinker benchmark                   # compare your agent with and without the cache
 thinker usage --here                # what the cache cost and what it saved

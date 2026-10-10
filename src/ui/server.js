@@ -18,7 +18,6 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { summarize, readLog } from '../usage.js';
 import { Store, repoId, isScratchCheckout } from '../store.js';
-import { behaviorSessionPrompt } from '../setup/define.js';
 import { execFileSync } from 'node:child_process';
 import { refresh, archiveNotes } from '../ops.js';
 import { isBehavior } from '../behavior.js';
@@ -154,10 +153,6 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
           active: stores.flatMap(([r, st]) => activeBehaviors(st).map(tag(r))),
           pending: stores.flatMap(([r, st]) => pendingBehaviors(st).map(tag(r))),
         });
-      }
-      if (req.method === 'GET' && url.pathname === '/api/behaviors/session-prompt') {
-        const one = storeFor(want); if (!one) return json(res, 400, { error: 'pick one repository first' });
-        return json(res, 200, { prompt: behaviorSessionPrompt(one) });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);

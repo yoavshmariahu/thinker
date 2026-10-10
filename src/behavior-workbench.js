@@ -2,9 +2,10 @@
 // and the decisions. Two things wait: drafts the build wrote from the strongest rule notes
 // (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember`
 // (behavior.js:proposed). Neither is a requirement until a person accepts it, as written or
-// edited. `thinker system define` (the terminal) and `thinker ui` (the local page) are the two ways
+// edited. `thinker system` (the terminal) and `thinker ui` (the local page) are the two ways
 // in; both call only what is here.
 import { listBehaviors, isBehavior, proposed, promoteBehavior, writeSystemMarkdown } from './behavior.js';
+import { docSource, rememberDiscarded } from './behavior-docs.js';
 import { listBehaviorProposals, acceptBehaviorProposal, discardBehaviorProposal } from './behavior-proposals.js';
 import { createNote, MUTABILITY } from './ops.js';
 
@@ -27,8 +28,8 @@ export function pendingBehaviors(store) {
 export function activeBehaviors(store) {
   return listBehaviors(store).filter(r => !r.proposed).map(({ note, ...r }) => ({
     ...r, body: note.body, applies: note.applies || '', pointers: pointers(note.deps),
-    quote: note.source?.type === 'doc' ? note.source.quote || '' : '', fromDoc: note.source?.type === 'doc',
-    origin: note.source?.type === 'doc' ? `design document ${note.source.ref}` : note.source?.proposedFrom ? 'accepted draft' : note.source?.promoted ? `promoted ${note.source.promoted}` : 'written by a person',
+    quote: docSource(note)?.quote || '', fromDoc: !!docSource(note), unstated: !!docSource(note)?.unstated,
+    origin: docSource(note) ? `design document ${docSource(note).ref}${note.source.type === 'human' ? ', edited by a person' : ''}` : note.source?.proposedFrom ? 'accepted draft' : note.source?.promoted ? `promoted ${note.source.promoted}` : 'written by a person',
   }));
 }
 
@@ -49,7 +50,8 @@ export function discardPending(store, id) {
   if (String(id).startsWith('proposal-')) return discardBehaviorProposal(store, id);
   const n = store.get(id);
   // a behavior read from a design document is in force without a person's yes, so a person can take it out
-  if (!n || !isBehavior(n) || !(proposed(n) || n.source?.type === 'doc')) return { error: 'no such proposed behavior' };
+  if (!n || !isBehavior(n) || !(proposed(n) || docSource(n))) return { error: 'no such proposed behavior' };
+  rememberDiscarded(store, n); // it stays out when its document changes and is read again
   store.remove(id);
   store.log({ op: 'behavior', id, action: 'discard-proposal' });
   writeSystemMarkdown(store);

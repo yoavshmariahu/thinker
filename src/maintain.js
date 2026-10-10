@@ -23,6 +23,8 @@ export const DEFAULTS = {
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   prs: true,        // distill pull requests merged since maintenance first ran here
   prsPerRun: 3,
+  docs: true,       // read design documents that are new or changed into behaviors (behavior-docs.js)
+  docsPerRun: 3,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
@@ -133,7 +135,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -175,6 +177,12 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
       } else r.capped = true;
     }
+    // 5. design documents that are new or changed since they were read: their behaviors follow them
+    if (cfg.docs !== false && fns.docs) {
+      if (afford()) {
+        if (!dry) { try { const d = await fns.docs({ limit: cfg.docsPerRun }); r.docs = d?.saved?.length || 0; r.unstated = d?.unstated?.length || 0; r.tokens += d?.tokens || 0; if (r.docs || r.unstated || d?.reworded?.length) { try { writeSystemMarkdown(store); } catch {} } } catch { r.errors++; } }
+      } else r.capped = true;
+    }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
     // (ops.js:noteUnreported), after the state was read: keep it
@@ -182,7 +190,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (liveState.violated?.length) u.violated = liveState.violated;
     if (liveState.revised?.length) u.revised = liveState.revised;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
+    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs', 'docs', 'unstated']) u[k] = (u[k] || 0) + r[k];
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -216,6 +224,8 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.phrased) parts.push(`${u.phrased} phrased`);
   if (u.archived) parts.push(`${u.archived} archived`);
   if (u.prs) parts.push(`${u.prs} PR notes`);
+  if (u.docs) parts.push(`${u.docs} ${u.docs === 1 ? 'behavior' : 'behaviors'} from design documents; see thinker system`);
+  if (u.unstated) parts.push(`${u.unstated} ${u.unstated === 1 ? 'behavior' : 'behaviors'} no longer stated by a design document; keep or discard in thinker ui`);
   if (u.pruned?.length) parts.push('Thinker setup updated');
   if (u.capped) {
     const day = capDay(now);
@@ -258,5 +268,7 @@ export function renderMaintain(r) {
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
+  if (r.docs) bits.push(`${r.docs} from design documents`);
+  if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
   return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

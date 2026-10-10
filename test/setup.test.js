@@ -376,7 +376,6 @@ test('runSetup opens the local page after a repository\'s first setup only', asy
     build: false,
     noPrs: true,
     noBenchmark: true,
-    behaviors: false,
     yes: true,
     out: () => {},
     dashboard: true,

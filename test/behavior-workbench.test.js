@@ -11,7 +11,6 @@ import { createNote } from '../src/ops.js';
 import { review } from '../src/review.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../src/behavior-workbench.js';
 import { listBehaviorProposals } from '../src/behavior-proposals.js';
-import { behaviorSessionPrompt } from '../src/setup/define.js';
 import { createUiServer, usageView } from '../src/ui/server.js';
 
 const GUARD = `export function guard(input) {\n  if (!input) throw new Error('input required');\n  return input.trim();\n}\n\nexport function other() {\n  return 1;\n}\n`;
@@ -80,17 +79,6 @@ test('switching fixed and mutable leaves a stale behavior stale; new words are r
   assert.equal(r.note.source.type, 'human');
 });
 
-test('the interview prompt names what exists and saves nothing without the person', t => {
-  const { store } = fixture(t);
-  const p = behaviorSessionPrompt(store);
-  assert.match(p, /in force \(1 before this run\)/);
-  assert.match(p, /Start from the design documents/);
-  assert.match(p, /2 drafts waiting/);
-  assert.match(p, /Interview me, one area at a time/);
-  assert.match(p, /Save a behavior only after I say yes/);
-  assert.match(p, /thinker system add <file> --fixed/);
-});
-
 function call(port, pathname, { token, host = `127.0.0.1:${port}`, body } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, path: pathname, method: body ? 'POST' : 'GET', headers: { host, ...(token ? { 'x-thinker-token': token } : {}), ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
@@ -155,6 +143,5 @@ test('the local page lists the cache, archives and restores a note, and is scope
   const all = await get('/api/behaviors?repo=all');
   assert.equal(all.pending.length, 2);
   assert.ok(all.active.every(b => b.repo === repos[0].id));
-  assert.equal((await call(port, '/api/behaviors/session-prompt?repo=all', { token: 'a'.repeat(32) })).status, 400, 'the interview is for one repository');
   assert.equal((await get('/api/usage?repo=all')).scope, 'machine');
 });
