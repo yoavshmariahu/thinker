@@ -24,7 +24,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { guidance } from './integrations/runner.js';
-import { agentWorkflow } from './cache-guidance.js';
+import { agentWorkflow, disabledTools } from './cache-guidance.js';
 import { updateInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
@@ -808,7 +808,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
     if (file) {
       const existed = fs.existsSync(file);
-      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp, learn: !!learn }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
+      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp, learn: !!learn, disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
       // Do not hide an existing user instruction file from version control.
       if (!existed) localFiles([file]);
     }
@@ -816,11 +816,18 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
   return done;
 }
 
+// The code tools a checkout has switched off (both, unless its config says otherwise). A machine-wide
+// instruction file serves every repository, so it names none of them; the server's own instructions
+// and the prompt hook name the ones a repository turned on.
+function repoDisabledTools(repo) {
+  try { return disabledTools(JSON.parse(fs.readFileSync(path.join(repo, '.thinker', 'config.json'), 'utf8'))); } catch { return disabledTools(); }
+}
+
 // The always-applied rule that points Cursor's agent at the MCP tools: a checkout file, since
 // Cursor keeps user rules in its settings, not in a file.
 export function installCursorRule(repo, { learn = true } = {}) {
   const rule = wiringFiles('cursor', { repo }).rule;
-  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ learn })}\n`;
+  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ learn, disabled: repoDisabledTools(repo) })}\n`;
   fs.mkdirSync(path.dirname(rule), { recursive: true });
   if (readText(rule) !== text) fs.writeFileSync(rule, text);
   return rule;

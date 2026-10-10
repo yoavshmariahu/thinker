@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { updateInstructions } from '../src/agent-instructions.js';
-import { agentWorkflow, cacheInstructions, cacheBundleIntro, CACHE_LEARNING_GUIDE, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
+import { agentWorkflow, cacheInstructions, cacheBundleIntro, disabledTools, CACHE_LEARNING_GUIDE, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
 import { installClient, refreshWiring, uninstallClients, uninstallWiring } from '../src/clients.js';
 import { piExtension } from '../src/integrations/pi.js';
 import { opencodePlugin } from '../src/integrations/opencode.js';
@@ -23,14 +23,16 @@ function fixture(t) {
 }
 const read = file => fs.readFileSync(file, 'utf8');
 function checkWorkflow(text, cliOnly = false) {
-  for (const name of ['orient', 'lookup', 'find', 'drilldown', 'feedback']) assert.ok(text.includes(name), name);
+  for (const name of ['orient', 'lookup', 'feedback']) assert.ok(text.includes(name), name);
+  // the code tools are off unless a repository turns them on, and a tool that is off is never named
+  for (const name of ['find', 'drilldown']) assert.ok(!new RegExp(`\\b${name}\\b`).test(text), `${name} is off and must not be named`);
   assert.ok(text.includes(cliOnly ? 'add ' : '`remember`'));
   // the four decisions, one line each; nothing about environment switches or whether .thinker/ exists,
   // which had a Codex agent spend its first turn checking them (the Click canary of 2026-10-07)
   assert.match(text, /Read an injected <thinker-cache> bundle first/);
   assert.match(text, /none bears on the task, .*orient.* once/);
-  assert.match(text, /before the first grep or file read/);
-  assert.match(text, /Ordinary search and reads are the fallback/);
+  assert.match(text, /file:symbol pointers say where the code is/);
+  assert.match(text, /ordinary search and reads/);
   assert.match(text, /Then edit and test/);
   assert.doesNotMatch(text, /THINKER_|\.thinker\//);
   assert.ok(text.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
@@ -172,9 +174,16 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
     assert.ok(text.length <= INSTRUCTIONS_LIMIT, `${repo}: ${text.length}`);
     assert.ok(text.includes(repo));
     assert.ok(text.endsWith(CACHE_LEARNING_GUIDE), `${repo} lost the learning guide`);
-    for (const name of ['orient', 'lookup', 'find', 'drilldown', 'remember', 'feedback']) assert.ok(text.includes(name), name);
+    for (const name of ['orient', 'lookup', 'remember', 'feedback']) assert.ok(text.includes(name), name);
+    assert.doesNotMatch(text, /\bfind\b|\bdrilldown\b|before the first grep/, 'the code tools are off: not named');
     assert.match(text, /bears on the task/);
-    assert.match(text, /before the first grep or file read/);
+    // a repository that turned the code tools on is told to reach code through them, still under the cap
+    const on = cacheInstructions({ repo, disabled: [] });
+    assert.ok(on.length <= INSTRUCTIONS_LIMIT && on.endsWith(CACHE_LEARNING_GUIDE), `${repo}: ${on.length} with the code tools on`);
+    for (const name of ['find', 'drilldown', 'mcp__thinker__find,mcp__thinker__drilldown']) assert.ok(on.includes(name), name);
+    assert.match(on, /before the first grep or file read/);
+    const one = cacheInstructions({ repo, disabled: ['find'] });
+    assert.ok(one.includes('drilldown') && !/\bfind\b/.test(one), 'only the tool that is on is named');
   }
   // A cap below one section drops whole sections rather than handing the host half a sentence.
   const tight = cacheInstructions({ repo: '/r', limit: 600 });
@@ -183,6 +192,17 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
   assert.match(cacheBundleIntro({ stale: true }), /STALE/);
   for (const t of [cacheBundleIntro(), cacheBundleIntro({ stale: true })]) {
     assert.match(t, /If none of them bears on the task/);
-    assert.match(t, /before the first grep/);
+    assert.doesNotMatch(t, /\bfind\b|\bdrilldown\b|before the first grep/);
   }
+  assert.match(cacheBundleIntro({ disabled: [] }), /find lists the definitions.*drilldown reads them, before the first grep/);
+  assert.match(cacheBundleIntro({ disabled: ['drilldown'] }), /find lists the definitions[^.]*, before the first grep/);
+});
+
+test('the workflow names the code tools only for a repository that turned them on', () => {
+  const on = agentWorkflow({ disabled: [] });
+  assert.match(on, /before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps\. Ordinary search and reads are the fallback/);
+  assert.ok(on.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
+  assert.equal(agentWorkflow(), agentWorkflow({ disabled: disabledTools({}) }), 'off is the default');
+  assert.deepEqual([...disabledTools({ disabledTools: [] })], []);
+  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'orient'] })], ['find'], 'only the code tools can be switched');
 });

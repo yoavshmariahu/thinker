@@ -4,7 +4,7 @@
 Use the Thinker MCP tools (if they are listed as deferred, load them with the host's tool search) as a map to the code, then do the work. If they are unavailable, continue with ordinary tools.
 
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
-- Reach code through pointers before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps. Ordinary search and reads are the fallback. `lookup` answers one question a note left open.
+- A note's file:symbol pointers say where the code is: read it there with ordinary search and reads. `lookup` answers one question a note left open.
 - Then edit and test. Do not keep retrieving notes.
 - Save a reusable rule, call path or gotcha with `remember` while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
 <!-- thinker:workflow:end -->
@@ -598,8 +598,18 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
-  `remember(...)`, `feedback(id, useful, correction?)`.
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `remember(...)`,
+  `feedback(id, useful, correction?)`, and, where a repository turned them on,
+  `find(query, path?)` and `drilldown(pointer)`.
+- The code tools are off by default since 2026-10-10 (`cache-guidance.js:disabledTools`,
+  `thinker tools enable|disable find|drilldown`, kept as `disabledTools` in
+  `.thinker/config.json`). On the held-out mitmproxy canary a Codex agent told to
+  reach code through them made ten extra calls for three useful answers, and each
+  call re-sends the conversation. A tool that is off is not registered by the
+  server and is named nowhere the agent reads (server instructions, the bundle
+  header, the workflow block, the tool intro, `find`'s own "Next:" line), so
+  nothing calls it and fails. The `thinker find` and `thinker drilldown` commands
+  still work by hand.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note

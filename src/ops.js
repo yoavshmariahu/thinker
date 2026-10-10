@@ -13,6 +13,7 @@ import { tokensOf } from './model-usage.js';
 import { anchoringGuard } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
 import { phraseKey } from './note-search.js';
+import { disabledTools } from './cache-guidance.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 export { phraseKey };
@@ -371,12 +372,16 @@ function sessionState(store, session) {
 // session the cache has nothing for pays nothing for thinker.
 export function sessionIntro(store, { session, client }) {
   if (!session || session === 'unknown') return '';
+  // nothing to introduce while the code tools are off (cache-guidance.js:disabledTools)
+  const off = disabledTools(store.config()), on = ['find', 'drilldown'].filter(t => !off.has(t));
+  if (!on.length) return '';
   const { st, save } = sessionState(store, session);
   if (st.introduced) return '';
   st.introduced = true; save();
   store.log({ op: 'intro', session, client });
-  const load = client === 'claude' ? ' In Claude Code they are deferred until searched for: load them once with ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`, before the first grep or file read.' : '';
-  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit) and drilldown (a definition whole, with its callers and callees).${load}\n</thinker-tools>`;
+  const load = client === 'claude' ? ` In Claude Code ${on.length > 1 ? 'they are' : 'it is'} deferred until searched for: load ${on.length > 1 ? 'them' : 'it'} once with ToolSearch \`select:${on.map(t => `mcp__thinker__${t}`).join(',')}\`, before the first grep or file read.` : '';
+  const what = { find: 'find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit)', drilldown: 'drilldown (a definition whole, with its callers and callees)' };
+  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: ${on.map(t => what[t]).join(' and ')}.${load}\n</thinker-tools>`;
 }
 // The notes served since the turn's stop hook last ran, for the summary it shows the user.
 export function trackTurn(store, session, ids) {
@@ -639,7 +644,7 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
   const lines = r.hits.map((h, i) => `- ${h.path}:${h.symbol}:L${h.line}  (${h.kind}${h.end ? `, ${h.end - h.line + 1} lines` : ''}${fo[i]?.fanout ? `; ${renderFanout(fo[i].fanout)}` : ''})`);
   const notes = store.list().filter(n => n.status !== 'invalid');
   const rel = notes.filter(n => (n.deps || []).some(d => d.symbol && r.hits.some(h => d.path === h.path && d.symbol.split('.').pop() === h.name))).sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 4);
-  const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`;
+  const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}${disabledTools(store.config()).has('drilldown') ? '' : `\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`}`;
   store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: r.hits.length, durationMs: Date.now() - start, tokens: estTokens(text) });
   return { text, hits: r.hits, tokens: estTokens(text) };
 }
