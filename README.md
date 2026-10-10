@@ -9,7 +9,31 @@ Coding agents get the notes that fit their task while they work. A review flags
 a change that brings back a fixed bug or breaks a rule your team wrote down,
 before it merges.
 
-Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev). Research prototype.
+Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
+
+## Install
+
+**Prompt Installation**
+
+Paste this into your coding agent, opened in your repository:
+
+```text
+Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
+1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
+2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it writes down the system behaviors this repository's design documents (READMEs) state, goes through them with me, and interviews me about the rest while the cache builds in the background. Ask me one question at a time and wait for my answers. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.
+```
+
+**Standard CLI Installation**
+
+Run this in a terminal, inside your repository:
+
+```bash
+curl -fsSL https://zerotime.dev/dist/install.sh | bash
+```
+
+Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
+Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
+OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 
 ## How it works
 
@@ -20,29 +44,6 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev). Research pro
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
 the coding agent you already use, on its own login.
-
-## Install
-
-Paste this into your coding agent, opened in your repository:
-
-```text
-Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
-1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
-2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it writes down the system behaviors this repository's design documents (READMEs) state, goes through them with me, and interviews me about the rest while the cache builds in the background. Ask me one question at a time and wait for my answers. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.
-```
-
-The agent installs Thinker, reads the behaviors your design documents (READMEs beside
-the code) already state, goes through them with you, builds the cache in the background
-and interviews you about the rest. Start a new agent session afterwards: hooks
-and tools load when a session starts. Or install from a terminal, inside a repository:
-
-```bash
-curl -fsSL https://zerotime.dev/dist/install.sh | bash
-```
-
-Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
-Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
-OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 
 ## Everyday commands
 
