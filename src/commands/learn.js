@@ -83,7 +83,7 @@ async function minePrsCommand(ctx) {
   const { pos, flags, repo } = ctx;
   // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again],
   // or --from <commit>: the newest --limit changes worth distilling in the git history that ends at that commit
-  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
+  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
   return;
 }
 
@@ -231,7 +231,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -249,8 +249,9 @@ export async function minePrs(ctx, slug, { from, before, after, again, limit = 2
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const fresh = p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
-  // --from scans twice the limit and no further: a recent cache as of that commit, not a search for older fixes
-  const listed = from ? listMergedCommits(repo, { from, limit: limit * 2, directories }).filter(fresh) : before || after
+  // --from scans three times the limit and no further (--scan n: another depth): a recent cache as of
+  // that commit, not a search for older fixes
+  const listed = from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh) : before || after
     ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length) {
