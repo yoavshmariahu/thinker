@@ -200,19 +200,29 @@ export async function runSetup({
   // One result and one next action, with recovery guidance beside failures above.
   const connected = connections.filter(result => result.status === 'connected');
   const needsAttention = cacheRes.warnings || connections.some(result => result.status === 'error') || !connected.length;
+  // What was done, then the one thing to do next: a session already running loaded its hooks and tools before this.
+  const names = connected.map(result => result.name || result.client).join(', ');
+  const count = cacheRes.notes?.length || 0;
+  const left = waiting();
   const done = [
     `${needsAttention ? c.yellow('!') : c.green('✓')} ${c.bold(needsAttention ? 'Setup finished with items to review.' : 'Thinker is ready.')}`,
     '',
-    connected.length ? 'Start a new agent session in this repository.' : `Connect an agent with: ${c.cyan('thinker setup --clients <agent>')}`,
-    `Review a change against the cache: ${c.cyan('thinker review')}`,
+    c.bold('What was done'),
+    connected.length ? `• Connected ${names}: hooks and tools` : `• No agent connected: ${c.cyan('thinker setup --clients <agent>')}`,
+    building ? `• Cache built from merged pull requests: ${count} note${count === 1 ? '' : 's'}`
+      : `• Cache ${count ? `has ${count} note${count === 1 ? '' : 's'}` : 'starts empty'} and grows from your sessions`,
   ];
-  if (!building) done.push(`Build from existing code later: ${c.cyan('thinker setup --build')}`);
-  const left = waiting();
-  done.push(left ? `${left} behavior${left === 1 ? '' : 's'} waiting for your decision: ${c.cyan('thinker ui')}` : `Usage and behaviors in your browser: ${c.cyan('thinker ui')}`);
+  if (left) done.push(`• ${left} behavior draft${left === 1 ? '' : 's'} waiting for your decision`);
+  if (cacheRes.warnings) done.push(`• ${c.yellow('A build step did not finish; its retry command is printed above.')}`);
+  done.push('');
+  if (connected.length) done.push(c.bold('Restart your agent: start a new session in this repository'), c.bold('so its hooks and tools load.'), '');
+  done.push(`Notes, behaviors and usage in your browser: ${c.cyan('thinker ui')}`);
+  done.push(`Review a change against the cache: ${c.cyan('thinker review')}`);
+  if (!building) done.push(`Read merged pull requests into the cache: ${c.cyan('thinker setup --build')}`);
   if (!defineNow) done.push(`Define behaviors with your agent: ${c.cyan('thinker system define')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
-  done.push(c.dim('Notes and behaviors stay in .thinker/ here; Thinker uploads none.'));
+  done.push(c.dim('Notes stay on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
   if (dashboard && firstSetup && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
 
