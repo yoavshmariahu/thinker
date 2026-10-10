@@ -83,3 +83,17 @@ export function editBehavior(store, id, { title, body, mutability } = {}) {
   return { note: store.get(id) };
 }
 
+
+// A person takes a behavior out, in force or proposed, whatever it came from (the command line and
+// the agent's `behavior` tool: the person asked for it). One read from a design document is
+// remembered, so it stays out when the document changes.
+export function removeBehavior(store, id) {
+  if (String(id).startsWith('proposal-')) return discardBehaviorProposal(store, id);
+  const n = store.get(id);
+  if (!n || !isBehavior(n)) return { error: 'no such behavior' };
+  rememberDiscarded(store, n);
+  store.remove(id);
+  store.log({ op: 'behavior', id, action: 'remove' });
+  writeSystemMarkdown(store);
+  return { removed: id, title: n.title };
+}

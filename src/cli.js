@@ -101,6 +101,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  a change that edits the note)
   system add [file.json] [--fixed | --mutable]
                                  write one (JSON as for add: title, body with file:Symbol pointers, answers, deps)
+  system edit <id> [file.json] [--title "…"] [--body "…"] [--fixed | --mutable]
+                                 change one: its words (JSON with title and/or body, or the flags) and whether a
+                                 change that breaks it is blocked; the old text is kept in its history
+  system rm <id…>                remove one; one read from a design document stays out when the document changes
   system promote <id…> [--fixed | --mutable]
                                  make a note that states a rule (invariant, convention, gotcha) a desired behavior
   system accept <id…> [--fixed | --mutable]
