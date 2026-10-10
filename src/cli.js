@@ -73,7 +73,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  starting, the ranking model; --fix repairs what it can and checks again
   uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
                                  --user also removes the machine-wide wiring from your agent settings
-  review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--dry] [--json]
+  review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--context none] [--dry] [--json]
         [--strict] [--verbose] [--task task.json] [--pr n] [--post]
   review --run | --start [--base ref] [--task task.json] [--previous run-id] [--json]
   review --status run-id [--json] [--strict]
@@ -153,7 +153,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n]]
+  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)

@@ -21,8 +21,8 @@ import { impactContext, tryImpact, findingId, reviewPrNumber, gitContext } from 
 // behavior may be revised, but only by a change that edits the behavior note itself (`revised`).
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { hashText, locateSymbol, repoFile, validDepPath, noteTerms } from './deps.js';
-import { outlineText, references, countable } from './codegraph.js';
+import { hashText, locateSymbol, repoFile, validDepPath, noteTerms, symbolBlock } from './deps.js';
+import { outlineText, references, countable, findDefinitions } from './codegraph.js';
 import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
 import { tokensOf, formatTokens } from './model-usage.js';
@@ -36,12 +36,18 @@ import { isBehavior, proposed } from './behavior.js';
 //             note), nocache (no notes at all: the diff and the code it touched; the baseline)
 //   related   also consult notes that share identifiers with the change
 //   callers   add one hop of callers of the definitions the change touched (by text search)
+//   context   'used' (the default): what the changed definitions use, one hop down (usedContext):
+//             the definitions the hunks call, the class lines of the changed methods' classes and
+//             bases, and the other lines of the file on the fields the hunks mention. On 15 held-out
+//             mitmproxy fixes it took the no-notes call from 7 to 11 caught for 4% more tokens
+//             (research/regression-heldout); letting the model name missing code and asking again
+//             caught 5 at 57% more, so there is no such pass. 'none' turns it off.
 //   triage    ask a small model first whether a note bears on the change at all
 //   ensemble  (mode) the nocache call and the holistic call, findings of both
 //   verify    re-check every error and warning with a second call before reporting it
 //   chunks    for a change larger than one call can show: one call per chunk of files (at most this many), the
 //             files the notes rest on first; 0 or 1 is one call with the diff cut to fit
-export const DEFAULT_STRATEGY = { mode: 'ensemble', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false, chunks: 1 };
+export const DEFAULT_STRATEGY = { mode: 'ensemble', related: true, callers: false, context: 'used', triage: false, triageModel: 'haiku', verify: false, chunks: 1 };
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|mts|cts|go|rs|rb|java|kt|cs|php|c|h|cc|cpp|hpp|swift|scala|ex|exs|sh|bash|vue|svelte|sql|dart|lua|zig)$/i;
@@ -344,6 +350,75 @@ ${lines.map(l => `  ${l.path}:${l.line}: ${l.text.trim().slice(0, 160)}`).join('
   }
   return out.join('\n\n');
 }
+
+// What the changed definitions use, one hop down: the definitions they call (callees, resolved by
+// git grep to this repository) and, for every `self.x`/`this.x` field the hunks mention, the other
+// lines of the same file that read or write it, assignments first. The reviewer declines most often
+// with "the type of X is not shown" or "what f does with it is not shown"; this is that code.
+const USED_SKIP = new Set('print len range str int float bool list dict set tuple isinstance issubclass super getattr setattr hasattr type repr iter next open sorted enumerate zip min max sum abs round any all format join split strip append extend get items keys values pop cast Optional Union require console log warn error push map filter reduce forEach some every find includes slice splice concat then catch resolve reject Error String Number Boolean Array Object Promise JSON Math setTimeout assert raise'.split(' '));
+export function usedContext(repo, symbols, change, { maxDefs = 8, defLines = 60, maxFields = 6, perField = 10, max = 14000 } = {}) {
+  if (change.head === 'commit') return '';
+  const out = [], seen = new Set();
+  const base = p => String(p).split('/').pop().replace(/\.[^.]+$/, '').toLowerCase();
+  const dir = p => String(p).split('/').slice(0, -1).join('/');
+  // 1. the definitions the hunks call, resolved by name with the qualifier as the tie-breaker: a same-file
+  //    definition, a module whose name is the qualifier (compat.migrate_flow -> compat.py), the same
+  //    directory, or the only definition in the repository; an ambiguous bare name is left out
+  for (const f of change.files) {
+    if (f.binary || f.status === 'D' || !CODE_EXT.test(f.path)) continue;
+    const calls = new Map();
+    for (const h of f.hunks) for (const l of h.lines) if (!l.startsWith('\\')) for (const m of l.slice(1).matchAll(/(?<![\w.])((?:[A-Za-z_]\w*\.)*)([A-Za-z_]\w{2,})\s*\(/g)) {
+      const name = m[2]; if (USED_SKIP.has(name) || calls.has(name)) continue;
+      calls.set(name, m[1].replace(/\.$/, '').split('.').pop().toLowerCase());
+    }
+    for (const [name, qual] of calls) {
+      if (out.length >= maxDefs) break;
+      let defs; try { defs = (findDefinitions(repo, name, { limit: 12 }) || []).filter(d => !isTestFile(d.path)); } catch { defs = []; }
+      if (!defs.length) continue;
+      const score = d => (d.path === f.path ? 3 : 0) + (qual && base(d.path) === qual ? 3 : 0) + (dir(d.path) === dir(f.path) ? 1 : 0);
+      const best = defs.slice().sort((a, b) => score(b) - score(a))[0];
+      if (!score(best) && defs.length > 1) continue;
+      const key = `${best.path}:${name}`; if (seen.has(key)) continue; seen.add(key);
+      const b = symbolBlock(repo, { path: best.path, symbol: name }, defLines);
+      if (b && !(best.path === f.path && [...f.touched].some(n => n >= b.start && n <= b.end))) out.push(`--- ${best.path}:${name} (called in ${f.path}; lines ${b.start}-${b.end}${b.truncated ? ', truncated' : ''}) ---\n${b.text}`);
+    }
+  }
+  // 2. the class line of every class a changed method belongs to, and of its bases defined here (one hop
+  //    each, three deep): what a `self.x` the file never assigns is, mostly
+  const classes = [];
+  for (const s of symbols) for (const q of s.changed) {
+    const cls = q.includes('.') ? q.split('.').slice(0, -1).pop() : null; if (!cls) continue;
+    let name = cls, path = s.path;
+    for (let hop = 0; hop < 3 && name; hop++) {
+      const key = `class:${name}`; if (seen.has(key)) break; seen.add(key);
+      let defs; try { defs = (findDefinitions(repo, name, { limit: 12 }) || []).filter(d => !isTestFile(d.path) && /^\s*(?:export\s+)?(?:abstract\s+)?class\b/.test(d.text)); } catch { defs = []; }
+      const d = defs.find(x => x.path === path) || defs.find(x => dir(x.path) === dir(path)) || (defs.length === 1 ? defs[0] : null); if (!d) break;
+      classes.push(`${d.path}:${d.line}: ${d.text.trim().slice(0, 200)}`);
+      const m = /class\s+\w+\s*(?:\(([^)]*)\)|extends\s+([\w.]+))/.exec(d.text);
+      name = (m?.[1] || m?.[2] || '').split(',')[0].trim().split('.').pop() || null; path = d.path;
+    }
+  }
+  if (classes.length) out.push(`CLASS LINES (the classes the changed methods belong to, and their bases):\n${classes.join('\n')}`);
+  const fields = [];
+  for (const f of change.files) {
+    if (f.binary || f.status === 'D') continue;
+    const names = new Set();
+    for (const h of f.hunks) for (const l of h.lines) for (const m of l.matchAll(/\b(?:self|this)\.([A-Za-z_]\w*)\b(?!\s*\()/g)) names.add(m[1]);
+    for (const name of [...names].slice(0, maxFields)) {
+      if (!countable(name)) continue;
+      const r = references(repo, name, { file: f.path, limit: 400 });
+      if (!r) continue;
+      const own = r.lines.filter(l => l.path === f.path && !l.def && !f.touched.has(l.line) && !f.removedAt.has(l.line) && new RegExp(`\\b(?:self|this)\\.${name}\\b`).test(l.text));
+      const assign = new RegExp(`\\b(?:self|this)\\.${name}\\b\\s*(?::[^=]*)?=[^=]`);
+      const lines = [...own.filter(l => assign.test(l.text)), ...own.filter(l => !assign.test(l.text))].slice(0, perField);
+      if (lines.length) fields.push(`${f.path}: self.${name} elsewhere in the file:\n${lines.map(l => `  ${l.line}: ${l.text.trim().slice(0, 160)}`).join('\n')}${own.length > lines.length ? `\n  (+${own.length - lines.length} more)` : ''}`);
+    }
+  }
+  const text = [...out, ...fields].join('\n\n');
+  return text.length > max ? text.slice(0, max) + '\n(truncated)' : text;
+}
+
+const isTestFile = p => /(^|\/)(tests?|__tests__|spec)\/|[._-](test|spec)\.[jt]sx?$|_test\.(py|go)$|^test_/.test(p);
 
 // Every file in the change, with status and size: what the model needs to judge "X is not in this
 // change" when the hunks shown are not all of them.
@@ -656,11 +731,11 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
 }
 
 // No notes: the diff and the code of what it touched, as any reviewer without the cache would see it.
-export async function assessNoCache(store, change, symbols, reader, { model, callers = '' } = {}) {
+export async function assessNoCache(store, change, symbols, reader, { model, callers = '', extra = '' } = {}) {
   const system = `You review a code change for bugs: a wrong call order, a broken invariant visible in the code shown, a name or field that no longer exists, a condition inverted or dropped, a changed contract whose callers were not updated. The list of files in the change is complete even where the diff shown is not: never report a file as missing from the change when it is in that list. Report each as a finding with the file and line after the change, the evidence quoted from the code or diff, and a confidence between 0 and 1. Report only what the code shown supports; prefer no finding over a speculative one. Everything you need is in this message: do not use tools or read files.`;
   const diff = renderChange(change, { priority: new Set(symbols.filter(s => s.changed.length).map(s => s.path)), max: 16000 });
   const testSources = linkedTestSources(change, reader);
-  const prompt = `${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${testSources ? `\n\nLINKED TEST SOURCES (caller-selected; inspect their assertions):\n${testSources}` : ''}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const prompt = `${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${testSources ? `\n\nLINKED TEST SOURCES (caller-selected; inspect their assertions):\n${testSources}` : ''}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}${extra ? `\n\nWHAT THE CHANGED DEFINITIONS USE (the definitions they call, and the fields they touch elsewhere in the file):\n${extra}` : ''}`;
   const res = await complete({ system, prompt: taskPrompt(change) + prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: NOCACHE_SCHEMA });
   const v = res.json || {};
   return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), intentEvidence: shapeIntentEvidence(v.intentEvidence, change), criterionSupport: shapeCriterionSupport(v.criterionSupport, change, reader), noteCorrection: '', cost: res.cost || 0, tokens: tokensOf(res) || 0, model: `${res.provider}/${res.model}` };
@@ -769,6 +844,8 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   // whether a mutable one may be revised by it (noteFileChanged)
   const revisable = new Set(consulted.filter(n => n.kind === 'behavior' && n.mutability !== 'fixed' && noteFileChanged(repo, scope, n.id)).map(n => n.id));
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
+  const extra = strat.context === 'used' ? usedContext(repo, symbols, change) : '';
+  report.context = { kind: strat.context || 'none', chars: extra.length };
   report.notes.skipped = consulted.length - queue.length;
   const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
   report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
@@ -780,7 +857,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
     report.chunks = pieces.length;
     const symbolsOf = piece => piece === change ? symbols : symbols.filter(s => piece.files.some(f => f.path === s.path));
     if (strat.mode === 'nocache' || strat.mode === 'ensemble') {
-      for (const piece of pieces) try { results.push(await assessNoCache(store, piece, symbolsOf(piece), reader, { model: report.model, callers })); }
+      for (const piece of pieces) try { results.push(await assessNoCache(store, piece, symbolsOf(piece), reader, { model: report.model, callers, extra })); }
       catch (e) { report.errors.push({ id: 'nocache', error: String(e.message || e).slice(0, 200) }); }
     }
     if (strat.mode === 'holistic' || strat.mode === 'ensemble') {
