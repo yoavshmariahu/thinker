@@ -83,7 +83,9 @@ async function minePrsCommand(ctx) {
   const { pos, flags, repo } = ctx;
   // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again],
   // or --from <commit>: the newest --limit changes worth distilling in the git history that ends at that commit
-  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
+  // --paths a,b [--paths-limit n] with --from: the history of those files first, then the newest changes
+  const paths = typeof flags.paths === 'string' ? flags.paths.split(',').map(s => s.trim()).filter(Boolean) : null;
+  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git, paths, pathsLimit: Number(flags['paths-limit']) || null });
   return;
 }
 
@@ -231,7 +233,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -251,7 +253,15 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   const fresh = p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
   // --from scans three times the limit and no further (--scan n: another depth): a recent cache as of
   // that commit, not a search for older fixes
-  const listed = from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh) : before || after
+  // --paths: the history of those files first (--paths-limit of the --limit, half by default), scanned
+  // three times as deep among the changes touching them, then the newest changes overall fill the rest
+  let targeted = [];
+  if (from && paths?.length) {
+    const want = Math.min(Math.max(1, pathsLimit || Math.ceil(limit / 2)), limit);
+    targeted = mineable(listMergedCommits(repo, { from, limit: want * 3, directories, paths }).filter(fresh), { fixes, git: useGit }).slice(0, want);
+  }
+  const targetedHashes = new Set(targeted.map(p => p.hash));
+  const listed = from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh).filter(p => !targetedHashes.has(p.hash)) : before || after
     ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length) {
@@ -264,7 +274,8 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   const candidates = mineable(scoped, { fixes, git: useGit });
   if (directories) out(`        ${scoped.length}/${listed.length} scanned changes touch project directories; later runs continue scanning older history.`);
   // --from: the newest changes worth distilling at that commit, in order; no ranking chooses among them
-  const prs = from ? candidates.slice(0, limit) : pickPrs(candidates, limit);
+  const prs = from ? [...targeted, ...candidates.slice(0, Math.max(0, limit - targeted.length))] : pickPrs(candidates, limit);
+  if (targeted.length) out(`        ${targeted.length} of them touched ${paths.length === 1 ? paths[0] : `${paths.length} given files`}.`);
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
@@ -303,7 +314,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
     const completed = listed.filter(p => !failed.has(p.number) && !deferred.has(p.number));
     recordMinedPrs(store, scopeKey, completed, { failed: prs.filter(p => failed.has(p.number)) });
     if (directories) recordMinedPrs(store, recSlug, prs.filter(p => !failed.has(p.number)), { failed: prs.filter(p => failed.has(p.number)) });
-    store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github' });
+    store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github', ...(targeted.length ? { targeted: targeted.length, paths } : {}) });
   }
   progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
   return { tokens, saved, failed: failed.size, processed: prs.length };

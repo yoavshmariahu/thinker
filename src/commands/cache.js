@@ -33,7 +33,7 @@ async function reviewCommand(ctx) {
   const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
   const kinds = typeof flags.kinds === 'string' ? flags.kinds.split(',').map(k => k.trim()).filter(Boolean) : undefined;
   // the strategy flags of bench/review-eval.js (review.js:DEFAULT_STRATEGY); the default is the ensemble
-  const strategy = { ...(typeof flags.mode === 'string' ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
+  const strategy = { ...(typeof flags.mode === 'string' ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(typeof flags.context === 'string' ? { context: flags.context === 'none' ? null : flags.context } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
   const r = await review(store, { scope, task: taskContext(task), pr: flags.pr, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy, kinds });
   if (flags.post) r.comment = postComment(r, { repo, pr: flags.pr });
   out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
