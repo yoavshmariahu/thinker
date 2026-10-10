@@ -150,13 +150,14 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit]
+  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n]]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
                                  --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
-                                 worth distilling among the 2 x limit commits that end there; nothing merged after it is read
+                                 worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
+                                 after it is read
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
   impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
