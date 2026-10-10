@@ -1,5 +1,13 @@
 # thinker — a knowledge cache for coding & review agents
 
+```text
+┌──────────────────────────┐   ┌──────────────────────────┐
+│           73%            │   │           18%            │
+│        fewer bugs        │   │  fewer tokens per task   │
+└──────────────────────────┘   └──────────────────────────┘
+     across 100 PR benchmark from 7 open source repos
+```
+
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
 Every merged fix leaves knowledge behind that the next change can quietly undo.
