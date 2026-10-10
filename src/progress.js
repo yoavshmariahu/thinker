@@ -55,7 +55,7 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
     finish({ retry, tokens = 0 } = {}) {
       clearInterval(timer);
       spin?.stop(); spin = null;
-      out(`        ${status()} · ${elapsed()}${tokens ? ` · ~${formatTokens(tokens)} tokens of ${name === 'Exploration' ? 'agent' : 'model'} usage` : ''}`);
+      out(`        ${status()} · ${elapsed()}${tokens ? ` · ~${formatTokens(tokens)} tokens of model usage` : ''}`);
       if (failed) {
         const summary = [...reasons].slice(0, 3).map(([reason, count]) => `${reason} (${count})`).join('; ');
         out(`        Warning: ${summary}${reasons.size > 3 ? '; more errors in details' : ''}.`);

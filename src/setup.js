@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
-import { githubSlug, exploreAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
+import { githubSlug, buildAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
 import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,6 @@ export async function runSetup({
   mcpEntry,
   userMcpEntry,
   clients,
-  areas,
   projectFlags = {},
   chooseProjectFn = chooseProject,
   prs = 60,
@@ -40,7 +39,6 @@ export async function runSetup({
   depth = null,
   behaviors = null,
   defineFn = null,
-  noSeed = false,
   noPrs = false,
   noPhrase = false,
   model,
@@ -54,7 +52,6 @@ export async function runSetup({
   noTrust = false,
   exportFile = null,
   out = console.log,
-  seedFn,
   minePrsFn,
   checkAuthFn = checkAgentAuth,
   dashboard = false,
@@ -103,20 +100,20 @@ export async function runSetup({
 
   out(stepBanner(2, 2, 'Choose how to start'));
 
-  const project = await chooseProjectFn({ repo, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !(noSeed && noPrs) });
+  const project = await chooseProjectFn({ repo, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !noPrs });
   const directories = project?.directories || null;
 
-  let activeAgent = agent || exploreAgent();
+  let activeAgent = agent || buildAgent();
   let agentAuthed = false;
   let buildError = null;
 
-  // --no-seed --no-prs leaves nothing to spend on, so there is nothing to ask about
-  let building = (noSeed && noPrs) ? false : build;
+  // --no-prs leaves nothing to spend on, so there is nothing to ask about
+  let building = noPrs ? false : build;
   if (building === null) {
-    const shallowLimits = depthLimits(repo, { depth: 'shallow', areas, prs, directories });
+    const shallowLimits = depthLimits({ depth: 'shallow', prs });
     const answer = yes ? (depth || 'full') : await confirmCacheBuild({
-      estimates: estimateCacheBuild(repo, { areas, prs, directories, noSeed, noPrs, slug, agent: activeAgent }),
-      shallow: estimateCacheBuild(repo, { ...shallowLimits, directories, noSeed, noPrs, slug, agent: activeAgent }),
+      estimates: estimateCacheBuild(repo, { prs, directories, noPrs, slug, agent: activeAgent }),
+      shallow: estimateCacheBuild(repo, { ...shallowLimits, directories, noPrs, slug, agent: activeAgent }),
       agent: activeAgent,
       out,
     });
@@ -124,19 +121,18 @@ export async function runSetup({
     if (answer) depth = answer;
     if (building) out('');
   }
-  // a shallow build is 30% of the full one: the first areas and pull requests of the same order
-  if (building && depth === 'shallow') ({ areas, prs } = depthLimits(repo, { depth, areas, prs, directories }));
-  let effectiveNoSeed = noSeed || !building;
+  // a shallow build is 30% of the full one: the first pull requests of the same order
+  if (building && depth === 'shallow') ({ prs } = depthLimits({ depth, prs }));
   let effectiveNoPrs = noPrs || !building;
 
-  if (!effectiveNoSeed || !effectiveNoPrs) {
+  if (!effectiveNoPrs) {
     const authResult = await selectAndAuthenticateAgent({
       requestedAgent: agent || null,
       clients,
       yes,
       out,
       purpose: 'build the knowledge cache',
-      actionName: effectiveNoSeed ? 'PR mining' : 'PR mining and code exploration',
+      actionName: 'PR mining',
       allowSkip: false,
     checkAuthFn,
     });
@@ -147,7 +143,7 @@ export async function runSetup({
       out(`    ${c.dim('thinker is set up either way; without a built cache it grows from your own sessions.')}\n`);
       buildError = authResult.error;
       building = false;
-      effectiveNoSeed = effectiveNoPrs = true;
+      effectiveNoPrs = true;
     } else {
       activeAgent = authResult.agent;
       agentAuthed = true;
@@ -159,22 +155,19 @@ export async function runSetup({
     process.env.THINKER_LLM = activeAgent;
   }
 
-  const estimates = estimateCacheBuild(repo, { areas, prs, directories, noSeed: effectiveNoSeed, noPrs: effectiveNoPrs, slug, agent: activeAgent });
+  const estimates = estimateCacheBuild(repo, { prs, directories, noPrs: effectiveNoPrs, slug, agent: activeAgent });
 
   const cacheRes = await stepBuildCache({
     repo,
     store,
     estimates,
     directories,
-    areas,
     prs,
-    noSeed: effectiveNoSeed,
     noPrs: effectiveNoPrs,
     noPhrase,
     model,
     agent: activeAgent,
     out,
-    seedFn,
     minePrsFn,
   });
 

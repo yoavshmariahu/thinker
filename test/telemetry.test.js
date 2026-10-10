@@ -372,7 +372,7 @@ test('cli setup sends installation telemetry in background upon completion', asy
 
   try {
     const CLI = path.resolve('src/cli.js');
-    execFileSync('node', [CLI, 'setup', '--repo', tmpRepo, '--no-seed', '--no-prs', '--no-phrase', '--clients', 'claude', '--yes'], {
+    execFileSync('node', [CLI, 'setup', '--repo', tmpRepo, '--no-prs', '--no-phrase', '--clients', 'claude', '--yes'], {
       env: {
         ...process.env,
         THINKER_HOME: tmpHome,

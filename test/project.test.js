@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PROJECT_FILE, validateProject, readProject, writeProject, projectFromFlags, includesPath, projectRecordKey } from '../src/project.js';
 import { chooseProject } from '../src/setup/project.js';
-import { discoverAreas, planAreas } from '../src/topology.js';
+import { discoverAreas } from '../src/topology.js';
 import { estimateCacheBuild } from '../src/setup/estimate.js';
 import { stepBuildCache } from '../src/setup/steps.js';
 import { Store } from '../src/store.js';
@@ -55,25 +55,19 @@ test('CLI creates and shows a reusable project without initializing a cache or o
   assert.deepEqual(readProject(repo).directories, ['apps/web', 'space dir']);
 });
 
-test('default and explicit projects scope previews while full-repo restores all areas', t => {
+test('the default project, an explicit one and --full-repo select what a build reads', t => {
   const repo = fixture(t);
   writeProject(repo, project(['apps/web']));
-  const preview = cli(repo, ['seed', '--dry']);
-  assert.match(preview, /apps\/web\/core.js/);
-  assert.doesNotMatch(preview, /web-old|packages\/ui|services\/api/);
-  assert.match(cli(repo, ['seed', '--dry', '--full-repo']), /packages\/ui/);
+  assert.deepEqual(projectFromFlags(repo, {}, { save: false }).directories, ['apps/web']);
+  assert.equal(projectFromFlags(repo, { 'full-repo': true }, { save: false }), null);
   writeProject(repo, project(['packages/ui']), 'ui.project.json');
-  const alternate = cli(repo, ['seed', '--dry', '--project', 'ui.project.json']);
-  assert.match(alternate, /packages\/ui/);
-  assert.doesNotMatch(alternate, /apps\/web/);
-  assert.throws(() => cli(repo, ['seed', '--dry', '--project', 'absent.json']));
+  assert.deepEqual(projectFromFlags(repo, { project: 'ui.project.json' }, { save: false }).directories, ['packages/ui']);
+  assert.throws(() => projectFromFlags(repo, { project: 'absent.json' }, { save: false }));
   assert.throws(() => projectFromFlags(repo, { project: true }));
   assert.throws(() => projectFromFlags(repo, { 'full-repo': true, project: 'ui.project.json' }));
-  writeProject(repo, project(['.']), PROJECT_FILE, { overwrite: true });
-  assert.match(cli(repo, ['seed', '--dry']), /packages\/ui/);
   fs.writeFileSync(path.join(repo, PROJECT_FILE), 'broken JSON');
-  assert.throws(() => cli(repo, ['seed', '--dry']));
-  assert.match(cli(repo, ['seed', '--dry', '--full-repo']), /apps\/web/);
+  assert.throws(() => projectFromFlags(repo, {}, { save: false }));
+  assert.equal(projectFromFlags(repo, { 'full-repo': true }, { save: false }), null);
 });
 
 test('discovery keeps deep selections inside their roots and estimates only selected files', t => {
@@ -89,10 +83,9 @@ test('discovery keeps deep selections inside their roots and estimates only sele
   assert.ok(areas.every(a => includesPath(directories, a.dir)));
   assert.equal(discoverAreas(repo, { limit: 1, directories }).length, 1);
   assert.deepEqual(discoverAreas(repo, { limit: 0, directories }), []);
-  const estimates = estimateCacheBuild(repo, { agent: 'claude', directories: ['apps/web'], noPrs: true });
+  const estimates = estimateCacheBuild(repo, { directories: ['apps/web'], noPrs: true });
   assert.equal(estimates.fileCount, 1);
-  assert.equal(estimates.candidateAreasCount, 1);
-  assert.equal(estimates.tokenEstimate, 400_000);
+  assert.equal(estimates.tokenEstimate, 0, 'nothing to mine, nothing to spend');
 });
 
 test('discovery treats directory names literally and can explore an index-only package', t => {
@@ -125,22 +118,20 @@ test('onboarding offers the two choices, retries invalid directories, saves and 
   assert.deepEqual(readProject(repo).directories, ['.'], 'switching to full repo persists for later builds');
 });
 
-test('setup threads the selection into both build stages and retrieval still reads outside it', async t => {
+test('setup threads the selection into PR mining and retrieval still reads outside it', async t => {
   const repo = fixture(t), store = new Store(repo).init();
   const directories = ['apps/web'];
   writeProject(repo, project(directories));
   const note = createNote(store, { kind: 'rule', title: 'UI rule outside the project', body: 'packages/ui/core.js:run returns one.', deps: [{ path: 'packages/ui/core.js', symbol: 'run' }] }).note;
   assert.ok(note);
   assert.match(cli(repo, ['show', note.id]), /UI rule outside the project/);
-  const estimates = estimateCacheBuild(repo, { agent: 'claude', directories });
-  estimates.canMine = estimates.canSeed = true;
-  let explored, mined;
+  const estimates = estimateCacheBuild(repo, { directories });
+  estimates.canMine = true;
+  let mined;
   await stepBuildCache({ repo, store, directories, estimates, noPhrase: true, agent: 'claude', out: () => {},
-    seedFn: async options => { explored = options; return { ok: 1, total: 1, saved: 0 }; },
     minePrsFn: async (slug, options) => { mined = options; return { saved: 0, processed: 1 }; },
     proposeFn: async () => ({ proposals: [], sources: 0 }),
   });
-  assert.deepEqual(explored.directories, directories);
   assert.deepEqual(mined.directories, directories);
 });
 
@@ -193,51 +184,4 @@ test('GitHub project scans keep unrelated and deferred PRs available to another 
   assert.deepEqual([...minedPrs(store, 'owner/repo').mined], [2, 3]);
   cli(repo, ['mine-prs', 'owner/repo', '--full-repo'], env);
   assert.deepEqual([...minedPrs(store, 'owner/repo').mined], [1, 2, 3]);
-});
-
-test('adaptive planning is shared by CLI preview, estimates and setup, with explicit caps', async t => {
-  const repo = fixture(t);
-  for (let i = 0; i < 15; i++) {
-    const dir = path.join(repo, `packages/large${i}`);
-    fs.mkdirSync(dir);
-    fs.writeFileSync(path.join(dir, 'core.js'), '// source\n'.repeat(9000));
-  }
-  git(repo, 'add', '.');
-  writeProject(repo, project(['packages']));
-  const directories = ['packages'];
-  const plan = planAreas(repo, { directories });
-  assert.ok(plan.areas.length > 12);
-  const estimates = estimateCacheBuild(repo, { directories, agent: 'claude', noPrs: true });
-  assert.equal(estimates.candidateAreasCount, plan.areas.length);
-  assert.equal(estimates.tokenEstimate, plan.areas.length * 400_000);
-  const preview = cli(repo, ['seed', '--dry']);
-  for (const area of plan.areas) for (const file of area.files) assert.ok(preview.includes(JSON.stringify(file)));
-  // Exercise real seed dispatch with a local agent double; an empty trace makes
-  // distillation a no-op, so this checks session boundaries without model calls.
-  const bin = path.join(repo, 'bin'), captured = path.join(repo, 'prompts.jsonl');
-  fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nlet prompt = ''; process.stdin.on('data', chunk => prompt += chunk); process.stdin.on('end', () => { require('fs').appendFileSync(${JSON.stringify(captured)}, JSON.stringify(prompt) + '\\n'); });\n`, { mode: 0o755 });
-  cli(repo, ['seed', '--agent', 'codex', '--yes'], { PATH: `${bin}${path.delimiter}${process.env.PATH}` });
-  const prompts = fs.readFileSync(captured, 'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(prompts.length, plan.areas.length, 'actual seed runs every planned session');
-  for (const [i, prompt] of prompts.entries()) {
-    const inventory = prompt.split('Source files assigned to this session:\n')[1].split('\nFocus on these files;')[0];
-    assert.deepEqual(inventory.split('\n').map(JSON.parse), plan.areas[i].files);
-  }
-  const limited = estimateCacheBuild(repo, { directories, areas: 2, agent: 'claude', noPrs: true });
-  assert.equal(limited.tokenEstimate, 800_000);
-  assert.equal(limited.omittedAreas.length, plan.areas.length - 2);
-  assert.match(cli(repo, ['seed', '--dry', '--areas', '2']), /Exploring 2 of \d+ areas.*omitted:/);
-  assert.match(cli(repo, ['seed', '--areas', '0']), /Exploration skipped/);
-  for (const value of ['invalid', '1.5', '-1']) assert.throws(() => cli(repo, ['seed', '--dry', '--areas', value]));
-  const output = [];
-  let options;
-  await stepBuildCache({ repo, store: new Store(repo).init(), directories, estimates, noPrs: true,
-    noPhrase: true, agent: 'claude', out: line => output.push(line),
-    seedFn: async opts => { options = opts; return { ok: plan.areas.length, total: plan.areas.length, saved: 0 }; },
-    proposeFn: async () => ({ proposals: [], sources: 0 }),
-  });
-  assert.equal(options.areas, undefined, 'setup does not insert a default cap');
-  assert.equal(discoverAreas(repo, { directories: options.directories, limit: options.areas }).length, estimates.candidateAreasCount);
-  assert.ok(output.some(line => line.includes(`${plan.areas.length} sessions`)));
 });

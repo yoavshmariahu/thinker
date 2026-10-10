@@ -43,7 +43,6 @@ For scripts or a noninteractive install, create the file first:
 
 ```bash
 thinker project init apps/web packages/ui --name "Web app"
-thinker seed --dry
 thinker setup --build --yes
 ```
 

@@ -61,7 +61,7 @@ export function parseAreaLimit(value) {
   if (value === undefined) return undefined;
   const limit = Number(value);
   if (typeof value === 'boolean' || String(value).trim() === '' || !Number.isSafeInteger(limit) || limit < 0) {
-    throw new Error('--areas must be a non-negative integer');
+    throw new Error('the area limit must be a non-negative integer');
   }
   return limit;
 }

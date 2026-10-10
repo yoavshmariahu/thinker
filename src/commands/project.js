@@ -8,7 +8,7 @@ async function projectCommand({ repo, pos, flags, out }) {
     const directories = pos.slice(1);
     if (!directories.length) throw new Error('Usage: thinker project init <directory> [directory…] [--name name]');
     const project = writeProject(repo, { version: 1, name: flags.name || path.basename(repo), directories }, file);
-    out(`Saved ${file}: ${project.name} (${project.directories.join(', ')}).\nPreview: thinker seed --dry --project ${file}\nBuild: thinker setup --build --project ${file}`);
+    out(`Saved ${file}: ${project.name} (${project.directories.join(', ')}).\nBuild: thinker setup --build --project ${file}`);
     return;
   }
   if (pos.length && pos[0] !== 'show') throw new Error('Usage: thinker project [show | init <directory> [directory…]]');

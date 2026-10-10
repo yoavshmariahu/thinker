@@ -76,16 +76,15 @@ test('cache build reports partial failures without a success summary', async () 
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init(), lines = [];
-    const estimates = estimateCacheBuild(repo, { prs: 2, areas: 2, agent: 'codex' });
-    estimates.canMine = estimates.canSeed = true;
+    const estimates = estimateCacheBuild(repo, { prs: 2 });
+    estimates.canMine = true;
     const result = await stepBuildCache({
       repo, store, estimates, yes: true, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
       minePrsFn: async () => ({ saved: 0, processed: 2, failed: 2 }),
-      seedFn: async () => ({ ok: 0, total: 2, saved: 0, failures: [{ area: 'src', error: 'timed out' }] }),
+      proposeFn: async () => ({ proposals: [], sources: 0 }),
     });
-    assert.equal(result.warnings, 2);
+    assert.equal(result.warnings, 1);
     assert.match(lines.join('\n'), /Cache build finished with warnings/);
-    assert.match(lines.join('\n'), /0\/2 areas completed/);
     assert.doesNotMatch(lines.join('\n'), /Knowledge cache ready|notes generated|Mined.*notes created/);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -96,33 +95,32 @@ test('behavior proposal stage runs on every cache build', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init();
-    const estimates = estimateCacheBuild(repo, { prs: 0, areas: 0, agent: 'codex' });
+    const estimates = estimateCacheBuild(repo, { prs: 0 });
     let calls = 0;
     const options = { repo, store, estimates, noPhrase: true, agent: 'codex',
       proposeFn: async () => { calls++; return { proposals: [{ id: 'proposal-example' }], sources: 1 }; },
       out: () => {} };
     await stepBuildCache(options);
     assert.equal(calls, 1);
-    await stepBuildCache({ ...options, noSeed: true, noPrs: true });
+    await stepBuildCache({ ...options, noPrs: true });
     assert.equal(calls, 1);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
-test('a build that was not asked to explore says so once and lists no exploration stage', async () => {
+test('a build reads pull requests in two stages and says once that it does not explore the code', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init(), lines = [];
-    const estimates = estimateCacheBuild(repo, { prs: 2, noSeed: true, agent: 'codex' });
+    const estimates = estimateCacheBuild(repo, { prs: 2 });
     estimates.canMine = true;
-    await stepBuildCache({ repo, store, estimates, noSeed: true, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+    await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
       minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }),
-      seedFn: async () => { throw new Error('must not explore'); },
       proposeFn: async () => ({ proposals: [], sources: 0 }) });
     const text = lines.join('\n');
-    assert.match(text, /merged pull requests only; the code itself is not explored/);
+    assert.match(text, /merged pull requests; a build does not explore the code/);
     assert.match(text, /\[1\/2\]/);
     assert.match(text, /\[2\/2\]/);
-    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore skipped|\/3\]/);
+    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore \d|\/3\]/);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
@@ -131,9 +129,9 @@ test('a failed last stage names the command that retries that stage alone', asyn
   try {
     const store = new Store(repo).init(), lines = [];
     store.put({ id: 'n1', title: 'A note', kind: 'rule', body: 'Body of the note.', deps: [], status: 'fresh' });
-    const estimates = estimateCacheBuild(repo, { prs: 2, noSeed: true, agent: 'codex' });
+    const estimates = estimateCacheBuild(repo, { prs: 2 });
     estimates.canMine = true;
-    const options = { repo, store, estimates, noSeed: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+    const options = { repo, store, estimates, agent: 'codex', out: line => lines.push(stripAnsi(line)),
       minePrsFn: async () => ({ saved: 1, processed: 2, failed: 0 }) };
     // a provider is named so the phrasing step runs on a machine with no agent CLI; phraseFn never calls it
     const before = process.env.THINKER_LLM; process.env.THINKER_LLM = 'command';
@@ -180,7 +178,7 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
 test('estimateCacheBuild computes time, size, and storage locations', () => {
   const repo = createMockGitRepo();
   try {
-    const est = estimateCacheBuild(repo, { areas: 10, prs: 20 });
+    const est = estimateCacheBuild(repo, { prs: 20 });
     assert.equal(est.repoName, path.basename(repo));
     assert.ok(est.commitCount >= 2);
     assert.ok(est.fileCount >= 2);
@@ -201,9 +199,10 @@ test('estimateCacheBuild computes time, size, and storage locations', () => {
     assert.ok(est.timing.formatted.length > 0);
 
     // When skipped with flags
-    const estNoSeed = estimateCacheBuild(repo, { areas: 10, prs: 20, noSeed: true, noPrs: true });
-    assert.equal(estNoSeed.timing.breakdown.prs, 'skipped');
-    assert.equal(estNoSeed.timing.breakdown.exploration, 'skipped');
+    const estNoPrs = estimateCacheBuild(repo, { prs: 20, noPrs: true });
+    assert.equal(estNoPrs.timing.breakdown.prs, 'skipped');
+    assert.equal(estNoPrs.tokenEstimate, 0);
+    assert.equal('exploration' in estNoPrs.timing.breakdown, false);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -307,9 +306,7 @@ test('runSetup completes compact setup flow in clean repo', async () => {
       cliPath: path.resolve('src/cli.js'),
       mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
       clients: ['claude'],
-      areas: 2,
       prs: 2,
-      noSeed: true,
       noBenchmark: true,
       yes: true,
       out,
@@ -352,7 +349,6 @@ test('runSetup opens the local page after a repository\'s first setup only', asy
     mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
     clients: ['claude'],
     build: false,
-    noSeed: true,
     noPrs: true,
     noBenchmark: true,
     behaviors: false,
@@ -400,9 +396,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
       cliPath: path.resolve('src/cli.js'),
       mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
       clients: ['claude'],
-      areas: 2,
       prs: 10,
-      noSeed: true,
       noBenchmark: true,
       yes: true,
       out,
@@ -445,10 +439,7 @@ test('runSetup wires the repository up and leaves the cache unbuilt when no agen
       cliPath: path.resolve('src/cli.js'),
       mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
       clients: ['claude'],
-      areas: 2,
       prs: 2,
-      noSeed: false,
-      noPrs: true,
       noBenchmark: true,
       agent: 'nonexistent-agent',
       yes: true,
@@ -480,12 +471,10 @@ test('setup offers the cache build and takes no for an answer outside a terminal
       cliPath: path.resolve('src/cli.js'),
       mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
       clients: ['claude'],
-      areas: 2,
       prs: 2,
       noBenchmark: true,
       out,
       // no `build` and no `yes`: the question is asked, and tests are not a terminal
-      seedFn: async () => { throw new Error('must not explore without an answer'); },
       minePrsFn: async () => { throw new Error('must not mine without an answer'); },
       checkAuthFn: () => { throw new Error('must not ask for a login for a build nobody asked for'); },
     });
@@ -766,7 +755,7 @@ test('selectAndAuthenticateAgent pauses setup when user declines sign-in and cho
   assert.match(outLines.join('\n'), /Exit requested by user/);
 });
 
-test('selectAndAuthenticateAgent allows proceeding without exploration when the user elects to', async () => {
+test('selectAndAuthenticateAgent allows proceeding without the build when the user elects to', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -779,7 +768,7 @@ test('selectAndAuthenticateAgent allows proceeding without exploration when the 
     question: async (prompt) => {
       promptStep++;
       if (promptStep === 1) return 'n'; // Decline sign in
-      return 'y'; // Accept proceeding without exploration
+      return 'y'; // Accept proceeding without the build
     },
     close: () => {},
   });
@@ -794,8 +783,8 @@ test('selectAndAuthenticateAgent allows proceeding without exploration when the 
   });
 
   assert.equal(res.ok, true);
-  assert.equal(res.skipExploration, true);
-  assert.match(outLines.join('\n'), /Proceeding with subsystem exploration skipped/);
+  assert.equal(res.skip, true);
+  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
 });
 
 test('selectAndAuthenticateAgent non-interactive errors instead of auto-fallback when chosen agent is unauthenticated', async () => {
@@ -845,7 +834,7 @@ test('selectAndAuthenticateAgent non-interactive halts when allowSkip is false a
   assert.match(outLines.join('\n'), /The selected tool \(Claude Code\) is not signed in/);
 });
 
-test('selectAndAuthenticateAgent non-interactive skips exploration when allowSkip is true and no agent authenticated', async () => {
+test('selectAndAuthenticateAgent non-interactive skips the build when allowSkip is true and no agent authenticated', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -862,8 +851,8 @@ test('selectAndAuthenticateAgent non-interactive skips exploration when allowSki
   });
 
   assert.equal(res.ok, true);
-  assert.equal(res.skipExploration, true);
-  assert.match(outLines.join('\n'), /Proceeding with subsystem exploration skipped/);
+  assert.equal(res.skip, true);
+  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
 });
 
 test('isAuthError and cleanErrorMessage correctly identify and format auth failure messages', () => {
@@ -1034,18 +1023,14 @@ class MockTTYStdout {
   write(str) { this.writes.push(str); }
 }
 
-test('estimateCacheBuild calculates bigger, realistic timing estimates', () => {
+test('estimateCacheBuild times the pull requests it can mine, and indexing', () => {
   const repo = createMockGitRepo();
   try {
-    const est = estimateCacheBuild(repo, { areas: 12, prs: 40, agent: 'claude' });
-    // In mock repo with 1 discovered area and commitCount <= 5 (no git PR mining):
-    // 1 area * 55s + 8s indexing = 63s (compared to old ~15s)
-    assert.ok(est.timing.totalSeconds >= 60, `Expected totalSeconds >= 60, got ${est.timing.totalSeconds}`);
+    const est = estimateCacheBuild(repo, { prs: 40 });
+    assert.ok(est.timing.totalSeconds >= 8, `Expected totalSeconds >= 8, got ${est.timing.totalSeconds}`);
     if (est.canMine) {
       assert.match(est.timing.breakdown.prs, /[ms]/);
-    }
-    if (est.canSeed) {
-      assert.match(est.timing.breakdown.exploration, /[ms]/);
+      assert.equal(est.tokenEstimate, 40 * 14_000);
     }
     assert.match(est.timing.breakdown.indexing, /s/);
   } finally {
@@ -1159,24 +1144,11 @@ test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interac
   assert.match(outLines.join('\n'), /Selected agent:/);
 });
 
-test('a shallow build is 30% of the full one: areas and pull requests, rounded up, at least one', () => {
-  const repo = createMockGitRepo();
-  try {
-    for (let i = 0; i < 12; i++) {
-      fs.mkdirSync(path.join(repo, `pkg${i}`));
-      fs.writeFileSync(path.join(repo, `pkg${i}`, 'index.js'), `export const v${i} = ${i};\n`.repeat(400));
-    }
-    execFileSync('git', ['add', '.'], { cwd: repo }); execFileSync('git', ['commit', '-qm', 'packages'], { cwd: repo });
-    const full = depthLimits(repo, { depth: 'full', areas: undefined, prs: 60 });
-    assert.deepEqual(full, { areas: undefined, prs: 60 }, 'full leaves the build to determine itself');
-    const fullAreas = estimateCacheBuild(repo, { prs: 60 }).candidateAreasCount;
-    const shallow = depthLimits(repo, { depth: 'shallow', areas: undefined, prs: 60 });
-    assert.equal(shallow.prs, 18);
-    assert.equal(shallow.areas, Math.max(1, Math.ceil(fullAreas * 0.3)));
-    assert.ok(shallow.areas <= fullAreas);
-    assert.deepEqual(depthLimits(repo, { depth: 'shallow', areas: 0, prs: 0 }), { areas: 0, prs: 0 }, 'nothing to build stays nothing');
-    assert.equal(depthLimits(repo, { depth: 'shallow', areas: 2, prs: 1 }).prs, 1);
-  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+test('a shallow build is 30% of the full one: pull requests, rounded up, at least one', () => {
+  assert.deepEqual(depthLimits({ depth: 'full', prs: 60 }), { prs: 60 });
+  assert.deepEqual(depthLimits({ depth: 'shallow', prs: 60 }), { prs: 18 });
+  assert.deepEqual(depthLimits({ depth: 'shallow', prs: 0 }), { prs: 0 }, 'nothing to build stays nothing');
+  assert.equal(depthLimits({ depth: 'shallow', prs: 1 }).prs, 1);
 });
 
 test('the spinner draws nothing off a terminal and the finish box says whether setup is done', () => {

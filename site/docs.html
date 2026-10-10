@@ -767,16 +767,15 @@ thinker setup --no-build</code></pre>
         </p>
         <pre><code><span class="code-comment"># Or save a project before onboarding</span>
 thinker project init apps/web packages/ui --name "Web app"
-thinker seed --dry <span class="code-comment"># preview selected exploration areas</span>
 thinker setup --build --yes</code></pre>
         <p>
-          <code>setup</code>, <code>seed</code>, and <code>mine-prs</code> reuse the saved project.
+          <code>setup</code> and <code>mine-prs</code> reuse the saved project.
           Use <code>--project other.project.json</code> for another selection or <code>--full-repo</code> for one full-repository run.
-          Paths are relative to the repository root. Exploration and history mining focus on the selected directories;
+          Paths are relative to the repository root. History mining focuses on the selected directories;
           retrieval, review, and ongoing learning still use the whole repository cache.
         </p>
         <p>
-          Building runs through your agent's own login: about 5.5M tokens and twenty minutes with the defaults, most of them cached prompt reads. The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
+          Building runs through your agent's own login: roughly 700k to 900k tokens and about ten minutes with the defaults (60 merged pull requests). The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
         </p>
         <div class="callout tip">
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
@@ -853,9 +852,8 @@ thinker setup --build --yes</code></pre>
         </p>
         <ul>
           <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a review draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
-          <li><strong>Exploration sessions, only when asked.</strong> With <code>--areas n</code> (or <code>thinker seed</code>) the source is grouped into areas by size and structure, an agent is sent through up to n of them, and what it worked out is distilled into maps and howtos. It costs far more per note than mining, so a build leaves it out by default.</li>
         </ul>
-        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, and explore 20 areas</span>
+        <pre><code>thinker setup --build --prs 100              <span class="code-comment"># more history</span>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
 thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
         <p>
@@ -1230,7 +1228,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
           <table>
             <thead><tr><th>Command</th><th>What it does</th></tr></thead>
             <tbody>
-              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests and source areas</td></tr>
+              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
               <tr><td><code>thinker review [--staged | --base ref | --ref commit | --state]</code></td><td>Check a change against the cache: undone fixes, broken conventions and behaviors; <code>--strict</code> for CI, <code>--pr n --post</code> to comment</td></tr>
               <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>

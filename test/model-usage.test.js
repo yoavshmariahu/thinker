@@ -76,7 +76,7 @@ test('spending separates init, learning and legacy costs without double counting
   assert.match(renderUsage(u), /Partial accounting/);
 });
 
-test('seed and distill persist provider usage, including empty yields and dry runs', () => {
+test('distill persists provider usage, including dry runs and failures', () => {
   const dir = tmp(), bin = path.join(dir, 'bin'); fs.mkdirSync(bin);
   execFileSync('git', ['init', '-q', dir]);
   fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}
@@ -93,22 +93,20 @@ process.stdin.resume(); process.stdin.on('end', () => {
  for (const e of events) console.log(JSON.stringify(e));
 });`);
   fs.chmodSync(path.join(bin, 'codex'), 0o755);
-  const prompts = path.join(dir, 'prompts.json'); fs.writeFileSync(prompts, '["Explore a.js"]');
   const env = { ...isolatedEnv(dir), PATH: bin + path.delimiter + process.env.PATH, THINKER_LLM: 'codex' };
   const run = (...args) => execFileSync(process.execPath, [CLI, ...args, '--repo', dir], { env, stdio: 'pipe' });
-  run('seed', '--prompts', prompts, '--agent', 'codex');
-  let u = JSON.parse(run('usage', '--here', '--json'));
-  assert.equal(u.spending.byPhase.init.totalTokens, 670);
-  assert.equal(u.spending.byPurpose.explore.totalTokens, 550);
-  assert.equal(u.spending.byPurpose.distill.totalTokens, 120);
-  assert.equal(u.spending.unknownCostCalls, 2);
-  assert.equal(u.distillation.noChanges, 1);
+  let u;
   const trace = path.join(dir, 'session.jsonl');
   fs.writeFileSync(trace, [ { t: 'tool', name: 'Read', input: { file_path: 'a.js' }, result: 'a' }, { t: 'say', text: 'a lives here' } ].map(JSON.stringify).join('\n'));
+  run('distill', trace);
+  u = JSON.parse(run('usage', '--here', '--json'));
+  assert.equal(u.spending.byPurpose.distill.totalTokens, 120);
+  assert.equal(u.spending.unknownCostCalls, 1);
+  assert.equal(u.distillation.noChanges, 1);
   run('distill', trace, '--dry');
   u = JSON.parse(run('usage', '--here', '--json'));
-  assert.equal(u.spending.byPhase.learning.totalTokens, 120);
-  assert.equal(u.spending.calls, 3);
+  assert.equal(u.spending.byPhase.learning.totalTokens, 240);
+  assert.equal(u.spending.calls, 2);
   assert.equal(u.distillation.runs, 1); // dry run costs count, but it saved nothing
   assert.equal(u.distillationPerformance.attempts, 1);
   assert.equal(u.distillationPerformance.succeeded, 1);

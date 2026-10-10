@@ -63,7 +63,7 @@ an isolated loopback server only; they must never contact production.
 
 **Benchmark caches come from mining, out of the task's past (MANDATORY RULE):**
 Build a benchmark cache by mining merged changes through the product's own path
-(`mine-prs`, GitHub or `--git`), and from nothing else. Exploration (`seed`) is not a
+(`mine-prs`, GitHub or `--git`), and from nothing else. Exploration (the `seed` command, removed in 0.1.22) was never a
 benchmark cache source: measured on Click on 2026-10-07 it cost 3.6M tokens for 0 notes
 under Opus and 1.3M for 1 note under Sol, against 272k tokens for 9 notes by mining, so
 it buys cost and not cache. Also forbidden, none of it being the product learning from
@@ -109,7 +109,7 @@ cache at twice the input price and never read again.
 | path | contents |
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
-| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
+| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI and OpenCode: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
@@ -149,7 +149,7 @@ repository up: `thinker init` was removed and says so. A repository where
 `setup` has not run has no `.thinker/`, and the cache is not used there: the
 CLI's cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP
 server offers no tools and says so in its instructions, and the hooks are
-quiet. Only the commands that build a cache (`setup`, `seed`, `mine-prs`,
+quiet. Only the commands that build a cache (`setup`, `mine-prs`,
 `import`, `add`, `record`, `distill`) create one. That rule is what makes the
 machine-wide wiring safe: the hooks and the MCP server are present in every
 checkout and act only in one that is set up.
@@ -185,7 +185,7 @@ options they were set up with (`clients.js:connectFromCheckouts`).
 the cache from the merged pull requests, since that is the only
 step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
 to no; `--build` answers yes without asking (so does `--yes`, or naming
-`--areas`/`--prs`/`--pr`), `--no-build` answers no and leaves a repository that
+`--prs`/`--pr`), `--no-build` answers no and leaves a repository that
 is set up and learns from sessions. Outside a terminal the answer is no.
 Declining, or having no authenticated agent, no longer stops setup: step 1 has
 already run and the footer says how to build later.
@@ -194,12 +194,7 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
 
 1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
-2. only when `--areas n` asks for it, runs one exploration session per adaptively
-   sized source area and distills it (n caps the sessions, omitted areas are
-   reported). A build without `--areas` does not explore, and its output says so
-   once ("merged pull requests only") and shows no exploration stage, skipped or
-   otherwise: a "skipped" line read as a failed step to the agents running setup;
-3. links the notes, writes search phrasings (eight notes per call,
+2. links the notes, writes search phrasings (eight notes per call,
    `ops.js:phraseBatches`) and drafts behaviors (four source notes per call,
    `behavior-proposals.js:generateBehaviorProposals`). Both are batched because
    `claude -p` exits 1 when an answer reaches its output cap, and a failed batch
@@ -207,11 +202,16 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
    `thinker system propose --refresh`, never a second build. The agents (`--clients claude,codex,cursor,gemini`, `all`,
    or `auto`, the default) were connected in step 1.
 
-Steps 1 and 2 run through an installed agent with its own login (`--agent`
-picks one). Measured on this machine's log: about 400k tokens per area (the
-exploration and its distillation, most of them cached prompt reads) and 14k per
-pull request. The estimate scales with the discovered session count
-(`setup/estimate.js:TOKENS_PER_AREA`, `TOKENS_PER_PR`). The estimate is printed
+A build does not explore the code, and no command does: exploration sessions
+(`thinker seed`, `setup --areas n`) were removed in 0.1.22. They cost about 400k
+tokens per area against 14k per pull request and gave few notes back, and a
+"skipped" exploration line read as a failed step to the agents running setup.
+The build says once that its notes come from pull requests; `--areas` and
+`--no-seed` from old scripts are ignored.
+
+Both steps run through an installed agent with its own login (`--agent`
+picks one). Measured on this machine's log: about 14k tokens per
+pull request (`setup/estimate.js:TOKENS_PER_PR`). The estimate is printed
 in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
 since most agents run on subscriptions and a figure from API list prices told
 people they would spend money they would not. In a terminal `setup`
@@ -244,7 +244,8 @@ for one run. Choosing Full repo in the menu updates an existing default file to
 `directories: ["."]`.
 
 `planAreas` / `discoverAreas` use literal git pathspecs before clustering and
-cannot widen a selected deep directory into its parent. Exploration groups use
+cannot widen a selected deep directory into its parent. They now serve only the
+behavior interview's list of main areas (`setup/define.js`). Groups use
 128 KiB of source (roughly 32k tokens) and 80 files as per-session working-set
 heuristics, not a repository coverage limit. Small sibling groups share a session;
 oversized directories split recursively, including flat directories split into
@@ -252,7 +253,7 @@ explicit file batches. A single oversized file stays intact. Every eligible
 source file belongs to one group; tests are used only if no production source is
 available. Size and git churn determine execution order, and an explicit cap
 selects from that order. These sizing heuristics are not empirically calibrated.
-Setup passes the same directories to estimates, exploration and PR mining. Scoped PR scans keep a directory-keyed
+Setup passes the same directories to estimates and PR mining. Scoped PR scans keep a directory-keyed
 cursor; only successfully processed changes enter the global mined record, so
 unrelated PRs remain available to other builds. Git history uses directory
 pathspecs; GitHub uses the listed changed paths with bounded scans. All projects
@@ -1186,8 +1187,7 @@ path below. Nothing in it is tied to one vendor:
   the hooks record the session themselves (`.thinker/state/trace-*.jsonl`).
   Cursor records tool calls without their output; reads and searches are
   repeated against the working tree when distilling.
-- **Model.** Distilling, verifying, PR mining and the exploration sessions of
-  `setup` run through whichever agent is installed, with the login it already
+- **Model.** Distilling, verifying and PR mining run through whichever agent is installed, with the login it already
   has: `claude -p`, `codex exec`, `agent -p` (Cursor) or `gemini -p`. A
   session is distilled by the agent that ran it when possible. `THINKER_LLM`
   picks one (`claude`, `codex`, `cursor`, `gemini`, `anthropic`);
@@ -1205,7 +1205,6 @@ path below. Nothing in it is tied to one vendor:
 |---|---|---|---|---|
 | notes served in a session | yes | yes | yes | not installed here |
 | session turned into notes | yes | yes (hooks, trace and distilling through Codex ran; the short test session produced no notes) | yes (4 notes from 2 sessions, distilled through Cursor) | not installed here |
-| exploration for `setup` | yes | stopped by the account's usage limit | yes (4 notes from one area) | not installed here |
 
 Gemini support follows its documentation and is covered by unit tests on
 constructed input only. Seen in the live runs:

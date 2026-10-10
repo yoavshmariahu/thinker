@@ -11,7 +11,7 @@
 #   curl -fsSL https://zerotime.dev/dist/install.sh | bash
 #
 # --build does everything for a repository that has no cache yet: installs the
-# tool, builds the cache from the code and merged pull requests, and wires it
+# tool, builds the cache from the merged pull requests, and wires it
 # into the coding agents found on this machine. If a cache was already built
 # for the repository, pass --cache instead and nothing has to be built.
 #
@@ -19,8 +19,7 @@
 #   --build             build the cache here without asking (otherwise `thinker setup` offers it, with an estimate)
 #   --no-build          do not build a cache; only wire up the hooks and the MCP server
 #   --no-behaviors      do not print the prompt for defining the desired behaviors with your agent
-#   --no-seed           kept for old scripts: exploration is off unless --areas asks for it
-#   --areas <n>         with --build: cap exploration sessions (default: adaptive to selected source code)
+#   --no-seed, --areas <n>   accepted from old scripts and ignored: a build no longer explores the code
 #   --depth <d>         with --build: full (default) or shallow, 30% of the full build
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
@@ -91,10 +90,10 @@ main() {
       --cache) cache="${2:-}"; build=0; shift 2 ;;
       --build) build=1; shift ;;
       --no-build) build=0; shift ;;
-      --no-seed) no_seed=1; shift ;;
+      --no-seed) shift ;;
       --no-behaviors) behaviors=0; shift ;;
       -y|--yes) yes=1; shift ;;
-      --areas) areas="${2:-}"; shift 2 ;;
+      --areas) shift 2 ;;
       --depth) depth="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
       --pr) pr_target="${2:-}"; shift 2 ;;
@@ -399,8 +398,6 @@ EOF
     args="$args --no-build"
   else
     [ "$build" = 1 ] && args="$args --build"
-    [ "$no_seed" = 1 ] && args="$args --no-seed"
-    [ -n "$areas" ] && args="$args --areas $areas"
     [ -n "$depth" ] && args="$args --depth $depth"
     [ -n "$prs" ] && args="$args --prs $prs"
     [ -n "$pr_target" ] && args="$args --pr $pr_target"

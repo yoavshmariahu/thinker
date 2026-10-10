@@ -309,7 +309,7 @@ export async function stepPrBenchmark({
     allowSkip: true,
   });
 
-  if (!authRes.ok || authRes.skip || authRes.skipExploration) {
+  if (!authRes.ok || authRes.skip) {
     out(`  ${c.gray('○')} Benchmark skipped.`);
     out(`    ${c.dim(`To benchmark this PR later: thinker benchmark pr ${pr.number || ''}`)}`);
     return null;
