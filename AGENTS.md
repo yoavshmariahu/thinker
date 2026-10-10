@@ -117,7 +117,7 @@ cache at twice the input price and never read again.
 | `src/prs.js` | mining merged pull requests into notes |
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
-| `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
+| `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust), on by default: the parser and its grammars are dependencies; `deps.js` falls back to regex heuristics where they are missing, for other languages, and for a definition with a parse error |
 | `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit (`~/.thinker/cache`) |
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
@@ -381,10 +381,15 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   (`deps.js:findSymbol`). The regex is thrown off by braces in strings and
   regex literals and by `return foo(` lines; on this repository's own notes
   the two disagreed on 5% of symbol deps, the regex wrong each time. The
-  parser is not a dependency (55 MB of wasm): `thinker ast install` puts
-  `web-tree-sitter` and `tree-sitter-wasms` under `~/.thinker/ast`
-  (`THINKER_AST_DIR` names another place; `thinker ast` shows which is in
-  use; `THINKER_AST=off` disables it). A dep hashed by the parser carries
+  parser is on by default since 0.1.30: `web-tree-sitter` and
+  `tree-sitter-wasms` are dependencies, pinned to the versions that load each
+  other, and install and update put them in place with the rest (`npm ci`).
+  They were an optional `thinker ast install` into `~/.thinker/ast` before;
+  that directory is still read, after thinker's own copy
+  (`ast.js:astDirs`; `THINKER_AST_DIR` names another place; `thinker ast`
+  shows which is in use and `thinker ast install` repairs an install without
+  its dependencies; `THINKER_AST=off` disables it). An install made without
+  npm has no parser and keeps the regex. A dep hashed by the parser carries
   `engine: "ast"` and, beside its hash, the regex hash of the same symbol
   (`hashRegex`). So the two kinds of checkout agree (`deps.js:checkNote`):
   where the parser arrives, a dep the regex hashed is not stale if the regex

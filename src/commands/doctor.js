@@ -178,10 +178,10 @@ async function runChecks(ctx) {
     else add('ranker', 'ok', st.modelName);
   }
 
-  // Optional: tree-sitter grammars, scheduled updates
+  // The parser comes with the dependencies; scheduled updates are optional
   const { initAst } = await import('../ast.js');
   const ast = await initAst();
-  add('tree-sitter', ast.available ? 'ok' : 'warn', ast.available ? ast.grammars.join(', ') : 'off, symbols found by regex (optional: `thinker ast install`)');
+  add('tree-sitter', ast.available ? 'ok' : 'warn', ast.available ? ast.grammars.join(', ') : process.env.THINKER_AST === 'off' ? 'off (THINKER_AST=off), symbols found by regex' : `not loaded${ast.error ? ` (${ast.error})` : ''}, symbols found by regex (\`thinker ast install\`)`);
   if (install.type !== 'git') add('auto-update', isScheduled(home) ? 'ok' : 'warn', isScheduled(home) ? 'scheduled daily' : 'not scheduled (`thinker update --schedule`)');
 
   return checks;

@@ -1,8 +1,9 @@
 // Symbol location through a real parser: web-tree-sitter with the grammars of tree-sitter-wasms,
-// for Python, JavaScript, TypeScript, Go and Rust. Neither is a dependency of thinker: `thinker ast
-// install` puts them under ~/.thinker/ast (THINKER_AST_DIR names another place, and the package's own
-// node_modules is tried too). Until initAst() has loaded a grammar, deps.js keeps to its regex
-// heuristics, so every caller stays synchronous and nothing changes where the parser is absent.
+// for Python, JavaScript, TypeScript, Go and Rust. Both are dependencies of thinker since 0.1.30
+// (they were an optional `thinker ast install` before: about 50 MB beside a 500 MB ranking runtime),
+// so the parser is on wherever the dependencies are installed. Until initAst() has loaded a grammar,
+// deps.js keeps to its regex heuristics, so every caller stays synchronous and an install without
+// npm, or a language without a grammar, works as before.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,17 +14,18 @@ import { diskCache } from './disk-cache.js';
 
 export const GRAMMARS = { py: 'python', pyi: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript', ts: 'typescript', mts: 'typescript', cts: 'typescript', tsx: 'tsx', go: 'go', rs: 'rust' };
 export const GRAMMAR_NAMES = [...new Set(Object.values(GRAMMARS))];
-// the versions known to load each other; tree-sitter-wasms 0.1.x grammars are ABI 14, which web-tree-sitter 0.23+ no longer loads
+// the versions package.json pins, known to load each other: tree-sitter-wasms 0.1.x grammars are ABI 14, which web-tree-sitter 0.23+ no longer loads
 export const AST_PACKAGES = ['web-tree-sitter@0.22.6', 'tree-sitter-wasms@0.1.13'];
 
 export function grammarOf(file) { const ext = String(file || '').split('.').pop().toLowerCase(); return GRAMMARS[ext] || null; }
 
 const state = { ready: false, dir: null, Parser: null, parsers: new Map(), error: null, tried: false };
 
-// Where the packages may be: THINKER_AST_DIR, ~/.thinker/ast, then thinker's own node_modules.
+// Where the packages may be: THINKER_AST_DIR when it names a place, thinker's own node_modules (the
+// versions it was tested with), then ~/.thinker/ast, where `thinker ast install` put them before 0.1.30.
 export function astDirs() {
   const home = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
-  return [process.env.THINKER_AST_DIR, path.join(home, 'ast'), path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')].filter(Boolean);
+  return [process.env.THINKER_AST_DIR, path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), path.join(home, 'ast')].filter(Boolean);
 }
 
 function resolver(dir) {
