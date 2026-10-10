@@ -9,6 +9,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { diskCache } from './disk-cache.js';
 
 export const GRAMMARS = { py: 'python', pyi: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript', ts: 'typescript', mts: 'typescript', cts: 'typescript', tsx: 'tsx', go: 'go', rs: 'rust' };
 export const GRAMMAR_NAMES = [...new Set(Object.values(GRAMMARS))];
@@ -80,7 +81,24 @@ const CONTAINERS = new Set(['class_definition', 'class_declaration', 'abstract_c
 const VALUE_DEFS = new Set(['arrow_function', 'function', 'function_expression', 'generator_function', 'class', 'async_function']);
 
 const cache = new Map(); // sha(text) -> definitions
-const sha = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
+const sha = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
+
+// The definitions of a file are kept on disk by the hash of its text (disk-cache.js): parsing each
+// file the notes point at again in every process cost about 8 ms a file, half a second on a cache of
+// 150 notes. The same text gives the same definitions in any checkout. DEFS_VERSION changes when
+// what definitions() returns does.
+const DEFS_VERSION = 2;
+const disk = diskCache('ast', DEFS_VERSION);
+const flag = v => (typeof v === 'function' ? undefined : !!v);
+// A parse error in or beside a node: the grammars lag the languages (Go's new(expr), TypeScript's
+// import('x').T in a type), and the parser recovers by cutting a definition short or folding its
+// neighbours into it, without saying so. Such a definition is marked and not trusted (astFindSymbol).
+function broken(node) {
+  const has = n => n && (flag(n.hasError) ?? n.hasError()), err = n => n && (n.type === 'ERROR' || (flag(n.isMissing) ?? n.isMissing()));
+  if (has(node) || err(node.nextSibling) || err(node.previousSibling)) return true;
+  for (let p = node.parent; p; p = p.parent) if (p.type === 'ERROR') return true;
+  return false;
+}
 
 function nameOf(node, grammar) {
   if (node.type === 'impl_item') { let t = node.childForFieldName('type'); while (t && t.type !== 'type_identifier') t = t.namedChildren.find(c => c.type === 'type_identifier' || c.type === 'generic_type') || null; return t?.text || null; }
@@ -99,11 +117,22 @@ function goReceiver(node) {
   return null;
 }
 
-function lineRange(node) {
-  // a declaration's lines include its `export`/`const` on the same line; a node ending at column 0 ends on the line before
+// The node whose lines are the definition's: the declaration around a single name, the export around that.
+function rangeNode(node) {
+  // a declaration's lines include its `export`/`const` on the same line
+  // one name of a group (Go's `const ( a = 1; b = 2 )`, `const a = 1, b = 2`) is its own lines, not the group's
   let n = node;
-  if (n.type === 'variable_declarator' || n.type === 'type_spec' || n.type === 'const_spec' || n.type === 'var_spec') n = n.parent || n;
+  if (n.type === 'variable_declarator' || n.type === 'type_spec' || n.type === 'const_spec' || n.type === 'var_spec') {
+    let decl = n.parent;
+    if (decl && /_spec_list$/.test(decl.type)) decl = decl.parent; // newer Go grammars wrap a group's specs in a list
+    const alone = decl && n.parent === decl && decl.namedChildren.filter(c => c.type === n.type).length === 1;
+    if (alone) n = decl;
+  }
   if (n.parent?.type === 'export_statement') n = n.parent;
+  return n;
+}
+function lineRange(node) {
+  const n = rangeNode(node);
   const start = n.startPosition.row;
   const end = n.endPosition.column === 0 ? n.endPosition.row : n.endPosition.row + 1;
   return { start, end: Math.max(end, start + 1) };
@@ -115,6 +144,8 @@ export function definitions(text, file) {
   if (!parser) return null;
   const key = g + ':' + sha(text);
   if (cache.has(key)) return cache.get(key);
+  const stored = disk.get(key.replace(':', '-'));
+  if (Array.isArray(stored)) { remember(key, stored); return stored; }
   let tree; try { tree = parser.parse(text); } catch { return null; }
   const defs = DEFS[g]; const out = [];
   const stack = [{ node: tree.rootNode, parent: null }];
@@ -127,6 +158,7 @@ export function definitions(text, file) {
         const { start, end } = lineRange(node);
         const d = { name, kind: defs[node.type], start, end, parent: node.type === 'method_declaration' ? goReceiver(node) : parent };
         if (g === 'python' && node.parent?.type === 'decorated_definition' && node.parent.namedChildren.some(c => c.type === 'decorator' && /\boverload\b/.test(c.text))) d.overload = true;
+        if (broken(rangeNode(node))) d.broken = true;
         out.push(d);
         if (CONTAINERS.has(node.type)) here = name;
       }
@@ -136,9 +168,13 @@ export function definitions(text, file) {
   }
   tree.delete?.();
   out.sort((a, b) => a.start - b.start);
-  if (cache.size > 300) cache.delete(cache.keys().next().value);
-  cache.set(key, out);
+  remember(key, out);
+  disk.set(key.replace(':', '-'), out);
   return out;
+}
+function remember(key, defs) {
+  if (cache.size > 300) cache.delete(cache.keys().next().value);
+  cache.set(key, defs);
 }
 
 // Decorators and comments directly above a definition belong to it (as deps.js:findSymbol has it).
@@ -166,5 +202,6 @@ export function astFindSymbol(text, symbol, file) {
   if (impl.length) cands = impl;
   if (!cands.length) return null;
   const d = cands[0];
+  if (d.broken) return null; // a parse error in or beside it: its lines are not to be trusted, and the caller's regex takes over
   return { start: extendUp(text.split('\n'), d.start), end: d.end };
 }

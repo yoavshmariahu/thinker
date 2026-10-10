@@ -118,6 +118,7 @@ cache at twice the input price and never read again.
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
+| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit (`~/.thinker/cache`) |
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
@@ -391,6 +392,33 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   where there is no parser, a dep a teammate's parser hashed is not stale if
   its `hashRegex` still matches, and the record is kept as it is. Installing
   the parser, or lacking it, marks no note stale.
+- The parser is not believed where it failed. The grammars lag the languages
+  (Go's `new(expr)`, TypeScript's `import('x').T` in a type: 5% of the
+  TypeScript and 3% of the Go files behind the Grafana and PostHog notesets
+  parse with errors), and the parser recovers silently, cutting a definition
+  short or folding its neighbours into it. A definition with a parse error in
+  or beside it is marked (`ast.js:broken`) and `astFindSymbol` returns nothing
+  for it, so `locateSymbol` falls back to the regex. One name of a declaration
+  group (`const ( A = 1; B = 2 )`, `const a = 1, b = 2`) is its own lines, not
+  the group's. Measured over 1,359 symbol deps of five notesets on 2026-10-10:
+  the engines agree on 96%; of the 53 they disagree on, the parser is right on
+  about 44 (the regex takes a call site for the definition, or runs past its
+  end), 8 are judgment calls (a Rust `struct` or its `impl`), and none is a
+  case where the regex is right.
+- What hashing works out is kept on disk between processes
+  (`disk-cache.js`, under `~/.thinker/cache`): a file's definitions by its text
+  (`ast.js:definitions`), a symbol's or a whole file's hash by the text
+  (`deps.js:symbolRecord`, `fileHash`), and a dep's hash at a commit by the
+  commit (`deps.js:hashDepAt`, which was two git processes for every dep whose
+  hash had moved, on every prompt). The keys carry the text or commit and the
+  hasher's own source, so an entry is never wrong, only absent; nothing there
+  is a record, and deleting the directory costs one slow run. Every hook and
+  command is a new process, and without this each one re-read every file every
+  note points at: on this repository's 158 notes `orient` took 0.88 s with the
+  regex and 1.3 s with the parser, and takes 0.36 s with either now; the check
+  of all 307 Grafana notes went from 0.7 s (1.7 s with the parser) to 0.09 s.
+  The suite runs without the cache unless a test names a directory
+  (`setDiskCache`) or `THINKER_HOME` is set.
 - Pointers written in the body (`core.py:Command.main`, `Foo.bar`,
   `types.convert_type`) are extracted automatically and added as deps, so
   the tracked set matches what the note actually claims.

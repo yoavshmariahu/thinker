@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { astFindSymbol, astReady, extendUp } from './ast.js';
+import { diskCache, cacheKey } from './disk-cache.js';
 import { stem } from './rank.js';
 
 const sha = s => 'sha256:' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
@@ -137,28 +138,70 @@ export function hashDep(repo, dep, { engine } = {}) {
   return hashText(text, dep, { engine });
 }
 
+// What a symbol hashes to in a given text, kept on disk (disk-cache.js) by the text, the language and
+// the hasher: one entry per file text, holding the symbols asked of it. Locating a symbol is a scan of
+// the file by the regex (and again for `hashRegex` where the parser found it), about 1 ms each, and
+// every prompt asked it of every dep of every note: 0.2 s of a refresh on a cache of 150 notes.
+const symbolHashes = diskCache('symbol-hash', 1);
+const bags = new Map(); // key -> { symbol: record }, as read or written by this process
+function bagFor(text, file, engine) {
+  const key = cacheKey(crypto.createHash('sha256').update(text).digest('hex'), String(file).split('.').pop().toLowerCase(), engine || '', astReady(file) ? 'ast' : 'regex', hasherId());
+  let map = bags.get(key);
+  if (!map) {
+    const stored = symbolHashes.get(key);
+    map = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+    if (bags.size > 500) bags.delete(bags.keys().next().value);
+    bags.set(key, map);
+  }
+  return { key, map };
+}
+// { hash, line, engine?, hashRegex? } of the symbol's block, or { none: true } where it is not found.
+function symbolRecord(text, dep, engine) {
+  const bag = dep.symbol === '__proto__' ? null : bagFor(text, dep.path, engine);
+  if (bag && Object.hasOwn(bag.map, dep.symbol)) return bag.map[dep.symbol];
+  const loc = locateSymbol(text, dep.symbol, dep.path, { engine });
+  let rec = { none: true };
+  if (loc) {
+    const lines = text.split('\n');
+    rec = { hash: sha(norm(lines.slice(loc.start, loc.end).join('\n'))), line: loc.start + 1 };
+    if (loc.engine === 'ast') {
+      // the regex hash too, so a checkout without the parser can tell this block unchanged (checkNote)
+      rec.engine = 'ast';
+      const rx = findSymbol(text, dep.symbol, langOf(dep.path));
+      if (rx) rec.hashRegex = sha(norm(lines.slice(rx.start, rx.end).join('\n')));
+    }
+  }
+  if (bag) { bag.map[dep.symbol] = rec; symbolHashes.set(bag.key, bag.map); }
+  return rec;
+}
+
+// The hash of a whole file, in the same entry under a key no symbol can have: normalizing a large
+// file's whitespace costs more than hashing it, and half the deps of some caches are whole files.
+function fileHash(text, file) {
+  const bag = bagFor(text, file, '');
+  if (Object.hasOwn(bag.map, ' file')) return bag.map[' file'];
+  const h = sha(norm(text));
+  bag.map[' file'] = h; symbolHashes.set(bag.key, bag.map);
+  return h;
+}
+
 // Shared by working-tree and commit validation; no filesystem reads.
 export function hashText(text, dep, { engine } = {}) {
   dep = { ...dep };
   delete dep.symbolMissing;
   if (dep.symbol) {
-    const loc = locateSymbol(text, dep.symbol, dep.path, { engine });
-    if (loc) {
-      const lines = text.split('\n');
-      const out = { ...dep, hash: sha(norm(lines.slice(loc.start, loc.end).join('\n'))), line: loc.start + 1, missing: false };
+    const rec = symbolRecord(text, dep, engine);
+    if (!rec.none) {
+      const out = { ...dep, hash: rec.hash, line: rec.line, missing: false };
       delete out.engine; delete out.hashRegex;
-      if (loc.engine === 'ast') {
-        // the regex hash too, so a checkout without the parser can tell this block unchanged (checkNote)
-        out.engine = 'ast';
-        const rx = findSymbol(text, dep.symbol, langOf(dep.path));
-        if (rx) out.hashRegex = sha(norm(lines.slice(rx.start, rx.end).join('\n')));
-      }
+      if (rec.engine) out.engine = rec.engine;
+      if (rec.hashRegex) out.hashRegex = rec.hashRegex;
       return out;
     }
     // symbol not found: hash the file and flag so verification can decide.
-    const out = { ...dep, hash: sha(norm(text)), symbolMissing: true, missing: false }; delete out.engine; delete out.hashRegex; return out;
+    const out = { ...dep, hash: fileHash(text, dep.path), symbolMissing: true, missing: false }; delete out.engine; delete out.hashRegex; return out;
   }
-  const out = { ...dep, hash: sha(norm(text)), missing: false }; delete out.engine; delete out.hashRegex; return out;
+  const out = { ...dep, hash: fileHash(text, dep.path), missing: false }; delete out.engine; delete out.hashRegex; return out;
 }
 
 // Git paths are repository-relative, never filesystem paths or revision expressions.
@@ -168,8 +211,34 @@ export function validDepPath(file) {
     !file.split('/').some(p => !p || p === '.' || p === '..');
 }
 
+// What hashText makes of a file as a commit has it never changes while the hasher does not: kept on
+// disk by commit, path, symbol and the hasher itself (the text of this file and of ast.js, and
+// whether the parser reads the file's language here). checkNote asks this of every dep whose hash
+// moved, on every prompt, and each answer was two git processes: 0.45 s of a 0.7 s refresh on a
+// cache of 150 notes with 40 such deps. Only a full commit id is kept (a branch name moves), and
+// only an answer, never a failure (the commit may arrive with the next fetch).
+const atCommit = diskCache('dep-at-commit', 1);
+let hasher = null;
+function hasherId() {
+  if (hasher) return hasher;
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  try { hasher = cacheKey(fs.readFileSync(path.join(here, 'deps.js'), 'utf8'), fs.readFileSync(path.join(here, 'ast.js'), 'utf8')); } catch { hasher = 'unknown-' + process.pid; }
+  return hasher;
+}
+const HASH_FIELDS = ['hash', 'line', 'missing', 'symbolMissing', 'engine', 'hashRegex'];
+
 export function hashDepAt(repo, dep, ref, opts = {}) {
   if (!validDepPath(dep.path)) return { ...dep, hash: null, missing: true };
+  const key = /^[0-9a-f]{40}$/.test(ref) ? cacheKey(ref, dep.path, dep.symbol || '', opts.engine || '', astReady(dep.path) ? 'ast' : 'regex', hasherId()) : null;
+  if (key) {
+    const hit = atCommit.get(key);
+    if (hit && typeof hit.hash === 'string') { const out = { ...dep }; for (const f of HASH_FIELDS) delete out[f]; return { ...out, ...hit }; }
+  }
+  const out = hashDepAtUncached(repo, dep, ref, opts);
+  if (key && !out.missing && out.hash) atCommit.set(key, Object.fromEntries(HASH_FIELDS.filter(f => f in out).map(f => [f, out[f]])));
+  return out;
+}
+function hashDepAtUncached(repo, dep, ref, opts) {
   try {
     // Reject symlinks: git show would otherwise hash the link target as file content.
     const entry = execFileSync('git', ['ls-tree', ref, '--', dep.path], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
