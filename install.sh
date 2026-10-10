@@ -18,8 +18,8 @@
 # Options
 #   --build             build the cache here without asking (otherwise `thinker setup` offers it, with an estimate)
 #   --no-build          do not build a cache; only wire up the hooks and the MCP server
-#   --no-behaviors      do not print the prompt for defining the desired behaviors with your agent
 #   --no-seed, --areas <n>   accepted from old scripts and ignored: a build no longer explores the code
+#   --no-behaviors      accepted from old scripts and ignored: there is no behaviors prompt to print
 #   --depth <d>         with --build: full (default) or shallow, 30% of the full build
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
@@ -84,14 +84,14 @@ path_hint() {
 }
 
 main() {
-  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0 behaviors=1
+  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; build=0; shift 2 ;;
       --build) build=1; shift ;;
       --no-build) build=0; shift ;;
       --no-seed) shift ;;
-      --no-behaviors) behaviors=0; shift ;;
+      --no-behaviors) shift ;;
       -y|--yes) yes=1; shift ;;
       --areas) shift 2 ;;
       --depth) depth="${2:-}"; shift 2 ;;
@@ -345,15 +345,12 @@ EOF
     if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" connect $cargs < /dev/tty; else "$thinker" connect $cargs; fi
     local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
     path_hint
-    # the prompt that starts defining a repository's behaviors with the agent, ready to paste after setup there
-    [ "$behaviors" = 1 ] && { "$thinker" system define || true; }
     say ""
     if [ "$fancy" = 1 ]; then
       box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
         "Installed into $home and wired into your agents." \
         "This is not a git repository, so no cache was set up here." \
         "Inside a repository, run: ${cyan}thinker setup${reset}" \
-        "Then paste the behaviors prompt above into your agent there." \
         "${dim}Notes and behaviors stay in the repository; Thinker uploads none.${reset}" "" \
         "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     else
@@ -361,8 +358,6 @@ EOF
       say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
       say ""
       say "  thinker setup"
-      say ""
-      say "Then paste the behaviors prompt above into your agent there."
       say "Notes and behaviors stay in the repository; Thinker uploads none."
     fi
     exit 0
@@ -393,7 +388,6 @@ EOF
   [ "$late" = 1 ] && args="$args --late"
   [ "$githook" = 0 ] && args="$args --no-git-hook"
   [ "$mcp" = 1 ] || args="$args --no-mcp"
-  [ "$behaviors" = 1 ] || args="$args --no-behaviors"
   if [ "$build" = 0 ]; then
     args="$args --no-build"
   else

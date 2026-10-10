@@ -42,8 +42,8 @@ async function drilldownCommand(ctx) {
 
 async function systemCommand(ctx) {
   const { pos, flags, repo, store, out, readStdin } = ctx;
-  // thinker system [add|promote|accept|propose|docs|define|md] …: the desired behaviors (behavior.js)
-  const sub = ['add', 'promote', 'accept', 'propose', 'md', 'define', 'docs'].includes(pos[0]) ? pos.shift() : 'list';
+  // thinker system [add|promote|accept|propose|docs|md] …: the desired behaviors (behavior.js)
+  const sub = ['add', 'promote', 'accept', 'propose', 'md', 'docs'].includes(pos[0]) ? pos.shift() : 'list';
   const mutability = flags.fixed ? 'fixed' : flags.mutable ? 'mutable' : undefined;
   if (sub === 'add') {
     const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
@@ -81,10 +81,6 @@ async function systemCommand(ctx) {
       for (const x of r.rejected) out(`left out: ${x.title}  (${x.doc}: ${x.reason})`);
       out(docBehaviorsLine(r));
     } catch (e) { out(`design documents not read: ${String(e.message).slice(0, 200)}`); process.exitCode = 1; }
-  } else if (sub === 'define') {
-    // the prompt that starts an interview with the person's own coding agent (setup/define.js)
-    const { printBehaviorSession } = await import('../setup/define.js');
-    printBehaviorSession(store.exists() ? store : null, { out, copy: !flags['no-copy'] });
   } else if (sub === 'md') {
     out(`wrote ${path.relative(repo, writeSystemMarkdown(store, { force: true }))}`);
   } else {

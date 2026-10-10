@@ -8,7 +8,6 @@ import { Store } from '../src/store.js';
 import { designDocs, deriveDocBehaviors, docBehaviorsLine } from '../src/behavior-docs.js';
 import { listBehaviors, proposed } from '../src/behavior.js';
 import { activeBehaviors, pendingBehaviors, discardPending } from '../src/behavior-workbench.js';
-import { behaviorSessionPrompt } from '../src/setup/define.js';
 
 const README = `# Billing
 
@@ -79,7 +78,6 @@ test('a rule a document states becomes a mutable behavior in force, quoted and a
   assert.equal(a.origin, 'design document src/billing/README.md');
   assert.equal(a.quote, charge.quote);
   assert.match(docBehaviorsLine(r), /^1 behavior from 2 design documents; 2 left out/);
-  assert.match(behaviorSessionPrompt(store), /1 of the behaviors in force came from them/);
 });
 
 test('a document is read once per content, and a discarded behavior does not come back', async t => {

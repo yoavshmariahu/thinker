@@ -37,8 +37,6 @@ export async function runSetup({
   noBenchmark = false,
   build = null,
   depth = null,
-  behaviors = null,
-  defineFn = null,
   noPrs = false,
   noPhrase = false,
   model,
@@ -171,12 +169,10 @@ export async function runSetup({
     minePrsFn,
   });
 
-  // The desired behaviors, written down with the person's own coding agent: setup prints the prompt
-  // that starts the interview (setup/define.js) and does not run it. --no-behaviors leaves it out.
+  // The desired behaviors come from the design documents a build reads (behavior-docs.js); setup asks
+  // the person nothing about them and only counts the drafts waiting for a decision.
   const { pendingBehaviors } = await import('./behavior-workbench.js');
   const waiting = () => pendingBehaviors(store).length;
-  const defineNow = behaviors !== false;
-  if (defineNow) (defineFn || (await import('./setup/define.js')).printBehaviorSession)(store, { out });
 
   if (exportFile) {
     execFileSync('node', [cliPath, 'export', exportFile, '--repo', repo], { stdio: 'inherit' });
@@ -219,7 +215,6 @@ export async function runSetup({
   done.push(`Notes, behaviors and usage in your browser: ${c.cyan('thinker ui')}`);
   done.push(`Review a change against the cache: ${c.cyan('thinker review')}`);
   if (!building) done.push(`Read merged pull requests into the cache: ${c.cyan('thinker setup --build')}`);
-  if (!defineNow) done.push(`Define behaviors with your agent: ${c.cyan('thinker system define')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
   done.push(c.dim('Notes stay on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));

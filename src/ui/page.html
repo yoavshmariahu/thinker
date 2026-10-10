@@ -203,12 +203,6 @@
         <input class="search" id="search" placeholder="Search behaviors">
       </div>
       <div class="list" id="b-list"></div>
-
-      <div class="describe panel">
-        <div class="kicker">Define more with your coding agent</div>
-        <p class="bbody" style="margin-top:0.2rem;color:#444">The documents rarely say everything. The best way to write the rest down is a conversation: your agent asks you how each part of the system must behave, drafts each rule against the code, and saves only the ones you approve.</p>
-        <div class="actions"><button class="btn" id="session-copy">Copy the interview prompt</button><span class="muted" style="font-size:0.8rem;align-self:center">Paste it into a new session of your agent in this repository.</span></div>
-      </div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -417,7 +411,7 @@ function renderBehaviors() {
   const f = FILTERS.find(x => x[0] === filter)[2];
   const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
   if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Copy the interview prompt below to write some with your agent, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository; the interview prompt below adds the rest.'}</div>`;
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository. To add one, state the rule in a README beside the code or in a design file and run it again.'}</div>`;
     return;
   }
   $('#b-list').innerHTML = shown.map(bcard).join('');
@@ -473,15 +467,6 @@ function wire() {
     });
   });
 }
-
-$('#session-copy').onclick = async () => {
-  try {
-    if (ALL()) return toast('Pick one repository at the top first', true);
-    const { prompt } = await api(`/api/behaviors/session-prompt?${rq()}`);
-    await navigator.clipboard.writeText(prompt);
-    toast('Copied. Paste it into your coding agent.');
-  } catch (e) { toast('Could not copy: ' + e.message, true); }
-};
 
 // ---- repository picker -------------------------------------------------------------------
 $('#repo-sel').onchange = e => { REPO = e.target.value; e.target.blur(); B = { active: [], pending: [] }; $('#b-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading behaviors…</div>`; expanded.clear(); editing = null; refreshWaitCount(); show(TAB); };

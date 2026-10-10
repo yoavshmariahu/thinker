@@ -50,7 +50,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
   setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--prs n] [--pr <num>]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
-        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--behaviors | --no-behaviors] [--no-ui]
+        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from merged pull requests with pre-flight estimates (a build reads pull requests and does not explore the code), and
@@ -112,10 +112,6 @@ const HELP = `thinker — knowledge cache for coding agents
                                  quoting the document and pointing at the code that upholds it; a cache build starts
                                  with this. A document is read once per content (--again: read all again); --dry
                                  lists the documents without a model call; --limit n documents per run (default 12)
-  system define [--no-copy]      print (and copy) a prompt for your coding agent: it interviews you about how each
-                                 part of the system must behave and saves only the behaviors you approve; where the
-                                 repository is not set up or built, the prompt has the agent set it up and build the
-                                 cache in the background while the interview goes on. setup prints it (--no-behaviors: not)
   system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
@@ -213,8 +209,7 @@ async function main() {
   }
   // the cache is used only where `thinker setup` has run: a repository without .thinker/
   // is served nothing and learns nothing. Commands that build or add to a cache create it themselves.
-  // `system define` outside a set-up repository prints the general interview prompt (the installer shows it)
-  if (CACHE_COMMANDS.includes(cmd) && !store.exists() && !(cmd === 'system' && pos[0] === 'define')) {
+  if (CACHE_COMMANDS.includes(cmd) && !store.exists()) {
     process.stderr.write(`thinker: not set up in this repository (${repo}). Run \`thinker setup\` there to set it up.\n`);
     process.exit(1);
   }

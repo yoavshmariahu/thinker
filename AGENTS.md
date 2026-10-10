@@ -244,8 +244,8 @@ for one run. Choosing Full repo in the menu updates an existing default file to
 `directories: ["."]`.
 
 `planAreas` / `discoverAreas` use literal git pathspecs before clustering and
-cannot widen a selected deep directory into its parent. They now serve only the
-behavior interview's list of main areas (`setup/define.js`). Groups use
+cannot widen a selected deep directory into its parent. No command calls them now
+(the behavior interview that listed the main areas is removed, with `thinker system define`). Groups use
 128 KiB of source (roughly 32k tokens) and 80 files as per-session working-set
 heuristics, not a repository coverage limit. Small sibling groups share a session;
 oversized directories split recursively, including flat directories split into

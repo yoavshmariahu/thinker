@@ -30,7 +30,7 @@ const byName = (checks, name) => checks.find(c => c.name === name);
 
 test('doctor finds wiring of a thinker copy that is gone, and --fix rewires it to this one', t => {
   const { home, repo, run } = machine(t);
-  const setup = run('setup', '--no-build', '--yes', '--no-ui', '--no-behaviors', '--clients', 'claude', '--no-git-hook');
+  const setup = run('setup', '--no-build', '--yes', '--no-ui', '--clients', 'claude', '--no-git-hook');
   assert.equal(setup.status, 0, setup.stderr);
   const settings = path.join(home, '.claude', 'settings.json');
   fs.writeFileSync(settings, fs.readFileSync(settings, 'utf8').split(CLI).join('/gone/thinker/src/cli.js'));

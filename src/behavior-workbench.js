@@ -2,7 +2,7 @@
 // and the decisions. Two things wait: drafts the build wrote from the strongest rule notes
 // (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember`
 // (behavior.js:proposed). Neither is a requirement until a person accepts it, as written or
-// edited. `thinker system define` (the terminal) and `thinker ui` (the local page) are the two ways
+// edited. `thinker system` (the terminal) and `thinker ui` (the local page) are the two ways
 // in; both call only what is here.
 import { listBehaviors, isBehavior, proposed, promoteBehavior, writeSystemMarkdown } from './behavior.js';
 import { listBehaviorProposals, acceptBehaviorProposal, discardBehaviorProposal } from './behavior-proposals.js';

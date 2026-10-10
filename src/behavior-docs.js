@@ -2,8 +2,8 @@
 // the code, and the design, architecture and decision documents. A person wrote those to say how the
 // system must behave, so a rule one of them states is a behavior in force (behavior.js:proposed lets a
 // `doc` source stand), saved `mutable`: a change that breaks it gets a warning until a person makes it
-// blocking. This is where a repository's behaviors come from by default; the interview
-// (setup/define.js) adds what the documents leave out.
+// blocking. This is where a repository's behaviors come from: a build and
+// `thinker system docs` run it, and nothing interviews the person for more.
 //
 // One bounded model call per document. The model sees the document and the definitions near it, and
 // a behavior is kept only when the sentence it quotes is in the document and every pointer names a

@@ -325,15 +325,6 @@
       gap: 1rem;
     }
 
-    .cmd-label {
-      flex: 1 1 0%;
-      min-width: 0;
-      font-size: 0.92rem;
-      font-weight: 500;
-      color: #111827;
-      text-align: left;
-    }
-
     .cmd-box:hover {
       border-color: #d1d5db;
     }
@@ -382,32 +373,6 @@
     .btn-copy.copied {
       background: #16a34a;
       border-color: #16a34a;
-    }
-
-    /* Split copy button: the setup prompt | the bare install command */
-    .btn-split {
-      display: inline-flex;
-      flex-shrink: 0;
-      border-radius: 6px;
-      overflow: hidden;
-      background: #000000;
-    }
-
-    .btn-split .btn-copy {
-      border-radius: 0;
-      border: none;
-    }
-
-    .btn-split .btn-copy + .btn-copy {
-      box-shadow: inset 1px 0 0 rgba(255,255,255,0.22);
-      color: #d4d4d8;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.76rem;
-      min-width: 0;
-    }
-
-    .btn-split .btn-copy + .btn-copy:hover {
-      color: #ffffff;
     }
 
     /* Benchmark cards: one per framing */
@@ -831,18 +796,11 @@
     <div class="install-container">
 
       <div class="command-wrapper" id="command-view">
+        <div class="install-instruction">Run anywhere to install, then <code>thinker setup</code> inside your repository</div>
         <div class="cmd-box">
-          <span class="cmd-label">Paste one prompt into your coding agent to set up Thinker</span>
-          <div class="btn-split" role="group" aria-label="Copy setup">
-            <button class="btn-copy" id="copy-prompt-btn" onclick="copyText('prompt', 'copy-prompt-btn')" title="Copy the setup prompt for your coding agent">Copy prompt</button>
-            <button class="btn-copy" id="copy-cli-btn" onclick="copyText('cli', 'copy-cli-btn')" title="Copy only the install command: curl -fsSL https://zerotime.dev/dist/install.sh | bash">CLI only</button>
-          </div>
+          <code id="cmd">curl -fsSL https://zerotime.dev/dist/install.sh | bash</code>
+          <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
         </div>
-        <template id="cli">curl -fsSL https://zerotime.dev/dist/install.sh | bash</template>
-        <template id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
-1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
-2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it writes down the system behaviors this repository's design documents (READMEs) state, goes through them with me, and interviews me about the rest while the cache builds in the background. Ask me one question at a time and wait for my answers. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</template>
-      </div>
       </div>
     </div>
 
@@ -967,16 +925,15 @@
   </div>
 
   <script>
-    function copyText(sourceId, buttonId) {
-      const code = document.getElementById(sourceId).content?.textContent || document.getElementById(sourceId).innerText;
+    function copyInstall() {
+      const code = document.getElementById('cmd').innerText;
       if (!code) return;
       navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById(buttonId);
-        const label = btn.dataset.label || (btn.dataset.label = btn.innerText);
+        const btn = document.getElementById('copy-btn');
         btn.innerText = 'Copied';
         btn.classList.add('copied');
         setTimeout(() => {
-          btn.innerText = label;
+          btn.innerText = 'Copy';
           btn.classList.remove('copied');
         }, 2000);
       });
