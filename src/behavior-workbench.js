@@ -27,7 +27,8 @@ export function pendingBehaviors(store) {
 export function activeBehaviors(store) {
   return listBehaviors(store).filter(r => !r.proposed).map(({ note, ...r }) => ({
     ...r, body: note.body, applies: note.applies || '', pointers: pointers(note.deps),
-    origin: note.source?.proposedFrom ? 'accepted draft' : note.source?.promoted ? `promoted ${note.source.promoted}` : 'written by a person',
+    quote: note.source?.type === 'doc' ? note.source.quote || '' : '', fromDoc: note.source?.type === 'doc',
+    origin: note.source?.type === 'doc' ? `design document ${note.source.ref}` : note.source?.proposedFrom ? 'accepted draft' : note.source?.promoted ? `promoted ${note.source.promoted}` : 'written by a person',
   }));
 }
 
@@ -47,7 +48,8 @@ export function acceptPending(store, id, { mutability = 'mutable', edit = null }
 export function discardPending(store, id) {
   if (String(id).startsWith('proposal-')) return discardBehaviorProposal(store, id);
   const n = store.get(id);
-  if (!n || !isBehavior(n) || !proposed(n)) return { error: 'no such proposed behavior' };
+  // a behavior read from a design document is in force without a person's yes, so a person can take it out
+  if (!n || !isBehavior(n) || !(proposed(n) || n.source?.type === 'doc')) return { error: 'no such proposed behavior' };
   store.remove(id);
   store.log({ op: 'behavior', id, action: 'discard-proposal' });
   writeSystemMarkdown(store);

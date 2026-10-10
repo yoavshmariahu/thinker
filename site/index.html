@@ -841,7 +841,7 @@
         <template id="cli">curl -fsSL https://zerotime.dev/dist/install.sh | bash</template>
         <template id="prompt">Set up Thinker in this repository (if this folder is not a git repository, ask me which one to set up and work there). Thinker is a knowledge cache for coding agents (https://zerotime.dev); its notes and behaviors stay in this repository's .thinker/ folder and are never uploaded.
 1. Install it and connect this repository, without building the cache yet: `curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --yes --no-build --no-behaviors`. It needs git, curl, tar and Node 20+.
-2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it builds the cache in the background while you interview me about how this system must behave. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</template>
+2. Run `~/.thinker/bin/thinker system define --no-copy` and follow the prompt it prints between the two lines as my request: it writes down the system behaviors this repository's design documents (READMEs) state, goes through them with me, and interviews me about the rest while the cache builds in the background. Ask me one question at a time and wait for my answers. Where it says `thinker`, use `~/.thinker/bin/thinker` if `thinker` is not on PATH yet.</template>
       </div>
       </div>
     </div>

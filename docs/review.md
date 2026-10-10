@@ -8,12 +8,24 @@ A system behavior is a rule every future change must keep, written by you and an
 to the code that enforces it. `thinker review` flags a change that breaks one, and blocks
 it when the behavior is **fixed**.
 
-The best way to write them is a conversation with your own coding agent. `thinker system
+They start from the design documents checked into the repository: the READMEs beside the
+code, and design, architecture and decision files. `thinker system docs` (the first step
+of a cache build) reads each one and saves the rules it states as **mutable** behaviors,
+each quoting the sentence it came from and pointing at the definitions that uphold it. A
+rule is left out when the quote is not in the document or no definition near the document
+enforces it. A document is read once per content, so a later run reads only new and
+changed ones (`--dry` lists them without a model call). These behaviors are in force
+without a further step; make one blocking, reword it or discard it in `thinker ui`.
+
+The documents rarely say everything. The best way to write the rest is a conversation
+with your own coding agent. `thinker system
 define` (also offered at the end of `thinker setup`) prints a prompt and copies it to
-your clipboard: paste it into your agent, and it interviews you about each part of the
+your clipboard: paste it into your agent, and it reads the documents, goes through what
+they state with you, then interviews you about each part of the
 system, drafts each behavior against the code, and saves only the ones you approve.
 
 ```bash
+thinker system docs     # behaviors from the READMEs and design documents checked in
 thinker system define   # the interview prompt for your coding agent
 thinker ui              # usage, the cache, and the behaviors: accept, edit or discard the ones waiting
 ```

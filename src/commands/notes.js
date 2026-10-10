@@ -42,8 +42,8 @@ async function drilldownCommand(ctx) {
 
 async function systemCommand(ctx) {
   const { pos, flags, repo, store, out, readStdin } = ctx;
-  // thinker system [add|promote|accept|propose|md] …: the desired behaviors (behavior.js)
-  const sub = ['add', 'promote', 'accept', 'propose', 'md', 'define'].includes(pos[0]) ? pos.shift() : 'list';
+  // thinker system [add|promote|accept|propose|docs|define|md] …: the desired behaviors (behavior.js)
+  const sub = ['add', 'promote', 'accept', 'propose', 'md', 'define', 'docs'].includes(pos[0]) ? pos.shift() : 'list';
   const mutability = flags.fixed ? 'fixed' : flags.mutable ? 'mutable' : undefined;
   if (sub === 'add') {
     const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
@@ -71,6 +71,16 @@ async function systemCommand(ctx) {
     const c = proposeBehaviors(store);
     for (const x of c) out(`${x.kind.padEnd(10)} ${x.id.padEnd(45)} acted on ${x.confirmed}×, served ${x.uses}×  ${x.title}`);
     out(c.length ? `${c.length} rule notes; thinker system promote <id> [--fixed] makes one a desired behavior` : drafts.length ? `${drafts.length} behavior drafts awaiting acceptance` : 'no behavior candidates yet');
+  } else if (sub === 'docs') {
+    // the behaviors the checked-in design documents state (behavior-docs.js): the step a cache build starts with
+    const { deriveDocBehaviors, docBehaviorsLine } = await import('../behavior-docs.js');
+    try {
+      const r = await deriveDocBehaviors(store, { model: flags.model, again: !!flags.again, dry: !!flags.dry, limit: Number(flags.limit) || undefined, phase: 'manual' });
+      if (flags.dry) { for (const d of r.docs) out(d); out(`${r.docs.length} of ${r.found} design documents to read${r.remaining ? `, ${r.remaining} more after these` : ''}`); return; }
+      for (const b of r.saved) out(`saved ${b.id}  ${b.title}  (${b.doc})`);
+      for (const x of r.rejected) out(`left out: ${x.title}  (${x.doc}: ${x.reason})`);
+      out(docBehaviorsLine(r));
+    } catch (e) { out(`design documents not read: ${String(e.message).slice(0, 200)}`); process.exitCode = 1; }
   } else if (sub === 'define') {
     // the prompt that starts an interview with the person's own coding agent (setup/define.js)
     const { printBehaviorSession } = await import('../setup/define.js');
