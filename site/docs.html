@@ -857,7 +857,7 @@ thinker setup --build --yes</code></pre>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
 thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
         <p>
-          A build also drafts desired-behavior candidates from the strongest rule notes for a person to accept or discard (<code>thinker system propose</code>). Without a build, the cache starts empty and grows from your sessions.
+          A build starts by reading the design documents checked into the repository (READMEs beside the code, design files) and saves the rules they state as desired behaviors (<code>thinker system docs</code> runs that step alone); it ends by drafting more candidates from the strongest rule notes for a person to accept or discard (<code>thinker system propose</code>). Without a build, the cache starts empty and grows from your sessions.
         </p>
       </section>
 
@@ -1119,6 +1119,7 @@ thinker review --base origin/main --pr 142 --post   <span class="code-comment">#
           Every other kind of note is a claim about the code, and when they disagree the note yields. A <code>behavior</code> note is the other way round: a person writes down what the system must do and where that is upheld, and from then on a change must conform, or be called out for not conforming.
         </p>
         <pre><code>thinker system                      <span class="code-comment"># every behavior, and whether the code upholds it</span>
+thinker system docs                 <span class="code-comment"># the rules the checked-in READMEs and design documents state</span>
 thinker system add file.json --fixed
 thinker system promote &lt;id&gt;         <span class="code-comment"># a rule the cache already holds becomes a behavior</span>
 thinker system propose              <span class="code-comment"># drafts from the build, and rules worth promoting</span>

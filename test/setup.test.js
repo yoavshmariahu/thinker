@@ -107,7 +107,7 @@ test('behavior proposal stage runs on every cache build', async () => {
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
-test('a build reads pull requests in two stages and says once that it does not explore the code', async () => {
+test('a build reads the design documents, then the pull requests, and says once that it does not explore the code', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init(), lines = [];
@@ -117,10 +117,34 @@ test('a build reads pull requests in two stages and says once that it does not e
       minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }),
       proposeFn: async () => ({ proposals: [], sources: 0 }) });
     const text = lines.join('\n');
-    assert.match(text, /merged pull requests; a build does not explore the code/);
-    assert.match(text, /\[1\/2\]/);
-    assert.match(text, /\[2\/2\]/);
-    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore \d|\/3\]/);
+    assert.match(text, /merged pull requests for the notes; a build does not explore the code/);
+    assert.match(text, /\[1\/3\] Reading design documents for system behaviors/);
+    assert.match(text, /\[2\/3\] Mining/);
+    assert.match(text, /\[3\/3\]/);
+    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore \d|\/2\]/);
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('a build reads the design documents into behaviors before it mines, and says what it saved', async () => {
+  const repo = createMockGitRepo();
+  try {
+    const store = new Store(repo).init(), lines = [], order = [];
+    const estimates = estimateCacheBuild(repo, { prs: 2 });
+    estimates.canMine = true;
+    const res = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', directories: ['src'], out: line => lines.push(stripAnsi(line)),
+      docsFn: async (st, opts) => { order.push('docs'); assert.equal(st, store); assert.deepEqual(opts.directories, ['src']);
+        return { found: 3, docs: ['README.md', 'src/README.md'], read: 2, saved: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], rejected: [{}], failed: 0, remaining: 1 }; },
+      minePrsFn: async () => { order.push('prs'); return { saved: 0, processed: 2, failed: 0 }; },
+      proposeFn: async () => ({ proposals: [], sources: 0 }) });
+    assert.deepEqual(order, ['docs', 'prs']);
+    assert.match(lines.join('\n'), /✔ 3 behaviors from 2 design documents; 1 left out[^\n]*; 1 more to read: thinker system docs; see them with thinker system/);
+    assert.equal(res.warnings, 0);
+    lines.length = 0;
+    const failed = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+      docsFn: async () => { throw new Error('claude -p exited 1'); },
+      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }), proposeFn: async () => ({ proposals: [], sources: 0 }) });
+    assert.match(lines.join('\n'), /Design documents not read: claude -p exited 1\. Retry this step alone: thinker system docs/);
+    assert.equal(failed.warnings, 1);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
@@ -409,7 +433,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     });
 
     const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /\[1\/2\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
+    assert.match(fullOutput, /\[2\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
     assert.match(fullOutput, /Mined git history changes → 3 notes created/);
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);

@@ -197,7 +197,7 @@
     <section id="tab-behaviors" hidden>
       <div class="kicker">System behaviors</div>
       <h1>The rules every change must keep</h1>
-      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. Proposed behaviors (build drafts and agent proposals) are not requirements until you accept them.</p>
+      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. Thinker starts from the design documents checked into the repository: a rule a README or design file states is a behavior here, warn only until you make it blocking, and yours to edit or discard. Proposed behaviors (build drafts and agent proposals) are not requirements until you accept them.</p>
       <div class="controls">
         <div class="chips" id="chips"></div>
         <input class="search" id="search" placeholder="Search behaviors">
@@ -205,8 +205,8 @@
       <div class="list" id="b-list"></div>
 
       <div class="describe panel">
-        <div class="kicker">Define them with your coding agent</div>
-        <p class="bbody" style="margin-top:0.2rem;color:#444">The best way to write behaviors down is a conversation: your agent asks you how each part of the system must behave, drafts each rule against the code, and saves only the ones you approve.</p>
+        <div class="kicker">Define more with your coding agent</div>
+        <p class="bbody" style="margin-top:0.2rem;color:#444">The documents rarely say everything. The best way to write the rest down is a conversation: your agent asks you how each part of the system must behave, drafts each rule against the code, and saves only the ones you approve.</p>
         <div class="actions"><button class="btn" id="session-copy">Copy the interview prompt</button><span class="muted" style="font-size:0.8rem;align-self:center">Paste it into a new session of your agent in this repository.</span></div>
       </div>
     </section>
@@ -417,7 +417,7 @@ function renderBehaviors() {
   const f = FILTERS.find(x => x[0] === filter)[2];
   const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
   if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Copy the interview prompt below to write some with your agent, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet.'}</div>`;
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Copy the interview prompt below to write some with your agent, or build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository; the interview prompt below adds the rest.'}</div>`;
     return;
   }
   $('#b-list').innerHTML = shown.map(bcard).join('');
@@ -440,12 +440,13 @@ function bcard(b) {
     b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
     b.waiting ? `<b>${b.origin === 'draft' ? 'Drafted from' : 'From'}</b> ${esc(b.evidence)}` : `<b>Origin</b> ${esc(b.origin)}`,
     b.waiting && b.reason ? `<b>Why</b> ${esc(b.reason)}` : '',
+    !b.waiting && b.quote ? `<b>The document says</b> “${esc(b.quote)}”` : '',
     !b.waiting && b.state === 'violated' ? `<b>Broken since</b> ${esc(b.since || '?')}: ${esc(b.reason)}` : '',
     !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
   ].filter(Boolean).join('<br>');
   const actions = b.waiting
     ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as blocking</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
-    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make warn only' : 'Make blocking'}</button>`;
+    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make warn only' : 'Make blocking'}</button>${b.fromDoc ? '<button class="btn text" data-act="discard">Discard</button>' : ''}`;
   return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">${ALL() ? `<div class="repo-tag">${esc(b.repoName)}</div>` : ''}<div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
     <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
 }
