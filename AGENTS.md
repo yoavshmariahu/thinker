@@ -758,7 +758,11 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   under "Holdout" (`usage.js:holdoutSummary`): medians of tool calls and
   input tokens over sessions that got notes against sessions that had notes
   withheld, per model; sessions with nothing to serve are on neither side,
-  and under five sessions a side it says so rather than compare. The share
+  and under five sessions a side it says so rather than compare. Telemetry
+  sends the same comparison over 30 days as sums and session counts per side
+  and per model (`telemetry.js:holdoutMetrics`), which pool into averages
+  across installations where medians cannot; the Holdout dashboard reads
+  them (`scripts/holdout-dashboard.mjs`). The share
   is `holdout` in `.thinker/config.json` (default 0.15; 0 or false: none),
   `THINKER_HOLDOUT` overrides it (`off`, `0`, or a share; `1` holds out
   every session, for tests). Benchmarks pin their arms and should set it off.

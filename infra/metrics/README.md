@@ -71,7 +71,7 @@ node scripts/metrics-dashboard.mjs login
 
 Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
 collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
-**PR delivery & review**, and **Waitlist** dashboards with saved SQL queries. Choose
+**PR delivery & review**, **Holdout: what the notes save**, and **Waitlist** dashboards with saved SQL queries. Choose
 **New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
 results, chart them, or export CSV. `start` prints the direct dashboard URLs.
 All dashboards have platform, version, device ID, and report-type filters.
@@ -346,6 +346,28 @@ when operating from an isolated worktree. Refresh adds the delivery dashboard an
 preserves the existing performance/diagnostics/waitlist layouts. Verification
 executes every saved query, validates filter mappings and checks read-only TLS.
 No test or demo payload is sent to production to populate the charts.
+
+## Holdout: what the notes save (holdout schema 1)
+
+Every client withholds notes from a share of sessions (15% by default) and records
+what each session cost from its own transcript. Updated clients include
+`raw_json.holdout`, a 30-day snapshot of that comparison independent of the outer
+`periodHours`: for sessions served notes and sessions held out, the session count,
+the sums of tool calls, model turns, input and output tokens, and how many sessions
+measured each; the same per model name; and the sessions on neither side (nothing to
+serve, or no transcript). No session, repository or prompt identity is uploaded, and
+a repository that opted out of telemetry is left out. The existing JSONB ingestion
+preserves the block; no Lambda or schema migration is needed. Clients without it
+remain unknown, not zero.
+
+The dashboard pools the latest snapshot per known device (installation fallback).
+Every average is the pooled sum / the pooled count of sessions that measured it,
+never an average of per-source averages. "Input tokens saved" is (average held-out −
+average served) × served sessions, and does not subtract the tokens spent building
+and maintaining the cache. Averages move with a few very long sessions, so read them
+beside the session counts; the per-source table shows where the sessions come from.
+The trend chart takes one snapshot per source per day, each covering the 30 days
+before it. Run `refresh` to add the dashboard to an existing setup, then `verify`.
 
 ## Website messages
 

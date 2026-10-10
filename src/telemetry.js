@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize } from './usage.js';
+import { summarize, readLog, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
@@ -155,6 +155,30 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   };
 }
 
+// The holdout comparison (usage.js:holdoutOf) over the last 30 days, as sums and session counts per
+// side, so that averages can be pooled across installations (a mean of sums over counts; medians
+// cannot be combined). Numbers and model names only. A repository that opted out of telemetry is
+// left out even when another repository triggers the upload.
+export const HOLDOUT_WINDOW_DAYS = 30;
+export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
+  const events = readLog(store, { all }).filter(e => e.t >= since);
+  const off = new Set(), seen = new Set();   // by origin: one opted-out checkout excludes its repository
+  for (const e of events) {
+    if (seen.has(e.repo)) continue;
+    seen.add(e.repo);
+    try { if ((e.repo === store.repo ? store : new Store(e.repo, { readonly: true })).config().telemetry === false) off.add(e.origin); } catch {}
+  }
+  const h = holdoutOf(events.filter(e => !off.has(e.origin)));
+  const side = t => ({ sessions: t.sessions, sums: t.sums, measured: t.measured });
+  const pair = g => ({ served: side(g.served), heldOut: side(g.heldOut) });
+  return {
+    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS,
+    ...pair(h), noNotes: h.noNotes, unmeasured: h.unmeasured,
+    byModel: Object.fromEntries(Object.entries(h.byModel).map(([m, g]) => [m, pair(g)])),
+  };
+}
+
 export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
   let version = 'unknown';
   try {
@@ -190,6 +214,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // 30-day outcome snapshots, regardless of the usage snapshot periodHours.
     delivery: deliveryMetrics(store, { all }),
+
+    // Sessions served notes against sessions held out, 30 days (holdoutMetrics).
+    holdout: holdoutMetrics(store, { all }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.
