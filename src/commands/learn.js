@@ -6,6 +6,7 @@ import { deferLearning, safeLearningAssessments } from '../learning-pending.js';
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { condense, parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
 import { provider } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
@@ -80,8 +81,9 @@ async function checkCommand(ctx) {
 
 async function minePrsCommand(ctx) {
   const { pos, flags, repo } = ctx;
-  // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again]
-  await mineMore(ctx, { slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
+  // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again],
+  // or --from <commit>: the --limit commits of git history that end at that commit
+  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
   return;
 }
 
@@ -229,11 +231,15 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
+export async function minePrs(ctx, slug, { from, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4 } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
-  const useGit = git || !slug || !hasBin('gh');
+  const useGit = git || !!from || !slug || !hasBin('gh');
+  if (from) {
+    try { execFileSync('git', ['rev-parse', '--verify', '--quiet', `${from}^{commit}`], { cwd: repo, stdio: 'ignore' }); }
+    catch { out(`❌ --from ${from}: not a commit in this repository`); process.exitCode = 1; return { tokens: 0, saved: 0 }; }
+  }
   const recSlug = slug || 'local';
   const scopeKey = directories ? projectRecordKey(recSlug, directories) : recSlug;
   const rec = minedPrs(store, scopeKey);
@@ -242,7 +248,8 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   const listFn = useGit ? (s, o) => listMergedCommits(repo, { ...o, directories }) : listMergedPrs;
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
-  const listed = before || after
+  const fresh = p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
+  const listed = from ? listMergedCommits(repo, { from, limit, directories }).filter(fresh) : before || after
     ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length) {
@@ -260,7 +267,9 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
   if (fixes) candidates = candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`));
   if (directories) out(`        ${scoped.length}/${listed.length} scanned changes touch project directories; later runs continue scanning older history.`);
-  const prs = pickPrs(candidates, limit);
+  // --from names its commits exactly: each one is distilled, with no filter and no ranking choosing among them
+  if (from) candidates = scoped;
+  const prs = from ? candidates : pickPrs(candidates, limit);
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });

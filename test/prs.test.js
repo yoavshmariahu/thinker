@@ -103,6 +103,20 @@ test('listMergedCommits extracts commits, merge titles, bodies, and numstats', (
   }
 });
 
+test('listMergedCommits from a commit lists exactly the commits that end there, none merged after it', () => {
+  const dir = createMockPrRepo();
+  try {
+    const all = listMergedCommits(dir);                     // newest first
+    const at = all[1].hash;                                 // one commit was merged after this one
+    const two = listMergedCommits(dir, { from: at, limit: 2 });
+    assert.deepEqual(two.map(c => c.hash), [all[1].hash, all[2].hash]);
+    assert.ok(!listMergedCommits(dir, { from: at, limit: 50 }).some(c => c.hash === all[0].hash));
+    assert.equal(listMergedCommits(dir, { from: at, limit: 50 }).length, all.length - 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('nextPrs with listMergedCommits handles git history and tracks mined commits in local store', () => {
   const dir = createMockPrRepo();
   const s = store();
