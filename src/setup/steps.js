@@ -90,7 +90,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
         }
       }
 
-      results.push({ client, status: 'connected', logs });
+      results.push({ client, status: 'connected', name: clientMeta[client]?.name || client, logs });
     } catch (e) {
       results.push({ client, status: 'error', detail: e.message });
     }

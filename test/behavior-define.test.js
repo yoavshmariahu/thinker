@@ -37,5 +37,6 @@ test('behavior prompt: ends by offering thinker review on an open pull request',
     assert.match(p, /thinker review --base origin\//);
     assert.match(p, /do not switch branches/);
     assert.match(p, /Post nothing to the pull request/);
+    assert.match(p, /End with a short summary[\s\S]*\*\*Restart your agent[\s\S]*Do not list optional next steps/);
   }
 });
