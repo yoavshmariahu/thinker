@@ -8,7 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
-import { listBehaviors, behaviorsSummary } from './behavior.js';
+import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
+import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, MORE_NOTES_INTRO } from './cache-guidance.js';
 
@@ -87,7 +88,7 @@ function registerTools() {
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
-      if (!rows.length) return text('No desired behaviors are written down for this repository yet (a person adds them with `thinker system add`).');
+      if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');
       return text(`Desired behaviors of the system (${rows.length}; the code must uphold each; a review checks changes against them):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
     if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
@@ -145,6 +146,38 @@ function registerTools() {
     if (r.error) return text(`Not saved: ${r.error}. Dropped deps: ${JSON.stringify(r.dropped)}`);
     const warn = r.dropped.length ? ` (dropped/downgraded deps: ${r.dropped.map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''} – ${d.reason}`).join('; ')})` : '';
     return text(`Saved note ${r.note.id} with ${r.note.deps.length} tracked dependencies${warn}.`);
+  });
+
+  // What the person asks their agent for is theirs: in force at once, as a behavior they wrote (the
+  // same functions as `thinker ui` and `thinker system add|edit|rm`). An agent's own idea goes
+  // through remember with kind behavior and waits for a person.
+  retrieval('behavior', {
+    title: 'Add, change or remove a system behavior',
+    description: 'Use only when the person asks you, in this conversation, to add, change or remove a desired behavior of the system: a rule every future change must keep, which thinker review checks changes against. What they ask for is in force at once, as theirs. Never call it on your own initiative: to suggest a rule yourself, use remember with kind behavior, which waits for their decision. To list or read the behaviors, use lookup with kind "behavior". add: title, body and deps (find the code that upholds the rule first; say so if none does). edit: id plus what changes (title, body, mutability). remove: id.',
+    inputSchema: {
+      action: z.enum(['add', 'edit', 'remove']),
+      id: z.string().optional().describe('For edit and remove: the behavior id, as lookup with kind "behavior" shows it.'),
+      title: z.string().optional().describe('The requirement as one sentence.'),
+      body: z.string().optional().describe('Two to five sentences: the rule and where the code upholds it, with path:Symbol pointers.'),
+      mutability: z.enum(['fixed', 'mutable']).optional().describe('fixed: review blocks a change that breaks it. mutable (the default): review warns.'),
+      answers: z.array(z.string()).optional().describe('For add: two or three ways someone would ask about it.'),
+      deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional() })).optional().describe('For add: the definitions that uphold the rule.'),
+    },
+  }, async ({ action, id, title, body, mutability, answers, deps }) => {
+    if (action === 'add') {
+      if (!title || !body || !deps?.length) return text('Not saved: add needs title, body and deps (the code that upholds the rule).');
+      const r = addBehavior(store, { title, body, answers: answers?.length ? answers : [title], deps }, { mutability });
+      if (r.error) return text(`Not saved: ${r.error}.${r.dropped?.length ? ` Dropped deps: ${JSON.stringify(r.dropped)}` : ''}`);
+      return text(`Saved behavior ${r.note.id} (${r.note.mutability}), in force now. The person can see and edit it in thinker ui.`);
+    }
+    if (!id) return text(`Not done: ${action} needs the behavior id (lookup with kind "behavior" lists them).`);
+    if (action === 'edit') {
+      if (!title && !body && !mutability) return text('Not done: edit needs a new title, body or mutability.');
+      const r = editBehavior(store, id, { title, body, mutability });
+      return text(r.error ? `Not done: ${r.error}.` : `Saved behavior ${r.note.id} (${r.note.mutability || 'mutable'}): ${r.note.title}`);
+    }
+    const r = removeBehavior(store, id);
+    return text(r.error ? `Not done: ${r.error}.` : `Removed behavior ${id}${r.title ? `: ${r.title}` : ''}.`);
   });
 
   retrieval('feedback', {

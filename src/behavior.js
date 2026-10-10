@@ -32,7 +32,7 @@ export function listBehaviors(store, { all = false } = {}) {
 }
 
 export function renderBehaviors(rows) {
-  if (!rows.length) return 'No desired behaviors yet. Write one with `thinker system add`, or promote a note that already states a rule: `thinker system propose`.';
+  if (!rows.length) return 'No desired behaviors yet. They come from the design documents checked in (`thinker system docs`); write one with `thinker system add`, or promote a note that already states a rule: `thinker system propose`.';
   const L = [];
   for (const r of rows) {
     const flags = [r.mutability, r.proposed ? 'proposed' : '', r.shared ? '' : 'local', r.revised ? `revised ${String(r.revised.at).slice(0, 10)} to match ${r.revised.commit}` : ''].filter(Boolean).join(', ');
@@ -40,6 +40,8 @@ export function renderBehaviors(rows) {
   }
   const broken = rows.filter(r => r.state === 'violated').length, unv = rows.filter(r => r.state === 'unverified').length;
   L.push(`${rows.length} desired behavior${rows.length === 1 ? '' : 's'}${broken ? `, ${broken} not upheld by the code` : ''}${unv ? `, ${unv} unverified (thinker verify)` : ''}${rows.some(r => r.proposed) ? `, ${rows.filter(r => r.proposed).length} proposed by agents (thinker system accept <id>)` : ''}`);
+  // the commands are named where an agent asked to change one looks first (the guidance has no line to spare)
+  L.push('Change them: thinker system add <file.json> | edit <id> --title "…" --body "…" [--fixed | --mutable] | rm <id>');
   return L.join('\n');
 }
 

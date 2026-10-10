@@ -42,14 +42,27 @@ async function drilldownCommand(ctx) {
 
 async function systemCommand(ctx) {
   const { pos, flags, repo, store, out, readStdin } = ctx;
-  // thinker system [add|promote|accept|propose|docs|md] …: the desired behaviors (behavior.js)
-  const sub = ['add', 'promote', 'accept', 'propose', 'md', 'docs'].includes(pos[0]) ? pos.shift() : 'list';
+  // thinker system [add|edit|rm|promote|accept|propose|docs|md] …: the desired behaviors (behavior.js)
+  const sub = ['add', 'edit', 'rm', 'promote', 'accept', 'propose', 'md', 'docs'].includes(pos[0]) ? pos.shift() : 'list';
   const mutability = flags.fixed ? 'fixed' : flags.mutable ? 'mutable' : undefined;
   if (sub === 'add') {
     const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
     const r = addBehavior(store, input, { mutability });
     if (r.error) { out('error: ' + r.error); process.exit(1); }
     out(`saved ${r.note.id} (${r.note.mutability})` + (r.dropped.length ? ` (dropped: ${JSON.stringify(r.dropped)})` : ''));
+  } else if (sub === 'edit') {
+    // new words (a JSON file or stdin with title and/or body, or --title/--body) and/or --fixed | --mutable
+    const { editBehavior } = await import('../behavior-workbench.js');
+    const id = pos.shift();
+    if (!id) { out('usage: thinker system edit <id> [file.json] [--title "…"] [--body "…"] [--fixed | --mutable]'); process.exit(1); }
+    const text = flags.title || flags.body ? {} : pos[0] ? JSON.parse(fs.readFileSync(pos[0], 'utf8')) : mutability ? {} : JSON.parse(readStdin());
+    const r = editBehavior(store, id, { title: flags.title === true ? undefined : flags.title || text.title, body: flags.body === true ? undefined : flags.body || text.body, mutability: mutability || text.mutability });
+    if (r.error) { out('error: ' + r.error); process.exit(1); }
+    out(`saved ${r.note.id} (${r.note.mutability || 'mutable'})  ${r.note.title}`);
+  } else if (sub === 'rm') {
+    const { removeBehavior } = await import('../behavior-workbench.js');
+    if (!pos.length) { out('usage: thinker system rm <id…>'); process.exit(1); }
+    for (const id of pos) { const r = removeBehavior(store, id); out(r.error ? `${id}: ${r.error}` : `${id}: removed`); if (r.error) process.exitCode = 1; }
   } else if (sub === 'promote' || sub === 'accept') {
     if (!pos.length) { out(`usage: thinker system ${sub} <id…> [--fixed | --mutable]`); process.exit(1); }
     for (const id of pos) {

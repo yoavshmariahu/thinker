@@ -20,6 +20,13 @@ without a further step; make one blocking, reword it or discard it in `thinker u
 The documents are the source: to add a behavior, state the rule in a README beside the
 code or in a design file. Nothing asks you how the system must behave.
 
+You can also add, change or remove a behavior by asking your coding agent ("add a system
+behavior: refunds are written to the ledger before the provider is called", "make that one
+blocking", "remove the behavior about retries"). The agent finds the code that upholds the
+rule and saves it with thinker's `behavior` tool, or with `thinker system add`, `edit`
+and `rm` where it has only the command line (`thinker system` names them). What you ask for is yours and in force at
+once; a rule the agent suggests on its own waits as a proposal until you accept it.
+
 Thinker follows the documents. Maintenance (after a commit or a prompt, at most every four
 hours) reads up to three new or changed documents per run; `thinker system docs` does it
 at once. When a document changes, a behavior whose quoted sentence is still there stands,
@@ -32,6 +39,9 @@ reading off.
 
 ```bash
 thinker system docs     # behaviors from the READMEs and design documents checked in
+thinker system add b.json [--fixed]            # write one (title, body, answers, deps)
+thinker system edit <id> --title "…" [--fixed] # change one
+thinker system rm <id>                         # remove one
 thinker ui              # usage, the cache, and the behaviors: accept, edit or discard the ones waiting
 ```
 

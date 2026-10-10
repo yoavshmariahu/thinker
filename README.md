@@ -27,7 +27,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 
 1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
 2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code.
-3. **It checks changes against your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code). `thinker review` flags a change that brings back a fixed bug or breaks one of them.
+3. **It checks changes against your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code), and you can add, change or remove one by asking your agent. `thinker review` flags a change that brings back a fixed bug or breaks one of them.
 4. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
