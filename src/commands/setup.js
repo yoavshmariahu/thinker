@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
+import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
@@ -76,22 +76,25 @@ async function rankerCommand(ctx) {
   if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
 }
 
+// thinker ast: whether the parser is loaded and from where. It comes with the dependencies; `install`
+// is kept for an install whose dependencies are missing (no npm at install time), and repairs it.
 async function astCommand(ctx) {
-  const { pos, flags, out } = ctx;
-  const dir = flags.dir || process.env.THINKER_AST_DIR || path.join(thinkerHome(), 'ast');
+  const { pos, out, HERE } = ctx;
   if (pos[0] === 'install') {
-    fs.mkdirSync(dir, { recursive: true });
-    if (!fs.existsSync(path.join(dir, 'package.json'))) fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'thinker-ast', private: true, description: 'tree-sitter parser and grammars for thinker' }, null, 2) + '\n');
-    out(`installing ${AST_PACKAGES.join(' and ')} into ${dir} (about 55 MB)…`);
-    const r = spawnSync('npm', ['install', '--no-audit', '--no-fund', '--silent', '--ignore-scripts', ...AST_PACKAGES], { cwd: dir, stdio: 'inherit' });
-    if (r.status !== 0) { out('npm install failed'); process.exit(1); }
-    const st = await initAst({ dir });
-    if (!st.available) { out(`installed, but the parser did not load: ${st.error || 'unknown error'}`); process.exit(1); }
+    let st = await initAst();
+    if (!st.available) {
+      const app = path.resolve(HERE, '..');
+      out(`installing thinker's dependencies in ${app} (the parser and its grammars are among them)…`);
+      const r = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--silent'], { cwd: app, stdio: 'inherit' });
+      if (r.status !== 0) { out('npm ci failed'); process.exit(1); }
+      st = await initAst();
+      if (!st.available) { out(`installed, but the parser did not load: ${st.error || 'unknown error'}`); process.exit(1); }
+    }
     out(`tree-sitter ready: ${st.grammars.join(', ')}. Symbol hashes are upgraded in place as notes are served; \`thinker rehash\` does them all now.`);
     return;
   }
   const st = await initAst();
-  out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
+  out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${process.env.THINKER_AST === 'off' ? ': THINKER_AST=off' : st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\nit comes with thinker's dependencies: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
   return;
 }
 

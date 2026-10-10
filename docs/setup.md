@@ -49,6 +49,13 @@ Notes:
   agents found on the machine (their own settings; `thinker uninstall --user`
   takes it out again), and builds a cache of notes from the repository's git
   history and merged pull requests.
+- **Code parsing.** A note is tied to the functions and classes it describes, and
+  goes stale when one of them changes. For Python, JavaScript, TypeScript, Go
+  and Rust thinker finds those definitions with a tree-sitter parser, which
+  comes with the install (about 50 MB) and needs no setup; `thinker ast` shows
+  whether it is loaded. Other languages, and code the parser cannot read, use
+  a text heuristic. What it works out is cached under `~/.thinker/cache`, so
+  the first run after an install or update is slower than the rest.
 - **Usage.** Building runs through roughly 700k to 900k tokens of your agent's
   usage with the defaults (60 merged pull requests) and takes about ten
   minutes. The estimate, in tokens and minutes, is printed before anything runs;

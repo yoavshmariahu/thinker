@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initAst, astStatus, astReady, astFindSymbol, definitions, grammarOf, resetAst } from '../src/ast.js';
+import { initAst, astStatus, astReady, astFindSymbol, definitions, grammarOf, resetAst, astDirs, AST_PACKAGES } from '../src/ast.js';
 import { findSymbol, locateSymbol, hashDep, checkNote, symbolBlock } from '../src/deps.js';
 import { setDiskCache } from '../src/disk-cache.js';
 import { Store } from '../src/store.js';
@@ -159,4 +159,13 @@ when('definitions are read back from disk by the text they came from', async t =
   assert.equal(definitions(text, 'x.js')[0].name, 'fromDisk');
   // another text is another entry
   assert.equal(definitions(text + '\n', 'x.js')[0].name, 'cachedOne');
+});
+
+test('the parser is a dependency at the versions that load each other, and thinker\'s own copy is preferred', () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(AST_PACKAGES.map(p => p.split('@')[0]).map(n => `${n}@${pkg.dependencies[n]}`), AST_PACKAGES, 'exact pins, in dependencies');
+  const dirs = astDirs();
+  const own = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const legacy = path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'ast');
+  assert.ok(dirs.indexOf(own) !== -1 && dirs.indexOf(own) < dirs.indexOf(legacy), 'own node_modules before the old optional install');
 });

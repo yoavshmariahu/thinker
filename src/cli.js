@@ -124,8 +124,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  one hop of callers and callees for a single pointer, and the notes on the code
   ranker [status|fetch]          the cross-encoder the hooks choose notes with: status says whether its runtime and
                                  model are in place; fetch downloads the model
-  ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
-                                 web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
+  ast [status|install]           symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust), on by default: it comes with
+                                 thinker's dependencies; install repairs an install that lacks them
   list [--stale] [--all] [--json]  list notes; JSON includes unreadable-note warnings
   show <id>                      print a note
   rm <id>

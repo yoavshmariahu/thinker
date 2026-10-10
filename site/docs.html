@@ -877,7 +877,7 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
           <li>Every serving re-hashes the dependencies of every note against your working tree, uncommitted edits included. A note whose code changed is marked stale and names exactly what changed.</li>
           <li>A stale note is <strong>never served by the hooks</strong>. It is held back, re-verified in the background, and served again once it is fresh. <code>orient</code> and <code>lookup</code> called by the agent still return it, under a <code>⚠ STALE</code> banner.</li>
           <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model, which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
-          <li><code>thinker ast install</code> adds tree-sitter grammars (Python, JavaScript, TypeScript, Go, Rust) for exact symbol boundaries; otherwise a regex heuristic finds the block.</li>
+          <li>The block is found by a tree-sitter parser for Python, JavaScript, TypeScript, Go and Rust, which comes with the install. Other languages, and code the parser cannot read, use a regex heuristic.</li>
         </ul>
         <h3>It maintains itself</h3>
         <p>
@@ -1245,7 +1245,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
               <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
               <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
-              <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and tree-sitter grammars for exact symbol boundaries</td></tr>
+              <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and whether the tree-sitter parser is loaded</td></tr>
               <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
               <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
             </tbody>
