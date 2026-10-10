@@ -326,6 +326,7 @@ test('runSetup completes compact setup flow in clean repo', async () => {
     assert.doesNotMatch(fullOutput, /Optional PR Change Benchmark/);
     assert.doesNotMatch(fullOutput, /PR change benchmark skipped/);
     assert.match(fullOutput, /Thinker is ready\./);
+    assert.match(fullOutput, /What was done[\s\S]*Restart your agent: start a new session in this repository/);
 
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
