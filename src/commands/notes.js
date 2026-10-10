@@ -6,6 +6,7 @@ import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
 import { listBehaviorProposals, acceptBehaviorProposal, generateBehaviorProposals } from '../behavior-proposals.js';
 import { annotateFanout } from '../codegraph.js';
+import { disabledTools, SWITCHABLE_TOOLS } from '../cache-guidance.js';
 import { formatTokens } from '../model-usage.js';
 import { orient, trackTurn, phraseBatches, phraseKey, lookup, drilldown, find, createNote, feedback, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
@@ -209,7 +210,27 @@ async function phraseCommand(ctx) {
   return;
 }
 
+// thinker tools [enable|disable <name…>]: which code tools this repository's server offers its agents.
+async function toolsCommand(ctx) {
+  const { pos, store, out } = ctx;
+  const [verb, ...names] = pos;
+  const off = disabledTools(store.config());
+  const show = () => out(SWITCHABLE_TOOLS.map(t => `${t}: ${off.has(t) ? 'off' : 'on'}`).join('\n'));
+  if (!verb) return show();
+  const bad = names.filter(n => !SWITCHABLE_TOOLS.includes(n));
+  if (!['enable', 'disable'].includes(verb) || !names.length || bad.length) {
+    out(`usage: thinker tools [enable|disable ${SWITCHABLE_TOOLS.join('|')} …]${bad.length ? `  (not a switchable tool: ${bad.join(', ')})` : ''}`);
+    process.exitCode = 1; return;
+  }
+  for (const n of names) verb === 'disable' ? off.add(n) : off.delete(n);
+  const file = path.join(store.dir, 'config.json');
+  fs.writeFileSync(file, JSON.stringify({ ...store.config(), disabledTools: SWITCHABLE_TOOLS.filter(t => off.has(t)) }, null, 2) + '\n');
+  show();
+  out('Agents see the change in their next session: the server reads it when it starts.');
+}
+
 export const commands = {
+  'tools': toolsCommand,
   'orient': orientCommand,
   'lookup': lookupCommand,
   'find': findCommand,

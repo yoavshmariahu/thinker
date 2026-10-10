@@ -11,7 +11,7 @@ import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KIND
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { initAst } from './ast.js';
-import { cacheInstructions, MORE_NOTES_INTRO } from './cache-guidance.js';
+import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every
@@ -31,7 +31,7 @@ if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when insta
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
-  instructions: cacheInstructions({ repo }),
+  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()) }),
 } : repo ? {
   instructions: `thinker is installed but not set up for this repository (${repo}): no notes are served or learned here. To use it, run \`thinker setup\` in the repository.`,
 } : {
@@ -45,17 +45,21 @@ const emptyCache = () => store.list().length ? '' : `The cache is empty: no note
 // When no note answers, the definitions whose code carries the words of the request, from `find`:
 // in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
 // instead), so a miss hands its first results over rather than naming the tool.
+// It is `find`'s output, so it goes with `find`: off unless the repository turned that tool on.
 const codeFallback = q => {
-  if (!String(q || '').trim()) return '';
+  const off = disabledTools(store.config());
+  if (!String(q || '').trim() || off.has('find')) return '';
   try {
     const r = find(store, { query: q, limit: 6, client: 'mcp-fallback' });
     if (r.error || !r.hits?.length) return '';
-    return `By text search instead (not notes; find takes the words the code would use, drilldown the pointers that fit):\n${r.text}\n\n`;
+    return `By text search instead (not notes; find takes the words the code would use${off.has('drilldown') ? '' : ', drilldown the pointers that fit'}):\n${r.text}\n\n`;
   } catch { return ''; }
 };
 
 function registerTools() {
-  const retrieval = server.registerTool.bind(server);
+  // a tool that is switched off is not offered at all: nothing can call it and fail
+  const off = disabledTools(store.config());
+  const retrieval = (name, ...rest) => off.has(name) ? undefined : server.registerTool(name, ...rest);
 
   retrieval('orient', {
     title: 'Orient in this repo',

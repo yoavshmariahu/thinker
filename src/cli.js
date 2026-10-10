@@ -117,6 +117,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  with this. A document is read once per content (--again: read all again); --dry
                                  lists the documents without a model call; --limit n documents per run (default 12)
   system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
+  tools [enable|disable find|drilldown …]
+                                 which code tools the server offers agents in this repository; both are off unless enabled,
+                                 and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
   drilldown <pointer…> [--budget n]
@@ -195,7 +198,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['ui', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
+const CACHE_COMMANDS = ['ui', 'tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands };
