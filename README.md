@@ -1,13 +1,5 @@
 # thinker — a knowledge cache for coding & review agents
 
-```text
-┌──────────────────────────┐   ┌──────────────────────────┐
-│           73%            │   │           18%            │
-│        fewer bugs        │   │  fewer tokens per task   │
-└──────────────────────────┘   └──────────────────────────┘
-     across 100 PR benchmark from 7 open source repos
-```
-
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
 Every merged fix leaves knowledge behind that the next change can quietly undo.
@@ -16,6 +8,14 @@ sessions, and keeps what it learns as short notes tied to the code they describe
 Coding agents get the notes that fit their task while they work. A review flags
 a change that brings back a fixed bug or breaks a rule your team wrote down,
 before it merges.
+
+<table align="center">
+  <tr>
+    <td align="center" width="280"><h2>73%</h2>fewer bugs</td>
+    <td align="center" width="280"><h2>18%</h2>fewer tokens per task</td>
+  </tr>
+</table>
+<p align="center">across 100 PR benchmark from 7 open source repos</p>
 
 Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 
