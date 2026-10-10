@@ -146,7 +146,7 @@ main() {
   # line; its output is kept and shown only if it fails. Off a terminal: the label, then the command.
   spin() {
     local label="$1"; shift
-    if [ "$fancy" != 1 ]; then say "  $label…"; "$@"; return; fi
+    if [ "$fancy" != 1 ]; then say "  ${label}…"; "$@"; return; fi
     local log; log="$(mktemp)"
     "$@" >"$log" 2>&1 &
     local pid=$! i=0 start=$SECONDS code=0
