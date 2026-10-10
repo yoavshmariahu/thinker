@@ -23,6 +23,9 @@ let repo = pinned ? findRepoRoot(pinned) : inRepo(process.cwd()) ? findRepoRoot(
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 const off = process.env.THINKER_MCP === 'off';
+// Learning off (THINKER_NO_LEARN=1): the agent's own learning tools, remember and feedback, are not offered,
+// so their schemas cost nothing; behavior stays, since it acts only on what the person asks for.
+const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // A repository where `thinker setup` has not run has no cache: the server offers no tools there and
 // creates nothing, so a machine-wide registration does not start a cache in every checkout.
 let store = off || !repo ? null : new Store(repo);
@@ -31,7 +34,7 @@ if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when insta
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
-  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()) }),
+  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
 } : repo ? {
   instructions: `thinker is installed but not set up for this repository (${repo}): no notes are served or learned here. To use it, run \`thinker setup\` in the repository.`,
 } : {
@@ -59,15 +62,16 @@ const codeFallback = q => {
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail
   const off = disabledTools(store.config());
+  if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
   const retrieval = (name, ...rest) => off.has(name) ? undefined : server.registerTool(name, ...rest);
 
   retrieval('orient', {
     title: 'Orient in this repo',
-    description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers (each with its blast radius) and the code behind the main pointers, so the files need not be read for that. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
+    description: 'Notes with file:symbol pointers for a task, and the code behind the main ones. Call once at the start unless a thinker-cache bundle for this request is already present; again only for a distinct part it missed. Confirm a STALE claim against the code.',
     inputSchema: {
-      task: z.string().optional().default('').describe('What you are about to do, in one or two sentences (the user request is fine).'),
-      file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
-      budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000); the code behind the pointers may add up to about 600.'),
+      task: z.string().optional().default('').describe('What you are about to do; the user request is fine'),
+      file: z.string().optional().describe('The file you are in or about to edit, if known'),
+      budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes (default 1000)'),
     },
   }, async ({ task = '', file, budget }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
@@ -81,12 +85,12 @@ function registerTools() {
 
   retrieval('lookup', {
     title: 'Look up cached knowledge',
-    description: 'Use for one specific unanswered question, or a listed note id that directly covers it. Do not fetch every title returned by orient. If no note answers the question, search the code. With kind "behavior" it returns the desired behaviors of the system (rules a person wrote that the code must uphold; a review checks changes against them): all of them with an empty query, or the ones about the query.',
+    description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system a review checks changes against; all of them with an empty query.',
     inputSchema: {
-      query: z.string().describe('The question or topic, or a note id listed by orient. Empty with kind "behavior" lists every desired behavior.'),
-      kind: z.enum(KINDS).optional().describe('Only notes of this kind; "behavior" for the desired behaviors of the system.'),
+      query: z.string().describe('Question, topic, or a note id; empty with kind behavior lists all'),
+      kind: z.enum(KINDS).optional().describe('Only this kind'),
       budget: z.number().int().min(200).max(8000).optional(),
-      maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
+      maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
@@ -133,17 +137,17 @@ function registerTools() {
   // in AGENTS.md and the README.
   retrieval('remember', {
     title: 'Save a reusable note',
-    description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: rule (what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and why), map (where something is handled, a call path, a module map), howto, behavior. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,
+    description: 'Save what you had to work out and a future agent would re-derive: where something happens, a call path, what changes together, how to build/test/run, a convention, a gotcha, or why something is the way it is. Not a summary of a file. Name files and symbols, and list the files/symbols it depends on: the note goes stale when they change. Kinds: rule (an invariant, convention, trap, fix not to undo, or reason), map (where, call path, module map), howto, behavior (a desired behavior of the system; from an agent, a proposal until a person accepts it).',
     inputSchema: {
-      title: z.string().describe('Short, specific title, e.g. "How a CLI option value reaches the callback"'),
+      title: z.string().describe('Short, specific title'),
       kind: z.enum(KINDS),
-      mutability: z.enum(['fixed', 'mutable']).optional().describe('For kind behavior: fixed (never revised) or mutable (revised only by a change that edits the note; the default).'),
-      answers: z.array(z.string()).describe('Question forms this note answers, used for retrieval, e.g. ["where is option parsing", "how does type conversion happen for params"]'),
-      body: z.string().describe('The note, 3-12 lines of markdown. Use file:symbol pointers. Include the non-obvious parts, not the obvious ones.'),
-      applies: z.string().optional().describe('When this applies and when it does not (for gotchas, conventions, rationale).'),
+      mutability: z.enum(['fixed', 'mutable']).optional().describe('kind behavior: fixed, or mutable (default)'),
+      answers: z.array(z.string()).describe('Questions this note answers, for retrieval'),
+      body: z.string().describe('3-12 lines with file:symbol pointers; the non-obvious parts'),
+      applies: z.string().optional().describe('When it applies and when not'),
       deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional().describe('function/class name inside the file, if the note depends on that symbol specifically') })).min(1),
       tags: z.array(z.string()).optional(),
-      confidence: z.number().min(0).max(1).optional().describe('How sure you are (default 0.7). Use >=0.9 only if you verified by reading the code, not inferring.'),
+      confidence: z.number().min(0).max(1).optional().describe('Default 0.7; >=0.9 only when read in the code'),
     },
   }, async (input) => {
     const r = createNote(store, input, { source: { type: 'agent', ref: process.env.THINKER_SESSION || 'mcp' } });
@@ -157,14 +161,14 @@ function registerTools() {
   // through remember with kind behavior and waits for a person.
   retrieval('behavior', {
     title: 'Add, change or remove a system behavior',
-    description: 'Use only when the person asks you, in this conversation, to add, change or remove a desired behavior of the system: a rule every future change must keep, which thinker review checks changes against. What they ask for is in force at once, as theirs. Never call it on your own initiative: to suggest a rule yourself, use remember with kind behavior, which waits for their decision. To list or read the behaviors, use lookup with kind "behavior". add: title, body and deps (find the code that upholds the rule first; say so if none does). edit: id plus what changes (title, body, mutability). remove: id.',
+    description: 'Only when the person asks you, in this conversation, to add, change or remove a desired behavior of the system: a rule every change must keep, which review checks changes against. It is in force at once, as theirs. Never call it on your own initiative: suggest a rule with remember, kind behavior. add: title, body, deps. edit: id and what changes. remove: id.',
     inputSchema: {
       action: z.enum(['add', 'edit', 'remove']),
-      id: z.string().optional().describe('For edit and remove: the behavior id, as lookup with kind "behavior" shows it.'),
+      id: z.string().optional().describe('edit/remove: the behavior id'),
       title: z.string().optional().describe('The requirement as one sentence.'),
-      body: z.string().optional().describe('Two to five sentences: the rule and where the code upholds it, with path:Symbol pointers.'),
-      mutability: z.enum(['fixed', 'mutable']).optional().describe('fixed: review blocks a change that breaks it. mutable (the default): review warns.'),
-      answers: z.array(z.string()).optional().describe('For add: two or three ways someone would ask about it.'),
+      body: z.string().optional().describe('The rule and where the code upholds it, with path:Symbol pointers'),
+      mutability: z.enum(['fixed', 'mutable']).optional().describe('fixed: review blocks a breaking change; mutable (default): warns'),
+      answers: z.array(z.string()).optional().describe('add: ways someone would ask about it'),
       deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional() })).optional().describe('For add: the definitions that uphold the rule.'),
     },
   }, async ({ action, id, title, body, mutability, answers, deps }) => {
@@ -186,11 +190,11 @@ function registerTools() {
 
   retrieval('feedback', {
     title: 'Report whether a note was right',
-    description: 'After using a cached note, report whether it was accurate. If it was wrong or outdated, give the corrected body so the cache improves. Wrong notes lose confidence and are eventually retired.',
+    description: 'After using a note: was it right? A wrong or outdated note gets the corrected body; wrong notes lose confidence and retire.',
     inputSchema: {
-      id: z.string().describe('Note id as shown in the orient/lookup output'),
+      id: z.string().describe('Note id from orient or lookup'),
       useful: z.boolean(),
-      correction: z.string().optional().describe('Corrected note body, if the note was wrong'),
+      correction: z.string().optional().describe('The corrected body, if wrong'),
     },
   }, async (input) => {
     const r = feedback(store, input);
