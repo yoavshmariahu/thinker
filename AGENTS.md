@@ -182,7 +182,7 @@ options they were set up with (`clients.js:connectFromCheckouts`).
 `thinker setup` connects the agents (above), adds the repository's own pieces
 (git hooks, Cursor's always-applied rule, Codex's trust in the project,
 `.thinker/`), and then asks whether to build
-the cache from the code and the merged pull requests, since that is the only
+the cache from the merged pull requests, since that is the only
 step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
 to no; `--build` answers yes without asking (so does `--yes`, or naming
 `--areas`/`--prs`/`--pr`), `--no-build` answers no and leaves a repository that
@@ -194,9 +194,17 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
 
 1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
-2. runs one exploration session per adaptively sized source area and distills it
-   (`--areas n` is an optional cap, with omitted areas reported; no default cap);
-3. links the notes; the agents (`--clients claude,codex,cursor,gemini`, `all`,
+2. only when `--areas n` asks for it, runs one exploration session per adaptively
+   sized source area and distills it (n caps the sessions, omitted areas are
+   reported). A build without `--areas` does not explore, and its output says so
+   once ("merged pull requests only") and shows no exploration stage, skipped or
+   otherwise: a "skipped" line read as a failed step to the agents running setup;
+3. links the notes, writes search phrasings (eight notes per call,
+   `ops.js:phraseBatches`) and drafts behaviors (four source notes per call,
+   `behavior-proposals.js:generateBehaviorProposals`). Both are batched because
+   `claude -p` exits 1 when an answer reaches its output cap, and a failed batch
+   costs its own notes only; the retries are `thinker phrase` and
+   `thinker system propose --refresh`, never a second build. The agents (`--clients claude,codex,cursor,gemini`, `all`,
    or `auto`, the default) were connected in step 1.
 
 Steps 1 and 2 run through an installed agent with its own login (`--agent`

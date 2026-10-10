@@ -4,7 +4,7 @@ import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
-import { linkNotes, phraseNotes } from '../ops.js';
+import { linkNotes, phraseBatches } from '../ops.js';
 import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser } from '../clients.js';
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
@@ -136,14 +136,16 @@ export function ignoreLocalState(dir) {
   if (missing.length) fs.writeFileSync(gi, ignored + (ignored && !ignored.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
 }
 
+// Lines only for a build that was asked to explore (--areas)
 function printExplorationPlan(estimates, out) {
-  if (estimates.canSeed) out(`    • Exploration: ${estimates.candidateAreasCount} sessions sized to the selected source code`);
+  if (!estimates.canSeed) return;
+  out(`    • Exploration: ${estimates.candidateAreasCount} sessions sized to the selected source code`);
   if (estimates.omittedAreas?.length) out(`    • Area cap leaves ${estimates.omittedAreas.length} areas unexplored: ${estimates.omittedAreas.join(', ')}`);
 }
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, directories = null, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals }) {
+export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, directories = null, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn, proposeFn = generateBehaviorProposals, phraseFn = phraseBatches }) {
   let warnings = 0;
   // with neither pull requests nor exploration there is nothing to estimate: what is left
   // (linking) is free and local, and the notes come from the sessions to come
@@ -159,7 +161,9 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
     printExplorationPlan(estimates, out);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
-    out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
+    // a build reads merged changes; the code is explored only when --areas asked for it, and is not mentioned otherwise
+    out(`    • ${c.bold('Source:')}             ${c.dim(estimates.canSeed ? 'merged pull requests, and agent sessions exploring the code (--areas)' : 'merged pull requests only; the code itself is not explored')}`);
+    out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}${estimates.canSeed ? `, explore ${estimates.timing.breakdown.exploration}` : ''})`)}`);
     if (estimates.tokenEstimate > 0) {
       out(`    • ${c.bold('Agent usage:')}       ${c.dim(`~${formatTokens(estimates.tokenEstimate)} tokens through your ${agent || provider()} login`)}`);
     }
@@ -168,19 +172,23 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
     out(`      ${c.dim('It keeps growing as you work, from your sessions and a few merged PRs per background run;')}`);
     out(`      ${c.dim('thinker mine-prs continues the mining where it stopped.')}`);
   } else {
-    out(`  ${c.bold('Not reading the code or the pull requests now.')} ${c.dim('thinker setup --build does that.')}`);
+    out(`  ${c.bold('Not reading the pull requests now.')} ${c.dim('thinker setup --build does that.')}`);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
   }
   out('');
+
+  // Exploration is a stage only when asked for (--areas): a build without it has two stages and says nothing of it
+  const exploring = Boolean(estimates.canSeed && seedFn);
+  const stages = exploring ? 3 : 2;
 
   // Stage 1: Merged PR mining
   const slug = githubSlug(repo);
   let minedPrCount = 0;
   if (estimates.canMine && minePrsFn) {
     if (estimates.mineSource === 'github') {
-      out(`  ${c.bold(`[1/3] Mining merged PRs from ${slug}...`)}`);
+      out(`  ${c.bold(`[1/${stages}] Mining merged PRs from ${slug}...`)}`);
     } else {
-      out(`  ${c.bold(`[1/3] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
+      out(`  ${c.bold(`[1/${stages}] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
     }
     try {
       const res = await minePrsFn(slug, { limit: prs, model, repo, directories });
@@ -198,12 +206,12 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
       ? 'not building the cache now'
       : noPrs ? '--no-prs requested'
       : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
-    out(`  ${c.dim(`[1/3] Merged PR mining · Skipped (${reason})`)}`);
+    out(`  ${c.dim(`[1/${stages}] Merged PR mining · Skipped (${reason})`)}`);
   }
 
-  // Stage 3: Subsystem area exploration
+  // Subsystem area exploration, when asked for
   let seedCount = 0;
-  if (estimates.canSeed && seedFn) {
+  if (exploring) {
     out(`  ${c.bold(`[2/3] Exploring architectural subsystems with ${agent}...`)}`);
     try {
       const res = await seedFn({ areas, model, agent, directories });
@@ -220,24 +228,24 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
       warnings++;
       out(`        ${c.yellow('⚠')} Exploration stopped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker seed`);
     }
-  } else {
-    const reason = !building
-      ? 'not building the cache now'
-      : noSeed ? 'off unless --areas n; thinker seed runs it any time'
-      : (!agent ? 'no authenticated agent available' : 'run `thinker seed` any time');
-    out(`  ${c.dim(`[2/3] Subsystem exploration · Skipped (${reason})`)}`);
+  } else if (!noSeed) {
+    // asked for and not possible: say so; never a line when it was not asked for
+    out(`  ${c.dim(`      Code exploration (--areas) · Skipped (${!agent ? 'no authenticated agent available' : 'no source areas found'})`)}`);
   }
 
-  // Stage 4: Cross-note linking and phrasings
-  out(`  ${c.bold('[3/3] Linking cross-note dependencies and search phrasings...')}`);
+  // Last stage: cross-note linking, phrasings and behavior drafts
+  out(`  ${c.bold(`[${stages}/${stages}] Linking notes, search phrasings and behavior drafts...`)}`);
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   out(`        ${c.green('✔')} Linked ${notes.length} notes across symbol dependencies`);
 
   if (notes.length && !noPhrase && provider()) {
     try {
-      const res = await withSpinner(out, `Generating search phrasings for ${notes.length} notes`, () => phraseNotes(store, notes, { model, phase: 'init' }), { indent: '        ' });
-      out(`        ${c.green('✔')} Search phrasings generated for ${res.done.length}/${notes.length} notes`);
+      const res = await withSpinner(out, `Generating search phrasings for ${notes.length} notes`, () => phraseFn(store, notes, { model, phase: 'init' }), { indent: '        ' });
+      if (res.failed) {
+        warnings++;
+        out(`        ${c.yellow('⚠')} Search phrasings generated for ${res.done.length}/${notes.length} notes (${oneLine(cleanErrorMessage(res.lastError)).slice(0, 120)}). Retry the rest: thinker phrase`);
+      } else out(`        ${c.green('✔')} Search phrasings generated for ${res.done.length}/${notes.length} notes`);
     } catch (e) {
       warnings++;
       out(`        ${c.yellow('⚠')} Search phrasings failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker phrase`);
@@ -246,10 +254,14 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
 
   try {
     const result = await withSpinner(out, 'Drafting desired behaviors from the strongest rules', () => proposeFn(store, { model }), { indent: '        ' });
-    out(`        ${c.green('✔')} ${result.proposals.length} behavior drafts from ${result.sources} source notes; inspect with thinker system propose`);
+    if (result.failed) {
+      warnings++;
+      out(`        ${c.yellow('⚠')} ${result.proposals.length} behavior drafts; ${result.failed} of ${result.sources} source notes not read (${oneLine(cleanErrorMessage(result.lastError)).slice(0, 120)}). Retry: thinker system propose --refresh`);
+    } else out(`        ${c.green('✔')} ${result.proposals.length} behavior drafts from ${result.sources} source notes; inspect with thinker system propose`);
   } catch (e) {
+    // the retry is this step alone: thinker setup --build would mine the pull requests again
     warnings++;
-    out(`        ${c.yellow('⚠')} Behavior proposals failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry with thinker setup --build`);
+    out(`        ${c.yellow('⚠')} Behavior drafts failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system propose --refresh`);
   }
 
   // Final cache stats
@@ -265,7 +277,7 @@ export async function stepBuildCache({ repo, store, estimates, areas, prs = 60, 
 }
 
 // The one question in `thinker setup` that spends the agent's usage: whether to read the repository's
-// merged pull requests and explore its code now. Everything else setup does is free, and
+// merged pull requests now (and explore its code, only when --areas asked for that). Everything else setup does is free, and
 // declining leaves a working install whose cache grows from the user's own sessions.
 // Asked before the agent login flow, so nobody logs in for a step they did not want.
 // Returns 'full', 'shallow' (30% of the full build, its most valuable part) or false.
@@ -273,8 +285,10 @@ export async function confirmCacheBuild({ estimates, shallow = null, agent, out 
   const cost = e => `${e.timing.formatted}${e.tokenEstimate > 0 ? `, ~${formatTokens(e.tokenEstimate)} tokens` : ''}`;
   const usage = estimates.tokenEstimate > 0 ? `, about ${c.cyan(`${formatTokens(estimates.tokenEstimate)} tokens`)} of your ${agent || 'agent'} usage` : '';
   out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional')}`);
-  out(`    • Full: mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
-  if (shallow) out(`    • Shallow: the most valuable 30% of that (largest, most-changed areas; newest pull requests): ${c.cyan(cost(shallow))}`);
+  const explores = estimates.canSeed;
+  out(`    • Full: reads merged pull requests${explores ? ' and explores the code' : ''} with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
+  if (shallow) out(`    • Shallow: the most valuable 30% of that (${explores ? 'largest, most-changed areas; ' : ''}newest pull requests): ${c.cyan(cost(shallow))}`);
+  if (!explores) out(`    • ${c.dim('Either way the notes come from pull requests; the code itself is not explored.')}`);
   printExplorationPlan(estimates, out);
   out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
   out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);

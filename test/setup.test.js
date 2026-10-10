@@ -108,6 +108,51 @@ test('behavior proposal stage runs on every cache build', async () => {
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
+test('a build that was not asked to explore says so once and lists no exploration stage', async () => {
+  const repo = createMockGitRepo();
+  try {
+    const store = new Store(repo).init(), lines = [];
+    const estimates = estimateCacheBuild(repo, { prs: 2, noSeed: true, agent: 'codex' });
+    estimates.canMine = true;
+    await stepBuildCache({ repo, store, estimates, noSeed: true, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }),
+      seedFn: async () => { throw new Error('must not explore'); },
+      proposeFn: async () => ({ proposals: [], sources: 0 }) });
+    const text = lines.join('\n');
+    assert.match(text, /merged pull requests only; the code itself is not explored/);
+    assert.match(text, /\[1\/2\]/);
+    assert.match(text, /\[2\/2\]/);
+    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore skipped|\/3\]/);
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('a failed last stage names the command that retries that stage alone', async () => {
+  const repo = createMockGitRepo();
+  try {
+    const store = new Store(repo).init(), lines = [];
+    store.put({ id: 'n1', title: 'A note', kind: 'rule', body: 'Body of the note.', deps: [], status: 'fresh' });
+    const estimates = estimateCacheBuild(repo, { prs: 2, noSeed: true, agent: 'codex' });
+    estimates.canMine = true;
+    const options = { repo, store, estimates, noSeed: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+      minePrsFn: async () => ({ saved: 1, processed: 2, failed: 0 }) };
+    // a provider is named so the phrasing step runs on a machine with no agent CLI; phraseFn never calls it
+    const before = process.env.THINKER_LLM; process.env.THINKER_LLM = 'command';
+    const r = await stepBuildCache({ ...options,
+      phraseFn: async (s, notes) => ({ done: [], tokens: 0, failed: notes.length, lastError: new Error('claude -p exited 1') }),
+      proposeFn: async () => { throw new Error('claude -p exited 1'); } })
+      .finally(() => { if (before === undefined) delete process.env.THINKER_LLM; else process.env.THINKER_LLM = before; });
+    const text = lines.join('\n');
+    assert.equal(r.warnings, 2);
+    assert.match(text, /Retry the rest: thinker phrase/);
+    assert.match(text, /Retry this step alone: thinker system propose --refresh/);
+    assert.doesNotMatch(text, /Retry with thinker setup --build/);
+    lines.length = 0;
+    await stepBuildCache({ ...options, noPhrase: true,
+      proposeFn: async () => ({ proposals: [{ id: 'p' }], sources: 8, failed: 4, lastError: new Error('over the cap') }) });
+    assert.match(lines.join('\n'), /1 behavior drafts; 4 of 8 source notes not read \(over the cap\)\. Retry: thinker system propose --refresh/);
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
 test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   const colored = c.bold(c.cyan('hello world'));
   assert.equal(stripAnsi(colored), 'hello world');
@@ -370,7 +415,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     });
 
     const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /\[1\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
+    assert.match(fullOutput, /\[1\/2\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
     assert.match(fullOutput, /Mined git history changes → 3 notes created/);
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);

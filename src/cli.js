@@ -53,10 +53,10 @@ const HELP = `thinker — knowledge cache for coding agents
         [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--behaviors | --no-behaviors] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
-                                 knowledge cache from merged pull requests with pre-flight estimates (--areas n also has your agent explore the code), and
+                                 knowledge cache from merged pull requests with pre-flight estimates (a build does not explore the code; --areas n adds that), and
                                  an optional PR change benchmark. --build opts into building; --yes also skips the scope menu. --no-build only wires
                                  things up and lets the cache grow from your sessions; --depth shallow builds 30% of the full
-                                 build (the largest, most-changed areas and the newest pull requests); a build also drafts
+                                 build (the newest pull requests); a build also drafts
                                  system behaviors for human review; --verbose adds per-item details; the first setup of a
                                  repository opens the local page (thinker ui) in the browser, --no-ui leaves it closed
   project [show]                show the saved thinker.project.json cache build selection
@@ -105,7 +105,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  make a note that states a rule (invariant, convention, gotcha) a desired behavior
   system accept <id…> [--fixed | --mutable]
                                  accept a behavior an agent proposed (remember with kind behavior)
-  system propose                 review behavior drafts and rule notes that could be promoted
+  system propose [--refresh]     review behavior drafts and rule notes that could be promoted; --refresh drafts them again
   system define [--no-copy]      print (and copy) a prompt for your coding agent: it interviews you about how each
                                  part of the system must behave and saves only the behaviors you approve; where the
                                  repository is not set up or built, the prompt has the agent set it up and build the

@@ -84,9 +84,10 @@ The project file is small and editable:
 
 Paths are relative to the repository root. `setup`, `seed`, and `mine-prs` use
 this file automatically; `--project other.project.json` selects another file,
-and `--full-repo` uses the whole repository for one run. Setup builds from
-merged changes only; agent exploration of the code is off unless you ask for it
-with `--areas N` (or run `thinker seed`). Exploration adapts to source size and
+and `--full-repo` uses the whole repository for one run. A build reads
+merged changes only and does not explore the code: its output lists two stages
+(mining, then linking, phrasings and behavior drafts) and no exploration stage.
+Exploration is a separate, costly opt-in (`--areas N`, or `thinker seed`). When asked for, it adapts to source size and
 directory structure: small related files share a session, and large directories
 split into groups with explicit file lists. `--areas N` caps sessions and reports
 the areas left unexplored. Preview the groups with `thinker seed --dry`.

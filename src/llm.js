@@ -550,6 +550,15 @@ async function viaCli(opts) {
 
 const CLI_SYSTEM = 'Answer the request directly. No tools are available.';
 
+// claude -p exits 1 with nothing on stderr when the answer (its thinking included) reaches the output
+// cap: its JSON still carries the counters, so the error can name the cause. '' when that is not it.
+export function overCap(stdout, maxTokens) {
+  try {
+    const last = (JSON.parse(stdout).usage?.iterations || []).at(-1);
+    return maxTokens && last?.output_tokens >= maxTokens ? `the answer ran past the ${maxTokens}-token output cap (ask for less in one call)` : '';
+  } catch { return ''; }
+}
+
 async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTokens, structuredRetries, timeoutMs, cache = true, onUsage }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
@@ -568,7 +577,7 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
       const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('claude -p timed out')); }, timeoutMs);
       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
       p.on('error', reject);
-      p.on('close', code => { clearTimeout(timer); code === 0 ? resolve(o) : reject(new Error(`claude -p exited ${code}: ${e.slice(0, 500)} ${o.slice(0, 500)}`)); });
+      p.on('close', code => { clearTimeout(timer); code === 0 ? resolve(o) : reject(new Error(`claude -p exited ${code}: ${overCap(o, maxTokens) || `${e.slice(0, 500)} ${o.slice(0, 500)}`}`)); });
       p.stdin.end(prompt);
     });
     const j = JSON.parse(stdout);

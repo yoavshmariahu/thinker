@@ -176,9 +176,11 @@ mine-prs` writes them from merged pull requests; a repository whose work lands
 by direct commits has few of those, and `thinker mine-prs --git --fixes` mines
 the commits whose message says they fix something instead.
 
-`thinker setup --build` also drafts desired behaviors. After PR mining and
-exploration, one bounded model call turns up to twelve fresh PR or document
-rule notes into candidate requirements.
+`thinker setup --build` also drafts desired behaviors. After PR mining, a few
+bounded model calls (four source notes each) turn up to twelve fresh PR or
+document rule notes into candidate requirements. `thinker system propose
+--refresh` runs this step alone: the retry when it failed during a build, with
+no pull request mined again.
 `thinker system propose` shows each draft's wording, source, code anchors and
 reason; `thinker system accept <proposal-id>` makes a selected draft a mutable
 behavior (`--fixed` is available for a deliberately permanent rule). Drafts

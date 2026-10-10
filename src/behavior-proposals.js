@@ -30,8 +30,12 @@ function candidates(store, limit) {
       (b.confidence || 0) - (a.confidence || 0) || a.id.localeCompare(b.id)).slice(0, limit);
 }
 
-// One bounded model call after mining and exploration. The source note and current definitions are
+// A few bounded model calls after mining, PER_CALL source notes each: twelve notes with their code in
+// one call could ask for more output than the call may write, which fails the whole stage (the
+// agent CLI exits 1 past its cap). A call that fails costs its own notes only; all of them failing throws.
+// The source note and current definitions are
 // evidence, but the model may return no proposal where they do not establish an enduring rule.
+const PER_CALL = 4;
 export async function generateBehaviorProposals(store, { model, limit = 12, completeFn = complete } = {}) {
   const notes = candidates(store, limit);
   if (!notes.length) {
@@ -40,17 +44,25 @@ export async function generateBehaviorProposals(store, { model, limit = 12, comp
     return { proposals: [], sources: 0, skipped: 0 };
   }
   const existing = store.list().filter(n => n.kind === 'behavior').map(n => n.title).slice(0, 30);
-  const prompt = `EXISTING BEHAVIORS (do not duplicate): ${existing.join('; ') || '(none)'}\n\n` + notes.map(n => {
+  const promptFor = batch => `EXISTING BEHAVIORS (do not duplicate): ${existing.join('; ') || '(none)'}\n\n` + batch.map(n => {
     const code = n.deps.filter(d => d.symbol).slice(0, 2).map(d =>
       `${d.path}:${d.symbol}\n${String(symbolText(store.repo, d, 35) || '(unavailable)').slice(0, 3500)}`).join('\n\n');
     return `SOURCE ID: ${n.id}\nSOURCE: ${n.source?.ref || n.source?.type}\nTITLE: ${n.title}\nNOTE:\n${n.body}\nCODE:\n${code}`;
   }).join('\n\n---\n\n');
   const system = `Draft at most one desired system behavior per source note. A behavior says what future changes must preserve, in product terms, and names the code definitions enforcing it. Use only claims supported by the source note and code shown. Return none for a local convention, implementation detail, ambiguous claim, or a fix whose intended behavior cannot be stated independently. Do not treat current code alone as proof of intent. Keep each body 2-5 sentences with path:Symbol pointers. Each dep must be one of the source note's symbol deps. State why the PR or document supports the requirement in reason. Do not claim a test exists unless the source explicitly names it. All candidates are drafts for human review, never automatically active requirements.`;
-  const r = await completeFn({ system, prompt, model, schema: SCHEMA, maxTokens: 4500,
-    accounting: { store, purpose: 'behavior-proposals', phase: 'init' } });
+  const drafted = []; let failed = 0, lastError = null;
+  for (let i = 0; i < notes.length; i += PER_CALL) {
+    const batch = notes.slice(i, i + PER_CALL);
+    try {
+      const r = await completeFn({ system, prompt: promptFor(batch), model, schema: SCHEMA, maxTokens: 4500,
+        accounting: { store, purpose: 'behavior-proposals', phase: 'init' } });
+      drafted.push(...(r.json?.proposals || []));
+    } catch (e) { failed += batch.length; lastError = e; }
+  }
+  if (failed === notes.length) throw lastError;
   const byId = new Map(notes.map(n => [n.id, n]));
   const proposals = [], seen = new Set();
-  for (const raw of r.json?.proposals || []) {
+  for (const raw of drafted) {
     const source = byId.get(raw.sourceId);
     if (!source || seen.has(source.id) || !raw.title?.trim() || !raw.body?.trim() || !raw.reason?.trim()) continue;
     const allowed = new Set(source.deps.filter(d => d.symbol).map(d => `${d.path}|${d.symbol}`));
@@ -67,7 +79,7 @@ export async function generateBehaviorProposals(store, { model, limit = 12, comp
   }
   fs.mkdirSync(store.localDir, { recursive: true });
   fs.writeFileSync(fileOf(store), JSON.stringify({ generatedAt: new Date().toISOString(), proposals }, null, 2) + '\n');
-  return { proposals, sources: notes.length, skipped: (r.json?.proposals || []).length - proposals.length };
+  return { proposals, sources: notes.length, skipped: drafted.length - proposals.length, failed, lastError };
 }
 
 // `edit`: the person's own title and body. A draft accepted as written must still stand on its source
@@ -85,12 +97,12 @@ export function acceptBehaviorProposal(store, id, { fixed = false, edit = null }
     return r;
   }
   const source = store.get(p.sourceId);
-  if (!source) return { error: 'source note is missing; regenerate proposals' };
-  if (sourceHash(source) !== p.sourceHash || checkNote(store.repo, source).changed.length) return { error: 'source note or code changed; regenerate proposals' };
+  if (!source) return { error: 'source note is missing; draft them again with thinker system propose --refresh' };
+  if (sourceHash(source) !== p.sourceHash || checkNote(store.repo, source).changed.length) return { error: 'source note or code changed; draft them again with thinker system propose --refresh' };
   const allowed = new Set((source.deps || []).filter(d => d.symbol).map(d => `${d.path}|${d.symbol}`));
   if (!p.deps?.length || p.deps.some(d => !allowed.has(`${d.path}|${d.symbol}`)) ||
-    !p.deps.some(d => p.body.includes(`${d.path}:${d.symbol}`))) return { error: 'source anchors changed; regenerate proposals' };
-  if (extractDeps(store.repo, p.body, p.deps).some(d => !allowed.has(`${d.path}|${d.symbol || ''}`))) return { error: 'proposal cites code outside its source; regenerate proposals' };
+    !p.deps.some(d => p.body.includes(`${d.path}:${d.symbol}`))) return { error: 'source anchors changed; draft them again with thinker system propose --refresh' };
+  if (extractDeps(store.repo, p.body, p.deps).some(d => !allowed.has(`${d.path}|${d.symbol || ''}`))) return { error: 'proposal cites code outside its source; draft them again with thinker system propose --refresh' };
   const r = addBehavior(store, { title: p.title, body: p.body, answers: p.answers, deps: p.deps },
     { mutability: fixed ? 'fixed' : 'mutable', source: { type: 'human', proposedFrom: p.sourceId, evidence: p.source } });
   if (r.error) return r;
