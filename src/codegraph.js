@@ -51,7 +51,7 @@ function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
     return null; // not a git repository, timeout, or git missing: unknown
   }
 }
-const isTestPath = p => /(^|\/)(tests?|__tests__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
+export const isTestPath = p => /(^|\/)(tests?|__tests__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
 const parseLine = l => { const m = /^(.+?):(\d+):(.*)$/.exec(l); return m ? { path: m[1], line: Number(m[2]), text: m[3] } : null; };
 
 // Where `name` occurs in files of the family of `file` (every tracked file when there is none):
@@ -157,7 +157,7 @@ export function findDefinitions(repo, name, { limit = 10 } = {}) {
 // identifier is matched as a name first. `scope` keeps paths that contain it (or match it as a glob).
 // Returns {hits: [{path, name, parent, symbol, kind, line, end, score, mentions}], toks,
 // more} or null when the checkout cannot be searched.
-const CODE_EXT = new Set([...Object.keys(FAMILY), 'vue', 'svelte', 'dart', 'lua', 'zig', 'm', 'mm', 'erb', 'rake']);
+export const CODE_EXT = new Set([...Object.keys(FAMILY), 'vue', 'svelte', 'dart', 'lua', 'zig', 'm', 'mm', 'erb', 'rake']);
 const EXCLUDES = [':(exclude).thinker', ':(exclude)*.min.js', ':(exclude)*.d.ts', ':(exclude)**/node_modules/**', ':(exclude)**/vendor/**', ':(exclude)**/dist/**', ':(exclude)**/build/**', ':(exclude)**/coverage/**', ':(exclude)**/__pycache__/**', ':(exclude)**/.next/**'];
 const extOf = p => String(p).split('.').pop().toLowerCase();
 const globRe = g => new RegExp('(^|/)' + g.split('**').map(p => p.split('*').map(esc).join('[^/]*')).join('.*') + (/\*$|\/$/.test(g) ? '' : '(/|$)'));

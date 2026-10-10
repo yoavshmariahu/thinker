@@ -83,7 +83,8 @@ test('switching fixed and mutable leaves a stale behavior stale; new words are r
 test('the interview prompt names what exists and saves nothing without the person', t => {
   const { store } = fixture(t);
   const p = behaviorSessionPrompt(store);
-  assert.match(p, /already in force \(1 now\)/);
+  assert.match(p, /in force \(1 before this run\)/);
+  assert.match(p, /Start from the design documents/);
   assert.match(p, /2 drafts waiting/);
   assert.match(p, /Interview me, one area at a time/);
   assert.match(p, /Save a behavior only after I say yes/);

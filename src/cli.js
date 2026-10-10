@@ -23,7 +23,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'run', 'start', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'run', 'start', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -106,6 +106,12 @@ const HELP = `thinker — knowledge cache for coding agents
   system accept <id…> [--fixed | --mutable]
                                  accept a behavior an agent proposed (remember with kind behavior)
   system propose [--refresh]     review behavior drafts and rule notes that could be promoted; --refresh drafts them again
+  system docs [--dry] [--again] [--limit n]
+                                 read the design documents checked into the repository (READMEs beside the code,
+                                 design and docs/ files) and save the rules they state as mutable behaviors, each
+                                 quoting the document and pointing at the code that upholds it; a cache build starts
+                                 with this. A document is read once per content (--again: read all again); --dry
+                                 lists the documents without a model call; --limit n documents per run (default 12)
   system define [--no-copy]      print (and copy) a prompt for your coding agent: it interviews you about how each
                                  part of the system must behave and saves only the behaviors you approve; where the
                                  repository is not set up or built, the prompt has the agent set it up and build the

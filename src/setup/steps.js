@@ -11,6 +11,7 @@ import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
+import { deriveDocBehaviors, docBehaviorsLine } from '../behavior-docs.js';
 import { c, formatBytes, selectMenu, withSpinner } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -138,7 +139,7 @@ export function ignoreLocalState(dir) {
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, phraseFn = phraseBatches }) {
+export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, docsFn = deriveDocBehaviors, phraseFn = phraseBatches }) {
   let warnings = 0;
   // without pull requests there is nothing to estimate: what is left (linking) is free and local,
   // and the notes come from the sessions to come
@@ -153,7 +154,7 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
     out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
-    out(`    • ${c.bold('Source:')}             ${c.dim('merged pull requests; a build does not explore the code')}`);
+    out(`    • ${c.bold('Source:')}             ${c.dim('design documents (READMEs) for the system behaviors, merged pull requests for the notes; a build does not explore the code')}`);
     out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)}`);
     if (estimates.tokenEstimate > 0) {
       out(`    • ${c.bold('Agent usage:')}       ${c.dim(`~${formatTokens(estimates.tokenEstimate)} tokens through your ${agent || provider()} login`)}`);
@@ -168,14 +169,26 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
   }
   out('');
 
-  // Stage 1: Merged PR mining
+  // Stage 1: the system behaviors the checked-in design documents state (behavior-docs.js). First, so
+  // they are there while the pull requests are still being read.
+  out(`  ${c.bold('[1/3] Reading design documents for system behaviors...')}`);
+  try {
+    const result = await withSpinner(out, 'Reading the READMEs and design documents', () => docsFn(store, { model, directories }), { indent: '        ' });
+    if (result.failed) warnings++;
+    out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${docBehaviorsLine(result)}${result.saved.length ? '; see them with thinker system' : ''}`);
+  } catch (e) {
+    warnings++;
+    out(`        ${c.yellow('⚠')} Design documents not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system docs`);
+  }
+
+  // Stage 2: Merged PR mining
   const slug = githubSlug(repo);
   let minedPrCount = 0;
   if (estimates.canMine && minePrsFn) {
     if (estimates.mineSource === 'github') {
-      out(`  ${c.bold(`[1/2] Mining merged PRs from ${slug}...`)}`);
+      out(`  ${c.bold(`[2/3] Mining merged PRs from ${slug}...`)}`);
     } else {
-      out(`  ${c.bold(`[1/2] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
+      out(`  ${c.bold(`[2/3] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
     }
     try {
       const res = await minePrsFn(slug, { limit: prs, model, repo, directories });
@@ -193,11 +206,11 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
       ? 'not building the cache now'
       : noPrs ? '--no-prs requested'
       : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
-    out(`  ${c.dim(`[1/2] Merged PR mining · Skipped (${reason})`)}`);
+    out(`  ${c.dim(`[2/3] Merged PR mining · Skipped (${reason})`)}`);
   }
 
   // Last stage: cross-note linking, phrasings and behavior drafts
-  out(`  ${c.bold('[2/2] Linking notes, search phrasings and behavior drafts...')}`);
+  out(`  ${c.bold('[3/3] Linking notes, search phrasings and behavior drafts...')}`);
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   out(`        ${c.green('✔')} Linked ${notes.length} notes across symbol dependencies`);
