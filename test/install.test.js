@@ -44,3 +44,11 @@ test('the zsh line makes thinker resolvable in a new shell', { skip: !fs.existsS
   addToPath('zsh', home, bin);
   assert.equal(execFileSync('/bin/zsh', ['-c', 'source ~/.zshrc; thinker'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: home } }).trim(), 'ok');
 });
+
+// macOS ships bash 3.2, which in a UTF-8 locale reads "$label…" as the variable "label…" and, under
+// set -u, dies with "unbound variable". A name that meets a non-ASCII character needs its braces.
+test('no variable in the installer runs into a non-ASCII character', () => {
+  const hits = fs.readFileSync(INSTALL, 'utf8').split('\n')
+    .map((line, i) => [i + 1, line]).filter(([, line]) => /\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]/.test(line));
+  assert.deepEqual(hits, []);
+});
