@@ -227,7 +227,7 @@ export class Store {
     this.assertSafeNotesPath();
     if (this.tiered) this.#layout(true);
     const cfg = path.join(this.dir, 'config.json');
-    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet' }, null, 2) + '\n');
+    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'haiku' }, null, 2) + '\n');
     // a cache made in a checkout that had none stays out of `git status`: thinker starts one in
     // every git repository it runs in, and that must not dirty the repository
     if (fresh) excludeFromGit(this.repo);
