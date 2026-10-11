@@ -35,12 +35,15 @@ function boot(xs, seed = 1) {
 }
 const fmt = (st, f = x => x.toFixed(2)) => st ? `${f(st.mean)} [${f(st.lo)}, ${f(st.hi)}] n=${st.n}` : '';
 
-// Attempts: null when the run never reached green; for the paired difference the cap is the
-// larger of the two arms' observed attempts plus one, and the share never green is its own column.
-const attempts = r => r.tools?.greenReached ? r.tools.attemptsToGreen : null;
+// Attempts to correctness: edit-then-test cycles until the agent's own tests passed. A run that
+// never ran a test after editing but passed the oracle made one blind attempt; a run that failed
+// the oracle without ever reaching green counts at the cap (largest observed plus one). The share
+// that self-tested at all is its own column.
+const attempts = r => r.tools?.greenReached ? r.tools.attemptsToGreen : (passed(r) ? Math.max(1, r.tools?.testRunsAfterEdit || 0) : null);
+const selfTested = r => (r.tools?.testRunsAfterEdit || 0) > 0;
 
 console.log(`runs: ${runs.length}; nocache: ${base.size}; arms: ${arms.join(', ')}`);
-console.log('\n| arm | pairs | pass rate (nocache → arm) | attempts to green, paired Δ | never green (nocache → arm) | test runs before first edit, Δ | calls before first edit, Δ | tool calls, Δ | tokens total, Δ | cost $, Δ | wall s, Δ | gold src files touched (nocache → arm) | note reached |');
+console.log('\n| arm | pairs | pass rate (nocache → arm) | attempts to correctness, paired Δ | self-tested (nocache → arm) | test runs before first edit, Δ | calls before first edit, Δ | tool calls, Δ | tokens total, Δ | cost $, Δ | wall s, Δ | gold src files touched (nocache → arm) | note reached |');
 console.log('|---|---:|---|---|---|---|---|---|---|---|---|---|---|');
 const out = {};
 for (const arm of arms) {
@@ -53,7 +56,7 @@ for (const arm of arms) {
   const gold = r => r.goldTouched ? r.goldTouched.touched / r.goldTouched.goldSrc : NaN;
   const tokens = r => (r.in_tokens || 0) + (r.out_tokens || 0);
   const row = {
-    pairs: pairs.length, pass: pr(passed), attempts: d(att), neverGreen: pr(r => !r.tools?.greenReached),
+    pairs: pairs.length, pass: pr(passed), attempts: d(att), neverGreen: pr(selfTested),
     testRunsBefore: d(r => r.tools?.testRunsBeforeEdit), callsBefore: d(r => r.tools?.callsBeforeFirstEdit), calls: d(r => r.tools?.calls),
     tokens: d(tokens), cost: d(r => r.cost), wall: d(r => r.wall_ms / 1000),
     goldTouched: `${(mean(pairs.map(({ b }) => gold(b)).filter(Number.isFinite)) * 100).toFixed(0)}% → ${(mean(pairs.map(({ t }) => gold(t)).filter(Number.isFinite)) * 100).toFixed(0)}%`,
@@ -64,10 +67,11 @@ for (const arm of arms) {
 }
 
 console.log('\nPer run:');
-console.log('| id | pass | attempts | never green | test runs before edit | calls before edit | calls | tokens | $ | wall s | gold touched | injected |');
+console.log('| id | pass | attempts | own tests after edit | test runs before edit | calls before edit | calls | tokens | $ | wall s | gold touched | injected |');
 console.log('|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|---:|');
 for (const r of runs.sort((a, b) => a.id.localeCompare(b.id))) {
   const g = r.goldTouched ? `${r.goldTouched.touched}/${r.goldTouched.goldSrc}` : '';
-  console.log(`| ${r.id} | ${passed(r) ? 'pass' : r.grade?.tests || '-'} | ${attempts(r) ?? '-'} | ${r.tools?.greenReached ? '' : 'never'} | ${r.tools?.testRunsBeforeEdit ?? ''} | ${r.tools?.callsBeforeFirstEdit ?? ''} | ${r.tools?.calls ?? ''} | ${(((r.in_tokens || 0) + (r.out_tokens || 0)) / 1e6).toFixed(2)}M | ${(r.cost || 0).toFixed(2)} | ${Math.round((r.wall_ms || 0) / 1000)} | ${g} | ${(r.tools?.injected || []).length} |`);
+  const own = !selfTested(r) ? 'none' : r.tools.greenReached ? `green after ${r.tools.attemptsToGreen}` : `${r.tools.testRunsAfterEdit} runs, never green`;
+  console.log(`| ${r.id} | ${passed(r) ? 'pass' : r.grade?.tests || '-'} | ${attempts(r) ?? 'cap'} | ${own} | ${r.tools?.testRunsBeforeEdit ?? ''} | ${r.tools?.callsBeforeFirstEdit ?? ''} | ${r.tools?.calls ?? ''} | ${(((r.in_tokens || 0) + (r.out_tokens || 0)) / 1e6).toFixed(2)}M | ${(r.cost || 0).toFixed(2)} | ${Math.round((r.wall_ms || 0) / 1000)} | ${g} | ${(r.tools?.injected || []).length} |`);
 }
 if (flag('json')) fs.writeFileSync(flag('json'), JSON.stringify({ arms: out, runs: runs.map(r => ({ ...r, diff: undefined, result: undefined })) }, null, 2));
