@@ -90,6 +90,9 @@ function resetWorktree(wt) {
 function armCache(wt) {
   const own = path.join(wt, '.thinker');
   fs.cpSync(NOTES, path.join(own, 'notes'), { recursive: true });
+  // mlflow keeps AGENTS.md as a symlink; the installer refuses to edit one, so the arm gets a plain copy
+  const agentsFile = path.join(wt, 'AGENTS.md');
+  try { if (fs.lstatSync(agentsFile).isSymbolicLink()) { const text = fs.readFileSync(agentsFile, 'utf8'); fs.rmSync(agentsFile); fs.writeFileSync(agentsFile, text); } } catch {}
   installClient('codex', {
     repo: wt, cli: CLI, hooks: false, learn: false, late: true, shared: false, mcp: true,
     mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local' } },
@@ -234,8 +237,8 @@ async function runWorker(cwd) {
       // the notes carry their own preamble; no second instruction around them
       prompt = `${injected}\n\n${task.prompt}`;
     }
-    if (arm === 'full') armCache(cwd);
     try {
+      if (arm === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
       const run = await runCodex(prompt, cwd);
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
       if (arm === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
