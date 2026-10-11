@@ -8,6 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
+import { testGreen } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -80,8 +81,8 @@ function toolStats(file) {
       for (const b of j.message.content) {
         if (b.type !== 'tool_result' || !testIds.has(b.tool_use_id) || stats.greenReached) continue;
         if (testIds.get(b.tool_use_id) !== 'after') continue;
-        const out = typeof b.content === 'string' ? b.content : JSON.stringify(b.content || '');
-        if (!TEST_FAILED.test(out) && /passed|ok\b|PASS/.test(out)) { stats.greenReached = true; stats.attemptsToGreen = attempts; }
+        const out = typeof b.content === 'string' ? b.content : Array.isArray(b.content) ? b.content.map(x => x.text || '').join('\n') : JSON.stringify(b.content || '');
+        if (testGreen(out, null)) { stats.greenReached = true; stats.attemptsToGreen = attempts; }
       }
       continue;
     }

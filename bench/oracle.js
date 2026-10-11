@@ -10,6 +10,25 @@ export const isTestPath = p => /(^|\/)(tests?|__tests__|testing|spec)\//.test(p)
 export const TEST_RUN = /\b(pytest|py\.test|npm test|yarn test|pnpm test|node --test|go test|cargo test|jest|vitest|unittest)\b/;
 export const TEST_FAILED = /\b(\d+ failed|\d+ errors?\b|FAILED|ERROR|error:|Error:|failed|Traceback)/;
 
+// Was the agent's own test run green? A pytest summary line decides when there is one: under
+// the Codex sandbox mlflow's pytest exits 1 after every test passed, because a plugin's teardown
+// hits a PermissionError, so the exit code alone misreads a green run (mlflow-astra-v1). Without a
+// summary, the exit code; without that, the failure markers.
+export function testGreen(output, exitCode) {
+  const o = String(output || '').replace(/\x1b\[[0-9;]*m/g, '');
+  const summary = [...o.matchAll(/(?:^|\n)[=\s]*((?:\d+ (?:passed|failed|errors?|skipped|xfailed|xpassed|warnings?|deselected|rerun)[^\n]*?)) in [\d.]+s/g)].pop();
+  if (summary) {
+    const n = k => Number((summary[1].match(new RegExp(`(\\d+) ${k}`)) || [])[1] || 0);
+    return n('passed') > 0 && n('failed') === 0 && n('error') === 0 && n('errors') === 0;
+  }
+  if (/no tests ran/.test(o)) return false;
+  // no summary (the sandboxed run above loses it): the per-test verdict lines decide
+  const verdicts = [...o.matchAll(/::\S+(?:\[[^\]]*\])? (PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)\b/g)].map(m => m[1]);
+  if (verdicts.length) return verdicts.includes('PASSED') && !verdicts.includes('FAILED') && !verdicts.includes('ERROR');
+  if (exitCode != null) return exitCode === 0;
+  return !TEST_FAILED.test(o) && /passed|ok\b|PASS/.test(o);
+}
+
 // The task's own tests, as the merged change left them, put into the worktree over whatever the
 // agent did to those files, so the oracle is the same for every arm. Other test files the agent
 // wrote stay. Hunks come from the stored gold diff.
@@ -57,8 +76,7 @@ export function codexLoopStats(events) {
         else { s.testRunsBeforeEdit++; pendingTests.set(e.item.id, 'before'); }
       }
     } else if (e.type === 'item.completed' && e.item && pendingTests.get(e.item.id) === 'after' && !s.greenReached) {
-      const ok = e.item.exit_code != null ? e.item.exit_code === 0 : !TEST_FAILED.test(e.item.aggregated_output || '');
-      if (ok) { s.greenReached = true; s.attemptsToGreen = attempts; }
+      if (testGreen(e.item.aggregated_output, e.item.exit_code)) { s.greenReached = true; s.attemptsToGreen = attempts; }
     }
   }
   if (!edited) s.callsBeforeFirstEdit = calls;
