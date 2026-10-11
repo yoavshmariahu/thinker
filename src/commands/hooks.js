@@ -28,8 +28,8 @@ async function hookCommand(ctx) {
   // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
   if (client === 'cursor-import') return;
   // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
-  // checkout from the agent's input. A checkout that is not set up is served nothing and learns
-  // nothing (`store.exists()` below). Where the checkout's own files run thinker hooks too (set up
+  // checkout from the agent's input. Every git checkout has a cache, started here on first use;
+  // outside one the hooks do nothing. Where the checkout's own files run thinker hooks too (set up
   // before the wiring went machine-wide, with --shared, or a benchmark arm's), those do the work:
   // this copy's machine-local ones are taken out here, once, and this hook yields to what is left.
   // THINKER_HOOKS=off silences the hooks outright, as THINKER_MCP=off does the server: for an
@@ -47,6 +47,8 @@ async function hookCommand(ctx) {
     }
   }
   const { repo, store, mcpEntry } = ctx;
+  if (!fs.existsSync(path.join(repo, '.git'))) return;
+  if (!store.exists()) store.init();
   const session = sessionOf(ev);
   // Do not combine unrelated sessions from unsupported/older hook payloads.
   if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;

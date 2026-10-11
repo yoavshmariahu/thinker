@@ -749,17 +749,14 @@
       <section id="install">
         <h2>Install and set up</h2>
         <p>
-          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings. Run from inside a repository, it also sets that repository up. Anywhere else, run <code>thinker setup</code> inside a repository later.
+          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. It ends by opening the <a href="#local-page">warm-up page</a> in your browser: the repositories your agents worked in over the last 30 days, each with a build estimate. Pick the ones to build a cache for now; every other git repository gets an empty cache with its first session and grows from there.
         </p>
-        <pre><code><span class="code-comment"># Connect the agents, then ask whether to build the cache</span>
-thinker setup
+        <pre><code><span class="code-comment"># Open the warm-up page again any time</span>
+thinker ui --tab warmup
 
-<span class="code-comment"># Build now: choose Full repo or Specify project directories; then mine merged PRs (--prs n, default 60);
+<span class="code-comment"># Build one repository's cache from the terminal instead: mine merged PRs (--prs n, default 60);
 # a build reads pull requests only; it does not explore the code</span>
-thinker setup --build
-
-<span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
-thinker setup --no-build</code></pre>
+thinker setup --build</code></pre>
         <p>
           <strong>Working in a large repository?</strong> Setup offers <strong>Full repo</strong> or <strong>Specify project directories</strong>.
           Enter a project name and comma-separated directories such as <code>apps/web, packages/ui</code>.
@@ -778,7 +775,7 @@ thinker setup --build --yes</code></pre>
           Building runs through your agent's own login: roughly 700k to 900k tokens and about ten minutes with the defaults (60 merged pull requests). The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
         </p>
         <div class="callout tip">
-          <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
+          <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every git checkout, and each checkout keeps its own cache under <code>.thinker/</code>, started on first use and excluded from <code>git status</code> through <code>.git/info/exclude</code>. Outside a git repository your agents are served nothing and learn nothing.
         </div>
         <p>
           Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. <code>thinker ranker</code> shows the configured ranking mode.
@@ -1204,17 +1201,18 @@ thinker benchmark report</code></pre>
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser with three views of the cache. A dropdown at the top picks the repository, or all of them on this machine. The first <code>thinker setup</code> in a repository opens it for you (<code>--no-ui</code> leaves it closed); that page stops by itself after half an hour unused.
+          <code>thinker ui</code> opens a page in your browser, from any directory, with three views. The installer opens it on the warm-up page (that page stops by itself after half an hour unused, once no build is queued).
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
+thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up page</span>
 thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>
         <div class="table-scroll">
           <table>
             <thead><tr><th>View</th><th>What it shows</th></tr></thead>
             <tbody>
-              <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
-              <tr><td>Cache</td><td>Every note, filtered by status and kind, searched and sorted by hits or age, with the code it points at and where it came from; archive a note or restore it to serving</td></tr>
-              <tr><td>System behaviors</td><td>The <a href="#behaviors">desired behaviors</a>, filtered by proposed, active, blocking, warn only, or broken or unverified; accept a proposed one as written or as blocking, edit it, or discard it</td></tr>
+              <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time, for one repository or all of them: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
+              <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them its <a href="#behaviors">system behaviors</a>, filtered by proposed, active, blocking, warn only, or broken or unverified; accept a proposed one as written or as blocking, edit it, or discard it</td></tr>
+              <tr><td>Warm up</td><td>The git repositories your agents worked in over the last 30 days, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
             </tbody>
           </table>
         </div>

@@ -145,7 +145,7 @@ test('Cursor user wiring refreshes the project rule without installing project h
   assert.deepEqual(refreshWiring(checkout, args).changed, []);
 });
 
-test('CLI feedback corrects an existing note; invalid input and missing caches do not write', t => {
+test('CLI feedback corrects an existing note; invalid input does not write, and a fresh checkout gets an empty cache', t => {
   const { repo } = fixture(t);
   fs.writeFileSync(path.join(repo, 'module.js'), 'export const version = 1;\n');
   const store = new Store(repo).init();
@@ -159,10 +159,12 @@ test('CLI feedback corrects an existing note; invalid input and missing caches d
   assert.notEqual(run({ id: note.id, useful: 'false' }).status, 0);
   assert.equal(JSON.stringify(store.get(note.id)), before);
   assert.notEqual(run({ id: 'missing', useful: true }).status, 0);
+  // a git checkout without a cache gets one on first use (every git repository has a cache); the bad input still writes no note
   const empty = fixture(t).repo;
   const r = spawnSync('node', [cli, 'feedback', '--repo', empty], { input: '{}', encoding: 'utf8', env: process.env });
   assert.notEqual(r.status, 0);
-  assert.equal(fs.existsSync(path.join(empty, '.thinker')), false);
+  assert.ok(fs.existsSync(path.join(empty, '.thinker', 'config.json')));
+  assert.deepEqual(new Store(empty).list(), []);
 });
 
 // Claude Code cuts a server's instructions at INSTRUCTIONS_LIMIT and appends "… [truncated]", which

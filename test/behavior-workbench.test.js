@@ -92,7 +92,7 @@ test('the local page answers only this host, with this run\'s token, and acts th
   const { store } = fixture(t);
   process.env.THINKER_LOG = 'local';
   t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { token: 'a'.repeat(32) });
+  const ui = createUiServer(store, { token: 'a'.repeat(32), home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
   const { port, url } = await ui.listen(0);
   t.after(() => ui.close());
   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/#t=a{32}$/);
@@ -116,7 +116,7 @@ test('the local page lists the cache, archives and restores a note, and is scope
   const { store } = fixture(t);
   process.env.THINKER_LOG = 'local';
   t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { token: 'a'.repeat(32) });
+  const ui = createUiServer(store, { token: 'a'.repeat(32), home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
   const { port } = await ui.listen(0);
   t.after(() => ui.close());
   const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };

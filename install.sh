@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-# thinker setup: installs the thinker tool, wires it into the coding agents on
-# this machine (their own settings: hooks and the MCP server, once, for every
-# repository that is set up) and, when run from inside a repository, sets that
-# repository up to use a knowledge cache. Run anywhere else, it installs and
-# wires the tool; then run `thinker setup` inside a repository to set it up.
-# A repository that is not set up is served nothing and learns nothing.
+# thinker install: installs the thinker tool and wires it into the coding agents on
+# this machine (their own settings: hooks and the MCP server, once). Thinker then
+# runs in every git repository on this machine: a cache starts with the first
+# session in a repository, and the warm-up page that opens at the end (thinker ui)
+# builds caches for the repositories your agents have worked in, from their merged
+# pull requests. Nothing is asked in the terminal.
 #
 # Thinker is open source; no access code or GitHub token is required.
 #
 #   curl -fsSL https://zerotime.dev/dist/install.sh | bash
 #
-# --build does everything for a repository that has no cache yet: installs the
-# tool, builds the cache from the merged pull requests, and wires it
-# into the coding agents found on this machine. If a cache was already built
-# for the repository, pass --cache instead and nothing has to be built.
+# --build from inside a repository builds its cache right here, in the terminal,
+# instead of opening the page. If a cache was already built for the repository,
+# pass --cache instead and nothing has to be built.
 #
 # Options
-#   --build             build the cache here without asking (otherwise `thinker setup` offers it, with an estimate)
-#   --no-build          do not build a cache; only wire up the hooks and the MCP server
+#   --build             build the cache of this repository now, in the terminal (the page is not opened)
+#   --no-build          accepted from old scripts: nothing is built without --build anyway
 #   --no-seed, --areas <n>   accepted from old scripts and ignored: a build no longer explores the code
 #   --no-behaviors      accepted from old scripts and ignored: there is no behaviors prompt to print
 #   --depth <d>         with --build: full (default) or shallow, 30% of the full build
@@ -334,78 +333,65 @@ EOF
     mcp=0
   fi
 
-  if [ -z "$repo" ]; then
-    # outside a repository: the agents are wired up; `thinker setup` inside a repository turns the cache on there
-    local cargs="--clients $clients"
-    [ "$yes" = 1 ] && cargs="$cargs --yes"
-    [ "$learn" = 1 ] || cargs="$cargs --no-learn"
-    [ "$late" = 1 ] && cargs="$cargs --late"
-    [ "$mcp" = 1 ] || cargs="$cargs --no-mcp"
-    # shellcheck disable=SC2086
-    if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" connect $cargs < /dev/tty; else "$thinker" connect $cargs; fi
-    local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
-    path_hint
-    say ""
-    if [ "$fancy" = 1 ]; then
-      box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
-        "Installed into $home and wired into your agents." \
-        "This is not a git repository, so no cache was set up here." \
-        "Inside a repository, run: ${cyan}thinker setup${reset}" \
-        "${dim}Notes and behaviors stay in the repository; Thinker uploads none.${reset}" "" \
-        "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
-    else
-      say "Install complete: Thinker v$version, installed into $home and wired into your agents."
-      say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
-      say ""
-      say "  thinker setup"
-      say "Notes and behaviors stay in the repository; Thinker uploads none."
-    fi
-    exit 0
-  fi
+  # --- wire the agents, once, in their own settings ---------------------------
+  # Nothing is asked here: Codex's hook-review marks are written outright, and every other choice
+  # (which repositories to build a cache for, how deep, with which model) is made on the warm-up
+  # page that opens next. Thinker then runs in every git repository on this machine.
+  local cargs="--clients $clients --yes"
+  [ "$learn" = 1 ] || cargs="$cargs --no-learn"
+  [ "$late" = 1 ] && cargs="$cargs --late"
+  [ "$mcp" = 1 ] || cargs="$cargs --no-mcp"
+  # shellcheck disable=SC2086
+  "$thinker" connect $cargs
 
-  # --- the cache -------------------------------------------------------------
+  # --- a cache handed over, or a build asked for by flag -------------------------
   if [ -n "$cache" ]; then
     case "$cache" in
       gh:*) gh_fetch "repos/$ghrepo/contents/${cache#gh:}?ref=$ref" "$tmp/cache.tgz"; "$thinker" import "$tmp/cache.tgz" --repo "$repo" ;;
       *) "$thinker" import "$cache" --repo "$repo" ;;
     esac
-  elif [ "$build" != 0 ]; then
-    :
-  elif [ -d "$repo/.thinker/notes" ] && ls "$repo/.thinker/notes"/*.json >/dev/null 2>&1; then
-    say "Using the cache already in this repository (.thinker/notes)"
-  else
-    say "No cache was built for this repository: it will grow from your own sessions."
-    say "To build one from the code and the merged pull requests, run: thinker setup --build"
-  fi
-
-  # --- wire it into this repository -------------------------------------------
-  # one command sets a repository up: `thinker setup`. Without --build or --no-build it asks
-  # before building the cache, since that is the only step that spends anything.
-  local args=""
-  [ -n "$clients" ] && args="$args --clients $clients"
-  [ "$yes" = 1 ] && args="$args --yes"
-  [ "$learn" = 1 ] || args="$args --no-learn"
-  [ "$late" = 1 ] && args="$args --late"
-  [ "$githook" = 0 ] && args="$args --no-git-hook"
-  [ "$mcp" = 1 ] || args="$args --no-mcp"
-  if [ "$build" = 0 ]; then
-    args="$args --no-build"
-  else
-    [ "$build" = 1 ] && args="$args --build"
+  elif [ "$build" = 1 ] && [ -n "$repo" ]; then
+    # --build from inside a repository: the build runs here, without the page, as before
+    local args="--build --yes --no-ui"
+    [ -n "$clients" ] && args="$args --clients $clients"
+    [ "$learn" = 1 ] || args="$args --no-learn"
+    [ "$githook" = 0 ] && args="$args --no-git-hook"
+    [ "$mcp" = 1 ] || args="$args --no-mcp"
     [ -n "$depth" ] && args="$args --depth $depth"
     [ -n "$prs" ] && args="$args --prs $prs"
     [ -n "$pr_target" ] && args="$args --pr $pr_target"
     [ "$benchmark" = 1 ] && args="$args --benchmark"
     [ "$benchmark" = 0 ] && args="$args --no-benchmark"
-  fi
-  # setup draws the closing box, so the PATH hint goes first; THINKER_INSTALLER keeps setup from
-  # drawing the opening box a second time
-  path_hint
-  # shellcheck disable=SC2086
-  if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then
-    THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo" < /dev/tty
-  else
+    # shellcheck disable=SC2086
     THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo"
+  fi
+
+  # --- the warm-up page -----------------------------------------------------------
+  # The page lists the repositories your agents have worked in; pick the ones to build a cache for.
+  # Opened detached (the server exits on its own once idle); not from CI or a pipe with no terminal.
+  local opened=0
+  if [ -z "${CI:-}" ] && [ -t 1 ] && [ "$build" != 1 ]; then
+    ( "$thinker" ui --from-setup --tab warmup >/dev/null 2>&1 & ) && opened=1
+  fi
+  local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
+  path_hint
+  say ""
+  local how="Pick the repositories to warm up on the page that just opened"
+  [ "$opened" = 1 ] || how="Pick the repositories to warm up: ${cyan}thinker ui${reset}"
+  if [ "$fancy" = 1 ]; then
+    box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
+      "Installed into $home and wired into your agents." \
+      "Thinker now runs in every git repository on this machine." \
+      "$how" \
+      "${dim}(open it again any time with thinker ui).${reset}" \
+      "${dim}Notes stay on this machine; Thinker uploads none.${reset}" "" \
+      "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
+  else
+    say "Install complete: Thinker v$version, installed into $home and wired into your agents."
+    say "Thinker now runs in every git repository on this machine."
+    if [ "$opened" = 1 ]; then say "Pick the repositories to warm up on the page that just opened (open it again any time with thinker ui)."
+    else say "Pick the repositories to warm up: thinker ui"; fi
+    say "Notes stay on this machine; Thinker uploads none."
   fi
 }
 

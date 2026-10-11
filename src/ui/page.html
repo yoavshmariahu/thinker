@@ -27,8 +27,8 @@
     .brand { display: flex; align-items: baseline; gap: 0.45rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.85rem; color: #6b7280; }
-    .repo-sel { font-size: 0.85rem; font-weight: 500; color: #111; border: none; border-radius: 6px; padding: 0.3rem 1.5rem 0.3rem 0.45rem; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 0.55rem center; appearance: none; -webkit-appearance: none; cursor: pointer; max-width: 260px; text-overflow: ellipsis; }
-    .repo-sel:hover, .repo-sel:focus { outline: none; background-color: #f5f5f5; }
+    .sel { font-size: 0.85rem; font-weight: 500; color: #111; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.38rem 1.6rem 0.38rem 0.6rem; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 0.6rem center; appearance: none; -webkit-appearance: none; cursor: pointer; max-width: 280px; text-overflow: ellipsis; }
+    .sel:hover, .sel:focus { outline: none; border-color: #111; }
     .repo-tag { display: inline-block; font-size: 0.78rem; color: #6b7280; margin-bottom: 0.3rem; }
     .nav-right { display: flex; gap: 0.35rem; }
     .nav-link {
@@ -55,6 +55,7 @@
     .seg { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px; background: #fafafa; }
     .seg button { border: none; background: transparent; padding: 0.38rem 0.75rem; border-radius: 6px; font-size: 0.8rem; color: #444; cursor: pointer; }
     .seg button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 500; }
+    .seg.small button { padding: 0.22rem 0.55rem; font-size: 0.74rem; }
 
     .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
     @media (max-width: 860px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -90,6 +91,56 @@
     td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+    /* repository cards: the cache overview and the warm-up page, in rows, kept short */
+    .rgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; margin-top: 1.4rem; }
+    @media (max-width: 860px) { .rgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 520px) { .rgrid { grid-template-columns: 1fr; } }
+    .rcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.85rem 1rem 0.8rem; min-width: 0; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; display: flex; flex-direction: column; gap: 0.55rem; }
+    .rcard:hover { border-color: #111; background: #fff; }
+    .rcard.none { cursor: default; background: #fff; border-style: dashed; }
+    .rcard.none:hover { border-color: #e5e7eb; }
+    .rtop { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; }
+    .rname { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rtop .pill, .wtop input { flex-shrink: 0; }
+    .rname small { font-weight: 400; color: #9ca3af; font-size: 0.78rem; }
+    .rpath { font-size: 0.72rem; color: #9ca3af; margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rstats { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.78rem; color: #6b7280; font-variant-numeric: tabular-nums; }
+    .rstats b { color: #111; font-weight: 600; }
+    .prog { display: flex; flex-direction: column; gap: 0.3rem; }
+    .track { height: 6px; border-radius: 3px; background: #e5e7eb; overflow: hidden; position: relative; }
+    .track i { display: block; height: 100%; width: var(--w, 0%); background: #111; border-radius: 3px; transition: width 0.4s ease; }
+    .track.busy i { width: 30%; animation: slide 1.4s ease-in-out infinite; }
+    @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+    .prog-line { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.76rem; color: #444; }
+    .prog-line .stop { border: 1px solid #d4d4d8; background: #fff; color: #991b1b; border-radius: 5px; padding: 0.1rem 0.5rem; font-size: 0.72rem; cursor: pointer; }
+    .prog-line .stop:hover { border-color: #991b1b; background: #fef2f2; }
+    .prog-line .stop:disabled { opacity: 0.5; cursor: default; }
+    .back { background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; margin-bottom: 1rem; }
+    .back:hover { color: #111; }
+
+    .wcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.8rem 0.95rem 0.75rem; min-width: 0; display: flex; flex-direction: column; gap: 0.55rem; transition: border-color 0.15s ease, background 0.15s ease; }
+    .wcard.on { background: #fff; border-color: #111; }
+    .wcard.off { opacity: 0.7; }
+    .wtop { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.6rem; align-items: start; cursor: pointer; }
+    .wtop input { margin-top: 0.3rem; width: 15px; height: 15px; accent-color: #111; }
+    .weta { text-align: right; min-width: 72px; max-width: 110px; flex-shrink: 0; }
+    .weta b { display: block; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .weta b.dim { color: #9ca3af; font-weight: 600; }
+    .weta span { display: block; font-size: 0.7rem; color: #6b7280; line-height: 1.3; }
+    .wopts { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .wopts .link { background: none; border: none; color: #6b7280; font-size: 0.74rem; cursor: pointer; padding: 0; }
+    .wopts .link:hover { color: #111; }
+    .wdirs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .wdirs .chip { padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+    .wnote { font-size: 0.74rem; color: #9ca3af; }
+    .wbar { position: sticky; bottom: 0; margin-top: 1.6rem; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; padding: 0.9rem 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 1rem; align-items: center; }
+    .wbar .model { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; }
+    .wbar .sum { text-align: right; font-size: 0.78rem; color: #6b7280; white-space: nowrap; }
+    .wbar .sum b { display: block; font-size: 1.05rem; color: #111; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .wbar .weta { min-width: 92px; }
+    .wbar .weta b { font-size: 1.25rem; }
+    @media (max-width: 640px) { .wbar { grid-template-columns: 1fr 1fr; } .wbar .model { grid-column: 1 / -1; } }
+
     /* behaviors */
     .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .chip { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 999px; padding: 0.32rem 0.75rem; font-size: 0.78rem; cursor: pointer; transition: all 0.15s ease; }
@@ -115,6 +166,7 @@
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.95rem; }
     .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
     .btn:hover { background: #222; }
+    .btn.big { padding: 0.65rem 1.3rem; font-size: 0.9rem; }
     .btn.ghost { background: #fff; color: #111; border-color: #d4d4d8; }
     .btn.ghost:hover { border-color: #111; }
     .btn.text { background: transparent; border-color: transparent; color: #991b1b; }
@@ -156,53 +208,83 @@
 </head>
 <body>
   <nav>
-    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">/</span><select class="repo-sel" id="repo-sel" aria-label="Repository"><option value="">this repository</option></select></div>
+    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">· local</span></div>
     <div class="nav-right">
-      <button class="nav-link active" data-tab="usage">Usage</button>
-      <button class="nav-link" data-tab="cache">Cache</button>
-      <button class="nav-link" data-tab="behaviors">System behaviors<span class="count" id="wait-count" hidden></span></button>
+      <button class="nav-link" data-tab="usage">Usage</button>
+      <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
+      <button class="nav-link" data-tab="warmup">Warm up</button>
     </div>
   </nav>
 
   <main>
     <!-- Usage -->
-    <section id="tab-usage">
+    <section id="tab-usage" hidden>
       <div class="kicker">On this machine</div>
       <h1>How the cache is working for you</h1>
       <p class="lede">What was served to your agents, what they acted on, what was learned, and what it cost in tokens. Read from your local log; nothing leaves this machine.</p>
       <div class="controls">
+        <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
         <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
       </div>
       <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
     </section>
 
-    <!-- Cache -->
+    <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
     <section id="tab-cache" hidden>
-      <div class="kicker">The cache</div>
-      <h1>What thinker has learned</h1>
-      <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them.</p>
-      <div class="controls">
-        <div class="chips" id="c-chips"></div>
+      <div id="cache-overview">
+        <div class="kicker">The cache</div>
+        <h1>Your repositories</h1>
+        <p class="lede">Every git repository on this machine with a cache, what each holds, and what is being mined or distilled right now. Open one to read its notes and the behaviors every change must keep.</p>
+        <div class="controls"><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
+        <div class="rgrid" id="r-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Reading the caches…</div></div>
       </div>
-      <div class="cards section" id="c-stats" style="margin-top:1.4rem"></div>
-      <div class="controls" style="margin-top:1.2rem">
-        <div class="seg" id="sort-seg"><button data-sort="hits" class="on">Most hits</button><button data-sort="new">Newest</button><button data-sort="old">Oldest</button></div>
-        <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button></div>
-        <input class="search" id="c-search" placeholder="Search notes">
+
+      <div id="cache-detail" hidden>
+        <button class="back" id="back">← All repositories</button>
+        <div class="kicker">Cache</div>
+        <h1 id="d-title"></h1>
+        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them.</p>
+        <div id="d-activity"></div>
+        <div class="controls">
+          <div class="chips" id="c-chips"></div>
+        </div>
+        <div class="cards section" id="c-stats" style="margin-top:1.4rem"></div>
+        <div class="controls" style="margin-top:1.2rem">
+          <div class="seg" id="sort-seg"><button data-sort="hits" class="on">Most hits</button><button data-sort="new">Newest</button><button data-sort="old">Oldest</button></div>
+          <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button></div>
+          <input class="search" id="c-search" placeholder="Search notes">
+        </div>
+        <div class="list" id="c-list"><div class="empty"><span class="spinner"></span>Reading the cache…</div></div>
+
+        <div class="section" id="behaviors">
+          <div class="section-head"><div><div class="kicker">System behaviors</div><div class="section-title">The rules every change must keep</div></div></div>
+          <p class="lede" style="margin-top:0">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. They come from the design documents checked into the repository, warn only until you make one blocking, and are yours to edit or discard. Proposed behaviors are not requirements until you accept them.</p>
+          <div class="controls">
+            <div class="chips" id="chips"></div>
+            <input class="search" id="search" placeholder="Search behaviors">
+          </div>
+          <div class="list" id="b-list"></div>
+        </div>
       </div>
-      <div class="list" id="c-list"><div class="empty"><span class="spinner"></span>Reading the cache…</div></div>
     </section>
 
-    <!-- Behaviors -->
-    <section id="tab-behaviors" hidden>
-      <div class="kicker">System behaviors</div>
-      <h1>The rules every change must keep</h1>
-      <p class="lede">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. Thinker starts from the design documents checked into the repository: a rule a README or design file states is a behavior here, warn only until you make it blocking, and yours to edit or discard. Proposed behaviors (build drafts and agent proposals) are not requirements until you accept them.</p>
-      <div class="controls">
-        <div class="chips" id="chips"></div>
-        <input class="search" id="search" placeholder="Search behaviors">
+    <!-- Warm up -->
+    <section id="tab-warmup" hidden>
+      <div class="kicker">Warm up your cache</div>
+      <h1>Which repositories should thinker learn first?</h1>
+      <p class="lede">These are the git repositories your coding agents have worked in over the last 30 days, and the ones thinker has seen before. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Each cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
+      <div class="rgrid" id="w-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Looking for repositories…</div></div>
+      <div class="wbar" id="w-bar" hidden>
+        <div class="model">
+          <span>Model</span>
+          <select class="sel" id="w-agent" aria-label="Agent"></select>
+          <select class="sel" id="w-tier" aria-label="Model"></select>
+          <span id="w-auth"></span>
+        </div>
+        <div class="sum"><b id="w-tokens">0</b>tokens of usage</div>
+        <div class="weta sum"><b id="w-eta">—</b>for <span id="w-count">0 repositories</span></div>
+        <button class="btn big" id="w-start">Start building</button>
       </div>
-      <div class="list" id="b-list"></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -218,42 +300,61 @@ const api = async (p, body) => {
   return j;
 };
 const $ = s => document.querySelector(s);
-// the repository every view shows: one id from /api/repos, or 'all'
-let REPO = new URLSearchParams(location.hash.slice(1)).get('repo') || '';
+const H = () => new URLSearchParams(location.hash.slice(1));
+// the repositories with a cache (/api/repos); REPO filters the usage page, DREPO is the one open on the cache page
+let REPOS = [], REPO = 'all', DREPO = H().get('repo') || '';
 // setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades
-if (new URLSearchParams(location.hash.slice(1)).get('from') === 'setup') {
+if (H().get('from') === 'setup') {
   setTimeout(() => $('#hint').classList.add('show'), 600);
   setTimeout(() => $('#hint').classList.remove('show'), 8600);
 }
 const ALL = () => REPO === 'all';
-const rq = () => `repo=${encodeURIComponent(REPO)}`;
-let TAB = 'usage';
+let TAB = 'cache';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // path:Symbol pointers in a body read as code
 const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
 const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
 const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+const dur = s => !s ? '—' : s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+const home = p => String(p || '').replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, '~');
+// owner/name: the name stands alone, the owner goes with the path
+const rname = n => esc(String(n).slice(String(n).lastIndexOf('/') + 1));
+const owner = n => { const i = String(n).lastIndexOf('/'); return i < 0 ? '' : String(n).slice(0, i); };
+const ago = iso => { if (!iso) return 'no recent sessions'; const d = (Date.now() - Date.parse(iso)) / 86400_000; return d < 1 ? 'used today' : d < 2 ? 'used yesterday' : d < 30 ? `used ${Math.floor(d)} days ago` : `used ${Math.floor(d / 30)} months ago`; };
 let toastTimer;
 function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2600); }
 
 // tabs
-document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
+document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'cache') DREPO = ''; show(b.dataset.tab); });
+$('#to-warmup').onclick = () => show('warmup');
+$('#back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-behaviors').hidden = tab !== 'behaviors';
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup';
   TAB = tab;
-  history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${REPO ? `&repo=${encodeURIComponent(REPO)}` : ''}`);
-  if (tab === 'behaviors') loadBehaviors(); else if (tab === 'cache') loadCache(); else loadUsage();
+  history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
+  if (tab === 'usage') loadUsage();
+  else if (tab === 'warmup') loadWarmup();
+  else if (DREPO) openRepo(DREPO);
+  else { $('#cache-overview').hidden = false; $('#cache-detail').hidden = true; loadRepos(); }
 }
 
 // ---- usage -------------------------------------------------------------------------------
 let days = 30;
 document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
+$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadUsage(); };
+function fillRepoFilter() {
+  if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = 'all';
+  $('#u-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+}
 
 async function loadUsage() {
   $('#usage-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the log…</div>`;
-  try { renderUsage(await api(`/api/usage?${rq()}${days ? `&days=${days}` : ''}`)); }
+  try {
+    if (!REPOS.length) await fetchRepos();
+    renderUsage(await api(`/api/usage?repo=${encodeURIComponent(REPO)}${days ? `&days=${days}` : ''}`));
+  }
   catch (e) { $('#usage-body').innerHTML = `<div class="empty">Could not read usage: ${esc(e.message)}</div>`; }
 }
 function card(kicker, num, label, rows, gain) {
@@ -273,7 +374,7 @@ function renderUsage(u) {
   let h = `<div class="cards">
     ${card('Notes served', fmt(served), `${fmt(u.notesServed)} distinct notes, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)]])}
     ${card('Acted on', pct(as.confirmed || 0, judged), `of the servings sessions were judged on: the agent used the note`, [['Acted on', fmt(as.confirmed || 0)], ['Corrected by the session', fmt(as.contradicted || 0)], ['Not used', fmt(as.unused || 0)]], true)}
-    ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], ['Notes in this cache', fmt(u.notesInCache)]])}
+    ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], [ALL() ? 'Notes in the caches' : 'Notes in this cache', fmt(u.notesInCache)]])}
     ${card('Kept current', fmt((v.still_valid || 0) + (v.update || 0) + (v.invalid || 0)), `re-checks after the code under a note changed`, [['Still valid', fmt(v.still_valid || 0)], ['Rewritten', fmt(v.update || 0)], ['Retired', fmt(v.invalid || 0)]])}
     ${card('Model usage', fmt(u.spending.tokens), `tokens for learning, upkeep and review, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
     ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
@@ -294,7 +395,94 @@ function renderUsage(u) {
   $('#usage-body').innerHTML = h;
 }
 
-// ---- cache -------------------------------------------------------------------------------
+// ---- the caches on this machine --------------------------------------------------------------
+let JOBS = [], ACT = {};
+async function fetchRepos() {
+  const r = await api('/api/repos');
+  REPOS = r.repos; JOBS = r.jobs || [];
+  ACT = Object.fromEntries(REPOS.map(x => [x.id, x.stats?.activity || null]));
+  fillRepoFilter(); waitCount();
+}
+function waitCount() { const c = $('#wait-count'), n = REPOS.reduce((a, r) => a + (r.pending || 0), 0); c.hidden = !n; c.textContent = n; }
+const jobOf = r => (r.job && ['queued', 'running'].includes(r.job.status)) || (r.job?.ended && Date.now() - Date.parse(r.job.ended) < 10 * 60_000) ? r.job : null;
+// what is running against a cache: the mining or distilling batch with its count, else the state of its warm-up build
+function progress(r) {
+  const a = ACT[r.id], j = jobOf(r);
+  if (a) return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
+    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${a.current ? ` · ${esc(a.current)}` : ''}</span><button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></div></div>`;
+  if (j && j.status === 'running') return `<div class="prog"><div class="track busy"><i></i></div><div class="prog-line"><span>warming up · reading the design documents</span><button class="stop" data-stop-job="${esc(j.id)}">Stop</button></div></div>`;
+  if (j && j.status === 'queued') return `<div class="prog"><div class="track"><i></i></div><div class="prog-line"><span>queued for warm-up (${j.depth})</span><button class="stop" data-stop-job="${esc(j.id)}">Remove</button></div></div>`;
+  if (j && j.status === 'done') return `<div class="prog-line"><span class="gain">warm-up finished</span></div>`;
+  if (j && j.status === 'failed') return `<div class="prog-line"><span class="loss">warm-up did not finish · ~/.thinker/state/warmup-${esc(j.name.replace(/\W+/g, '-'))}.log</span></div>`;
+  if (j && j.status === 'cancelled') return `<div class="prog-line"><span class="muted">warm-up stopped</span></div>`;
+  return '';
+}
+function rcard(r) {
+  const s = r.stats || {};
+  return `<div class="rcard" data-id="${esc(r.id)}" title="${esc(r.checkout)}">
+    <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div><span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span></div>
+    <div class="rstats"><span><b>${fmt(s.fresh || 0)}</b> fresh</span>${s.stale ? `<span><b>${fmt(s.stale)}</b> stale</span>` : ''}<span><b>${fmt(s.behaviors || 0)}</b> behaviors${r.pending ? ` <b>+${r.pending}</b> proposed` : ''}</span><span><b>${fmt(s.hits || 0)}</b> hits</span><span>${esc(ago(s.lastUsed))}</span></div>
+    ${progress(r)}</div>`;
+}
+async function loadRepos() {
+  try {
+    await fetchRepos();
+    // a warm-up still waiting for its repository's first cache file shows up as a card of its own
+    const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div><span class="pill">starting</span></div>${progress({ id: '', job: j })}</div>`);
+    const cards = REPOS.map(rcard).concat(jobCards);
+    $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository, or warm one up now.</div>`;
+    wireGrid();
+  } catch (e) { $('#r-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not read the caches: ${esc(e.message)}</div>`; }
+}
+function wireGrid() {
+  document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => el.onclick = e => { if (e.target.closest('button')) return; DREPO = el.dataset.id; show('cache'); });
+  wireStops();
+}
+function wireStops() {
+  document.querySelectorAll('[data-stop-pid], [data-stop-job]').forEach(btn => btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      if (btn.dataset.stopPid) { const r = await api('/api/activity/cancel', { repo: btn.dataset.repo, pid: Number(btn.dataset.stopPid) }); toast(`Stopped ${r.kind} at ${r.completed}/${r.total}; the notes saved so far stay`); }
+      else { await api('/api/warmup/cancel', { id: btn.dataset.stopJob }); toast('Warm-up stopped'); }
+      await refreshActivity(true);
+    } catch (e) { btn.disabled = false; toast(e.message, true); }
+  });
+}
+// every few seconds while the cache page is open: the bars move, and a finished build reloads the cards
+let prevJobs = '';
+async function refreshActivity(force) {
+  if (TAB !== 'cache' && !force) return;
+  try {
+    const r = await api('/api/activity');
+    ACT = r.repos; JOBS = r.jobs || [];
+    const key = JSON.stringify(JOBS.map(j => j.id + j.status));
+    if (force || (prevJobs && key !== prevJobs)) { prevJobs = key; if (DREPO) { await fetchRepos(); renderActivity(); } else await loadRepos(); return; }
+    prevJobs = key;
+    for (const x of REPOS) x.job = JOBS.filter(j => j.checkout === x.checkout).pop() || null;
+    if (DREPO) renderActivity();
+    else document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => { const r = REPOS.find(x => x.id === el.dataset.id); if (!r) return; const old = el.querySelector('.prog, .prog-line'); const h = progress(r); if (old) old.outerHTML = h; else el.insertAdjacentHTML('beforeend', h); });
+    wireStops();
+  } catch {}
+}
+setInterval(() => refreshActivity(false), 3000);
+
+// ---- one repository: its notes, then its behaviors ------------------------------------------
+async function openRepo(id) {
+  $('#cache-overview').hidden = true; $('#cache-detail').hidden = false;
+  if (!REPOS.length) { try { await fetchRepos(); } catch {} }
+  const r = REPOS.find(x => x.id === id);
+  if (!r) { DREPO = ''; return show('cache'); }
+  $('#d-title').textContent = r.name;
+  renderActivity();
+  loadCache(); loadBehaviors();
+}
+function renderActivity() {
+  const r = REPOS.find(x => x.id === DREPO); if (!r) return;
+  const h = progress(r);
+  $('#d-activity').innerHTML = h ? `<div class="panel" style="margin-top:1.2rem;padding:0.9rem 1.1rem">${h}</div>` : '';
+  wireStops();
+}
+const rq = () => `repo=${encodeURIComponent(DREPO)}`;
 let C = { notes: [] }, cFilter = 'serving', cKind = '', cQuery = '', expanded = new Set();
 const C_FILTERS = [
   ['serving', 'Served', n => n.status === 'fresh' || n.status === 'stale'],
@@ -320,8 +508,8 @@ document.querySelectorAll('#kind-seg button').forEach(b => b.onclick = () => { c
 const day = s => s ? String(s).slice(0, 10) : '';
 
 async function loadCache() {
-  if (!C.notes.length || C.repoKey !== REPO) { $('#c-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the cache…</div>`; $('#c-stats').innerHTML = ''; }
-  try { C = await api(`/api/cache?${rq()}`); C.repoKey = REPO; renderCache(); }
+  if (!C.notes.length || C.repoKey !== DREPO) { $('#c-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the cache…</div>`; $('#c-stats').innerHTML = ''; }
+  try { C = await api(`/api/cache?${rq()}`); C.repoKey = DREPO; renderCache(); }
   catch (e) { $('#c-list').innerHTML = `<div class="empty">Could not read the cache: ${esc(e.message)}</div>`; }
 }
 function renderCache() {
@@ -338,7 +526,8 @@ function renderCache() {
     ${card('Cache hits', fmt(hits), 'times these notes were served to an agent', [['Notes served at least once', `${fmt(hit)} (${pct(hit, inView.length)})`], ['Never served', fmt(inView.length - hit)], ['Hits per served note', hit ? (hits / hit).toFixed(1) : '—']])}
     ${card('Age', age(median(ages)), 'median age, since each note was written', [['Written this week', fmt(fresh7)], ['Newest', age(Math.min(...ages.filter(x => x != null)))], ['Oldest', age(Math.max(...ages.filter(x => x != null)))]])}` : '';
   if (!shown.length) {
-    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty. Build it with <code>thinker setup --build</code>, or let it grow from your sessions.'}</div>`;
+    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty: it grows from your sessions, or <a href="#" id="c-warm">warm it up</a> from the merged pull requests.'}</div>`;
+    const w = $('#c-warm'); if (w) w.onclick = e => { e.preventDefault(); show('warmup'); };
     return;
   }
   $('#c-list').innerHTML = shown.slice(0, C_MAX).map(ncard).join('') + (shown.length > C_MAX ? `<div class="note-line">Showing ${C_MAX} of ${shown.length}, most used first. Search to narrow them down.</div>` : '');
@@ -360,7 +549,7 @@ function ncard(n) {
   ].filter(Boolean).join('<br>');
   const act = n.status === 'archived' ? `<button class="btn ghost" data-act="restore">Restore to serving</button>`
     : n.status === 'retired' ? '' : `<button class="btn ghost" data-act="archive">Archive</button>`;
-  return `<div class="bcard" data-id="${esc(n.id)}" data-repo="${esc(n.repo)}">${ALL() ? `<div class="repo-tag">${esc(n.repoName)}</div>` : ''}<div class="bcard-top"><div class="btitle">${esc(n.title)}</div><div class="pills">${npills(n)}</div></div>
+  return `<div class="bcard" data-id="${esc(n.id)}" data-repo="${esc(n.repo)}"><div class="bcard-top"><div class="btitle">${esc(n.title)}</div><div class="pills">${npills(n)}</div></div>
     <div class="bbody${long && !open ? ' clamp' : ''}" data-act="expand">${rich(n.body)}</div>${long ? `<button class="more" data-act="expand">${open ? 'Show less' : 'Show more'}</button>` : ''}
     <div class="meta">${meta}</div>${act ? `<div class="actions">${act}</div>` : ''}</div>`;
 }
@@ -393,16 +582,16 @@ const FILTERS = [
 $('#search').oninput = e => { query = e.target.value.toLowerCase(); renderBehaviors(); };
 
 async function loadBehaviors() {
+  $('#b-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading behaviors…</div>`;
   try {
     const r = await api(`/api/behaviors?${rq()}`);
-    B = r; waitCount(r);
+    B = r;
     const n = r.pending.length;
     if (filter === 'waiting' && !n) filter = 'active';
     renderBehaviors();
   } catch (e) { $('#b-list').innerHTML = `<div class="empty">Could not read behaviors: ${esc(e.message)}</div>`; }
 }
 const bkey = b => (b.waiting ? 'p:' : 'a:') + b.repo + '|' + b.id;
-function waitCount(r) { const c = $('#wait-count'); c.hidden = !r.pending.length; c.textContent = r.pending.length; }
 function all() { return [...B.pending.map(b => ({ ...b, waiting: true })), ...B.active.map(b => ({ ...b, waiting: false }))]; }
 function renderBehaviors() {
   const items = all();
@@ -411,7 +600,7 @@ function renderBehaviors() {
   const f = FILTERS.find(x => x[0] === filter)[2];
   const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
   if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors. Build drafts with <code>thinker setup --build</code>.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository. To add one, state the rule in a README beside the code or in a design file and run it again.'}</div>`;
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors.' : 'No behaviors here yet. A warm-up reads them from the design documents (READMEs) checked into the repository; <code>thinker system docs</code> does the same. To add one, state the rule in a README beside the code or in a design file.'}</div>`;
     return;
   }
   $('#b-list').innerHTML = shown.map(bcard).join('');
@@ -441,7 +630,7 @@ function bcard(b) {
   const actions = b.waiting
     ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as blocking</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
     : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make warn only' : 'Make blocking'}</button>${b.fromDoc ? '<button class="btn text" data-act="discard">Discard</button>' : ''}`;
-  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">${ALL() ? `<div class="repo-tag">${esc(b.repoName)}</div>` : ''}<div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
+  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}"><div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
     <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
 }
 function wire() {
@@ -462,24 +651,86 @@ function wire() {
           else await api('/api/behaviors/edit', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
           toast(b.waiting ? 'Saved and accepted' : 'Saved');
         }
-        editing = null; await loadBehaviors();
+        editing = null; await loadBehaviors(); fetchRepos().catch(() => {});
       } catch (e) { btn.disabled = false; toast(e.message, true); }
     });
   });
 }
 
-// ---- repository picker -------------------------------------------------------------------
-$('#repo-sel').onchange = e => { REPO = e.target.value; e.target.blur(); B = { active: [], pending: [] }; $('#b-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading behaviors…</div>`; expanded.clear(); editing = null; refreshWaitCount(); show(TAB); };
-function refreshWaitCount() { api(`/api/behaviors?${rq()}`).then(waitCount).catch(() => {}); }
-async function loadRepos() {
+// ---- warm up ------------------------------------------------------------------------------------
+// W: the machine's repositories with their estimates; SEL: what the person picked, by checkout
+let W = null, SEL = new Map(), dirsOpen = new Set();
+async function loadWarmup() {
+  if (!W) $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Looking for repositories…</div>`;
   try {
-    const { repos } = await api('/api/repos');
-    if (!REPO || (REPO !== 'all' && !repos.some(r => r.id === REPO))) REPO = repos.find(r => r.current)?.id || '';
-    $('#repo-sel').innerHTML = repos.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('')
-      + `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>`;
-  } catch {}
+    W = await api('/api/machine');
+    W.agents = AGENTS?.agents || [];
+    // preselected: only what an agent worked in these 30 days and has no cache yet; the rest is listed unchecked
+    if (!SEL.size) for (const r of W.repos) if (r.canMine && !r.hasCache && r.sessions > 0) SEL.set(r.checkout, { depth: 'full', directories: [] });
+    renderWarmup();
+    // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
+    if (!AGENTS) { $('#w-agent').innerHTML = '<option value="">checking your agents…</option>'; AGENTS = await api('/api/agents'); W.agents = AGENTS.agents; }
+    const agentSel = $('#w-agent');
+    agentSel.innerHTML = W.agents.length ? W.agents.map(a => `<option value="${esc(a.agent)}"${a.agent === (AGENTS.defaultAgent || W.agents[0].agent) ? ' selected' : ''}>${esc(a.name)}${a.authenticated ? '' : ' · not signed in'}</option>`).join('') : '<option value="">no agent CLI found</option>';
+    fillTiers();
+    renderWarmup();
+  } catch (e) { $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not look for repositories: ${esc(e.message)}</div>`; }
 }
-loadRepos().then(() => { show(new URLSearchParams(location.hash.slice(1)).get('tab') || 'usage'); refreshWaitCount(); });
+let AGENTS = null;
+function fillTiers() {
+  const a = W.agents.find(x => x.agent === $('#w-agent').value) || W.agents[0];
+  const cur = $('#w-tier').value || W.defaultTier;
+  $('#w-tier').innerHTML = (a ? a.models : W.tiers.map(t => ({ tier: t, model: t }))).map(m => `<option value="${esc(m.tier)}"${m.tier === cur ? ' selected' : ''}>${esc(m.model)}</option>`).join('');
+  $('#w-auth').textContent = a ? (a.authenticated ? `signed in${a.details && /as /.test(a.details) ? ' ' + a.details.replace(/^Signed in /, '') : ''}` : `not signed in · run ${a.loginCmd} first`) : '';
+  $('#w-auth').className = a && !a.authenticated ? 'loss' : 'muted';
+}
+$('#w-agent').onchange = fillTiers;
+const est = (r, sel) => r.estimates[sel.depth] || r.estimates.full;
+function wcard(r) {
+  const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
+  const sub = [owner(r.name), home(r.checkout), ago(r.lastUsed), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', r.hasCache ? 'has a cache' : ''].filter(Boolean).join(' · ');
+  if (!r.canMine) return `<div class="wcard off" data-c="${esc(r.checkout)}"><div class="wtop"><input type="checkbox" disabled><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div><div class="weta"><b class="dim">—</b><span>nothing to read</span></div></div>
+    <div class="wnote">${r.commits <= 5 ? 'Too little history to read; the cache grows from your sessions.' : 'No merged history to read; the cache grows from your sessions.'}</div></div>`;
+  return `<div class="wcard${on ? ' on' : ''}" data-c="${esc(r.checkout)}">
+    <label class="wtop"><input type="checkbox" data-pick${on ? ' checked' : ''}><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens` : `${dur(r.estimates.shallow.seconds)} shallow`}</span></div></label>
+    ${on ? `<div class="wopts"><div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
+      ${r.dirs.length ? `<button class="link" data-dirs>${sel.directories.length ? `${sel.directories.length} of ${r.dirs.length} directories` : 'Whole repository'} ${dirsOpen.has(r.checkout) ? '▴' : '▾'}</button>` : ''}</div><div class="wnote">${esc(e.notes)} expected</div>
+      ${dirsOpen.has(r.checkout) ? `<div class="wdirs">${r.dirs.map(d => `<button class="chip${sel.directories.includes(d) ? ' on' : ''}" data-dir="${esc(d)}">${esc(d)}</button>`).join('')}</div><div class="wnote">Pick directories to read only their history; none picked reads the whole repository.</div>` : ''}` : ''}
+  </div>`;
+}
+function renderWarmup() {
+  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">No git repositories found in your agents' recent work. Run an agent session inside one, or <code>thinker setup --build</code> there.</div>`; $('#w-bar').hidden = true; return; }
+  $('#w-grid').innerHTML = W.repos.map(wcard).join('');
+  $('#w-bar').hidden = false;
+  let secs = 0, toks = 0;
+  for (const [c, sel] of SEL) { const r = W.repos.find(x => x.checkout === c); if (!r) continue; const e = est(r, sel); secs += e.seconds; toks += e.tokens; }
+  $('#w-eta').textContent = SEL.size ? dur(secs) : '—'; $('#w-tokens').textContent = SEL.size ? `~${fmt(toks)}` : '0'; $('#w-count').textContent = `${SEL.size} ${SEL.size === 1 ? 'repository' : 'repositories'}`;
+  $('#w-start').disabled = !SEL.size || !AGENTS || !W.agents.length;
+  document.querySelectorAll('#w-grid .wcard').forEach(el => {
+    const c = el.dataset.c;
+    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [] }); else SEL.delete(c); renderWarmup(); };
+    el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
+    const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { dirsOpen.has(c) ? dirsOpen.delete(c) : dirsOpen.add(c); renderWarmup(); };
+    el.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => { const s = SEL.get(c); s.directories = s.directories.includes(b.dataset.dir) ? s.directories.filter(d => d !== b.dataset.dir) : [...s.directories, b.dataset.dir]; renderWarmup(); });
+  });
+}
+$('#w-start').onclick = async () => {
+  const btn = $('#w-start'); btn.disabled = true;
+  try {
+    const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories }));
+    const r = await api('/api/warmup', { repos, agent: $('#w-agent').value || null, tier: $('#w-tier').value || null });
+    toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
+    SEL = new Map(); W = null; prevJobs = '';
+    DREPO = ''; show('cache');
+  } catch (e) { btn.disabled = false; toast(e.message, true); }
+};
+
+// first view: the tab the URL names, else the caches; the warm-up page when nothing has a cache yet
+(async () => {
+  let tab = H().get('tab');
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
+  show(tab);
+})();
 </script>
 </body>
 </html>

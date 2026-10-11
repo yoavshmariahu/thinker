@@ -7,16 +7,19 @@ The details behind the install line in the [README](../README.md).
 Run `curl -fsSL https://zerotime.dev/dist/install.sh | bash`. It
 installs the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
-Cursor, their desktop apps included). Run from inside a repository, it also
-sets that repository up; anywhere else, `thinker setup` inside a repository
-does that later. `setup` offers to build the cache from the repository's
-merged pull requests (`--build` says yes without asking, `--no-build` says
-no; without it the cache grows from your own sessions). The build comes in two
-depths: **full**, the newest 60 merged pull requests, or
-**shallow**, the most valuable 30% of them (the newest), for a quicker, cheaper start. Setup offers both with their
-estimates; `--depth full` or `--depth shallow` picks one without asking. The wiring is
-everywhere, the cache is per repository: in a repository that has not been
-set up the agents are served nothing and learn nothing.
+Cursor, their desktop apps included), asking nothing in the terminal. Thinker
+then runs in every git repository on this machine: a cache starts, empty, with
+the first agent session in a repository (kept out of `git status` through
+`.git/info/exclude`) and grows from your sessions. The installer ends by
+opening the **warm-up page** (`thinker ui`, the Warm up tab): the repositories
+your agents worked in over the last 30 days, found from their own session
+records, each with an estimate. Pick the ones to build a cache for now, at one
+of two depths: **full**, the newest 60 merged pull requests, or **shallow**,
+the most valuable 30% of them (the newest), for a quicker, cheaper start; pick
+directories to read only their history; choose the agent and model; the builds
+then run one at a time, with their progress and a stop button on the Cache
+page. `thinker setup --build [--depth shallow]` does the same for one
+repository from the terminal.
 
 Then work with your agent as usual. The notes that bear on each request are
 chosen on your machine by a small local ranking model; no extra account or key

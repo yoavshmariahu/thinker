@@ -54,11 +54,11 @@ test('doctor finds wiring of a thinker copy that is gone, and --fix rewires it t
   assert.equal(fixed.status, 0);
 });
 
-test('doctor says a repository is not set up, without failing on it', t => {
+test('doctor says a repository has no cache yet, as a fact and not a failure, and creates none', t => {
   const { repo, run } = machine(t);
   const r = run('doctor', '--json');
   const repoCheck = byName(JSON.parse(r.stdout), 'repository');
-  assert.equal(repoCheck.status, 'warn');
-  assert.match(repoCheck.detail, /thinker setup/);
+  assert.equal(repoCheck.status, 'ok');
+  assert.match(repoCheck.detail, /no cache in .* yet.*thinker ui/);
   assert.ok(!fs.existsSync(path.join(repo, '.thinker')));
 });

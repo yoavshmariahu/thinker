@@ -1,11 +1,13 @@
 // `thinker ui`: a local page for the person, on this machine only. Three views: how the cache has been
-// used (usage.js:summarize, in tokens, never dollars), the notes in the cache, which can be archived or
-// restored (ops.js:archiveNotes), and the desired behaviors of the system, where the ones waiting for
-// a decision can be accepted, edited or discarded (behavior-workbench.js).
+// used (usage.js:summarize, in tokens, never dollars), filtered by repository; the caches on the
+// machine (machine.js), one card per repository with what runs against it (activity.js) and, inside
+// one, its notes (archive or restore, ops.js:archiveNotes) and the desired behaviors of the system,
+// where the ones waiting for a decision can be accepted, edited or discarded (behavior-workbench.js);
+// and the warm-up page, where the repositories the agents have worked in are picked for a cache
+// build, which runs here as a detached `thinker setup --build` per repository, one at a time.
 //
-// Every view is for one repository, picked at the top of the page (`?repo=` its id, as the log names
-// it), or for all of them (`?repo=all`): the repositories are the ones in the machine's log with a
-// checkout still set up, and only those can be named, so the page cannot be pointed at a path.
+// The page is machine-wide: it needs no repository, and a repository is named by its id (as the log
+// names it) so the page cannot be pointed at a path.
 //
 // It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
 // gets from the URL it was opened with, and the Host header must name this server, so another page
@@ -16,24 +18,31 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { summarize, readLog } from '../usage.js';
-import { Store, repoId, isScratchCheckout } from '../store.js';
-import { execFileSync } from 'node:child_process';
+import { summarize } from '../usage.js';
+import { Store, repoId, isGitCheckout } from '../store.js';
 import { refresh, archiveNotes } from '../ops.js';
 import { isBehavior } from '../behavior.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../behavior-workbench.js';
+import { discoverRepos, warmupCandidates, cacheStats, displayName } from '../machine.js';
+import { activity, cancelActivity, alive } from '../activity.js';
+import { thinkerHome } from '../update.js';
+import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
+import { DEPTHS } from '../setup/estimate.js';
+import { resolveModel, findBin, BINS } from '../llm.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_PORT = 4848;
+export const TIERS = ['haiku', 'sonnet', 'opus'];
 
 // Only what the page shows: counts and tokens. The provider-reported cost stays out (no dollars).
-export function usageView(store, { days, scope = 'here' } = {}) {
+export function usageView(store, { days, scope = 'here', notesInCache } = {}) {
   const u = summarize(store, { days, all: scope !== 'here' });
   const tok = o => o ? { calls: o.calls || 0, tokens: o.totalTokens || 0, failed: o.failed || 0 } : { calls: 0, tokens: 0, failed: 0 };
+  const count = () => { try { return store.list().filter(n => n.status !== 'invalid').length; } catch { return 0; } };
   return {
     scope: u.scope, from: u.from, to: u.to, days: days || null,
     requests: u.requests || 0, answered: u.answered || 0, sessions: u.sessions || 0,
-    servings: u.servings || {}, notesServed: u.notesServed || 0, notesInCache: store.list().filter(n => n.status !== 'invalid').length,
+    servings: u.servings || {}, notesServed: u.notesServed || 0, notesInCache: notesInCache ?? count(),
     tokensServed: u.tokensServed || 0,
     assessed: u.assessed || {}, learned: u.learned || {}, verified: u.verified || {},
     spending: { ...tok(u.spending), byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
@@ -63,42 +72,25 @@ export function cacheView(store) {
   };
 }
 
-// The repositories the page can show: this one, and every origin in the machine's log with a checkout
-// that is still set up (a .thinker folder), scratch checkouts aside. A repository with several
-// checkouts (clones, worktrees) is read from this one if it is among them, else the one holding the
-// most notes.
-export function machineRepos(store) {
-  const here = repoId(store.repo), byOrigin = new Map([[here, new Set([store.repo])]]);
-  let events = []; try { events = readLog(store, { all: true }); } catch {}
-  const seen = new Set([store.repo]);
-  for (const e of events) {
-    if (!e.repo || !path.isAbsolute(e.repo) || seen.has(e.repo)) continue;
-    seen.add(e.repo);
-    // a git checkout that was set up (not the home folder, whose .thinker is the app's own)
-    if (isScratchCheckout(e.repo) || !fs.existsSync(path.join(e.repo, '.git')) || !fs.existsSync(path.join(e.repo, '.thinker'))) continue;
-    const origin = repoId(e.repo); // as it is now: the line may predate the origin, and a worktree shares it
-    if (!byOrigin.has(origin)) byOrigin.set(origin, new Set());
-    byOrigin.get(origin).add(e.repo);
-  }
+// The repositories with a cache on this machine: this one, and every checkout the agents' transcripts
+// or the machine's log name that has a .thinker folder. A repository with several checkouts (clones,
+// worktrees) is read from the one holding the most notes, this one when they tie.
+export function machineRepos(store, { home } = {}) {
+  const here = isGitCheckout(store.repo) && store.exists() ? store.repo : null;
+  const byOrigin = new Map();
+  const add = c => { const o = repoId(c); if (!byOrigin.has(o)) byOrigin.set(o, new Set()); byOrigin.get(o).add(c); };
+  if (here) add(here);
+  let found = []; try { found = discoverRepos(store, { home }); } catch {}
+  for (const r of found) for (const c of r.checkouts) if (fs.existsSync(path.join(c, '.thinker'))) add(c);
   const count = c => { try { return new Store(c, { readonly: true }).list().length; } catch { return -1; } };
   const out = [];
   for (const [id, checkouts] of byOrigin) {
-    const scored = [...checkouts].map(c => [c, c === store.repo ? Infinity : count(c)]).filter(([, n]) => n >= 0).sort((a, b) => b[1] - a[1]);
+    const scored = [...checkouts].map(c => [c, count(c)]).filter(([, n]) => n >= 0).sort((a, b) => b[1] - a[1] || (b[0] === here) - (a[0] === here));
     if (!scored.length) continue;
     const checkout = scored[0][0];
-    out.push({ id, name: /^[^/]+\.[a-z]+\/[^/]/.test(id) ? String(id).replace(/^[^/]+\.[a-z]+\//, '') : path.basename(checkout), checkout, current: id === here });
+    out.push({ id, name: displayName(id, checkout), checkout, current: checkout === here });
   }
   return out.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));
-}
-
-// The repository as people name it: owner/name from its origin, else the checkout's folder.
-function repoName(repo) {
-  try {
-    const u = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    const m = /[:/]([^/:]+\/[^/]+?)(?:\.git)?$/.exec(u);
-    if (m) return m[1];
-  } catch {}
-  return path.basename(repo);
 }
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
@@ -107,19 +99,81 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex') } = {}) {
+// The warm-up builds: one detached `thinker setup --build` per repository, one at a time (they all
+// run through the same agent login), remembered in THINKER_HOME/state/warmup.json so the page shows
+// them after this server restarts. A job's progress is its repository's activity (the mining
+// batch); before mining starts it reads the design documents, which has no count.
+export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {} }) {
+  const file = path.join(home, 'state', 'warmup.json');
+  let jobs = []; try { jobs = JSON.parse(fs.readFileSync(file, 'utf8')).jobs || []; } catch {}
+  // a job an earlier server started cannot be waited on (`orphan`): it is running while its process is
+  for (const j of jobs) { if (j.status === 'running') { j.orphan = true; if (!alive(j.pid)) { j.status = 'done'; j.ended = new Date().toISOString(); } } else if (j.status === 'queued') j.status = 'cancelled'; }
+  const save = () => { try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ jobs: jobs.slice(-50) }, null, 2)); } catch {} onChange(); };
+  const settle = () => { let changed = false; for (const j of jobs) if (j.status === 'running' && j.orphan && !alive(j.pid)) { j.status = 'done'; j.ended = new Date().toISOString(); changed = true; } if (changed) { save(); pump(); } };
+  const pump = () => {
+    for (const j of jobs) if (j.status === 'running' && j.orphan && !alive(j.pid)) { j.status = 'done'; j.ended = new Date().toISOString(); }
+    if (jobs.some(j => j.status === 'running')) return;
+    const next = jobs.find(j => j.status === 'queued'); if (!next) return;
+    const args = [cliPath, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', next.depth, '--repo', next.checkout];
+    args.push(...(next.directories?.length ? ['--directories', next.directories.join(',')] : ['--full-repo']));
+    if (next.model) args.push('--model', next.model);
+    let child;
+    try {
+      fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+      const log = fs.openSync(path.join(home, 'state', `warmup-${next.name.replace(/\W+/g, '-')}.log`), 'a');
+      child = spawnFn(process.execPath, args, { cwd: next.checkout, detached: true, stdio: ['ignore', log, log], env: { ...process.env, ...(next.agent ? { THINKER_LLM: next.agent } : {}), THINKER_INSTALLER: '1' } });
+    } catch (e) { next.status = 'failed'; next.error = e.message; next.ended = new Date().toISOString(); save(); return pump(); }
+    next.status = 'running'; next.pid = child.pid; next.started = new Date().toISOString(); save();
+    child.on('exit', code => { if (next.status === 'running') next.status = code === 0 ? 'done' : 'failed'; next.code = code; next.ended = new Date().toISOString(); save(); pump(); });
+    child.on('error', e => { next.status = 'failed'; next.error = e.message; next.ended = new Date().toISOString(); save(); pump(); });
+    child.unref();
+  };
+  return {
+    list: () => { settle(); return jobs.map(j => ({ ...j })); },
+    active: () => { settle(); return jobs.some(j => j.status === 'queued' || j.status === 'running'); },
+    add(list) {
+      const added = [];
+      for (const r of list) {
+        if (jobs.some(j => j.checkout === r.checkout && (j.status === 'queued' || j.status === 'running'))) continue;
+        const j = { id: crypto.randomBytes(6).toString('hex'), checkout: r.checkout, name: r.name, depth: r.depth, directories: r.directories || null, agent: r.agent || null, model: r.model || null, status: 'queued', queued: new Date().toISOString() };
+        jobs.push(j); added.push(j);
+      }
+      save(); pump();
+      return added;
+    },
+    cancel(id) {
+      const j = jobs.find(x => x.id === id); if (!j) return { error: 'no such job' };
+      if (j.status === 'queued') { j.status = 'cancelled'; j.ended = new Date().toISOString(); save(); return { ok: true }; }
+      if (j.status !== 'running') return { error: 'the job is not running' };
+      j.status = 'cancelled'; j.ended = new Date().toISOString();
+      try { process.kill(-j.pid, 'SIGTERM'); } catch { try { process.kill(j.pid, 'SIGTERM'); } catch {} }
+      save(); if (j.orphan) pump();
+      return { ok: true };
+    },
+    // a batch stopped from its repository's card was a job's, when the pids match
+    stopped(pid) { const j = jobs.find(x => x.status === 'running' && x.pid === pid); if (j) { j.status = 'cancelled'; j.ended = new Date().toISOString(); save(); if (j.orphan) pump(); } },
+  };
+}
+
+export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), spawnFn = spawn } = {}) {
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0, known = null, lastRequest = Date.now();
-  const repos = () => known ||= machineRepos(store);
-  const opened = new Map([[store.repo, store]]);
+  const repos = () => known ||= machineRepos(store, { home: transcriptsHome });
+  const opened = new Map();
   const open = checkout => { if (!opened.has(checkout)) opened.set(checkout, new Store(checkout)); return opened.get(checkout); };
-  // '' is this repository; an id must be one machineRepos listed
-  const entry = id => !id ? repos().find(r => r.current) || { id: repoId(store.repo), name: repoName(store.repo), checkout: store.repo, current: true } : repos().find(r => r.id === id);
+  const jobs = warmupJobs({ home, cliPath, spawnFn, onChange: () => { known = null; } });
+  // '' is this repository (when it is one); an id must be one machineRepos listed
+  const entry = id => !id ? repos().find(r => r.current) : repos().find(r => r.id === id);
   const storeFor = id => { const r = id === 'all' ? null : entry(id); return r ? open(r.checkout) : null; };
   const storesFor = id => {
     if (id === 'all') return repos().flatMap(r => { try { return [[r, open(r.checkout)]]; } catch { return []; } });
     const r = entry(id); return r ? [[r, open(r.checkout)]] : null;
   };
+  const withStats = r => {
+    let pending = 0; try { pending = pendingBehaviors(open(r.checkout)).length; } catch {}
+    return { ...r, stats: cacheStats(r.checkout), pending, job: jobs.list().filter(j => j.checkout === r.checkout).pop() || null };
+  };
+  let candidates = null, agents = null;
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -135,10 +189,25 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     try {
       // which repository: '' (this one), 'all', or one of machineRepos by id
       const want = String(url.searchParams.get('repo') || '');
-      if (req.method === 'GET' && url.pathname === '/api/repos') { known = machineRepos(store); return json(res, 200, { repos: known }); }
+      if (req.method === 'GET' && url.pathname === '/api/repos') { known = machineRepos(store, { home: transcriptsHome }); return json(res, 200, { repos: known.map(withStats), jobs: jobs.list() }); }
+      if (req.method === 'GET' && url.pathname === '/api/activity') {
+        const byRepo = {};
+        for (const r of repos()) byRepo[r.id] = activity(path.join(r.checkout, '.thinker'));
+        return json(res, 200, { repos: byRepo, jobs: jobs.list() });
+      }
+      if (req.method === 'GET' && url.pathname === '/api/machine') {
+        candidates = warmupCandidates(store, { home: transcriptsHome });
+        return json(res, 200, { repos: candidates, tiers: TIERS, defaultTier: 'sonnet', jobs: jobs.list() });
+      }
+      // the agent CLIs a build can run through, with whether each is signed in: asking each takes seconds, so
+      // once per server
+      if (req.method === 'GET' && url.pathname === '/api/agents') {
+        agents ||= BUILD_AGENTS.filter(a => findBin(BINS[a])).map(a => { const auth = checkAgentAuth(a); return { agent: a, name: getAgentDisplayName(a, findBin(BINS[a])), authenticated: !!auth.authenticated, details: auth.details || '', loginCmd: auth.loginCmd, models: TIERS.map(t => ({ tier: t, model: resolveModel(a, t) })) }; });
+        return json(res, 200, { agents, defaultAgent: buildAgent(), tiers: TIERS, defaultTier: 'sonnet' });
+      }
       if (req.method === 'GET' && url.pathname === '/api/usage') {
         const days = Number(url.searchParams.get('days')) || undefined;
-        if (want === 'all') return json(res, 200, usageView(store, { days, scope: 'all' }));
+        if (want === 'all') { const notesInCache = repos().reduce((a, r) => a + (cacheStats(r.checkout)?.notes || 0), 0); return json(res, 200, usageView(store, { days, scope: 'all', notesInCache })); }
         const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
         return json(res, 200, usageView(one, { days, scope: 'here' }));
       }
@@ -156,6 +225,28 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
+      if (url.pathname === '/api/warmup') {
+        // only repositories the machine page listed, by checkout, and only the depths a build has
+        candidates ||= warmupCandidates(store, { home: transcriptsHome });
+        const agent = b.agent && BUILD_AGENTS.includes(b.agent) ? b.agent : null;
+        const tier = TIERS.includes(b.tier) ? b.tier : null;
+        const list = [];
+        for (const r of Array.isArray(b.repos) ? b.repos : []) {
+          const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
+          const depth = DEPTHS.includes(r.depth) ? r.depth : 'full';
+          const dirs = Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
+          list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier });
+        }
+        if (!list.length) return json(res, 400, { error: 'no repositories selected' });
+        return json(res, 200, { ok: true, jobs: jobs.add(list) });
+      }
+      if (url.pathname === '/api/warmup/cancel') { const r = jobs.cancel(String(b.id || '')); return r.error ? json(res, 400, r) : json(res, 200, r); }
+      if (url.pathname === '/api/activity/cancel') {
+        const r0 = entry(String(b.repo || '')); if (!r0) return json(res, 400, { error: 'unknown repository' });
+        const r = cancelActivity(path.join(r0.checkout, '.thinker'), Number(b.pid));
+        if (r.ok) jobs.stopped(Number(b.pid));
+        return r.error ? json(res, 400, r) : json(res, 200, r);
+      }
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
@@ -175,7 +266,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     }
   });
   return {
-    server, token,
+    server, token, jobs,
     listen(want = DEFAULT_PORT) {
       return new Promise((resolve, reject) => {
         const tryPort = p => {
@@ -186,7 +277,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       });
     },
     close: () => new Promise(r => server.close(r)),
-    idleMs: () => Date.now() - lastRequest,
+    // a build queued here keeps the server up until it is started: the queue lives in this process
+    idleMs: () => jobs.active() ? 0 : Date.now() - lastRequest,
   };
 }
 

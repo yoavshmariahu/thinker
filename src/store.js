@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 // Four kinds of note. `map`: where things are and how control flows (what an agent would otherwise
 // grep and read for). `howto`: how to build, test, run, with the non-obvious flags. `rule`: what a
@@ -27,6 +27,29 @@ export function findRepoRoot(start = process.cwd()) {
     if (parent === dir) return path.resolve(start);
     dir = parent;
   }
+}
+
+export const isGitCheckout = repo => fs.existsSync(path.join(repo, '.git'));
+
+// The machine-local pieces of a fresh cache in the checkout's own exclude file (.git/info/exclude,
+// which is not committed), unless git ignores .thinker already: the config, the state and the log.
+// Not the notes: a repository may still commit `.thinker/notes/` (the legacy shared cache), and an
+// excluded path cannot be added. The local tier ignores itself. Nothing when this is not a git checkout.
+export const EXCLUDED = ['.thinker/config.json', '.thinker/.gitignore', '.thinker/state/', '.thinker/log.jsonl', '.thinker/benchmarks/'];
+export function excludeFromGit(repo) {
+  if (!isGitCheckout(repo)) return false;
+  try {
+    const r = spawnSync('git', ['check-ignore', '-q', '.thinker'], { cwd: repo, stdio: 'ignore' });
+    if (r.status === 0) return false;
+    const file = path.resolve(repo, execFileSync('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim());
+    const had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    const lines = new Set(had.split('\n').map(l => l.trim()));
+    const missing = EXCLUDED.filter(l => !lines.has(l) && !lines.has('.thinker/') && !lines.has('.thinker'));
+    if (!missing.length) return false;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, had + (had && !had.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
+    return true;
+  } catch { return false; }
 }
 
 // The path of a git hook for this checkout; null when this is not a git checkout.
@@ -198,12 +221,16 @@ export class Store {
     if (this.readonly) throw new Error('readonly store');
     // Notes may live outside the repo (THINKER_NOTES_DIR). config.json still belongs in <repo>/.thinker.
     this.assertSafeNotesPath();
+    const fresh = !fs.existsSync(this.dir);
     fs.mkdirSync(this.dir, { recursive: true });
     fs.mkdirSync(this.notesDir, { recursive: true });
     this.assertSafeNotesPath();
     if (this.tiered) this.#layout(true);
     const cfg = path.join(this.dir, 'config.json');
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet' }, null, 2) + '\n');
+    // a cache made in a checkout that had none stays out of `git status`: thinker starts one in
+    // every git repository it runs in, and that must not dirty the repository
+    if (fresh) excludeFromGit(this.repo);
     return this;
   }
   config() {

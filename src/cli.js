@@ -3,7 +3,7 @@ import { isTestMode } from './test-mode.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Store, findRepoRoot } from './store.js';
+import { Store, findRepoRoot, isGitCheckout } from './store.js';
 import { initAst } from './ast.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
@@ -66,8 +66,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  another file, --full-repo ignores it for one run. Retrieval always uses the whole cache.
   connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
-                                 server, for every repository that is set up (elsewhere thinker does nothing);
-                                 setup runs it first, and so does the installer
+                                 server. Thinker then runs in every git repository: a cache starts with the first
+                                 session there, or is built from the warm-up page (thinker ui). Codex's hook-review
+                                 marks are written without asking (--no-trust leaves them). The installer runs this.
   doctor [--fix] [--json]        check that thinker is installed and wired correctly: Node, dependencies, PATH, the
                                  agents' hooks and MCP server, this checkout's setup and git hooks, the MCP server
                                  starting, the ranking model; --fix repairs what it can and checks again
@@ -169,8 +170,11 @@ const HELP = `thinker — knowledge cache for coding agents
   impact link-review <run-id> --pr n   attach an earlier local review to its PR
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open]       open the local page: usage, the notes in the cache (archive or restore), and the system
-                                 behaviors (accept, edit or discard the ones waiting); 127.0.0.1 only, Ctrl+C stops it
+  ui [--port n] [--no-open] [--tab usage|cache|warmup]
+                                 open the local page, from any directory: usage by repository, the caches on this machine
+                                 (each with its notes, to archive or restore, its system behaviors, to accept, edit or
+                                 discard, and what is being mined or distilled, with a stop button), and the warm-up page
+                                 that builds caches for the repositories your agents work in; 127.0.0.1 only, Ctrl+C stops it
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
@@ -196,9 +200,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --schedule / --unschedule manages hourly background telemetry
 `;
 
-// Commands that read or maintain an existing cache. Not `setup`, `mine-prs`, `import`,
-// `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['ui', 'tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
+// Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
+// `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
+// checkout) and not `ui`, the machine-wide page.
+const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands };
@@ -217,11 +222,11 @@ async function main() {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
-  // the cache is used only where `thinker setup` has run: a repository without .thinker/
-  // is served nothing and learns nothing. Commands that build or add to a cache create it themselves.
-  if (CACHE_COMMANDS.includes(cmd) && !store.exists()) {
-    process.stderr.write(`thinker: not set up in this repository (${repo}). Run \`thinker setup\` there to set it up.\n`);
-    process.exit(1);
+  // every git repository has a cache: one is started on first use (store.init keeps it out of git
+  // status). Outside a git repository there is nowhere to keep one.
+  if (CACHE_COMMANDS.includes(cmd)) {
+    if (!isGitCheckout(repo)) { process.stderr.write(`thinker: ${repo} is not a git repository, so there is no cache here. Run thinker inside a git checkout.\n`); process.exit(1); }
+    if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
   if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
