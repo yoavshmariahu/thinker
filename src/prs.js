@@ -299,7 +299,7 @@ export function trimDiff(diff) {
   return kept.join('').slice(0, DIFF_CHARS) + (dropped ? `\n(${dropped} lockfile/generated/snapshot file diffs omitted)\n` : '');
 }
 
-export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [] } = {}) {
+export async function distillPr(slug, pr, { model = 'haiku', repo, accounting, existing = [] } = {}) {
   let diff = pr.diff || '';
   if (!diff && repo && pr.hash) {
     try {

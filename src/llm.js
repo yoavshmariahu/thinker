@@ -15,7 +15,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logModelUsage, normalizeModelUsage } from './model-usage.js';
-const ALIASES = { haiku: 'claude-haiku-4-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5', fable: 'claude-fable-5-1' };
+const ALIASES = { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5', fable: 'claude-fable-5-1' };
 export const BINS = { claude: ['claude'], gemini: ['agy', 'gemini'], codex: ['codex'], cursor: ['agent', 'cursor-agent'] };
 export const FALLBACK_ORDER = ['claude', 'gemini', 'codex', 'cursor'];
 

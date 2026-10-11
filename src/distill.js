@@ -219,7 +219,7 @@ export function distillSpec({ kinds = KINDS } = {}) {
   const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
   return { system, schema };
 }
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting, evidence, discover = true, compact = false } = {}) {
+export async function distillEvents(events, { model = 'haiku', repoHint = '', served = [], existing = [], kinds = KINDS, accounting, evidence, discover = true, compact = false } = {}) {
   const trace = evidence ?? condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
   let { system, schema } = distillSpec({ kinds });
