@@ -28,8 +28,10 @@ for (let i = 0; i < args.length; i++) {
 const repoName = flags.repo || 'posthog';
 const REPO = path.join(HERE, 'repos', repoName);
 const TASKS = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json`);
-const NOTESET = flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`);
-const NOTES = flags['notes-dir'] || path.join(NOTESET, 'notes');
+// absolute: the hook runs with the repository as its cwd, where a relative path found no notes
+// (mlflow-astra-v1, 2026-10-11: the hook arms were served nothing and recorded it as such)
+const NOTESET = path.resolve(flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`));
+const NOTES = path.resolve(flags['notes-dir'] || path.join(NOTESET, 'notes'));
 const TAG = flags.tag || (args[0] && !args[0].startsWith('--') ? args[0] : `${repoName}-codex-gpt56`);
 const REPS = Number(flags.reps || (args[1] && !args[1].startsWith('--') ? args[1] : 2));
 const CONC = Number(flags.conc || (args[2] && !args[2].startsWith('--') ? args[2] : 3));
