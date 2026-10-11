@@ -9,9 +9,9 @@ import http from 'node:http';
 import { execFileSync, spawn } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { batchProgress } from '../src/progress.js';
-import { activity, cancelActivity } from '../src/activity.js';
+import { activity, cancelActivity, latestBatch, batchEta } from '../src/activity.js';
 import { agentWorkDirs, discoverRepos, warmupCandidates, cacheStats } from '../src/machine.js';
-import { createUiServer, machineRepos } from '../src/ui/server.js';
+import { createUiServer, machineRepos, jobProgress } from '../src/ui/server.js';
 
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 function repo(t, name = 'thinker-machine-') {
@@ -60,6 +60,40 @@ test('the agents\' transcripts name the repositories they worked in, with their 
   assert.ok(c.estimates.full.seconds > c.estimates.shallow.seconds);
   assert.ok(c.estimates.full.tokens > 0 && c.estimates.shallow.tokens > 0);
   assert.equal(cacheStats(dir), null, 'no cache, no stats');
+  // an empty .thinker folder (every checkout an agent worked in has one) is no cache; notes are
+  const st = new Store(dir).init();
+  assert.equal(discoverRepos(store, { home })[0].hasCache, false, 'a folder without notes is not a cache');
+  st.put({ id: 'n1', title: 'a note', kind: 'rule', answers: [], body: 'src/a.js:a is one', deps: [{ path: 'src/a.js', symbol: 'a' }], source: { type: 'session', ref: 's' }, confidence: 0.8, status: 'fresh' });
+  const [again] = warmupCandidates(store, { home });
+  assert.equal(again.hasCache, true); assert.equal(again.notes, 1); assert.equal(again.warmed, false, 'no pull requests read yet');
+});
+
+test('a warm-up build reports where it is: the stage, the fraction done and the seconds left', async t => {
+  const { dir } = repo(t);
+  const store = new Store(dir).init();
+  const now = Date.now();
+  const job = { checkout: dir, started: new Date(now - 60_000).toISOString(), estimateSeconds: 400 };
+  // before the mining batch: the design documents, with the whole build ahead
+  let p = jobProgress(job, { now });
+  assert.match(p.stage, /design documents/); assert.ok(p.fraction > 0 && p.fraction < 0.1, String(p.fraction)); assert.ok(p.etaSeconds > 400 && p.etaSeconds < 520, String(p.etaSeconds));
+  // the mining batch at its pace: 2 of 10 in 40s is 160s more, plus the last stage
+  const file = path.join(store.dir, 'state', `pr-mining-${now - 40_000}-${process.pid}.jsonl`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const rec = r => JSON.stringify({ time: new Date(now).toISOString(), ...r }) + '\n';
+  fs.writeFileSync(file, rec({ event: 'batch', name: 'PR mining', total: 10 }) + rec({ event: 'start', item: 'PR #1' }) + rec({ event: 'complete', item: 'PR #1', notes: ['a'] }) + rec({ event: 'start', item: 'PR #2' }) + rec({ event: 'complete', item: 'PR #2', notes: [] }) + rec({ event: 'start', item: 'PR #3' }));
+  const b = latestBatch(store.dir, 'pr-mining', now - 60_000);
+  assert.equal(b.completed, 2); assert.equal(b.current, 'PR #3'); assert.equal(b.done, false); assert.equal(b.startedMs, now - 40_000);
+  assert.equal(batchEta(b, b.startedMs, now), 160);
+  assert.equal(latestBatch(store.dir, 'pr-mining', now), null, 'none started since then');
+  p = jobProgress(job, { now });
+  assert.equal(p.stage, 'mining 2/10 PRs'); assert.equal(p.current, 'PR #3'); assert.equal(p.saved, 1);
+  assert.ok(p.fraction > 0.1 && p.fraction < 0.4, String(p.fraction)); assert.equal(p.etaSeconds, 160 + 75);
+  assert.equal(activity(store.dir).etaSeconds, 160, 'the live batch carries the same ETA');
+  // the batch finished a minute ago: the last stage, nearly over
+  fs.appendFileSync(file, rec({ event: 'finish', completed: 10, saved: 7 }).replace(new Date(now).toISOString(), new Date(now - 60_000).toISOString()));
+  p = jobProgress(job, { now });
+  assert.match(p.stage, /phrasings/); assert.ok(p.fraction > 0.9 && p.fraction < 1, String(p.fraction)); assert.equal(p.etaSeconds, 15); assert.equal(p.saved, 1, 'notes counted from the items completed');
+  assert.equal(batchEta({ total: 4, completed: 0 }, now, now), null); assert.equal(batchEta({ total: 4, completed: 4 }, now, now), 0);
 });
 
 test('a running batch is the cache\'s activity, with its count, and stopping it closes the file', async t => {
@@ -134,6 +168,10 @@ test('the page lists caches with their stats, queues warm-up builds one at a tim
   const act = await get('/api/activity');
   assert.equal(act.jobs.filter(j => j.status === 'running').length, 1);
   assert.equal(act.jobs.filter(j => j.status === 'queued').length, 1);
+  const running = act.jobs.find(j => j.status === 'running');
+  assert.ok(running.estimateSeconds > 0, 'the estimate the page showed travels with the job');
+  assert.ok(running.progress.fraction >= 0 && running.progress.fraction < 1 && running.progress.etaSeconds > 0, JSON.stringify(running.progress));
+  assert.equal(act.jobs.find(j => j.status === 'queued').progress, undefined);
   assert.equal(ui.idleMs(), 0, 'a queued build keeps the server up');
   assert.ok(fs.existsSync(path.join(home, 'state', 'warmup.json')));
   // the first is stopped: the second starts

@@ -24,7 +24,7 @@ import { refresh, archiveNotes } from '../ops.js';
 import { isBehavior } from '../behavior.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../behavior-workbench.js';
 import { discoverRepos, warmupCandidates, cacheStats, displayName } from '../machine.js';
-import { activity, cancelActivity, alive } from '../activity.js';
+import { activity, cancelActivity, alive, latestBatch, batchEta } from '../activity.js';
 import { thinkerHome } from '../update.js';
 import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
 import { DEPTHS } from '../setup/estimate.js';
@@ -99,10 +99,42 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
+// Where a running warm-up build is: a fraction of the whole and the seconds left, for the page's bar.
+// A build has three stages (setup/steps.js:stepBuildCache): the design documents, the mining batch,
+// then linking, phrasings and behavior drafts. The mining batch has a count and a measured pace (its
+// file under the repository's .thinker/state); the other two have only a time budget, so during them
+// the bar creeps towards the stage's end and the ETA counts the budget down. `estimateSeconds` is the
+// mining estimate the page showed when the build was queued.
+const DOCS_SECONDS = 45, FINISH_SECONDS = 75;
+export function jobProgress(j, { now = Date.now() } = {}) {
+  const started = Date.parse(j.started) || now, elapsed = (now - started) / 1000;
+  const mineSec = Math.max(30, Number(j.estimateSeconds) || 0);
+  const total = DOCS_SECONDS + mineSec + FINISH_SECONDS;
+  const creep = (t, budget) => Math.min(0.95, Math.max(0, t) / budget);
+  const batch = latestBatch(path.join(j.checkout, '.thinker'), 'pr-mining', started - 2000);
+  let done, left, stage, current = '';
+  if (!batch) {
+    stage = 'reading the design documents';
+    done = DOCS_SECONDS * creep(elapsed, DOCS_SECONDS);
+    left = Math.max(5, DOCS_SECONDS - elapsed) + mineSec + FINISH_SECONDS;
+  } else if (!batch.done) {
+    const frac = batch.total ? Math.min(1, batch.completed / batch.total) : 0, inStage = (now - batch.startedMs) / 1000;
+    const eta = batchEta(batch, batch.startedMs, now);
+    stage = `mining ${batch.completed}/${batch.total} PRs`; current = batch.current;
+    done = DOCS_SECONDS + mineSec * frac;
+    left = (eta ?? Math.max(5, mineSec - inStage)) + FINISH_SECONDS;
+  } else {
+    const inStage = (now - (Date.parse(batch.ended) || batch.startedMs)) / 1000;
+    stage = 'linking notes, search phrasings and behavior drafts';
+    done = DOCS_SECONDS + mineSec + FINISH_SECONDS * creep(inStage, FINISH_SECONDS);
+    left = Math.max(5, FINISH_SECONDS - inStage);
+  }
+  return { fraction: Math.min(0.99, done / total), etaSeconds: Math.round(left), stage, current, saved: batch?.saved || 0 };
+}
+
 // The warm-up builds: one detached `thinker setup --build` per repository, one at a time (they all
 // run through the same agent login), remembered in THINKER_HOME/state/warmup.json so the page shows
-// them after this server restarts. A job's progress is its repository's activity (the mining
-// batch); before mining starts it reads the design documents, which has no count.
+// them after this server restarts. A running job carries its `progress` (jobProgress).
 export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {} }) {
   const file = path.join(home, 'state', 'warmup.json');
   let jobs = []; try { jobs = JSON.parse(fs.readFileSync(file, 'utf8')).jobs || []; } catch {}
@@ -129,13 +161,13 @@ export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {}
     child.unref();
   };
   return {
-    list: () => { settle(); return jobs.map(j => ({ ...j })); },
+    list: () => { settle(); return jobs.map(j => ({ ...j, ...(j.status === 'running' ? { progress: jobProgress(j) } : {}) })); },
     active: () => { settle(); return jobs.some(j => j.status === 'queued' || j.status === 'running'); },
     add(list) {
       const added = [];
       for (const r of list) {
         if (jobs.some(j => j.checkout === r.checkout && (j.status === 'queued' || j.status === 'running'))) continue;
-        const j = { id: crypto.randomBytes(6).toString('hex'), checkout: r.checkout, name: r.name, depth: r.depth, directories: r.directories || null, agent: r.agent || null, model: r.model || null, status: 'queued', queued: new Date().toISOString() };
+        const j = { id: crypto.randomBytes(6).toString('hex'), checkout: r.checkout, name: r.name, depth: r.depth, directories: r.directories || null, agent: r.agent || null, model: r.model || null, estimateSeconds: r.estimateSeconds || 0, status: 'queued', queued: new Date().toISOString() };
         jobs.push(j); added.push(j);
       }
       save(); pump();
@@ -235,7 +267,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
           const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
           const depth = DEPTHS.includes(r.depth) ? r.depth : 'full';
           const dirs = Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
-          list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier });
+          list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier, estimateSeconds: c.estimates[depth]?.seconds || 0 });
         }
         if (!list.length) return json(res, 400, { error: 'no repositories selected' });
         return json(res, 200, { ok: true, jobs: jobs.add(list) });
