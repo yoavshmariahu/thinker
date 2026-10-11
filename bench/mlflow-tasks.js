@@ -26,10 +26,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const cmd = args[0];
 const flag = k => { const i = args.indexOf('--' + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true) : undefined; };
-const REPO = path.join(HERE, 'repos', 'mlflow');
+// --clone <dir under bench/repos> and --out <name> select a second clone at another base and its
+// own task file (mlflow-b2: a later base, the larger changes); gold diffs are shared by PR number.
+const REPO = path.join(HERE, 'repos', flag('clone') || 'mlflow');
 const VENV = path.join(HERE, 'repos', 'mlflow-venv');
 const DATA = path.join(HERE, 'data', 'mlflow');
-const TASKS = path.join(HERE, 'tasks', 'mlflow.json');
+const TASKS = path.join(HERE, 'tasks', `${flag('out') || 'mlflow'}.json`);
 const PY = path.join(VENV, 'bin', 'python');
 const SLUG = 'mlflow/mlflow';
 
@@ -38,7 +40,7 @@ const isTest = p => /^tests\//.test(p);
 const CORE_AREAS = ['mlflow/store', 'mlflow/utils', 'mlflow/entities', 'mlflow/server', 'mlflow/tracing', 'mlflow/data', 'mlflow/models', 'mlflow/types', 'mlflow/cli', 'mlflow/artifacts', 'mlflow/tracking', 'mlflow/gateway', 'mlflow/genai', 'mlflow/metrics', 'mlflow/prompt', 'mlflow/environment_variables.py', 'mlflow/exceptions.py'];
 const isCore = p => CORE_AREAS.some(a => p === a || p.startsWith(a + '/')) && !/\.(md|rst|json|yaml|yml|txt|proto)$/.test(p) && !/_pb2|\/protos\//.test(p);
 const SKIP_TITLE = /^(Update version|Cherry-pick|Bump|Revert|\[MLflow\] Update changelog|Update CHANGELOG)/i;
-const PRE = 'Implement the following change in this repository. Do not install dependencies or run the full test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\n';
+const PRE = 'Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\n';
 
 const sh = (c, opts = {}) => spawnSync('sh', ['-c', c], { encoding: 'utf8', maxBuffer: 1 << 26, ...opts });
 
@@ -47,15 +49,23 @@ function build() {
   const base = flag('base') || 'c63fb454c7e1';
   const baseDate = execFileSync('git', ['show', '-s', '--format=%cI', base], { cwd: REPO, encoding: 'utf8' }).trim();
   const max = Number(flag('max')) || 30;
+  // --hard: only the larger changes, at least 120 lines or two source files
+  const hard = !!flag('hard');
   const cands = prs.filter(p => {
     const f = p.files.map(x => x.path), t = f.filter(isTest), s = f.filter(isCore), loc = p.additions + p.deletions;
-    return p.mergedAt > baseDate && t.length >= 1 && s.length >= 1 && s.length <= 6 && loc >= 15 && loc <= 600 && !SKIP_TITLE.test(p.title) && f.every(x => isTest(x) || isCore(x) || /^docs\//.test(x));
+    return p.mergedAt > baseDate && t.length >= 1 && s.length >= 1 && s.length <= 8 && loc >= 15 && loc <= 900 && !SKIP_TITLE.test(p.title) && f.every(x => isTest(x) || isCore(x) || /^docs\//.test(x))
+      && (!hard || loc >= 120 || s.length >= 2);
   });
   const rank = p => createHash('sha256').update(`mlflow-2026-10-11:${p.number}`).digest('hex').slice(0, 8);
   cands.sort((a, b) => rank(a).localeCompare(rank(b)));
   fs.mkdirSync(DATA, { recursive: true });
+  // a rebuild keeps what an earlier preflight established: its verdict per task, and the dropped list
+  const prev = fs.existsSync(TASKS) ? JSON.parse(fs.readFileSync(TASKS, 'utf8')) : { tasks: [], dropped: [] };
+  const prevById = new Map(prev.tasks.map(t => [t.id, t]));
+  const droppedIds = new Set((prev.dropped || []).map(d => d.id));
   const tasks = [];
   for (const p of cands.slice(0, max)) {
+    if (droppedIds.has(`PR${p.number}`)) continue;
     const diffPath = path.join(DATA, `PR${p.number}.diff`);
     if (!fs.existsSync(diffPath)) fs.writeFileSync(diffPath, execFileSync('gh', ['pr', 'diff', String(p.number), '-R', SLUG], { encoding: 'utf8', maxBuffer: 1 << 26 }));
     const files = p.files.map(x => x.path);
@@ -65,9 +75,10 @@ function build() {
       prompt: PRE + (p.body || p.title).trim(), goldTitle: p.title, goldFiles: files, goldDiff: path.relative(path.join(HERE, '..'), diffPath),
       testFiles, testCmd: `PYTHONPATH=. ${PY} -m pytest -q -x -p no:cacheprovider ${testFiles.map(f => `'${f}'`).join(' ')}`,
       mergeCommit: p.mergeCommit?.oid, mergedAt: p.mergedAt, loc: p.additions + p.deletions,
+      ...(prevById.get(`PR${p.number}`)?.preflight ? { preflight: prevById.get(`PR${p.number}`).preflight } : {}),
     });
   }
-  fs.writeFileSync(TASKS, JSON.stringify({ repo: SLUG, base, baseDate, builtAt: new Date().toISOString(), tasks }, null, 2) + '\n');
+  fs.writeFileSync(TASKS, JSON.stringify({ repo: SLUG, base, baseDate, builtAt: new Date().toISOString(), tasks, dropped: prev.dropped || [] }, null, 2) + '\n');
   console.log(`${cands.length} candidates after ${baseDate}; wrote ${tasks.length} tasks to ${path.relative(process.cwd(), TASKS)}`);
 }
 
@@ -79,7 +90,7 @@ function preflight() {
   const only = flag('only') ? String(flag('only')).split(',') : null;
   const kept = [];
   for (const t of spec.tasks) {
-    if (only && !only.includes(t.id)) { kept.push(t); continue; }
+    if ((only && !only.includes(t.id)) || (t.preflight && !flag('force'))) { kept.push(t); continue; }
     const wt = path.join(HERE, 'worktrees', `mlflow-preflight-${t.id}`);
     sh(`git -C '${REPO}' worktree remove --force '${wt}' 2>/dev/null; rm -rf '${wt}'`);
     execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, spec.base], { cwd: REPO });

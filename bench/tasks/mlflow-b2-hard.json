@@ -1,0 +1,269 @@
+{
+ "repo": "mlflow/mlflow",
+ "base": "1bb65f1c6",
+ "baseDate": "2026-09-30T23:45:45Z",
+ "builtAt": "2026-10-11T10:33:01.715Z",
+ "tasks": [
+  {
+   "id": "PR26225-hard",
+   "area": "mlflow/environment_variables.py",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nCustom scorers written with the scorer decorator carry their function source code, and loading one runs that code. Today this happens inside the tracking server itself, for example when a scorer is invoked, when online-scoring settings are validated, and when gateway guardrails are loaded. That means user-supplied code can run in the server process, which is a security problem. Desired behavior: the server must never execute custom scorer code. In the server, a custom scorer should load as inert metadata that keeps its fields and serialized form, so it can be inspected and passed along to the job executor, but running it must raise an error. The job executor should still rebuild and run custom scorers as before, and a regular client process, such as a user loading a registered scorer to run locally, should behave exactly as it does now. This refusal must be enforced at the point where scorers are rebuilt, so a future code path in the server can't bypass it, and the server must not be able to pick up executor permission from its surrounding environment. Gateway guardrails run inside the server, so custom decorator-based scorers must be rejected as guardrails, both when a guardrail is created and when one is loaded. This includes ensembles that contain a custom scorer. Built-in scorers and judges created with the judge-making helper must keep working. If an endpoint already has a guardrail backed by a custom scorer, requests to it should fail with a server error that names the guardrail, instead of silently skipping it and serving traffic unprotected. Other guardrail loading failures should still be skipped and logged as they are now.",
+   "goldTitle": "Confine custom scorer code execution to the job executor",
+   "goldFiles": [
+    "mlflow/environment_variables.py",
+    "mlflow/gateway/guardrail_utils.py",
+    "mlflow/gateway/guardrails.py",
+    "mlflow/genai/evaluation/job.py",
+    "mlflow/genai/scorers/base.py",
+    "mlflow/genai/scorers/job.py",
+    "mlflow/server/__init__.py",
+    "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+    "tests/gateway/test_guardrail_utils.py",
+    "tests/gateway/test_guardrails.py",
+    "tests/genai/scorers/test_scorer.py",
+    "tests/server/jobs/test_online_scoring_jobs.py",
+    "tests/server/test_gateway_api.py",
+    "tests/server/test_init.py",
+    "tests/store/tracking/test_gateway_sql_store.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26225.diff",
+   "testFiles": [
+    "tests/gateway/test_guardrail_utils.py",
+    "tests/gateway/test_guardrails.py",
+    "tests/genai/scorers/test_scorer.py",
+    "tests/server/jobs/test_online_scoring_jobs.py",
+    "tests/server/test_gateway_api.py",
+    "tests/server/test_init.py",
+    "tests/store/tracking/test_gateway_sql_store.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/test_guardrail_utils.py' 'tests/gateway/test_guardrails.py' 'tests/genai/scorers/test_scorer.py' 'tests/server/jobs/test_online_scoring_jobs.py' 'tests/server/test_gateway_api.py' 'tests/server/test_init.py' 'tests/store/tracking/test_gateway_sql_store.py'",
+   "mergeCommit": "f8c472bf602942e3fcbbc1efa7b1094f75c01a9b",
+   "mergedAt": "2026-10-05T05:59:41Z",
+   "loc": 600,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 86
+   }
+  },
+  {
+   "id": "PR26270-hard",
+   "area": "mlflow/gateway",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen the AI Gateway streams a response containing multiple parallel tool calls through the Gemini or LiteLLM providers, every tool call is reported with the same position (index 0). Clients that assemble streamed tool calls by index then merge separate calls into one, concatenating their arguments into a single broken call. For Gemini, each tool call arrives whole, so two calls in the same streamed chunk both show index 0, and calls arriving in later chunks also restart at 0. For LiteLLM, the index that the underlying library supplies on each chunk is ignored and replaced with the call's position within that chunk, so interleaved chunks for call 0 and call 1 all end up as 0. Desired behavior: for Gemini, tool calls should get consecutive indices across the whole stream, so calls in one chunk are numbered 0, 1, and so on, and calls in later chunks continue the numbering. For LiteLLM, the index provided on each streamed chunk should be preserved, falling back to the call's position in the chunk only when none is provided. That way, arguments for each call are merged correctly per index. Two issues are out of scope: Gemini's finish reason never reporting tool calls, and the Bedrock index offset after a text block.",
+   "goldTitle": "Fix parallel tool call indices in Gemini and LiteLLM streaming",
+   "goldFiles": [
+    "mlflow/gateway/providers/gemini.py",
+    "mlflow/gateway/providers/litellm.py",
+    "tests/gateway/providers/test_gemini.py",
+    "tests/gateway/providers/test_litellm.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26270.diff",
+   "testFiles": [
+    "tests/gateway/providers/test_gemini.py",
+    "tests/gateway/providers/test_litellm.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_gemini.py' 'tests/gateway/providers/test_litellm.py'",
+   "mergeCommit": "3472954054e9a46eb85bd7a6804982d7f725c0fd",
+   "mergedAt": "2026-10-01T08:19:23Z",
+   "loc": 165,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 9
+   }
+  },
+  {
+   "id": "PR26267-hard",
+   "area": "mlflow/server",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen the tracking server is under heavy load and its shared pool of worker threads for handling requests is fully occupied, the server-info endpoint (the one clients use to discover server capabilities) stops responding. It hangs or times out along with every other request, even though it only returns a small, static piece of information. This makes capability discovery unreliable exactly when the server is busiest. The endpoint should keep responding promptly even when the shared worker pool is exhausted, by being handled with its own dedicated, separate capacity. This applies to both the standard API path and the equivalent path used by the web UI's AJAX calls. The response content must stay exactly the same as before. The endpoint must remain publicly accessible without authentication, including when a custom static prefix is configured for the server. Deployments that run under other server setups (such as Gunicorn or Waitress) must continue to serve the same server-info response as they do today.",
+   "goldTitle": "Keep server-info responsive when shared WSGI thread pool is exhausted",
+   "goldFiles": [
+    "mlflow/server/auth/__init__.py",
+    "mlflow/server/fastapi_app.py",
+    "mlflow/server/handlers.py",
+    "mlflow/server/mcp_server_api.py",
+    "mlflow/server/mlflow_response.py",
+    "mlflow/server/server_info_api.py",
+    "tests/server/auth/test_authorization_coverage.py",
+    "tests/server/test_fastapi_app.py",
+    "tests/server/test_server_info_api.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26267.diff",
+   "testFiles": [
+    "tests/server/auth/test_authorization_coverage.py",
+    "tests/server/test_fastapi_app.py",
+    "tests/server/test_server_info_api.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/server/auth/test_authorization_coverage.py' 'tests/server/test_fastapi_app.py' 'tests/server/test_server_info_api.py'",
+   "mergeCommit": "59dac6f73ed74e9cd7a1b7d21dc46aacc7ce3361",
+   "mergedAt": "2026-10-01T20:35:26Z",
+   "loc": 274,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 3
+   }
+  },
+  {
+   "id": "PR26291-hard",
+   "area": "mlflow/store",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nOn a registered model that uses stages, loading a model through the \"latest\" alias form (model name followed by @latest) can return a different version than loading it through the \"latest\" path form (model name followed by /latest). For example, if a model has versions 1 and 2 and version 2 is moved to the Production stage, the path form loads version 2 but the alias form loads version 1, the older version still in stage None. The alias appears to pick whichever version comes first among the per-stage latest versions, which isn't necessarily the highest version once the model spans more than one stage. The reserved \"latest\" alias should always resolve to the highest version number of the model, regardless of how many stages are in use or which order they come in. This should match what the path form already returns, so the two forms agree in every case. One consequence is that if the highest version is archived (for example version 1 in Production and version 2 in Archived), the alias now returns version 2, as the path form already does. Models without stages, such as prompts, already behave correctly and should be unaffected.",
+   "goldTitle": "Fix `@latest` alias not resolving to the highest model version",
+   "goldFiles": [
+    "mlflow/store/model_registry/file_store.py",
+    "mlflow/store/model_registry/sqlalchemy_store.py",
+    "tests/store/model_registry/test_sqlalchemy_store.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26291.diff",
+   "testFiles": [
+    "tests/store/model_registry/test_sqlalchemy_store.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/model_registry/test_sqlalchemy_store.py'",
+   "mergeCommit": "f11a29c1d8456e1db403bf367816f7c61d3b904d",
+   "mergedAt": "2026-10-02T07:09:38Z",
+   "loc": 36,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 7
+   }
+  },
+  {
+   "id": "PR26269-hard",
+   "area": "mlflow/gateway",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen I stream a response through the AI Gateway's Anthropic provider and the model makes parallel tool calls, the calls get merged into one. Every tool call is reported with index 0, the second call is placed in the second choice instead of the first, and the finish event is sent once per content block instead of once at the end. Clients that read only the first choice and merge tool-call fragments by index (such as the OpenAI Python client and LangChain) end up with a single tool call whose arguments are the concatenation of both calls' arguments. The same problem can occur when a text block comes before a tool call, because the tool call's position then depends on the text block's position. Streaming should number tool calls sequentially from 0 in the order they appear, regardless of any text blocks before them. Every streamed chunk should use only the first choice. The finish event should be emitted exactly once per response. Non-streaming behavior should stay as it is.",
+   "goldTitle": "Fix parallel tool call indices in Anthropic streaming",
+   "goldFiles": [
+    "mlflow/gateway/providers/anthropic.py",
+    "tests/gateway/providers/test_anthropic.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26269.diff",
+   "testFiles": [
+    "tests/gateway/providers/test_anthropic.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_anthropic.py'",
+   "mergeCommit": "248e2939ebacfdbf49aa86c414b4295a88c1dde9",
+   "mergedAt": "2026-10-01T09:33:02Z",
+   "loc": 140,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 7
+   }
+  },
+  {
+   "id": "PR26307-hard",
+   "area": "mlflow/entities",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nCopying or serializing trace data fails today. Calling a deep copy or pickle on a finalized (immutable) span raises an error saying a thread lock cannot be pickled. A span loaded lazily from a stored trace produces a broken copy that errors with a missing internal key when inspected. Because traces fetched through the get-trace or search-traces APIs contain these lazy spans, deep-copying or pickling a whole trace also fails, which breaks multiprocessing and other process-based distributed pipelines. Deep copy and pickle should work for immutable spans, lazily loaded spans, no-op spans, and whole traces, and the restored objects should keep the same data, including any attachments. A restored lazy span should stay unloaded until its data is first accessed, and the pickled payload should not carry duplicate raw data. A shallow copy of an immutable span should keep working and share the underlying span. A span that is still live and being recorded should refuse deep copy and pickle with a clear error telling the user to convert it to an immutable span first, while a shallow copy of a live span should keep working.",
+   "goldTitle": "Support `copy.deepcopy` and `pickle` on Span, LazySpan, and Trace",
+   "goldFiles": [
+    "mlflow/entities/span.py",
+    "tests/entities/test_span.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26307.diff",
+   "testFiles": [
+    "tests/entities/test_span.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/entities/test_span.py'",
+   "mergeCommit": "785a36ae9a959bd822fff7fa611dbd1df13c43dc",
+   "mergedAt": "2026-10-05T07:00:27Z",
+   "loc": 207,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 6
+   }
+  },
+  {
+   "id": "PR26369-hard",
+   "area": "mlflow/store",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nMetric queries that combine pre-aggregated trace rollup data with raw metrics can fail when the rollup sums come back as exact decimal numbers while the raw metric sums come back as floating-point numbers. The two types can't be merged, so the query errors out instead of returning results. The desired behavior is that these queries always succeed, with the sums converted to a compatible numeric type before being combined. Separately, trace search and rollup maintenance put more load on the database than necessary. Sorting traces by attributes that can never be empty shouldn't add extra handling for empty values, though optional fields must still sort with empty values last. On PostgreSQL, grouping spans into time buckets should be exact and handle timestamps before the epoch (negative values) correctly, including at nanosecond boundaries and at the extreme ends of the integer range. Rollup eligibility checks should look only at the traces that contribute to each rollup, and checking whether span costs exist should be a cheap existence check instead of a count. On PostgreSQL, the span-cost grouping queries should be combined into one, and finding candidate days for rollups should use efficient timestamp lookups. Through all of this, workspace isolation, inactivity checks across days, partition locking, and the order in which rollups are published must behave exactly as before.",
+   "goldTitle": "Fix decimal metric sums and reduce SQL trace query and rollup overhead",
+   "goldFiles": [
+    "mlflow/store/db/trace_rollups.py",
+    "mlflow/store/tracking/sqlalchemy_store.py",
+    "mlflow/store/tracking/utils/sql_trace_metrics_utils.py",
+    "mlflow/store/tracking/utils/sql_trace_rollups.py",
+    "tests/store/db/test_trace_rollups.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26369.diff",
+   "testFiles": [
+    "tests/store/db/test_trace_rollups.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/db/test_trace_rollups.py' 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py' 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py' 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py' 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py'",
+   "mergeCommit": "b681d51023882f7f771554cf79566c966504ecde",
+   "mergedAt": "2026-10-05T15:10:31Z",
+   "loc": 638,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 58
+   }
+  }
+ ],
+ "dropped": [
+  {
+   "id": "PR26594",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' cleanly.\nApplied patch to 'tests/server/test_gateway_api.py' with conflicts.\nApplied patch to 'tests/utils/test_uri.py' cleanly.\nU tests/serve"
+  },
+  {
+   "id": "PR26445",
+   "failToPass": false,
+   "error": "gold diff does not apply: Applied patch to 'docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx' with conflicts.\nApplied patch to 'mlflow/genai/judges/typesafe.py' with conflicts.\nApplied patch to 'tests/"
+  },
+  {
+   "id": "PR26423",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' cleanly.\nApplied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_se"
+  },
+  {
+   "id": "PR26374",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_eval_datasets.py' cleanly.\nApplied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py' cle"
+  },
+  {
+   "id": "PR26451",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 32
+  },
+  {
+   "id": "PR26292",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 3
+  },
+  {
+   "id": "PR26547",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 6
+  },
+  {
+   "id": "PR26390",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 7
+  }
+ ]
+}
