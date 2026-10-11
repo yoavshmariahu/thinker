@@ -13,6 +13,7 @@ import { githubSlug, hasBin } from './setup/agents.js';
 import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
 import { isTestMode } from './test-mode.js';
+import { isDisabledRepo } from './repo-switch.js';
 
 const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
 const mtime = f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
@@ -104,6 +105,8 @@ export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
       id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
       lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
       current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
+      // switched off machine-wide (repo-switch.js): the page offers to turn it on, never a build
+      disabled: isDisabledRepo(cs[0].checkout),
     };
   }).sort((a, b) => (Date.parse(b.lastUsed) || 0) - (Date.parse(a.lastUsed) || 0));
 }

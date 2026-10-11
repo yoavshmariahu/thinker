@@ -17,6 +17,8 @@ import { commands as setupCommands } from './commands/setup.js';
 import { commands as telemetryCommands } from './commands/telemetry.js';
 import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
+import { commands as switchCommands } from './commands/repo-switch.js';
+import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -72,6 +74,9 @@ const HELP = `thinker — knowledge cache for coding agents
   doctor [--fix] [--json]        check that thinker is installed and wired correctly: Node, dependencies, PATH, the
                                  agents' hooks and MCP server, this checkout's setup and git hooks, the MCP server
                                  starting, the ranking model; --fix repairs what it can and checks again
+  disable | enable [--repo dir]  switch thinker off for this repository, machine-wide, or back on: for a repository with
+                                 sensitive content. Off, the hooks and the MCP server do nothing there, no session is
+                                 distilled, no pull request is read, nothing is written into it (also on the warm-up page)
   uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
                                  --user also removes the machine-wide wiring from your agent settings
   system [--all] [--json]        the desired behaviors of the system (notes of kind behavior) and whether the code
@@ -182,9 +187,13 @@ const HELP = `thinker — knowledge cache for coding agents
 const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...switchCommands };
+// Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
+// ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
+const OFF_COMMANDS = ['enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
 
 async function main() {
+  if (!OFF_COMMANDS.includes(cmd) && isGitCheckout(repo) && isDisabledRepo(repo)) { process.stderr.write(`thinker: ${OFF_MESSAGE}\n`); process.exit(1); }
   if (cmd === 'share' || cmd === 'sync' || flags.shared) {
     console.error('thinker: team sharing is no longer supported; notes and learning stay local.');
     process.exitCode = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']) ? 0 : 1;

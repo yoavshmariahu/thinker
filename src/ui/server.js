@@ -29,6 +29,7 @@ import { thinkerHome } from '../update.js';
 import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
 import { DEPTHS } from '../setup/estimate.js';
 import { resolveModel, findBin, BINS } from '../llm.js';
+import { isDisabledRepo, setRepoDisabled } from '../repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_PORT = 4848;
@@ -88,7 +89,7 @@ export function machineRepos(store, { home } = {}) {
     const scored = [...checkouts].map(c => [c, count(c)]).filter(([, n]) => n >= 0).sort((a, b) => b[1] - a[1] || (b[0] === here) - (a[0] === here));
     if (!scored.length) continue;
     const checkout = scored[0][0];
-    out.push({ id, name: displayName(id, checkout), checkout, current: checkout === here });
+    out.push({ id, name: displayName(id, checkout), checkout, current: checkout === here, disabled: isDisabledRepo(checkout) });
   }
   return out.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));
 }
@@ -265,12 +266,23 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         const list = [];
         for (const r of Array.isArray(b.repos) ? b.repos : []) {
           const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
+          if (isDisabledRepo(c.checkout)) return json(res, 400, { error: `thinker is switched off for ${c.name}; turn it on first` });
           const depth = DEPTHS.includes(r.depth) ? r.depth : 'full';
           const dirs = Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
           list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier, estimateSeconds: c.estimates[depth]?.seconds || 0 });
         }
         if (!list.length) return json(res, 400, { error: 'no repositories selected' });
         return json(res, 200, { ok: true, jobs: jobs.add(list) });
+      }
+      // the switch (repo-switch.js): off for a repository with sensitive content, by a checkout the page listed
+      if (url.pathname === '/api/repos/switch') {
+        candidates ||= warmupCandidates(store, { home: transcriptsHome });
+        const c = candidates.find(x => x.checkout === b.checkout) || repos().find(x => x.checkout === b.checkout);
+        if (!c) return json(res, 400, { error: `not a repository on this machine: ${b.checkout}` });
+        if (b.disabled && jobs.list().some(j => j.checkout === c.checkout && (j.status === 'queued' || j.status === 'running'))) return json(res, 400, { error: 'a warm-up of this repository is queued or running; stop it first' });
+        setRepoDisabled(c.checkout, { disabled: !!b.disabled, name: c.name });
+        known = null; candidates = null;
+        return json(res, 200, { ok: true, checkout: c.checkout, disabled: !!b.disabled, hasCache: fs.existsSync(path.join(c.checkout, '.thinker')) });
       }
       if (url.pathname === '/api/warmup/cancel') { const r = jobs.cancel(String(b.id || '')); return r.error ? json(res, 400, r) : json(res, 200, r); }
       if (url.pathname === '/api/activity/cancel') {

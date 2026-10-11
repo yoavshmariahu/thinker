@@ -11,6 +11,7 @@ that rest on the code a change touches when they review one.
 <table align="center">
   <tr>
     <td align="center" width="280"><h2>18%</h2>fewer tokens per task</td>
+    <td align="center" width="280"><h2>10%</h2>less wall time per task</td>
   </tr>
 </table>
 <p align="center">on real coding tasks from open-source repositories, same model with and without the cache</p>
@@ -28,6 +29,16 @@ curl -fsSL https://zerotime.dev/dist/install.sh | bash
 Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
 Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
 OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
+
+## Uninstall
+
+```bash
+thinker uninstall --user --purge   # inside a repository: its hooks, MCP registration and notes, and the machine-wide wiring
+rm -rf ~/.thinker                  # the app, the ranking model and the usage log
+```
+
+Then drop the `PATH` line the installer added to your shell startup file. To keep
+thinker but switch it off for one repository with sensitive content, run `thinker disable` there.
 
 ## How it works
 
@@ -52,7 +63,7 @@ Otherwise, work with your agent as usual: the notes arrive on their own.
 
 ## Results
 
-**Coding agents: input tokens per task.** Real tasks from merged pull requests,
+**Coding agents: input tokens and wall time per task.** Real tasks from merged pull requests,
 same model with and without thinker.
 
 ```
@@ -64,6 +75,17 @@ Gemini 3.8 Flash   without thinker  ██████████████�
 
 GPT-6 Astra        without thinker  ████████████████████  473k
                    with thinker     ████████████████░░░░  384k    19% less tokens
+```
+
+```
+Claude Fable       without thinker  ████████████████████  2.7 min
+                   with thinker     █████████████████░░░  2.3 min  14% less time
+
+Gemini 3.8 Flash   without thinker  ████████████████████  13.1 min
+                   with thinker     ██████████████████░░  11.9 min 8.5% less time
+
+GPT-6 Astra        without thinker  ████████████████████  152 s
+                   with thinker     ███████████████████░  141 s    7% less time
 ```
 
 Each model saw different tasks, so the rows are not a model ranking; one run per

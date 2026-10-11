@@ -9,6 +9,7 @@ import { MORE_NOTES_INTRO, CACHE_LEARNING_GUIDE, cacheBundleIntro, disabledTools
 import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
 import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
+import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
@@ -48,6 +49,8 @@ async function hookCommand(ctx) {
   }
   const { repo, store, mcpEntry } = ctx;
   if (!fs.existsSync(path.join(repo, '.git'))) return;
+  // a repository turned off (repo-switch.js: sensitive content) gets nothing and has nothing written into it
+  if (isDisabledRepo(repo)) return;
   if (!store.exists()) store.init();
   const session = sessionOf(ev);
   // Do not combine unrelated sessions from unsupported/older hook payloads.

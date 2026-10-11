@@ -12,6 +12,7 @@ import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
+import { isDisabledRepo } from './repo-switch.js';
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every
@@ -22,7 +23,9 @@ const pinned = process.env.THINKER_REPO;
 let repo = pinned ? findRepoRoot(pinned) : inRepo(process.cwd()) ? findRepoRoot(process.cwd()) : null;
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
-const off = process.env.THINKER_MCP === 'off';
+// A repository switched off machine-wide (repo-switch.js) is served the same way: no tools, no notes.
+const switchedOff = !!repo && isDisabledRepo(repo);
+const off = process.env.THINKER_MCP === 'off' || switchedOff;
 // Learning off (THINKER_NO_LEARN=1): the agent's own learning tools, remember and feedback, are not offered,
 // so their schemas cost nothing; behavior stays, since it acts only on what the person asks for.
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
@@ -32,7 +35,9 @@ let store = off || !repo ? null : new Store(repo);
 let setUp = !!store;
 if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 
-const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
+const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff ? {
+  instructions: 'thinker is switched off for this repository and serves nothing here.',
+} : off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
   instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
 } : {
@@ -209,7 +214,7 @@ if (!off && !repo) {
       const { roots = [] } = await server.server.listRoots();
       for (const root of roots) {
         let p = root.uri; try { if (/^file:/.test(p)) p = fileURLToPath(p); } catch { continue; }
-        if (!inRepo(p)) continue;
+        if (!inRepo(p) || isDisabledRepo(findRepoRoot(p))) continue;
         const s = new Store(findRepoRoot(p));
         repo = s.repo; store = s; setUp = true; store.init(); await initAst();
         registerTools();
