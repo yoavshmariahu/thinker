@@ -151,8 +151,9 @@ function injectedIds(file) {
   return [...ids];
 }
 
-function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
+function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
   const a = ['-p', '--model', model, '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--strict-mcp-config', '--max-turns', String(flags['max-turns'] || 60)];
+  const sys = system ? [system] : [];  // every --append-system-prompt part, joined once at the end
   if (flags['isolated-settings']) a.push('--setting-sources', '');
   if (effort) a.push('--effort', effort);
   const disallowed = [];
@@ -184,7 +185,7 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
 
   const cfg = ARMS[arm];
   if (arm === 'cache' || cfg?.mcp) {
-    a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT);
+    a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } })); sys.push(CACHE_PROMPT);
   } else {
     a.push('--mcp-config', '{"mcpServers":{}}');
   }
@@ -195,8 +196,9 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
     if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];
     if (cfg.nudge) hooks.Stop = [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook stop --nudge --no-distill --repo ${cwd}`, timeout: 20 }] }];
-    a.push('--settings', JSON.stringify({ hooks }), '--append-system-prompt', HOOK_PROMPT);
+    a.push('--settings', JSON.stringify({ hooks })); sys.push(HOOK_PROMPT);
   }
+  if (sys.length) a.push('--append-system-prompt', sys.join('\n\n'));
   const t0 = Date.now();
   return new Promise((resolve, reject) => {
     const p = spawn('claude', a, { cwd, env });
@@ -271,8 +273,14 @@ async function main() {
         // the request first, the benchmark's framing paragraph ("Implement the following change… Do not install
         // dependencies…") after it, for every arm alike: the hook reads the request's first tokens, and a person
         // types the request, not the framing
-        const agentPrompt = /^Implement the following change/.test(task.prompt) && task.prompt.includes('\n\n') ? task.prompt.split('\n\n').slice(1).join('\n\n') + '\n\n' + task.prompt.split('\n\n')[0] : task.prompt;
-        try { r = await runClaude(agentPrompt, { arm, allowEdit: task.type === 'change', cwd, notesDir }); }
+        // The benchmark's framing paragraph ("Implement the following change… the test environment is at…")
+        // goes to the system prompt, the same for every arm; the user turn is the request alone, as a
+        // person would type it. With the framing in the user turn the hook's ranker read it as part of the
+        // request and served nothing (mlflow smoke test, 2026-10-11).
+        const framed = /^Implement the following change/.test(task.prompt) && task.prompt.includes('\n\n');
+        const agentPrompt = framed ? task.prompt.split('\n\n').slice(1).join('\n\n') : task.prompt;
+        const framing = framed ? task.prompt.split('\n\n')[0] : null;
+        try { r = await runClaude(agentPrompt, { arm, allowEdit: task.type === 'change', cwd, notesDir, system: framing }); }
         catch (e) { console.log(`${id} ERROR ${e.message}`); r = null; break; }
         // usage/session limit: do not record garbage; wait and retry
         if ((r.num_turns || 0) <= 1 && /session limit|usage limit|rate limit|limit reached/i.test(r.result || '')) {
