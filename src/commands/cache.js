@@ -144,10 +144,11 @@ async function usageCommand(ctx) {
   return;
 }
 
-// `thinker ui`: the local page (ui/server.js) until Ctrl+C. Usage, the notes in the cache, and the desired behaviors with the
-// ones waiting for a decision. --from-setup is how setup opens it (setup/steps.js:openDashboard): detached, with no
-// terminal to press Ctrl+C in, so it opens the browser itself, shows the page's how-to-come-back hint, and exits once
-// no request has come for UI_IDLE_MS.
+// `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: usage, the caches on this machine
+// with their notes and behaviors, and the warm-up page that builds caches. --from-setup is how the installer and
+// setup open it (setup/steps.js:openDashboard): detached, with no terminal to press Ctrl+C in, so it opens the
+// browser itself (--tab names the page to land on), shows the page's how-to-come-back hint, and exits once no
+// request has come for UI_IDLE_MS and no warm-up build is queued.
 const UI_IDLE_MS = 30 * 60 * 1000;
 async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
@@ -156,17 +157,18 @@ async function uiCommand(ctx) {
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
+  const tab = typeof flags.tab === 'string' ? `&tab=${encodeURIComponent(flags.tab)}` : '';
   if (flags['from-setup']) {
-    openBrowser(`${listening.url}&from=setup`);
+    openBrowser(`${listening.url}&from=setup${tab}`);
     await new Promise(resolve => { const t = setInterval(() => { if (ui.idleMs() > UI_IDLE_MS) { clearInterval(t); resolve(); } }, 60 * 1000); });
     await ui.close();
     return;
   }
-  const { url } = listening;
+  const url = listening.url + tab;
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Usage, cache and system behaviors at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Usage, the caches on this machine and the warm-up page at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

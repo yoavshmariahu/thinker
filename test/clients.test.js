@@ -532,10 +532,14 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   inHome(home, () => installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] }, hooks: true, learn: false, late: true, mcp: true }));
   // a checkout that is set up: the bundle, from the checkout the input names, not the hook's working directory
   assert.match(userHook('prompt', { session_id: 's1', prompt: PROMPT, cwd: dir }), /<thinker-cache>[\s\S]*upload rate limiting/);
-  // one that is not: nothing, and nothing created there
+  // a git checkout without a cache: nothing served (there are no notes), and the cache started there, empty
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nocache-')); execFileSync('git', ['init', '-q'], { cwd: other });
   assert.equal(userHook('prompt', { session_id: 's2', prompt: PROMPT, cwd: other }), '');
-  assert.ok(!fs.existsSync(path.join(other, '.thinker')));
+  assert.ok(fs.existsSync(path.join(other, '.thinker', 'config.json')));
+  // a directory that is no checkout at all: nothing, and nothing created
+  const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nogit-'));
+  assert.equal(userHook('prompt', { session_id: 's2b', prompt: PROMPT, cwd: plain }), '');
+  assert.ok(!fs.existsSync(path.join(plain, '.thinker')));
   // Cursor names its workspace differently; its prompt-time bundle is parked in the checkout it names
   execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
   assert.ok(fs.existsSync(path.join(dir, '.thinker', 'state', 'pending-s3.json')));

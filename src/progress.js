@@ -9,10 +9,15 @@ export const oneLine = value => stripVTControlCharacters(String(value)).replace(
 // Keep terminal output bounded; retain individual results for troubleshooting. On a terminal the
 // item in progress is a live spinner line; elsewhere a heartbeat line every `intervalMs` says the
 // batch is still working.
-export function batchProgress({ dir, name, total, out, verbose = false, every = 5, intervalMs = 30_000, live = out === console.log && spinnerEnabled() }) {
+// The detail file (state/<name>-<started>-<pid>.jsonl) is also how the local page shows a batch
+// running in another process (activity.js): its first line names the batch and its size, each
+// item has a start and a complete record, and `finish` closes it. `silent` writes the file and
+// says nothing on the terminal (the catch-up learning the hooks start).
+export function batchProgress({ dir, name, total, out, verbose = false, every = 5, intervalMs = 30_000, silent = false, live = !silent && out === console.log && spinnerEnabled() }) {
+  if (silent) out = () => {};
   const file = path.join(dir, 'state', `${name.toLowerCase().replace(/\W+/g, '-')}-${Date.now()}-${process.pid}.jsonl`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ event: 'batch', name, total }) + '\n');
+  fs.writeFileSync(file, JSON.stringify({ event: 'batch', name, total, pid: process.pid, started: new Date().toISOString() }) + '\n');
   let completed = 0, saved = 0, empty = 0, failed = 0, current = '', timer, spin = null;
   const reasons = new Map();
   const started = Date.now();
@@ -55,6 +60,7 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
     finish({ retry, tokens = 0 } = {}) {
       clearInterval(timer);
       spin?.stop(); spin = null;
+      detail({ event: 'finish', completed, saved, failed, tokens });
       out(`        ${status()} · ${elapsed()}${tokens ? ` · ~${formatTokens(tokens)} tokens of model usage` : ''}`);
       if (failed) {
         const summary = [...reasons].slice(0, 3).map(([reason, count]) => `${reason} (${count})`).join('; ');

@@ -23,18 +23,23 @@ export function depthLimits({ depth = 'full', prs = 60 } = {}) {
 }
 
 // A build reads merged changes and nothing else, so that is all there is to estimate.
-export function estimateCacheBuild(repo, { prs = 60, noPrs = false, slug = null, directories = null } = {}) {
-  let commitCount = 0;
-  try {
-    const raw = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    commitCount = parseInt(raw, 10) || 0;
-  } catch {}
+// `commitCount` and `fileCount` given skip the git calls (a second estimate of the same repository).
+export function estimateCacheBuild(repo, { prs = 60, noPrs = false, slug = null, directories = null, commitCount = null, fileCount = null } = {}) {
+  if (commitCount == null) {
+    commitCount = 0;
+    try {
+      const raw = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      commitCount = parseInt(raw, 10) || 0;
+    } catch {}
+  }
 
-  let fileCount = 0;
-  try {
-    const raw = execFileSync('git', ['ls-files', '-z', '--', ...directoryPathspecs(directories)], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    fileCount = raw ? raw.split('\0').filter(Boolean).length : 0;
-  } catch {}
+  if (fileCount == null) {
+    fileCount = 0;
+    try {
+      const raw = execFileSync('git', ['ls-files', '-z', '--', ...directoryPathspecs(directories)], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      fileCount = raw ? raw.split('\0').filter(Boolean).length : 0;
+    } catch {}
+  }
 
   const canMineGh = Boolean(slug && !noPrs && hasBin('gh') && prs > 0);
   const canMineGit = Boolean(!noPrs && commitCount > 5 && prs > 0);

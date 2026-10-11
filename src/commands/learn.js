@@ -115,25 +115,35 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   try {
     const sessions = findSessions(repo, { sinceMs: days * 86400_000, storeDir: store.dir }).filter(s => Date.now() - s.mtime >= idleMin * 60_000);
-    let done = 0;
+    // the sessions with something new to read, so the progress file (activity.js) counts what this run will do
+    const pending = [];
     for (const s of sessions) {
-      const cap = withinDailyCap(store);
-      if (!dry && !cap.ok) {
-        store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, left: sessions.length - done });
-        reportCapped(store, cap);
-        if (!quiet) out(`stopping: ${formatTokens(cap.spent)} of the ${formatTokens(cap.cap)} tokens learning may use a day are used (maintain.dailyTokens in .thinker/config.json)`);
-        break;
-      }
       let state = {}; try { state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', path.basename(s.file).replace(/\.jsonl?$/, '') + '.json'), 'utf8')); } catch {}
       let total = 0; try { total = parseTranscript(s.file).lineCount; } catch { continue; }
       if ((state.line || 0) >= total) continue;
-      if (done >= max) break;
-      if (dry) { out(`${s.client.padEnd(7)} ${s.session}  ${total - (state.line || 0)} new lines`); continue; }
-      if (!quiet) out(`${s.client} ${s.session}`);
-      process.env.THINKER_LLM_PREFER = s.client;
-      try { await distillFile(ctx, s.file, { minExplore: 3, quiet, incremental: true, session: s.session }); done++; } catch (e) { if (!quiet) out(`  failed: ${String(e.message).slice(0, 160)}`); }
+      pending.push({ ...s, newLines: total - (state.line || 0) });
+      if (pending.length >= max) break;
     }
-    if (!quiet && !dry) out(`learned from ${done} of ${sessions.length} sessions`);
+    let done = 0;
+    if (dry) { for (const s of pending) out(`${s.client.padEnd(7)} ${s.session}  ${s.newLines} new lines`); return; }
+    const progress = pending.length ? batchProgress({ dir: store.dir, name: 'Distilling sessions', total: pending.length, out, silent: true }) : null;
+    try {
+      for (const s of pending) {
+        const cap = withinDailyCap(store);
+        if (!cap.ok) {
+          store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, left: pending.length - done });
+          reportCapped(store, cap);
+          if (!quiet) out(`stopping: ${formatTokens(cap.spent)} of the ${formatTokens(cap.cap)} tokens learning may use a day are used (maintain.dailyTokens in .thinker/config.json)`);
+          break;
+        }
+        if (!quiet) out(`${s.client} ${s.session}`);
+        progress.start(`${s.client} ${s.session}`);
+        process.env.THINKER_LLM_PREFER = s.client;
+        try { await distillFile(ctx, s.file, { minExplore: 3, quiet, incremental: true, session: s.session }); done++; progress.complete({ item: s.session }); }
+        catch (e) { progress.complete({ item: s.session, error: e.message }); if (!quiet) out(`  failed: ${String(e.message).slice(0, 160)}`); }
+      }
+    } finally { progress?.finish(); }
+    if (!quiet) out(`learned from ${done} of ${sessions.length} sessions`);
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
 }
 

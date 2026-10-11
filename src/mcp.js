@@ -26,19 +26,17 @@ const off = process.env.THINKER_MCP === 'off';
 // Learning off (THINKER_NO_LEARN=1): the agent's own learning tools, remember and feedback, are not offered,
 // so their schemas cost nothing; behavior stays, since it acts only on what the person asks for.
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
-// A repository where `thinker setup` has not run has no cache: the server offers no tools there and
-// creates nothing, so a machine-wide registration does not start a cache in every checkout.
+// Every git repository has a cache: a machine-wide registration starts one (empty, growing from the
+// sessions) in the checkout the client runs in. Outside a git repository there is nowhere to keep one.
 let store = off || !repo ? null : new Store(repo);
-let setUp = !!store && store.exists();
+let setUp = !!store;
 if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
   instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
-} : repo ? {
-  instructions: `thinker is installed but not set up for this repository (${repo}): no notes are served or learned here. To use it, run \`thinker setup\` in the repository.`,
 } : {
-  instructions: `thinker was started outside a git repository (${process.cwd()}) and serves nothing here: it serves notes only inside a repository set up with \`thinker setup\`. If this client names its workspace through MCP roots, the tools appear once it has.`,
+  instructions: `thinker was started outside a git repository (${process.cwd()}) and serves nothing here: it keeps a cache of notes per git repository. If this client names its workspace through MCP roots, the tools appear once it has.`,
 });
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
@@ -209,8 +207,7 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 
 // Started outside a repository: a client that declares roots (a workspace) is asked for them, and
-// the first root that is a repository set up with thinker gets the tools, announced through
-// tools/list_changed. A repository that is not set up gets nothing, as above.
+// the first root that is a git repository gets the tools, announced through tools/list_changed.
 if (!off && !repo) {
   try {
     if (server.server.getClientCapabilities()?.roots) {
@@ -219,7 +216,6 @@ if (!off && !repo) {
         let p = root.uri; try { if (/^file:/.test(p)) p = fileURLToPath(p); } catch { continue; }
         if (!inRepo(p)) continue;
         const s = new Store(findRepoRoot(p));
-        if (!s.exists()) continue;
         repo = s.repo; store = s; setUp = true; store.init(); await initAst();
         registerTools();
         break;

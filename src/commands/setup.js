@@ -40,7 +40,7 @@ async function connectCommand(ctx) {
     hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
     noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), out,
   });
-  out(`\n  thinker runs in every repository set up with \`thinker setup\`; elsewhere it does nothing.`);
+  out(`\n  thinker runs in every git repository on this machine: a cache starts with the first session there, or build one from the warm-up page (thinker ui).`);
 }
 
 async function uninstallCommand(ctx) {

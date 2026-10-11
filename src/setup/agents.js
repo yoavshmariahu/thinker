@@ -6,9 +6,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { available, findBin, BINS } from '../llm.js';
 import { c, selectMenu } from './ui.js';
 
+const bins = new Map();
 export const hasBin = b => {
-  try { execFileSync(b, ['--version'], { stdio: 'ignore' }); return true; }
-  catch { return false; }
+  if (bins.has(b)) return bins.get(b);
+  let ok = false; try { execFileSync(b, ['--version'], { stdio: 'ignore' }); ok = true; } catch {}
+  bins.set(b, ok);
+  return ok;
 };
 
 export function githubSlug(repo) {

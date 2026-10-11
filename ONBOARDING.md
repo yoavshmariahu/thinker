@@ -1,8 +1,11 @@
 # Setting up Thinker
 
-Run the installer from your repository, then start a new agent session.
-Use `thinker setup --build` to build a local cache from code and merged pull
-requests, or `thinker setup --no-build` to learn from future sessions.
+Run the installer anywhere. It wires your agents, asking nothing, and opens
+the warm-up page (`thinker ui`): pick the repositories your agents worked in
+lately to build a cache for, full or shallow, and the builds run one at a
+time with their progress on the Cache page. Every other git repository gets an
+empty cache with its first session. `thinker setup --build` builds one
+repository's cache from the terminal instead.
 
 Notes are stored locally and ranked on your machine. Your configured agent
 writes notes and performs review.
@@ -13,7 +16,7 @@ Personal backups use `thinker export backup.tgz` and
 
 Setup has two steps:
 
-1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
+1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex's hook-review marks are written without asking (`--no-trust` leaves them). Only detected or explicitly selected agents appear in the connection summary.
 2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Choose **Full repo** or **Specify project directories**. For a project, enter a name and comma-separated repository-relative directories; setup saves `thinker.project.json`. Setup shows estimated build time and token usage for the selection before asking whether to build. Outside a terminal, building requires an explicit flag such as `--build`.
 
 Ongoing learning uses your agent to write notes from your sessions and merged

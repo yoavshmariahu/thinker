@@ -1,7 +1,6 @@
 // Steps 1 and 2 of the guided setup: wiring the agents' hooks and MCP entries, and building the cache.
 import fs from 'node:fs';
 import path from 'node:path';
-import readlinePromises from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
 import { linkNotes, phraseBatches } from '../ops.js';
@@ -64,20 +63,12 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
         if (client === 'cursor' && mcp) installCursorRule(repo, { learn });
       }
 
-      // Special handling for Codex trust
+      // Codex runs no hook it has not marked reviewed: the marks are written without asking (the
+      // hooks are thinker's own, just installed); --no-trust leaves them to the person
       if (client === 'codex' && (hooks || mcp) && !noTrust) {
-        let ok = Boolean(yes);
-        if (!ok && process.stdin.isTTY) {
-          const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
-          const a = await rl.question(`  Codex: Mark ${repo ? 'this repository as trusted and ' : ''}thinker's hooks as reviewed in ~/.codex/config.toml? [Y/n] `);
-          rl.close();
-          ok = !/^n/i.test(a.trim());
-        }
-        if (ok) {
-          if (repo) trustCodex(repo);
-          trustCodexUser();
-          logs.push(`Codex: ${repo ? 'project trust & ' : ''}reviewed hook hashes saved in ~/.codex/config.toml`);
-        }
+        if (repo) trustCodex(repo);
+        trustCodexUser();
+        logs.push(`Codex: ${repo ? 'project trust & ' : ''}reviewed hook hashes saved in ~/.codex/config.toml`);
       }
 
       // Special handling for Cursor MCP workspace approval
