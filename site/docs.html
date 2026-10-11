@@ -716,11 +716,18 @@
 
         <div class="outcomes">
           <a class="outcome" href="#in-a-session">
-            <div class="outcome-kicker">Efficient coding</div>
+            <div class="outcome-kicker">Tokens</div>
             <div class="outcome-num">18% less tokens</div>
             <div class="outcome-label">per coding task</div>
             <p class="outcome-body">Each request gets relevant notes with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
             <div class="outcome-cta">What a session looks like &rarr;</div>
+          </a>
+          <a class="outcome" href="#benchmark">
+            <div class="outcome-kicker">Wall time</div>
+            <div class="outcome-num">10% faster</div>
+            <div class="outcome-label">per coding task</div>
+            <p class="outcome-body">Fewer searches mean fewer turns and tool calls, so the same model finishes the same task sooner.</p>
+            <div class="outcome-cta">Measure it in your repo &rarr;</div>
           </a>
         </div>
         <p class="outcomes-caption">Same model, same task, with and without thinker, on real changes from open-source repositories. <button type="button" onclick="openModal()">See the benchmarks</button></p>
@@ -919,7 +926,7 @@ thinker ui                          <span class="code-comment"># accept, edit or
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
         <p>
-          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
+          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
         </p>
       </section>
 
@@ -1097,7 +1104,7 @@ export THINKER_TELEMETRY=off
             <li><strong>On demand</strong>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
             <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
-            <li><strong>Review draws on the same notes.</strong> The record of a past fix is what lets <code>thinker review</code> say that a change undoes it.</li>
+            <li><strong>Reviews draw on the same notes.</strong> The record of a past fix is what lets an agent reviewing a change say that it undoes one.</li>
           </ul>
           <p>
             The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on. See <a href="#keeping-current">Keeping it current</a>.
@@ -1141,50 +1148,14 @@ export THINKER_TELEMETRY=off
       <div class="modal-header">
         <div>
           <div class="modal-title" id="modal-title">Benchmarks</div>
-          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker. Scoring and limitations are shown below.</div>
+          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker, on real changes from open-source repositories.</div>
         </div>
         <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
 
-        <section class="bench-section" aria-labelledby="bench-bugs">
-          <div class="bench-kicker">Code Review</div>
-          <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">100 tests across seven open-source repositories, each a reversed fix. Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
-          <div class="bench-legend" aria-hidden="true">
-            <span><i class="swatch before"></i> without thinker</span>
-            <span><i class="swatch"></i> with thinker</span>
-          </div>
-          <div class="bench-rows">
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort · 25 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
-                <div class="bar after"><i style="--w: 8%"></i>2 missed</div>
-              </div>
-              <div class="bench-delta">&minus;71% bugs</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort · 50 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 36%"></i>18 missed</div>
-                <div class="bar after"><i style="--w: 4%"></i>2 missed</div>
-              </div>
-              <div class="bench-delta">&minus;89% bugs</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort · 25 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 32%"></i>8 missed</div>
-                <div class="bar after"><i style="--w: 20%"></i>5 missed</div>
-              </div>
-              <div class="bench-delta">&minus;38% bugs</div>
-            </div>
-          </div>
-        </section>
-
         <section class="bench-section" aria-labelledby="bench-tokens">
-          <div class="bench-kicker">Efficiency</div>
+          <div class="bench-kicker">Tokens</div>
           <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
           <p class="bench-lede">Input tokens per coding task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
@@ -1219,6 +1190,42 @@ export THINKER_TELEMETRY=off
           </div>
         </section>
 
+        <section class="bench-section" aria-labelledby="bench-time">
+          <div class="bench-kicker">Wall time</div>
+          <h3 class="bench-headline" id="bench-time">Every model finished sooner: <span class="gain">10% less wall time</span> per task.</h3>
+          <p class="bench-lede">Wall time per coding task, from the request to the finished change:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>2.7 min</div>
+                <div class="bar after"><i style="--w: 85%"></i>2.3 min</div>
+              </div>
+              <div class="bench-delta">&minus;14% time</div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>13.1 min</div>
+                <div class="bar after"><i style="--w: 91%"></i>11.9 min</div>
+              </div>
+              <div class="bench-delta">&minus;8.5% time</div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>152 s</div>
+                <div class="bar after"><i style="--w: 93%"></i>141 s</div>
+              </div>
+              <div class="bench-delta">&minus;7% time</div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
@@ -1229,7 +1236,7 @@ export THINKER_TELEMETRY=off
       modal.classList.add('active');
       const body = modal.querySelector('.modal-body');
       body.scrollTop = 0;
-      if (sectionId === 'bench-tokens') {
+      if (sectionId) {
         const section = document.getElementById(sectionId).closest('.bench-section');
         if (section) body.scrollTop = section.offsetTop - body.offsetTop;
       }
