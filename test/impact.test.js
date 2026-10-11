@@ -146,19 +146,16 @@ test('concurrent review accounting contexts stay distinct and include failed mod
   assert.equal(r.overhead.tokens, 0);
 });
 
-test('CLI import is idempotent, rejects foreign repos, and preserves review linkage', async t => {
+test('CLI import is idempotent and rejects foreign repos', async t => {
   const { store, dir } = fixture(t);
   const event = record(store, { op: 'impact-review', runId: 'r1', pr: 12, tokens: 50, findings: [] });
-  await commands.impact({ store, pos: ['link-review', 'r1'], flags: { pr: 13 }, out() {} });
-  const moved = readImpact(store).events.filter(e => e.runId === 'r1').at(-1);
-  assert.equal(moved.completedAt, event.t);
   const file = path.join(dir, 'review.json'); fs.writeFileSync(file, JSON.stringify({ impact: { events: [event] } }));
   let output;
   await commands.impact({ store, pos: ['import', file], flags: { json: true }, out: s => output = JSON.parse(s) });
   assert.equal(output.imported, 0);
   fs.writeFileSync(file, JSON.stringify({ events: [{ ...event, origin: 'github.com/other/repo' }] }));
   await assert.rejects(commands.impact({ store, pos: ['import', file], flags: {}, out() {} }), /mismatch/);
-  assert.equal(readImpact(store).events.length, 2);
+  assert.equal(readImpact(store).events.length, 1);
 });
 
 test('transcript totals include outputs without counting cumulative Codex snapshots twice', t => {

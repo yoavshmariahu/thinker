@@ -213,7 +213,6 @@ export async function runSetup({
   done.push('');
   if (connected.length) done.push(c.bold('Restart your agent: start a new session in this repository'), c.bold('so its hooks and tools load.'), '');
   done.push(`Notes, behaviors and usage in your browser: ${c.cyan('thinker ui')}`);
-  done.push(`Review a change against the cache: ${c.cyan('thinker review')}`);
   if (!building) done.push(`Read merged pull requests into the cache: ${c.cyan('thinker setup --build')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine

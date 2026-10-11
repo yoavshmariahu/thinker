@@ -1,49 +1,12 @@
-// Local cache review, backup and restore (export, import), the
-// MCP server (serve), and what it holds and did (health, stats, usage).
+// Cache backup and restore (export, import), the MCP server (serve), and what the cache
+// holds and did (health, stats, usage).
 import path from 'node:path';
-import fs from 'node:fs';
-import { startVerification, prepareVerification, executeVerification, readVerification, renderVerification, taskContext } from '../verification.js';
 import { spawn } from 'node:child_process';
 import { refresh } from '../ops.js';
-import { review, renderReview, resolveScope } from '../review.js';
-import { postComment } from '../review-post.js';
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
 import { stats, renderStats } from '../stats.js';
-
-async function reviewCommand(ctx) {
-  const { pos, flags, repo, store, out } = ctx;
-  if (flags.post && !/^[1-9]\d*$/.test(String(flags.pr || ''))) throw new Error('--post requires --pr <number>');
-  if (flags.post && flags.dry) throw new Error('--post cannot be combined with --dry');
-  const task = typeof flags.task === 'string' ? JSON.parse(fs.readFileSync(path.resolve(flags.task), 'utf8')) : undefined;
-  if (flags.run || flags.start || flags.status) {
-    if (pos.length || flags.state || flags.staged && flags.ref) throw new Error('Verification checks the full snapshot; paths/state and staged+ref are not supported');
-    const opts = { task, base: typeof flags.base === 'string' ? flags.base : undefined, ref: typeof flags.ref === 'string' ? flags.ref : undefined, staged: !!flags.staged, previous: typeof flags.previous === 'string' ? flags.previous : undefined, model: flags.model, dry: !!flags.dry };
-    let result;
-    if (flags.status) result = readVerification(repo, flags.status);
-    else if (flags.start) result = await startVerification(store, opts);
-    else { const run = prepareVerification(store, opts); await executeVerification(repo, run.id); result = readVerification(repo, run.id); }
-    if (flags.post) result.comment = postComment({}, { repo, pr: flags.pr, markdown: renderVerification(result, { portable: true }) });
-    out(flags.json ? JSON.stringify(result, null, 2) : renderVerification(result));
-    if (result.comment && !flags.json) out(`Posted PR comment: ${result.comment.url}`);
-    if (flags.strict && (result.status !== 'passed' || result.freshness?.status !== 'current')) process.exitCode = result.status === 'failed' || result.status === 'needs-review' ? 2 : 1;
-    return;
-  }
-  const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
-  const kinds = typeof flags.kinds === 'string' ? flags.kinds.split(',').map(k => k.trim()).filter(Boolean) : undefined;
-  // the strategy flags of bench/review-eval.js (review.js:DEFAULT_STRATEGY); the default is the ensemble
-  const strategy = { ...(typeof flags.mode === 'string' ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(typeof flags.context === 'string' ? { context: flags.context === 'none' ? null : flags.context } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
-  const r = await review(store, { scope, task: taskContext(task), pr: flags.pr, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy, kinds });
-  if (flags.post) r.comment = postComment(r, { repo, pr: flags.pr });
-  out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
-  if (r.comment && !flags.json) out(`Posted PR comment: ${r.comment.url}`);
-  if (flags.strict) {
-    if (r.errors?.length) process.exitCode = 1;
-    else if (r.counts?.error || r.behaviors?.some(b => b.mutability === 'fixed' && b.outcome === 'violated')) process.exitCode = 2;
-  }
-  return;
-}
 
 async function exportCommand(ctx) {
   const { pos, repo, store, out } = ctx;
@@ -178,7 +141,6 @@ async function uiCommand(ctx) {
 
 export const commands = {
   'ui': uiCommand,
-  'review': reviewCommand,
   'export': exportCommand,
   'import': importCommand,
   'serve': serveCommand,

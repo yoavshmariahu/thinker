@@ -376,7 +376,6 @@
             <li><b>On demand</b>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
             <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><b>Once per session</b>, not for one-word turns, and not at all when nothing fits.</li>
-            <li><b>Review draws on the same notes.</b> The record of a past fix is what lets <code>thinker review</code> say that a change undoes it.</li>
           </ul>
           <p>The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on.</p>
         </div>
@@ -389,7 +388,7 @@
             <li>Pick <b>Shallow</b>: the newest 30% of the same pull requests.</li>
             <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
           </ul>
-          <p>What a build gives you that sessions cannot is the record of past fixes, which is what a review draws on most. A repository with little history loses little by skipping it.</p>
+          <p>What a build gives you that sessions cannot is the record of past fixes, which is what a reviewing agent draws on most. A repository with little history loses little by skipping it.</p>
         </div>
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
@@ -398,7 +397,6 @@
             <li><b>The Usage view here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><b>The holdout is measured, not estimated.</b> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
             <li><b><code>thinker benchmark pr</code></b> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality.</li>
-            <li><b>A caught regression</b> is the clearest signal: a review that names the fix a change undoes, with the pull request it came from.</li>
           </ul>
           <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
         </div>
@@ -502,7 +500,7 @@ function renderUsage(u) {
     ${card('Acted on', pct(as.confirmed || 0, judged), `of the servings sessions were judged on: the agent used the note`, [['Acted on', fmt(as.confirmed || 0)], ['Corrected by the session', fmt(as.contradicted || 0)], ['Not used', fmt(as.unused || 0)]], true)}
     ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], [ALL() ? 'Notes in the caches' : 'Notes in this cache', fmt(u.notesInCache)]])}
     ${card('Kept current', fmt((v.still_valid || 0) + (v.update || 0) + (v.invalid || 0)), `re-checks after the code under a note changed`, [['Still valid', fmt(v.still_valid || 0)], ['Rewritten', fmt(v.update || 0)], ['Retired', fmt(v.invalid || 0)]])}
-    ${card('Model usage', fmt(u.spending.tokens), `tokens for learning, upkeep and review, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
+    ${card('Model usage', fmt(u.spending.tokens), `tokens for learning and upkeep, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
     ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
   </div>`;
   const ho = u.holdout;
@@ -698,7 +696,7 @@ function wireCache() {
       btn.disabled = true;
       try {
         await api(`/api/cache/${act}`, { id, repo });
-        toast(act === 'archive' ? 'Archived: no longer served, still read by review' : 'Restored: served again');
+        toast(act === 'archive' ? 'Archived: no longer served' : 'Restored: served again');
         await loadCache();
       } catch (e) { btn.disabled = false; toast(e.message, true); }
     });

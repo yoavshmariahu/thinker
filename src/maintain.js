@@ -141,7 +141,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
-    // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
+    // served in a month, leave serving and upkeep and stay for lookup by id (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
@@ -237,7 +237,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
     try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
   }
   if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
-  if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior needs review' : 'behaviors need review'}; run thinker review`);
+  if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior is violated' : 'behaviors are violated'}; see thinker system`);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly stale; narrow pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;

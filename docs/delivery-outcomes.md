@@ -1,22 +1,16 @@
 # Delivery outcomes
 
-Thinker records the work behind a pull request and the defects its reviews helped
-fix. `thinker impact` reports observed outcomes, with the evidence and missing
+Thinker records the work behind a pull request and the defects fixed before merge. `thinker impact` reports observed outcomes, with the evidence and missing
 coverage beside them. It does not convert estimated reading savings into delivery
 claims or claim that a merged PR would have failed without Thinker.
 
 ## Git workflow is your choice
 
-PRs are optional for Thinker. Teams landing direct commits can use the cache,
-review changes with `thinker review --base <commit>`, and mine commit history with
-`thinker mine-prs --git`. Usage remains available through `thinker usage`.
+PRs are optional for Thinker. Teams landing direct commits can use the cache and
+mine commit history with `thinker mine-prs --git`. Usage remains available through `thinker usage`.
 The current delivery report and dashboard measure PR outcomes; they do not yet
 provide tokens per landed commit or equivalent commit-level delivery attribution.
 Unlinked work stays visible rather than being presented as a PR outcome.
-
-The thinker repository uses PRs to exercise its own CI review against desired
-system behaviors. Its local push guard and contributor rules are not installed
-by Thinker setup in other repositories.
 
 ## Start with a repository
 
@@ -38,7 +32,7 @@ PR, token accounting includes all its recorded work, even work before the window
 Open and closed-unmerged PRs retain their known tokens. Repository overhead is
 reported for the selected period. `--pr` displays the PR's full recorded history.
 
-## Attribute sessions and reviews
+## Attribute sessions
 
 New stop-hook session records retain the checkout's branch and commit alongside
 cumulative usage. Prompt hooks also record commit observations. Session snapshots
@@ -46,27 +40,24 @@ replace earlier counters; they are not summed. A session links automatically onl
 when observed movement between commits fits exactly one synced PR (the first
 observation may be its base). A matching branch name alone is insufficient.
 
-Inspect `unassignedSessions` and `unassignedReviews` in `thinker impact --json`.
+Inspect `unassignedSessions` in `thinker impact --json`.
 Supply or correct attribution explicitly:
 
 ```sh
 thinker impact link --session SESSION_ID --pr 142
 thinker impact link --session SESSION_ID --split 142:0.4,143:0.6
-thinker review --base main --pr 142
-thinker impact link-review REVIEW_RUN_ID --pr 142
 ```
 
 A later link replaces the previous allocation. Shares must sum to one; the same
 session is never charged in full to several PRs. Links work before PR metadata is
 synced, but a PR is only counted as merged after sync provides that evidence.
-Review records retain the reviewed SHA/scope, model, findings, notes and errors.
-Repeated reviews count their actual model work, while identical findings retain a
-single identity. Worktree/index review scopes are labeled: their HEAD alone does
-not identify uncommitted content.
+Review records written before 2026-10-11 (when `thinker review` existed) keep their
+SHA/scope, model, findings and errors and still count in the report.
 
 ## Confirm findings and record fixes
 
-The review output and per-PR impact report print finding IDs. Validity and
+The per-PR impact report prints finding IDs (findings come from reviews recorded
+before 2026-10-11). Validity and
 resolution are independent:
 
 - Validity: `pending`, `confirmed`, `dismissed`, `duplicate`.
@@ -99,7 +90,7 @@ thread is insufficient to count a fix. No GitHub-thread status is automatically
 interpreted as human confirmation. Identical normalized message/evidence/file/note
 content deduplicates across line movements. Different wording needs an explicit
 duplicate decision. Cached note references support the separate cache-supported
-count; they do not establish that a review without the cache would miss the bug.
+count; they do not establish that the bug would have been missed without the cache.
 
 ## Understand token coverage
 
@@ -109,8 +100,7 @@ are not added twice. Repeated cumulative Codex snapshots replace earlier totals.
 Claude message IDs deduplicate repeated usage for separate content blocks.
 Missing counters remain unknown; partial recorded totals remain lower bounds.
 
-PR review accounting uses the underlying model calls, including retries and
-failures, once each. A review summary is not charged again. Shared initialization,
+Shared initialization,
 learning and maintenance remain repository overhead; no arbitrary share is silently
 assigned to a PR. Estimated reading savings are never deducted from observed usage.
 
@@ -131,15 +121,7 @@ elapsed wall-clock times, not estimates of human effort or time saved.
 ```sh
 thinker impact export > impact.json
 thinker impact import impact.json
-thinker impact import thinker-review.json
 ```
-
-`thinker review --json` includes `impact.events`: the run and its underlying model
-accounting. The review Action exposes the report path through its `report` output
-for both runner and completed server reviews. Preserve that JSON with your
-workflow's artifact upload step, including when review fails the check, then import
-it locally. The Action does not upload artifacts automatically. Server reviews also
-retain their journal on the server; export there to transfer all historical runs.
 
 Exports carry repository identity and event UUIDs. Import rejects a different
 repository and deduplicates repeated event IDs. Export includes cache-serving IDs
@@ -158,7 +140,7 @@ sums with complete-counter denominators, fixed bugs, decision counts, timing sam
 fixed token-distribution buckets, and coverage. Repository/PR identifiers, titles,
 session IDs, paths, code, SHAs and finding evidence are never included. Existing
 telemetry opt-outs apply. Metadata still needs `thinker impact sync` to stay current.
-The Metabase **PR delivery & review** dashboard visualizes those summaries using
+The Metabase **PR delivery** dashboard visualizes those summaries using
 the latest snapshot per known device, falling back to installation identity. Counts
 are observations, because several contributors can report the same team PR.
 
@@ -170,8 +152,7 @@ All summaries are rebuilt from recorded events plus existing usage history; ther
 is no second set of dashboard-specific counters to drift from the CLI.
 
 `summary.improvement` is currently null and the CLI says the baseline is not
-established. Controlled work-item cache assignments, paired cache/no-cache review
-experiments, uncertainty intervals, and linked post-merge regression outcomes are
+established. Controlled work-item cache assignments, uncertainty intervals, and linked post-merge regression outcomes are
 future measurement work. They should account for model, contributor, task type,
 and change size before claiming increased throughput. Existing session holdouts
 remain available in `thinker usage`; they are not relabeled as PR-level causal

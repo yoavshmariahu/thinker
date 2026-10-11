@@ -38,11 +38,6 @@ our repository policy guard or require PRs in their repositories.
   (`npm test`, which sets `THINKER_TEST=1`) before pushing and state the result in
   the pull request, then merge through GitHub and bring local `main` up to date
   from the merged remote branch.
-- `thinker review` stays enabled and runs on every non-draft pull request. Nothing
-  should stand in the way of running it. But with no deployed server and no
-  `THINKER_SYNC_TOKEN`, its steps skip and it reports a green check in about four
-  seconds having reviewed nothing: that pass is no evidence a behavior was checked.
-  Read the job's steps before trusting it.
 - Do not bypass a pre-push guard or disable hooks to push `main`.
 - GitHub server-side enforcement for this private repository requires GitHub Pro
   (the API currently returns 403 on the account's plan). Until enabled, the local
@@ -128,9 +123,8 @@ cache at twice the input price and never read again.
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
-| `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
-| `src/review.js` | `thinker review`, a mode of the command line (there is no MCP tool; see "Reviewing a change"): a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; removed symbols still referenced |
+| `src/change.js` | the change under review with no model call: scope, parsed diff, the definitions the hunks touched, the notes resting on them (`selectNotes`), what the changed definitions use one hop down (`usedContext`); the model-free half of the `thinker review` command removed on 2026-10-11 |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -224,8 +218,8 @@ To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 GitHub `origin`, mines what was merged since the last run and then goes
 further back in history, 20 at a time (`--limit n`). Without GitHub, or
 with `--git`, it mines commits from git history; `--fixes` keeps only those
-whose message says they fix something (`prs.js:FIX_LIKE`), the records
-review draws on most; a repository whose work lands by direct commits has
+whose message says they fix something (`prs.js:FIX_LIKE`), the records a
+reviewing agent draws on most; a repository whose work lands by direct commits has
 few pull requests, and this one had 8 to mine against 17 fix commits. Every
 pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
@@ -258,7 +252,7 @@ Setup passes the same directories to estimates and PR mining. Scoped PR scans ke
 cursor; only successfully processed changes enter the global mined record, so
 unrelated PRs remain available to other builds. Git history uses directory
 pathspecs; GitHub uses the listed changed paths with bounded scans. All projects
-share the repository's notes. Retrieval, review and automatic maintenance do not
+share the repository's notes. Retrieval and automatic maintenance do not
 load the project file; existing dependency paths provide retrieval relevance.
 
 ## Usage history
@@ -505,15 +499,15 @@ Each session both consumes and improves the cache:
 4. Co-change is gone (2026-10-04). Co-change notes were acted on 0 of 5
    times they were served and were archived; the git-mined index that
    replaced them (edit-hook partner hints, the end-of-session nudge, the
-   review hint, `thinker cochange`, the refresh in maintenance,
+   `thinker cochange`, the refresh in maintenance,
    `.thinker/cochange.json`) was never shown to be followed either, and was
    removed with the module. An older cache's `cochange.json` is ignored, and
    its `cochange` notes are read as rules (`store.js:KIND_ALIAS`).
 
 5. Archiving (`ops.js:archiveNotes`, `thinker archive`): a note that the
    sessions showed is not worth serving leaves orientation, the edit hook,
-   background verification and phrasing, and stays for `thinker review`,
-   `drilldown`, `find` and `lookup` by id; `rank.js` scores it like an
+   background verification and phrasing, and stays for `drilldown`, `find`
+   and `lookup` by id; `rank.js` scores it like an
    invalid note. Two rules, both free: the kinds named in the config (none
    by default since the collapse to four kinds; before it, location, fix,
    cochange and convention, which in a week on this repository were acted on
@@ -830,19 +824,19 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   does not discard existing notes or corrections. `transfer.js` backs up and
   restores effective notes locally. There is no note publishing or client sync.
 
-## Internal review server
+## Internal server
 
-`src/server/`, `action/review/`, and `infra/sync/` remain internal infrastructure
-for this repository's mandatory PR reviews. The server is excluded from public
-release archives. Client sharing, sync, and staged-note repair were removed;
-old client sync settings do nothing. Do not reintroduce team collaboration as
-part of the product. Local review and personal backup/restore remain supported.
+`src/server/` and `infra/sync/` remain internal infrastructure: the team's note
+store, excluded from public release archives. It posted pull request reviews
+until 2026-10-11 (`action/review/`, removed with `thinker review`). Client
+sharing, sync, and staged-note repair were removed; old client sync settings do
+nothing. Do not reintroduce team collaboration as part of the product. Personal
+backup/restore remain supported.
 
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note
-disagree the note yields: verification rewrites or retires it, a review calls
-it `note_outdated`. A `behavior` note (`behavior.js`) is the other way round: a
+disagree the note yields: verification rewrites or retires it. A `behavior` note (`behavior.js`) is the other way round: a
 person writes down what the system must do and where that is upheld, and from
 then on a change must conform, or be called out for not conforming. The
 rule since 2026-10-04: **before a merge the behavior is the truth, after it
@@ -929,171 +923,21 @@ readable; new behaviors stay local.
   (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s
   consulted set with the highest kind weight.
 
-## Reviewing a change against the cache
+## Review was removed (2026-10-11)
 
-`thinker review` (`review.js`) turns the cache around: instead of serving notes
-to an agent about to make a change, it checks a change against them. The MCP
-is a mode of the command line, not a tool an agent calls: the MCP tool was
-removed on 2026-10-06 because agents did not reach for it (14 MCP calls of any
-kind against 2094 orients on the machine that built it, while the 161 reviews
-that ran came from the CLI and the pull request action) and because it is the
-wrong shape for a tool call -- several model calls over a whole change, minutes,
-longer than some clients allow -- with findings a person has to act on. An agent
-working in a repository gets the cache through the serving path instead: the
-prompt hook, `orient`, `lookup` and the edit hook's late notes. What review is for,
-decided 2026-10-04 on real PostHog history (`bench/RESULTS.md`, "Real bugs on
-PostHog"): regressions of a fix the cache holds a note about (caught 12 of 12,
-including the ones the diff alone missed) and violations of written
-conventions and behaviors; not bugs in new code, where neither the baseline
-nor the cache caught any of 20 and the knowledge that would have was in no
-note yet. Work on detection goes to coverage and fix mining, not to the
-review prompt.
-
-- **Scope** (`review.js:resolveScope`): the working tree against HEAD (default,
-  untracked code files included as additions), the index (`--staged`), the
-  branch since its merge base (`--base ref`), one commit (`--ref`, read from
-  git alone), or `--state`: no change, the current code of the given paths
-  against the notes resting on it. One reader per scope (`makeReader`) gives
-  the text of a file before and after, so a review of a commit never looks at
-  the working tree. `.thinker/` is never part of the change.
-- **Exposure** (`noteExposure`): each dep of a note is hashed on both sides with
-  `deps.js:hashText`. A dep whose hash differs between the sides is `touched`
-  by the change; a dep whose stored hash already differs from the code
-  *before* the change is `staleBefore`: drift of the cache, reported under
-  "Cache state" and said to the model, never charged to the change. Notes with
-  a touched dep are `direct`; up to six more are `related` by BM25 over the
-  changed paths, the definitions touched (`changedSymbols`, by
-  `codegraph.js:outlineText` on either side's text) and the most frequent
-  identifiers in the added lines, needing two discriminative terms on the
-  question side or three on the body side. Rules and traps weigh more than
-  maps (`KIND_WEIGHT`). Among the direct notes, those resting on a definition
-  the change altered come first, ordered by whether the changed lines inside
-  that definition name what the note names and by how many of them there are
-  (`review.js:specificity`; words a sixth of the cache's notes share do not
-  count, `commonTerms`), then by kind and confidence; a note on a hub
-  definition (`cli.js:main`) is touched by nearly every commit, and on the
-  last ten commits here 30 to 60 notes were, with a dozen consulted per
-  review. `toAssess` says why each was chosen. BM25 fills all six related slots
-  whether or not anything fits: on 16 grafana regression cases every review
-  consulted exactly six related notes and none carried the signal, since the
-  note that catches a regression arrives `direct`, by dep hash, in 16 of 16.
-  `thinker maintain --dry`
-  persists no statuses.
-- **Without a model** (`deterministicFindings`): a definition the change
-  removes that is defined nowhere else and still referenced
-  (`codegraph.js:references`; working tree and index only, since a commit
-  cannot be grepped; a method's name is a warning, a top-level name an error).
-  The co-change hint (a partner file of a changed file that is not in the
-  change) went on 2026-10-03, and the rest of co-change on 2026-10-04.
-- **Kinds** (`--kinds behavior`): only notes of
-  those kinds are consulted. With the desired behaviors alone the default
-  strategy becomes one call per behavior in play (`per-note`), which gives a
-  verdict for each and leaves out the no-notes baseline, since only the rules
-  are asked; `--mode` overrides it. This is what the pull request action runs
-  (below). Measured once here on a planted violation: four behaviors in play
-  (two of them pulled in by shared identifiers and found unrelated), $0.20,
-  37 seconds.
-- **With a model** (`assessNote`, one call per note, up to `--max`, four at a
-  time): the note with its cache state, the diff of the files it rests on (the
-  whole diff for a related note), and the code after the change behind each
-  dep. The verdict is `violation` (findings with file, line, evidence and
-  confidence), `note_outdated` (with a corrected body, reported, not applied),
-  `consistent` or `unrelated`. Findings under 0.5 confidence are dropped;
-  `category` is `violation` for a finding under a violation verdict, `bug`
-  otherwise. The model is `reviewModel` in config, else `sonnet`; accounted as
-  `purpose: review`, `phase: review`. Measured once on this repository through
-  Claude Code's CLI: about $0.12 a note.
-- **Nothing is written** to the cache by a review except the `review` log line;
-  a note found outdated or stale is listed with the `thinker verify` command
-  that re-checks it. The deletions of a diff are mapped to the line that now
-  follows them (`parseDiff`: `removedAt`), and a deletion sitting at a
-  definition's first line is not a change of that definition.
-- Several notes often see the same problem at nearby lines of one function:
-  findings in the same file within eight lines become one
-  (`review.js:clusterFindings`), with the surest wording, the highest severity
-  and every note named. Findings resting on a shared note at several files
-  (the undone fix, the serializer that carried its field, the test that
-  covered it, the document that described it) become one as well, placed
-  where the model was surest, the rest kept as `locations`, rendered as
-  "also at" and each posted inline when on a changed line
-  (`review-post.js`). On the PostHog regressions the cache arms reported two
-  findings a review against the baseline's one, and that was the same
-  regression at each file it touched.
-- When most of the changed code files carry no consulted note, the review says
-  so first (`review.js:blindSpot`, under the header in the CLI and in the
-  posted body): there the review is the model reading the diff alone, or
-  nothing at all when only behaviors were consulted. "No findings" on such a
-  change is not a clean bill. On 24 bug-introducing PostHog pull requests a
-  note rested on the file holding the bug in one.
-- Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
-  `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
-  one call with every consulted note, `nocache` is the same model with no
-  notes (the baseline), `ensemble` is both, `callers` adds one hop of callers
-  of the touched definitions by text search, `triage` asks a small model
-  whether a note bears on the change before the expensive call, `verify`
-  re-checks every error and warning with a second call and drops what is not
-  confirmed; `chunks` reviews a large change in chunks of files, each with the
-  complete file inventory. The default is the ensemble: on 16 planted and
-  reverted bugs in two repositories it caught 15, with no false positive on
-  the controls reached, at $0.16 to $0.25 a review; one call per note (the
-  first design) cost four to six times as much, caught fewer real bugs and
-  raised more false positives (`bench/RESULTS.md`, "Review strategies").
-- Evaluation: `bench/review-eval.js run --repo <checkout> --cases <json>
-  --strategies a,b [--notes <noteset dir>] --out <dir>` reviews every case under
-  every strategy and `report` tabulates hits, false positives, findings per
-  review, cost and time. Cases (`bench/review-eval-cases*.json`): bugs planted
-  by one-line edits, real fixes reverted onto the base (only fixes that are
-  ancestors of the base apply; a fix merged after the base is already absent),
-  behaviour-preserving refactors and real commits as controls. A hit is an
-  error or warning within six lines of the bug; a hit resting on a note mined
-  from the very PR being reverted is marked (`fromFixNote`): the cache
-  remembering a fix, not reasoning about code. The harness pins
-  `THINKER_LLM=claude`: after one provider failure `llm.js` keeps the fallback
-  provider for the rest of the process, and a run labelled sonnet was otherwise
-  answered mostly by Gemini (kept under `bench/runs/review-eval/*-mixed-provider`,
-  not used). Each row records the provider and model that answered (`models`).
-- **On pull requests** (`action/review/`, `server/worker.js:reviewPrs`): the
-  composite action sends the pull request (`number`, `headSha`, `headRef`,
-  `baseRef`, `baseSha`) to the team's server, `POST /v1/repos/:repo/reviews`,
-  and polls `GET …/reviews/:number` until the record is `done` or `failed`
-  (`send.mjs`; `wait` seconds, default 600). The worker fetches the head into
-  the clone (`repos.js:fetchPrHead`: GitHub's `refs/pull/N/head`, then the
-  branch, then the commit itself), reviews a commit scope from the merge base
-  with the base branch against the clone's notes (the default branch's; the
-  working tree is not touched), and posts one pull request review with the
-  server's GitHub token (`THINKER_SERVER_GITHUB_TOKEN`, pull requests: write;
-  the git token when unset; `THINKER_SERVER_GITHUB_API` points at another API,
-  a local fake for testing). `review-post.js` is the rendering and the posting:
-  findings on changed lines as inline comments, the rest and a table of the
-  behaviors in play (upheld, violated, revised, unrelated) in the body, cache
-  drift under a fold. An error finding (a fixed behavior violated) posts
-  `REQUEST_CHANGES` and the record carries `fail`, so the action fails the step
-  (`failOn: error | warning | none`); otherwise `COMMENT`, and nothing at all
-  when there is nothing to report (`quiet: false` posts the table anyway). A
-  request for changes from an earlier run is dismissed when a newer run posts,
-  so the push that fixes the violation clears it; a line GitHub will not take
-  a comment on (422) folds the inline findings into the body. One record per
-  pull request number (`<repo>/reviews/N.json`): a head already reviewed is
-  answered from the record, a new push replaces it, a failed one is asked
-  again. The model is whatever the server has (`llm.js`): the API key, or an
-  installed agent CLI with its login, so a local server reviews through
-  `claude -p` with no key; the workflow needs no key and no write permission
-  of its own. Defaults (since 2026-10-04): every note is consulted, the ensemble;
-  `kinds: behavior` consults the desired behaviors alone. Measured on 23 real
-  PostHog regressions (`bench/RESULTS.md`, "Real bugs on PostHog"): a review
-  that consults behaviors alone is blind wherever none rests, and on the 11
-  regressions the cache held no note for it found nothing through a note.
-  Without a server the same action reviews on the runner with
-  `anthropic-api-key` and `post.mjs` posts (`permissions: pull-requests:
-  write`, `fetch-depth: 0`); telemetry and learning are off in that step. This
-  repository has the server mode wired to itself in
-  `.github/workflows/thinker-review.yml` (needs the `THINKER_SYNC_TOKEN`
-  secret), but that workflow is disabled and its steps were skipping anyway. Tests: `test/server-review.test.js` runs the server in-process with
-  the model and GitHub faked; `test/action-review.test.js` covers the poster.
-- Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
-  call (`validate(ctx)`) as a C-like method definition; the C-like alternative
-  is left out for indentation-based languages. `llm.js:viaCli` retries at once
-  when `claude -p` stops with `tool_use` although no tool is offered.
+`thinker review` (a single model call over the diff, the code it touched and the
+notes resting on it; later with `usedContext`, the code the change uses) was
+removed, with task verification (`--run`), the pull request action, the server's
+review worker and the pre-commit option. On held-out bugs, fixes withheld from
+the cache, it caught no more with notes than without (mitmproxy 10-11 of 15 either
+way, PostHog 5 of 8), and the user's own coding agent reviewing the same change
+caught 14 of 15 with or without thinker alongside. Its one distinctive number,
+recall of fixes already in the cache, is not a claim this project makes. The
+measurements are in `research/regression-heldout` on the `agent/heldout-regression`
+branch. What survives: `src/change.js` (the model-free change helpers) for the
+diff-keyed serving of notes to a reviewing agent, and two findings for a review
+built around the agent: showing the code the change uses lifted the single call
+from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 
 ## Supported agents
 

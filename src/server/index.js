@@ -4,12 +4,10 @@
 //   GET    /v1/whoami
 //   GET    /v1/repos                               admin   every repository and its state
 //   PUT    /v1/repos/:repo            {clone?}     admin   register a repository (or set its clone url)
-//   GET    /v1/repos/:repo                         read    state: head, notes, pending reviews
+//   GET    /v1/repos/:repo                         read    state: head, notes
 //   GET    /v1/repos/:repo/notes?since=N           read    notes changed since cursor N, and tombstones
 //   GET    /v1/repos/:repo/notes/:id               read    one note
 //   POST   /v1/repos/:repo/notes      {items}      write   push notes: [{op: put|del, base?, note}]
-//   POST   /v1/repos/:repo/reviews    {number, headSha, baseRef, ...}   write   an open pull request to review and post the review on
-//   GET    /v1/repos/:repo/reviews/:number         read    the state and result of that review
 //   POST   /v1/repos/:repo/fetch                   admin   fetch the checkout now
 //   GET    /v1/tokens, POST /v1/tokens {name, repos?, scopes?}, DELETE /v1/tokens/:name   admin
 //
@@ -46,7 +44,6 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
   const tokens = new Tokens(data, { adminToken });
   const worker = new Worker(repos, { log, ...workerOpts });
   if (startWorker) worker.start();
-  const reviews = repo => ({ reviews: repo.isCloned() && worker.hasModel(), posts: !!worker.githubToken });
 
   async function route(req, res) {
     const url = new URL(req.url, 'http://localhost');
@@ -108,30 +105,6 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
       throw new HttpError(405, 'method not allowed');
     }
 
-    if (sub === 'reviews') {
-      if (req.method === 'GET' && subId) {
-        if (!allows(who, 'read', repoId) && !allows(who, 'write', repoId)) need('read', repoId); // the CI token that asked may read the answer
-        if (!/^\d{1,9}$/.test(subId)) throw new HttpError(400, 'number: the pull request number');
-        const r = repo.review(subId);
-        if (!r) throw new HttpError(404, 'no review of that pull request was requested');
-        return send(200, { review: r, ...reviews(repo) });
-      }
-      if (req.method === 'POST' && !subId) {
-        need('write', repoId);
-        const b = await readBody(req, LIMITS.default);
-        const number = Number(b.number);
-        if (!Number.isInteger(number) || number <= 0) throw new HttpError(400, 'number: the pull request number');
-        const sha = v => /^[a-f0-9]{7,64}$/i.test(String(v || '')) ? String(v).toLowerCase() : null;
-        const ref = v => typeof v === 'string' && /^[\w./-]{1,200}$/.test(v) && !v.includes('..') ? v : null;
-        if (!sha(b.headSha) && !ref(b.headRef)) throw new HttpError(400, 'headSha or headRef: the pull request\'s head');
-        if (!ref(b.baseRef)) throw new HttpError(400, 'baseRef: the branch the pull request merges into');
-        const apiUrl = b.apiUrl === undefined ? undefined : /^https?:\/\/\S+$/.test(String(b.apiUrl)) ? String(b.apiUrl).replace(/\/+$/, '') : null;
-        if (apiUrl === null) throw new HttpError(400, 'apiUrl: the GitHub API url');
-        const rv = { number, headSha: sha(b.headSha), headRef: ref(b.headRef), baseRef: ref(b.baseRef), baseSha: sha(b.baseSha), title: String(b.title || '').slice(0, 500), apiUrl, kinds: Array.isArray(b.kinds) ? b.kinds.filter(k => typeof k === 'string' && /^[a-z]{1,20}$/.test(k)).slice(0, 10) : undefined, max: Number.isInteger(b.max) && b.max > 0 ? Math.min(b.max, 30) : undefined, failOn: ['error', 'warning', 'none'].includes(b.failOn) ? b.failOn : 'error', quiet: b.quiet !== false, by };
-        return send(202, { ...repo.queueReview(rv), ...reviews(repo) });
-      }
-      throw new HttpError(405, 'method not allowed');
-    }
     throw new HttpError(404, 'not found');
   }
 

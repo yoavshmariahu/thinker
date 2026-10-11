@@ -95,7 +95,7 @@ function registerTools() {
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');
-      return text(`Desired behaviors of the system (${rows.length}; the code must uphold each; a review checks changes against them):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
+      return text(`Desired behaviors of the system (${rows.length}; the code must uphold each):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
     if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
     return text(r.text);
@@ -126,13 +126,8 @@ function registerTools() {
     return text(r.error ? r.error : r.text);
   });
 
-  // `review` was a tool here until 2026-10-06 and is now a mode of the command line instead.
-  // Agents did not reach for it: 14 MCP calls of any kind against 2094 orients on the machine that
-  // built it, while the 161 reviews that did run came from the CLI and the pull request action. It is
-  // also the wrong shape for a tool call — several model calls over a whole change, minutes, longer
-  // than some clients allow — and its findings need a person. `thinker review` has every capability
-  // the tool had, verification runs included (--run, --start, --status). See "Reviewing a change"
-  // in AGENTS.md and the README.
+  // `review` was a tool here until 2026-10-06, then a command until 2026-10-11: on held-out bugs it never
+  // beat the user's own coding agent reviewing with the cache alongside (research/regression-heldout).
   retrieval('remember', {
     title: 'Save a reusable note',
     description: 'Save what you had to work out and a future agent would re-derive: where something happens, a call path, what changes together, how to build/test/run, a convention, a gotcha, or why something is the way it is. Not a summary of a file. Name files and symbols, and list the files/symbols it depends on: the note goes stale when they change. Kinds: rule (an invariant, convention, trap, fix not to undo, or reason), map (where, call path, module map), howto, behavior (a desired behavior of the system; from an agent, a proposal until a person accepts it).',
@@ -165,7 +160,7 @@ function registerTools() {
       id: z.string().optional().describe('edit/remove: the behavior id'),
       title: z.string().optional().describe('The requirement as one sentence.'),
       body: z.string().optional().describe('The rule and where the code upholds it, with path:Symbol pointers'),
-      mutability: z.enum(['fixed', 'mutable']).optional().describe('fixed: review blocks a breaking change; mutable (default): warns'),
+      mutability: z.enum(['fixed', 'mutable']).optional().describe('fixed: never revised by a change; mutable (default): revised when merged code changes it'),
       answers: z.array(z.string()).optional().describe('add: ways someone would ask about it'),
       deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional() })).optional().describe('For add: the definitions that uphold the rule.'),
     },

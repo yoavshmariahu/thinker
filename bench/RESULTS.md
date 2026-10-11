@@ -466,6 +466,12 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 
 ## Review strategies (2026-10-03): what catches bugs in a change
 
+> `thinker review` was removed on 2026-10-11. The sections below measured it on reversed fixes whose
+> fix PR was in the cache (recall), which is no longer a claim this project makes; held-out
+> measurements, fix withheld, are in `research/regression-heldout` (branch `agent/heldout-regression`):
+> the cache did not change what a reviewer caught, and the user's own coding agent caught more than
+> the single call did. Kept as a record of how the earlier numbers were produced.
+
 `thinker review` checks a change against the cache. Which way of asking the
 model catches the most bugs at the fewest false alarms was measured with
 `bench/review-eval.js` on two datasets, every review answered by Claude

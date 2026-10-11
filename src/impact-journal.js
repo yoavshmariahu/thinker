@@ -22,7 +22,7 @@ export function appendImpact(store, event) {
   fs.appendFileSync(file, JSON.stringify(record) + '\n', { mode: 0o600 });
   return record;
 }
-// Instrumentation must never fail a hook, model call, or review.
+// Instrumentation must never fail a hook or a model call.
 export function tryImpact(store, event) { try { return appendImpact(store, event); } catch { return null; } }
 export function readImpact(store) {
   const file = impactFile(store), events = [], warnings = [], seen = new Set();
