@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store, findRepoRoot, repoId, isScratchCheckout, isGitCheckout } from './store.js';
 import { readLog } from './usage.js';
 import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
-import { githubSlug } from './setup/agents.js';
+import { githubSlug, hasBin } from './setup/agents.js';
 import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
 import { isTestMode } from './test-mode.js';
@@ -61,9 +61,14 @@ function checkoutOf(p) {
   } catch { return null; }
 }
 
-export function topDirs(checkout) {
-  try { return execFileSync('git', ['ls-tree', '-d', '--name-only', 'HEAD'], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(d => d && !d.startsWith('.')).slice(0, 40); }
-  catch { return []; }
+// The directories a build can be narrowed to: every tracked directory up to three levels deep, hidden
+// ones and dependency folders left out, for the page's search box.
+const DIR_SKIP = /(^|\/)(node_modules|vendor|dist|build|target|__pycache__|\.[^/]+)(\/|$)/;
+export function topDirs(checkout, { depth = 3, limit = 4000 } = {}) {
+  try {
+    return execFileSync('git', ['ls-tree', '-r', '-d', '--name-only', 'HEAD'], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })
+      .split('\n').filter(d => d && d.split('/').length <= depth && !DIR_SKIP.test(d)).slice(0, limit);
+  } catch { return []; }
 }
 
 // The repository as people name it: owner/name from its origin, else the checkout's folder.
@@ -100,15 +105,39 @@ export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
 }
 
 // The warm-up page: each repository with what a full and a shallow build would take.
+// When the person's GitHub repositories were last pushed to, by owner/name, from one `gh` call (the
+// repositories they own or collaborate on; others are left out). Kept for the process: the page
+// asks more than once. Nothing without gh or offline.
+let pushedAt = null;
+export function githubPushedAt({ ghFn } = {}) {
+  if (pushedAt) return pushedAt;
+  pushedAt = new Map();
+  try {
+    const out = ghFn ? ghFn() : hasBin('gh') ? execFileSync('gh', ['api', 'user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member', '--jq', '.[] | [.full_name, .pushed_at] | @tsv'], { encoding: 'utf8', timeout: 6000, stdio: ['ignore', 'pipe', 'ignore'] }) : '';
+    for (const line of String(out).split('\n')) { const [name, at] = line.split('\t'); if (name && at) pushedAt.set(name.toLowerCase(), at); }
+  } catch {}
+  return pushedAt;
+}
+
+// The warm-up page: each repository with what a full and a shallow build would take, the most recently
+// active first. Activity is the agents' sessions here these 30 days (`sessions`, `lastUsed`) and, for a
+// GitHub repository of the person's, when it was last pushed to (`pushed`). `warmed` says a build has
+// read its pull requests before.
 export function warmupCandidates(store, opts = {}) {
+  const pushed = githubPushedAt(opts);
   return discoverRepos(store, opts).map(r => {
     const slug = githubSlug(r.checkout);
     // the file count plays no part in the time or the tokens, and listing a large repository's files is slow
     const full = estimateCacheBuild(r.checkout, { prs: 60, slug, fileCount: 0 });
     const shallow = estimateCacheBuild(r.checkout, { ...depthLimits({ depth: 'shallow', prs: 60 }), slug, commitCount: full.commitCount, fileCount: 0 });
     const pick = e => ({ seconds: e.timing.totalSeconds, tokens: e.tokenEstimate, notes: e.size.notesRange, prs: e.canMine ? Math.min(60, 50) : 0 });
-    return { ...r, slug, canMine: full.canMine, source: full.mineSource, commits: full.commitCount, dirs: topDirs(r.checkout), estimates: { full: pick(full), shallow: pick(shallow) } };
-  });
+    const at = slug ? pushed.get(slug.toLowerCase()) || null : null;
+    const active = Math.max(Date.parse(r.lastUsed) || 0, Date.parse(at) || 0);
+    return {
+      ...r, slug, pushed: at, active: active ? new Date(active).toISOString() : null, warmed: fs.existsSync(path.join(r.checkout, '.thinker', 'prs.json')),
+      canMine: full.canMine, source: full.mineSource, commits: full.commitCount, dirs: topDirs(r.checkout), estimates: { full: pick(full), shallow: pick(shallow) },
+    };
+  }).sort((a, b) => (Date.parse(b.active) || 0) - (Date.parse(a.active) || 0) || b.sessions - a.sessions);
 }
 
 // What a cache holds, for the cache page's repository cards.

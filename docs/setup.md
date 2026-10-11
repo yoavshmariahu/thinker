@@ -11,7 +11,7 @@ Cursor, their desktop apps included), asking nothing in the terminal. Thinker
 then runs in every git repository on this machine: a cache starts, empty, with
 the first agent session in a repository (kept out of `git status` through
 `.git/info/exclude`) and grows from your sessions. The installer ends by
-opening the **warm-up page** (`thinker ui`, the Warm up tab): the repositories
+opening the **warm-up page** (`thinker ui --tab warmup`, or "Warm up more repositories" on the Cache page): the repositories
 your agents worked in over the last 30 days, found from their own session
 records, each with an estimate. Pick the ones to build a cache for now, at one
 of two depths: **full**, the newest 60 merged pull requests, or **shallow**,

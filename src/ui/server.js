@@ -276,7 +276,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         tryPort(want);
       });
     },
-    close: () => new Promise(r => server.close(r)),
+    // the browser keeps connections open; Ctrl+C must not wait for them
+    close: () => new Promise(r => { server.close(r); server.closeAllConnections?.(); }),
     // a build queued here keeps the server up until it is started: the queue lives in this process
     idleMs: () => jobs.active() ? 0 : Date.now() - lastRequest,
   };

@@ -1201,7 +1201,7 @@ thinker benchmark report</code></pre>
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser, from any directory, with three views. The installer opens it on the warm-up page (that page stops by itself after half an hour unused, once no build is queued).
+          <code>thinker ui</code> opens a page in your browser, from any directory, with two tabs and the warm-up page behind the Cache tab. The installer opens it on the warm-up page (that page stops by itself after half an hour unused, once no build is queued).
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
 thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up page</span>
@@ -1212,7 +1212,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time, for one repository or all of them: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
               <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them its <a href="#behaviors">system behaviors</a>, filtered by proposed, active, blocking, warn only, or broken or unverified; accept a proposed one as written or as blocking, edit it, or discard it</td></tr>
-              <tr><td>Warm up</td><td>The git repositories your agents worked in over the last 30 days, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
+              <tr><td>Warm up (from the Cache page, and the first view after install)</td><td>The git repositories your agents worked in over the last 30 days, most recent first, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
             </tbody>
           </table>
         </div>

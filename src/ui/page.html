@@ -24,9 +24,9 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
-    .brand { display: flex; align-items: baseline; gap: 0.45rem; }
+    .brand { display: flex; align-items: center; gap: 0.55rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
-    .brand-sub { font-size: 0.85rem; color: #6b7280; }
+    .brand-sub { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.12rem 0.5rem; line-height: 1.2; }
     .sel { font-size: 0.85rem; font-weight: 500; color: #111; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.38rem 1.6rem 0.38rem 0.6rem; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 0.6rem center; appearance: none; -webkit-appearance: none; cursor: pointer; max-width: 280px; text-overflow: ellipsis; }
     .sel:hover, .sel:focus { outline: none; border-color: #111; }
     .repo-tag { display: inline-block; font-size: 0.78rem; color: #6b7280; margin-bottom: 0.3rem; }
@@ -118,28 +118,55 @@
     .back { background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; margin-bottom: 1rem; }
     .back:hover { color: #111; }
 
-    .wcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.8rem 0.95rem 0.75rem; min-width: 0; display: flex; flex-direction: column; gap: 0.55rem; transition: border-color 0.15s ease, background 0.15s ease; }
-    .wcard.on { background: #fff; border-color: #111; }
-    .wcard.off { opacity: 0.7; }
-    .wtop { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.6rem; align-items: start; cursor: pointer; }
-    .wtop input { margin-top: 0.3rem; width: 15px; height: 15px; accent-color: #111; }
-    .weta { text-align: right; min-width: 72px; max-width: 110px; flex-shrink: 0; }
-    .weta b { display: block; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    /* warm-up rows: one repository per row, so opening a directory picker moves nothing else */
+    .wlist { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.2rem; }
+    .pager { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 1rem; font-size: 0.8rem; color: #6b7280; }
+    .pager .pages { display: flex; gap: 0.3rem; }
+    .pager button { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; }
+    .pager button.on { background: #111; border-color: #111; color: #fff; }
+    .pager button:disabled { opacity: 0.4; cursor: default; }
+    .wrow { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.7rem 0.95rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 0.5rem 0.9rem; align-items: center; transition: border-color 0.15s ease, background 0.15s ease; position: relative; }
+    .wrow.on { background: #fff; border-color: #111; }
+    .wrow.off { opacity: 0.65; }
+    .wrow input[type=checkbox] { width: 15px; height: 15px; accent-color: #111; margin: 0; }
+    .wmain { display: flex; gap: 0.8rem; align-items: center; min-width: 0; cursor: pointer; grid-column: 1 / 3; }
+    .wrow.off .wmain { cursor: default; }
+    .wname { min-width: 0; }
+    .wctl { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; font-size: 0.76rem; color: #6b7280; }
+    .weta { text-align: right; min-width: 92px; white-space: nowrap; }
+    .weta b { display: block; font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
     .weta b.dim { color: #9ca3af; font-weight: 600; }
-    .weta span { display: block; font-size: 0.7rem; color: #6b7280; line-height: 1.3; }
-    .wopts { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-    .wopts .link { background: none; border: none; color: #6b7280; font-size: 0.74rem; cursor: pointer; padding: 0; }
-    .wopts .link:hover { color: #111; }
-    .wdirs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-    .wdirs .chip { padding: 0.15rem 0.5rem; font-size: 0.72rem; }
-    .wnote { font-size: 0.74rem; color: #9ca3af; }
-    .wbar { position: sticky; bottom: 0; margin-top: 1.6rem; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; padding: 0.9rem 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 1rem; align-items: center; }
-    .wbar .model { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; }
-    .wbar .sum { text-align: right; font-size: 0.78rem; color: #6b7280; white-space: nowrap; }
-    .wbar .sum b { display: block; font-size: 1.05rem; color: #111; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-    .wbar .weta { min-width: 92px; }
-    .wbar .weta b { font-size: 1.25rem; }
-    @media (max-width: 640px) { .wbar { grid-template-columns: 1fr 1fr; } .wbar .model { grid-column: 1 / -1; } }
+    .weta span { display: block; font-size: 0.72rem; color: #6b7280; line-height: 1.3; }
+    .wdir { position: relative; }
+    .wdir-btn { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 8px; padding: 0.3rem 0.65rem; font-size: 0.76rem; cursor: pointer; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wdir-btn:hover, .wdir.open .wdir-btn { border-color: #111; color: #111; }
+    .wdrop { position: absolute; right: 0; top: calc(100% + 6px); width: 320px; max-width: 80vw; background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); z-index: 20; padding: 0.5rem; }
+    .wdrop input { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.82rem; outline: none; }
+    .wdrop input:focus { border-color: #111; }
+    .wopts { list-style: none; max-height: 240px; overflow-y: auto; margin-top: 0.4rem; }
+    .wopts li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.32rem 0.5rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .wopts li:hover { background: #f5f5f5; }
+    .wopts li.on { background: #111; color: #fff; }
+    .wopts li.on:hover { background: #222; }
+    .wopts li .tick { font-size: 0.72rem; opacity: 0.8; }
+    .wdrop .wfoot { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 0.4rem; padding: 0 0.3rem; font-size: 0.74rem; color: #6b7280; white-space: nowrap; }
+    .wdrop .wfoot button { background: none; border: none; color: #6b7280; font-size: 0.74rem; cursor: pointer; padding: 0; }
+    .wdrop .wfoot button:hover { color: #111; }
+    .wnote { font-size: 0.76rem; color: #9ca3af; white-space: nowrap; }
+    .wbar { position: sticky; top: 3.9rem; z-index: 5; margin-top: 1.4rem; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 1.4rem; align-items: center; }
+    .wbar .model { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; min-width: 0; }
+    .wbar .model .auth { font-size: 0.76rem; white-space: nowrap; }
+    .wbar .sum { text-align: right; white-space: nowrap; }
+    .wbar .sum b { display: block; font-size: 1.25rem; color: #111; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .wbar .sum span { display: block; font-size: 0.74rem; color: #6b7280; }
+    @media (max-width: 760px) {
+      .wrow { grid-template-columns: minmax(0, 1fr) auto; }
+      .wmain { grid-column: 1 / 2; }
+      .wctl { grid-column: 1 / -1; justify-content: flex-start; }
+      .wbar { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+      .wbar .model { grid-column: 1 / -1; }
+      .wbar .sum { text-align: left; }
+    }
 
     /* behaviors */
     .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -208,11 +235,10 @@
 </head>
 <body>
   <nav>
-    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">· local</span></div>
+    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
       <button class="nav-link" data-tab="usage">Usage</button>
       <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
-      <button class="nav-link" data-tab="warmup">Warm up</button>
     </div>
   </nav>
 
@@ -270,21 +296,23 @@
 
     <!-- Warm up -->
     <section id="tab-warmup" hidden>
+      <button class="back" id="w-back">← Your repositories</button>
       <div class="kicker">Warm up your cache</div>
       <h1>Which repositories should thinker learn first?</h1>
-      <p class="lede">These are the git repositories your coding agents have worked in over the last 30 days, and the ones thinker has seen before. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Each cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
-      <div class="rgrid" id="w-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Looking for repositories…</div></div>
+      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
       <div class="wbar" id="w-bar" hidden>
         <div class="model">
           <span>Model</span>
           <select class="sel" id="w-agent" aria-label="Agent"></select>
           <select class="sel" id="w-tier" aria-label="Model"></select>
-          <span id="w-auth"></span>
+          <span id="w-auth" class="auth"></span>
         </div>
-        <div class="sum"><b id="w-tokens">0</b>tokens of usage</div>
-        <div class="weta sum"><b id="w-eta">—</b>for <span id="w-count">0 repositories</span></div>
+        <div class="sum"><b id="w-tokens">0</b><span>tokens of usage</span></div>
+        <div class="sum"><b id="w-eta">—</b><span id="w-count">0 repositories</span></div>
         <button class="btn big" id="w-start">Start building</button>
       </div>
+      <div class="wlist" id="w-grid"><div class="empty"><span class="spinner"></span>Looking for repositories…</div></div>
+      <div class="pager" id="w-pager"></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -328,8 +356,9 @@ function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.classNa
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'cache') DREPO = ''; show(b.dataset.tab); });
 $('#to-warmup').onclick = () => show('warmup');
 $('#back').onclick = () => { DREPO = ''; show('cache'); };
+$('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
-  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' ? 'cache' : tab)));
   $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
@@ -405,11 +434,12 @@ async function fetchRepos() {
 }
 function waitCount() { const c = $('#wait-count'), n = REPOS.reduce((a, r) => a + (r.pending || 0), 0); c.hidden = !n; c.textContent = n; }
 const jobOf = r => (r.job && ['queued', 'running'].includes(r.job.status)) || (r.job?.ended && Date.now() - Date.parse(r.job.ended) < 10 * 60_000) ? r.job : null;
-// what is running against a cache: the mining or distilling batch with its count, else the state of its warm-up build
-function progress(r) {
+// what is running against a cache: the mining or distilling batch with its count, else the state of its warm-up
+// build; the item in hand (`detail`) only on the repository's own page
+function progress(r, { detail = false } = {}) {
   const a = ACT[r.id], j = jobOf(r);
   if (a) return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
-    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${a.current ? ` · ${esc(a.current)}` : ''}</span><button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></div></div>`;
+    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${detail && a.current ? ` · ${esc(a.current)}` : ''}</span><button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></div></div>`;
   if (j && j.status === 'running') return `<div class="prog"><div class="track busy"><i></i></div><div class="prog-line"><span>warming up · reading the design documents</span><button class="stop" data-stop-job="${esc(j.id)}">Stop</button></div></div>`;
   if (j && j.status === 'queued') return `<div class="prog"><div class="track"><i></i></div><div class="prog-line"><span>queued for warm-up (${j.depth})</span><button class="stop" data-stop-job="${esc(j.id)}">Remove</button></div></div>`;
   if (j && j.status === 'done') return `<div class="prog-line"><span class="gain">warm-up finished</span></div>`;
@@ -478,7 +508,7 @@ async function openRepo(id) {
 }
 function renderActivity() {
   const r = REPOS.find(x => x.id === DREPO); if (!r) return;
-  const h = progress(r);
+  const h = progress(r, { detail: true });
   $('#d-activity').innerHTML = h ? `<div class="panel" style="margin-top:1.2rem;padding:0.9rem 1.1rem">${h}</div>` : '';
   wireStops();
 }
@@ -658,15 +688,17 @@ function wire() {
 }
 
 // ---- warm up ------------------------------------------------------------------------------------
-// W: the machine's repositories with their estimates; SEL: what the person picked, by checkout
-let W = null, SEL = new Map(), dirsOpen = new Set();
+// W: the machine's repositories with their estimates, most recently active first; SEL: what the person
+// picked, by checkout; one directory picker open at a time (DROP), with its search text
+let W = null, SEL = new Map(), AGENTS = null, DROP = null, dirQuery = '', wPage = 0;
+const W_PAGE = 8;
 async function loadWarmup() {
-  if (!W) $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Looking for repositories…</div>`;
+  if (!W) $('#w-grid').innerHTML = `<div class="empty"><span class="spinner"></span>Looking for repositories…</div>`;
   try {
     W = await api('/api/machine');
     W.agents = AGENTS?.agents || [];
-    // preselected: only what an agent worked in these 30 days and has no cache yet; the rest is listed unchecked
-    if (!SEL.size) for (const r of W.repos) if (r.canMine && !r.hasCache && r.sessions > 0) SEL.set(r.checkout, { depth: 'full', directories: [] });
+    // preselected: the three with the most sessions these 30 days that have history to read and were not warmed up before
+    if (!SEL.size) for (const r of [...W.repos].filter(r => r.canMine && !r.warmed && r.sessions > 0).sort((a, b) => b.sessions - a.sessions).slice(0, 3)) SEL.set(r.checkout, { depth: 'full', directories: [] });
     renderWarmup();
     // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
     if (!AGENTS) { $('#w-agent').innerHTML = '<option value="">checking your agents…</option>'; AGENTS = await api('/api/agents'); W.agents = AGENTS.agents; }
@@ -674,53 +706,85 @@ async function loadWarmup() {
     agentSel.innerHTML = W.agents.length ? W.agents.map(a => `<option value="${esc(a.agent)}"${a.agent === (AGENTS.defaultAgent || W.agents[0].agent) ? ' selected' : ''}>${esc(a.name)}${a.authenticated ? '' : ' · not signed in'}</option>`).join('') : '<option value="">no agent CLI found</option>';
     fillTiers();
     renderWarmup();
-  } catch (e) { $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not look for repositories: ${esc(e.message)}</div>`; }
+  } catch (e) { $('#w-grid').innerHTML = `<div class="empty">Could not look for repositories: ${esc(e.message)}</div>`; }
 }
-let AGENTS = null;
 function fillTiers() {
   const a = W.agents.find(x => x.agent === $('#w-agent').value) || W.agents[0];
   const cur = $('#w-tier').value || W.defaultTier;
   $('#w-tier').innerHTML = (a ? a.models : W.tiers.map(t => ({ tier: t, model: t }))).map(m => `<option value="${esc(m.tier)}"${m.tier === cur ? ' selected' : ''}>${esc(m.model)}</option>`).join('');
   $('#w-auth').textContent = a ? (a.authenticated ? `signed in${a.details && /as /.test(a.details) ? ' ' + a.details.replace(/^Signed in /, '') : ''}` : `not signed in · run ${a.loginCmd} first`) : '';
-  $('#w-auth').className = a && !a.authenticated ? 'loss' : 'muted';
+  $('#w-auth').className = 'auth ' + (a && !a.authenticated ? 'loss' : 'muted');
 }
 $('#w-agent').onchange = fillTiers;
 const est = (r, sel) => r.estimates[sel.depth] || r.estimates.full;
-function wcard(r) {
+const when = (iso, verb) => { if (!iso) return ''; const d = (Date.now() - Date.parse(iso)) / 86400_000; return `${verb} ${d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 30 ? `${Math.floor(d)} days ago` : `${Math.floor(d / 30)} months ago`}`; };
+// a subsequence match, contiguous and early matches first
+function fuzzy(q, s) {
+  if (!q) return 0;
+  const i = s.indexOf(q); if (i >= 0) return i + (s.length - q.length) / 1000;
+  let j = 0, gaps = 0, last = -1;
+  for (let k = 0; k < s.length && j < q.length; k++) if (s[k] === q[j]) { if (last >= 0 && k !== last + 1) gaps++; last = k; j++; }
+  return j === q.length ? 1000 + gaps * 10 + s.length / 1000 : -1;
+}
+function dirLabel(sel) { const n = sel.directories.length; return !n ? 'Whole repository' : `${n} director${n === 1 ? 'y' : 'ies'}`; }
+function wrow(r) {
   const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
-  const sub = [owner(r.name), home(r.checkout), ago(r.lastUsed), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', r.hasCache ? 'has a cache' : ''].filter(Boolean).join(' · ');
-  if (!r.canMine) return `<div class="wcard off" data-c="${esc(r.checkout)}"><div class="wtop"><input type="checkbox" disabled><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div><div class="weta"><b class="dim">—</b><span>nothing to read</span></div></div>
-    <div class="wnote">${r.commits <= 5 ? 'Too little history to read; the cache grows from your sessions.' : 'No merged history to read; the cache grows from your sessions.'}</div></div>`;
-  return `<div class="wcard${on ? ' on' : ''}" data-c="${esc(r.checkout)}">
-    <label class="wtop"><input type="checkbox" data-pick${on ? ' checked' : ''}><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens` : `${dur(r.estimates.shallow.seconds)} shallow`}</span></div></label>
-    ${on ? `<div class="wopts"><div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
-      ${r.dirs.length ? `<button class="link" data-dirs>${sel.directories.length ? `${sel.directories.length} of ${r.dirs.length} directories` : 'Whole repository'} ${dirsOpen.has(r.checkout) ? '▴' : '▾'}</button>` : ''}</div><div class="wnote">${esc(e.notes)} expected</div>
-      ${dirsOpen.has(r.checkout) ? `<div class="wdirs">${r.dirs.map(d => `<button class="chip${sel.directories.includes(d) ? ' on' : ''}" data-dir="${esc(d)}">${esc(d)}</button>`).join('')}</div><div class="wnote">Pick directories to read only their history; none picked reads the whole repository.</div>` : ''}` : ''}
-  </div>`;
+  const sub = [owner(r.name), home(r.checkout), when(r.lastUsed, 'used'), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', when(r.pushed, 'pushed'), r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', r.warmed ? 'warmed up before' : r.hasCache ? 'has a cache' : ''].filter(Boolean).join(' · ');
+  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
+  if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span></div><div class="weta"><b class="dim">—</b></div></div>`;
+  const ctl = on ? `<div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
+      ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
+  return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
 }
 function renderWarmup() {
-  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">No git repositories found in your agents' recent work. Run an agent session inside one, or <code>thinker setup --build</code> there.</div>`; $('#w-bar').hidden = true; return; }
-  $('#w-grid').innerHTML = W.repos.map(wcard).join('');
+  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty">No git repositories found in your agents' recent work. Run an agent session inside one, or <code>thinker setup --build</code> there.</div>`; $('#w-bar').hidden = true; return; }
+  const pages = Math.max(1, Math.ceil(W.repos.length / W_PAGE)); wPage = Math.min(wPage, pages - 1);
+  $('#w-grid').innerHTML = W.repos.slice(wPage * W_PAGE, (wPage + 1) * W_PAGE).map(wrow).join('');
+  $('#w-pager').innerHTML = pages > 1 ? `<span>${wPage * W_PAGE + 1}–${Math.min(W.repos.length, (wPage + 1) * W_PAGE)} of ${W.repos.length} repositories</span><div class="pages"><button data-page="${wPage - 1}"${wPage === 0 ? ' disabled' : ''}>‹</button>${Array.from({ length: pages }, (_, i) => `<button data-page="${i}"${i === wPage ? ' class="on"' : ''}>${i + 1}</button>`).join('')}<button data-page="${wPage + 1}"${wPage === pages - 1 ? ' disabled' : ''}>›</button></div>` : '';
+  document.querySelectorAll('#w-pager [data-page]').forEach(b => b.onclick = () => { wPage = Number(b.dataset.page); DROP = null; renderWarmup(); window.scrollTo({ top: 0 }); });
   $('#w-bar').hidden = false;
   let secs = 0, toks = 0;
   for (const [c, sel] of SEL) { const r = W.repos.find(x => x.checkout === c); if (!r) continue; const e = est(r, sel); secs += e.seconds; toks += e.tokens; }
   $('#w-eta').textContent = SEL.size ? dur(secs) : '—'; $('#w-tokens').textContent = SEL.size ? `~${fmt(toks)}` : '0'; $('#w-count').textContent = `${SEL.size} ${SEL.size === 1 ? 'repository' : 'repositories'}`;
   $('#w-start').disabled = !SEL.size || !AGENTS || !W.agents.length;
-  document.querySelectorAll('#w-grid .wcard').forEach(el => {
+  document.querySelectorAll('#w-grid .wrow').forEach(el => {
     const c = el.dataset.c;
-    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [] }); else SEL.delete(c); renderWarmup(); };
+    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [] }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
     el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
-    const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { dirsOpen.has(c) ? dirsOpen.delete(c) : dirsOpen.add(c); renderWarmup(); };
-    el.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => { const s = SEL.get(c); s.directories = s.directories.includes(b.dataset.dir) ? s.directories.filter(d => d !== b.dataset.dir) : [...s.directories, b.dataset.dir]; renderWarmup(); });
+    const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
+  });
+  if (DROP) renderDrop();
+}
+// the picker's own rendering: typing filters the list in place, so the box keeps its focus
+function renderDrop() {
+  const r = W.repos.find(x => x.checkout === DROP), sel = SEL.get(DROP), box = document.querySelector(`.wrow[data-c="${CSS.escape(DROP)}"] [data-drop]`);
+  if (!r || !sel || !box) return;
+  if (!box.querySelector('input')) {
+    box.innerHTML = `<input placeholder="Search ${r.dirs.length} directories…" value="${esc(dirQuery)}"><ul class="wopts"></ul><div class="wfoot"><span data-n></span><button data-clear>Clear</button></div>`;
+    box.querySelector('input').oninput = e => { dirQuery = e.target.value; renderDrop(); };
+    box.querySelector('input').onkeydown = e => { if (e.key === 'Escape') { DROP = null; renderWarmup(); } };
+    box.querySelector('[data-clear]').onclick = () => { sel.directories = []; renderWarmup(); };
+  }
+  const q = dirQuery.trim().toLowerCase();
+  const scored = r.dirs.map(d => [d, fuzzy(q, d.toLowerCase())]).filter(([, s]) => s >= 0).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+  const picked = [...sel.directories].sort().map(d => [d, -1]);
+  const shown = [...picked, ...scored.filter(([d]) => !sel.directories.includes(d)).slice(0, 60)];
+  box.querySelector('.wopts').innerHTML = shown.length ? shown.map(([d]) => `<li class="${sel.directories.includes(d) ? 'on' : ''}" data-dir="${esc(d)}"><span>${esc(d)}</span>${sel.directories.includes(d) ? '<span class="tick">✓</span>' : ''}</li>`).join('') : '<li class="muted" style="cursor:default">No directory matches</li>';
+  box.querySelector('[data-n]').textContent = sel.directories.length ? `${sel.directories.length} picked · their history only` : 'none picked · the whole repository';
+  box.querySelectorAll('[data-dir]').forEach(li => li.onclick = () => {
+    const d = li.dataset.dir; sel.directories = sel.directories.includes(d) ? sel.directories.filter(x => x !== d) : [...sel.directories, d];
+    renderDrop(); box.querySelector('input').focus(); const btn = document.querySelector(`.wrow[data-c="${CSS.escape(DROP)}"] [data-dirs]`); if (btn) btn.textContent = dirLabel(sel) + ' ▾';
   });
 }
+document.addEventListener('mousedown', e => { if (DROP && !e.target.closest('.wdir')) { DROP = null; renderWarmup(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && DROP) { DROP = null; renderWarmup(); } });
 $('#w-start').onclick = async () => {
   const btn = $('#w-start'); btn.disabled = true;
   try {
     const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories }));
     const r = await api('/api/warmup', { repos, agent: $('#w-agent').value || null, tier: $('#w-tier').value || null });
     toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
-    SEL = new Map(); W = null; prevJobs = '';
+    SEL = new Map(); W = null; prevJobs = ''; DROP = null;
     DREPO = ''; show('cache');
   } catch (e) { btn.disabled = false; toast(e.message, true); }
 };
