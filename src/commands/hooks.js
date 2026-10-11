@@ -13,6 +13,7 @@ import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '.
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
+import { changedCodeNotes } from '../changed-notes.js';
 
 async function hookCommand(ctx) {
   const { pos, flags, out, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
@@ -78,11 +79,15 @@ async function hookCommand(ctx) {
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
     // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
     const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
-    if (!r.included.length) return;
+    // a change already in progress: the notes resting on it, whatever the request says (changed-notes.js)
+    const changed = session !== 'unknown' && !holdoutSession(store, session) ? changedCodeNotes(store, { session, client, exclude: new Set(r.included.map(n => n.id)) }) : { text: '', included: [] };
+    if (!r.included.length && !changed.included.length) return;
     const intro = introOk ? sessionIntro(store, { session, client }) : '';
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
     const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-    const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
+    const learning = !NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : '';
+    const bundle = r.included.length ? `<thinker-cache>\n${header}\n\n${r.text}${more}${learning}\n</thinker-cache>` : '';
+    const text = [bundle, changed.text].filter(Boolean).join('\n\n');
     emit(intro ? `${intro}\n\n${text}` : text);
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
