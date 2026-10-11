@@ -214,6 +214,164 @@
     "testNeedsGoldSymbols": false,
     "secs": 58
    }
+  },
+  {
+   "id": "PR26442-hard",
+   "area": "mlflow/gateway",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nEndpoints in the AI Gateway that use the TypeSafe provider always send requests to TypeSafe's public hosted service address. Users who need to go through a proxy or run their own self-hosted System One server have no way to point the endpoint at a different address, so those setups can't be used. The endpoint form also doesn't offer an optional API Base URL field for saved TypeSafe connections, so there is nowhere to enter a custom address.\n\nDesired behavior: a TypeSafe endpoint can be configured with an optional custom API base URL. When one is set, all requests the Gateway forwards to TypeSafe go to that address instead of the public one. When it is left empty, the public hosted address remains the default, so existing endpoints behave exactly as before. For saved TypeSafe connections, the endpoint form should show the optional API Base URL field, and a value saved there must carry through when the Gateway builds the provider for the endpoint. The provider's listed configuration options should also show the base URL as an optional setting. The documentation for model providers should describe this option and when to use it, such as with a proxy or a self-hosted server.",
+   "goldTitle": "Allow custom `typesafe_api_base` for TypeSafe Gateway endpoints",
+   "goldFiles": [
+    "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx",
+    "mlflow/gateway/config.py",
+    "mlflow/gateway/providers/typesafe.py",
+    "mlflow/server/gateway_api.py",
+    "mlflow/utils/providers.py",
+    "tests/gateway/providers/test_typesafe.py",
+    "tests/server/test_gateway_api.py",
+    "tests/utils/test_providers.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26442.diff",
+   "testFiles": [
+    "tests/gateway/providers/test_typesafe.py",
+    "tests/server/test_gateway_api.py",
+    "tests/utils/test_providers.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_typesafe.py' 'tests/server/test_gateway_api.py' 'tests/utils/test_providers.py'",
+   "mergeCommit": "311bbbd3cc6551f5837e31ff7310ac0cb3d3e4b9",
+   "mergedAt": "2026-10-05T18:02:26Z",
+   "loc": 73,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 19
+   }
+  },
+  {
+   "id": "PR26252-hard",
+   "area": "mlflow/models",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen validating a candidate model against a baseline, the minimum relative change threshold gives wrong results if the baseline metric value is negative. For example, with a baseline R² of -1.8 and a 5% required improvement, a clearly worse candidate at -5.0 passes validation, while a perfect candidate at 1.0 fails. The relative change is currently computed by dividing the difference by the signed baseline value, which flips the direction of the comparison for negative baselines. The relative change should instead be measured against the magnitude (absolute value) of the baseline, for both metrics where higher is better and metrics where lower is better. Behavior for positive baselines must stay exactly the same, and the existing zero-baseline handling (falling back to a plain comparison) must not change. The documentation describing the threshold should also be corrected to state the required value as the baseline plus the relative change times the baseline's magnitude (and the lower-is-better counterpart), noting that this matches the old formula when the baseline is positive.",
+   "goldTitle": "Use the baseline's magnitude in min_relative_change checks",
+   "goldFiles": [
+    "mlflow/models/evaluation/validation.py",
+    "tests/evaluate/test_validation.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26252.diff",
+   "testFiles": [
+    "tests/evaluate/test_validation.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/evaluate/test_validation.py'",
+   "mergeCommit": "edaaf644c1cff198eb620fa4a31d10605ea87323",
+   "mergedAt": "2026-10-06T02:52:32Z",
+   "loc": 85,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 96
+   }
+  },
+  {
+   "id": "PR26327-hard",
+   "area": "mlflow/utils",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nSearching MCP access endpoints by the name of the server they point to doesn't work. When a user filters on that attribute, the search is rejected with an error, even though the filter is meant to be supported. The underlying SQL parser treats the attribute's name as a reserved word, so the comparison isn't recognized as a valid filter. The same problem affects list-style comparisons, so users can't ask for endpoints whose server name is in a given set, or is not in a given set. Searches should accept this attribute with the usual equality comparison. They should also accept \"in\" and \"not in\" comparisons with a list of values. Values must keep their original mixed-case form and not be lowercased or altered. The fix should behave the same whether or not workspaces are enabled. Other attributes and other search types should be unaffected.",
+   "goldTitle": "Fix `server_name` filters for MCP access endpoints",
+   "goldFiles": [
+    "mlflow/utils/search_utils.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py",
+    "tests/utils/test_search_utils.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26327.diff",
+   "testFiles": [
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py",
+    "tests/utils/test_search_utils.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' 'tests/utils/test_search_utils.py'",
+   "mergeCommit": "ab0ecb7996686a8fd241b6fd92c95f6a80df8226",
+   "mergedAt": "2026-10-02T09:37:41Z",
+   "loc": 93,
+   "preflight": {
+    "baseKind": "other",
+    "testNeedsGoldSymbols": false,
+    "secs": 20
+   }
+  },
+  {
+   "id": "PR26265-hard",
+   "area": "mlflow/artifacts",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nText I save as an artifact with the text-logging feature is stored as UTF-8. But when I read it back with the text-loading and dictionary-loading artifact functions, they use the machine's default encoding instead. On systems where that default isn't UTF-8 (for example a Traditional Chinese Windows locale), non-ASCII content comes back silently wrong. \"café résumé\" turns into \"caf矇 r矇sum矇\". In other cases loading the text fails with \"Unable to form a str object from file content\", or loading a dictionary fails with a decoding error. Both functions should always read artifacts as UTF-8, so what I logged is what I get back whatever the system locale is. If an artifact isn't valid UTF-8, such as a file in a legacy code page uploaded as a plain artifact file, reading it should fail with a clear error. The error should say the artifact is not valid UTF-8 and suggest downloading the artifact instead, and it should keep the original decoding error as its cause. The dictionary loader should raise that same clear error, not let a raw decoding error escape.",
+   "goldTitle": "Read `load_text` and `load_dict` artifacts as UTF-8",
+   "goldFiles": [
+    "mlflow/artifacts/__init__.py",
+    "tests/artifacts/test_artifacts.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26265.diff",
+   "testFiles": [
+    "tests/artifacts/test_artifacts.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/artifacts/test_artifacts.py'",
+   "mergeCommit": "2cf3495a4a102f301d6247db94f951e446766e69",
+   "mergedAt": "2026-10-01T04:29:32Z",
+   "loc": 70,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 6
+   }
+  },
+  {
+   "id": "PR26311-hard",
+   "area": "mlflow/data",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nConverting a dataset into an evaluation dataset fails with an error when the dataset contains nested arrays of varying lengths whose elements are dictionaries. For example, a Hugging Face dataset where each row holds a list of dictionaries, and the lists differ in length from row to row. The failure happens while the dataset's content is being hashed (fingerprinted). The hashing step tries to turn the irregular nested data into a uniform rectangular array, and that is impossible when lengths differ, so a value error is raised and the conversion aborts. Datasets with uniform, regular shapes work fine. Converting such datasets should succeed instead of raising an error. When the data can't be made into a uniform array and contains dictionaries, hashing should fall back to a general approach that walks through the nested contents item by item. Hashing should still produce a consistent result, so the same data gives the same hash every time.",
+   "goldTitle": "Fix hashing of nested variable-length arrays",
+   "goldFiles": [
+    "mlflow/data/evaluation_dataset.py",
+    "tests/data/test_evaluation_dataset.py",
+    "tests/data/test_huggingface_dataset_and_source.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26311.diff",
+   "testFiles": [
+    "tests/data/test_evaluation_dataset.py",
+    "tests/data/test_huggingface_dataset_and_source.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/data/test_evaluation_dataset.py' 'tests/data/test_huggingface_dataset_and_source.py'",
+   "mergeCommit": "8d383877adbcef1812ca986fb4bcbac64236ab36",
+   "mergedAt": "2026-10-02T09:33:37Z",
+   "loc": 106,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 15
+   }
+  },
+  {
+   "id": "PR26300-hard",
+   "area": "mlflow/gateway",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen I send a chat request to a Gemini or Vertex AI gateway endpoint with a tool choice setting, the setting is silently ignored. If I require the model to call a tool, force a specific named function, or turn off tool calling entirely, the model still uses Gemini's default automatic tool selection. This happens for both regular and streaming requests. The gateway should honor the setting. \"Required\" should force the model to call some tool. \"None\" should prevent any tool call. A specific named function should restrict the model to calling only that function, even when several tools are declared. Omitted or automatic choices should keep today's default behavior. If no tools are declared in the request, no tool-calling configuration should be sent.",
+   "goldTitle": "Honor `tool_choice` in Gemini and Vertex AI gateway requests",
+   "goldFiles": [
+    "mlflow/gateway/providers/gemini.py",
+    "tests/gateway/providers/test_gemini.py",
+    "tests/gateway/providers/test_vertex_ai.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26300.diff",
+   "testFiles": [
+    "tests/gateway/providers/test_gemini.py",
+    "tests/gateway/providers/test_vertex_ai.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_gemini.py' 'tests/gateway/providers/test_vertex_ai.py'",
+   "mergeCommit": "c233876f76ff86ff461544ac2b77a6e01a4a308e",
+   "mergedAt": "2026-10-01T13:19:32Z",
+   "loc": 108,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 7
+   }
   }
  ],
  "dropped": [

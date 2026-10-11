@@ -50,10 +50,10 @@ function build() {
   const baseDate = execFileSync('git', ['show', '-s', '--format=%cI', base], { cwd: REPO, encoding: 'utf8' }).trim();
   const max = Number(flag('max')) || 30;
   // --hard: only the larger changes, at least 120 lines or two source files
-  const hard = !!flag('hard');
+  const hard = !!flag('hard'), minLoc = Number(flag('min-loc')) || 0;  // --min-loc n: at least n changed lines
   const cands = prs.filter(p => {
     const f = p.files.map(x => x.path), t = f.filter(isTest), s = f.filter(isCore), loc = p.additions + p.deletions;
-    return p.mergedAt > baseDate && t.length >= 1 && s.length >= 1 && s.length <= 8 && loc >= 15 && loc <= 900 && !SKIP_TITLE.test(p.title) && f.every(x => isTest(x) || isCore(x) || /^docs\//.test(x))
+    return p.mergedAt > baseDate && t.length >= 1 && s.length >= 1 && s.length <= 8 && loc >= Math.max(15, minLoc) && loc <= 900 && !SKIP_TITLE.test(p.title) && f.every(x => isTest(x) || isCore(x) || /^docs\//.test(x))
       && (!hard || loc >= 120 || s.length >= 2);
   });
   const rank = p => createHash('sha256').update(`mlflow-2026-10-11:${p.number}`).digest('hex').slice(0, 8);
