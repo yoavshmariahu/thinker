@@ -1,0 +1,63 @@
+{
+  "id": "setup-prompt-checklist-steps-must-stay-in-dependency-order",
+  "title": "Setup prompt checklist steps must stay in dependency order",
+  "kind": "rule",
+  "answers": [
+    "mlflow agent setup prompt step order",
+    "setup agent sets experiment description before tracking URI is configured",
+    "why does the coding agent fail to tag the experiment in a fresh repo"
+  ],
+  "body": "Symptom: In a fresh repository, the coding agent's documentation step (writing the experiment description) can fail or write to the wrong store, so the experiment the wizard resolved is not updated.\nRoot cause: mlflow/agent/setup/setup.sh:build_agent_prompt emits a numbered checklist that the agent follows in order. In the PR diff, \"## 2. Document the application\" (MlflowClient.set_experiment_tag) comes before \"## 3. Configure MLflow Tracing\", which is where MLflow is installed and the tracking URI and experiment ID are supplied.\nFix pattern: Any step that calls MLflow APIs must come after the step that configures MLflow and the tracking URI and experiment. A reviewer asked to move the documentation step after configuration; check the current order before relying on it.\nConstraints: The ordering test in tests/agent/test_setup_sh_unit.py checks only that headers appear in ascending order; it does not check semantic dependencies between steps. Applies to the step order of the checklist, not to the wording inside each step.",
+  "applies": "Editing the ordered checklist emitted by build_agent_prompt in mlflow/agent/setup/setup.sh.",
+  "tags": [
+    "agent-setup",
+    "prompt",
+    "ordering",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/agent/setup/setup.sh",
+      "hash": "sha256:3471fa4c4aac193488bdc977",
+      "missing": false
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_build_agent_prompt_requires_repo_summary_and_realistic_trace_input",
+      "hash": "sha256:60291136085b4616f8836b72",
+      "line": 101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fc40c7229402cf6005101a41",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25547"
+  },
+  "created": "2026-10-11T08:51:17.651Z",
+  "verified": "2026-10-11T08:51:17.651Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shell-setup-tests-must-stub-commands-and-pass-fixtures-witho",
+    "warehouse-menu-ordering-lives-in-json-warehouse-rows-running",
+    "setup-prompt-wording-is-pinned-by-ordered-substring-assertio"
+  ],
+  "says": [
+    "The setup agent fails to update the experiment description during fresh repository onboarding.",
+    "Setup wizard writes experiment documentation to the wrong store in a new repository.",
+    "Move the application documentation step after the tracking configuration step in setup instructions.",
+    "The coding assistant tries to tag the experiment before configuring the tracking server.",
+    "Experiment tags and description are not saved when onboarding a new project."
+  ],
+  "search": "In mlflow/agent/setup/setup.sh:build_agent_prompt, any checklist step calling MLflow APIs (such as MlflowClient.set_experiment_tag in Document the application) must be ordered after the step that installs MLflow and configures the tracking URI and experiment ID. In fresh repositories, placing documentation before configuration causes the coding agent to fail or target the wrong store. The ordering assertion in tests/agent/test_setup_sh_unit.py:test_build_agent_prompt_requires_repo_summary_and_realistic_trace_input only verifies ascending header numbers, not semantic dependencies. This applies specifically to checklist step ordering in build_agent_prompt rather than step wording.",
+  "saysFor": "s2:fb62478f39deb14a6a84516cb65e27a7b6ae9d45408ab8c0570150646628d353"
+}

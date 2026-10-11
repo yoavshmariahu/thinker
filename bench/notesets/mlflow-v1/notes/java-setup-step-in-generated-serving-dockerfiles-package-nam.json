@@ -1,0 +1,58 @@
+{
+  "id": "java-setup-step-in-generated-serving-dockerfiles-package-nam",
+  "title": "Java setup step in generated serving Dockerfiles: package name and JAVA_HOME path must stay in sync",
+  "kind": "rule",
+  "answers": [
+    "Which JDK package does the generated serving Dockerfile install?",
+    "Why does JAVA_HOME point to /usr/lib/jvm/java-17-openjdk-amd64 in the MLflow model image?",
+    "Can I change the openjdk package in the Java flavor Docker image without breaking javac or mvn?",
+    "Why does the serving image not include AWT or Swing?"
+  ],
+  "body": "Symptom: A generated MLflow serving image for a Java/Maven model fails to find javac, java or mvn, or JAVA_HOME points at a directory that does not exist after the JDK package is changed.\nRoot cause: mlflow/models/docker_utils.py:generate_dockerfile builds the Java setup block from one jdk_ver value that feeds both the apt-get install line (openjdk-{jdk_ver}-jdk-headless maven) and the ENV JAVA_HOME=/usr/lib/jvm/java-{jdk_ver}-openjdk-amd64 line.\nFix pattern: Change the package name and the JAVA_HOME path together, and keep both derived from jdk_ver. The headless package keeps the same /usr/lib/jvm path, so JAVA_HOME and the javac/java/mvn resolution are unchanged.\nConstraints: The headless JDK does not ship GUI toolkits (AWT, Swing), so any serving workload that needs them will not run in these images. Mirror any change of the emitted text in the Java fixtures under tests/resources/dockerfile (for example Dockerfile_java_flavor), which compare byte-for-byte.\nApplies: Only the Java branch of generate_dockerfile that emits the Setup Java step for generated serving images.",
+  "applies": "Generated serving Dockerfiles that install a JDK in mlflow/models/docker_utils.py; does not cover user-supplied base images that install Java themselves.",
+  "tags": [
+    "docker",
+    "java",
+    "serving",
+    "dockerfile"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "generate_dockerfile",
+      "hash": "sha256:11eeecec3437c71784a70b14",
+      "line": 92,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eeecec3437c71784a70b14",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25804"
+  },
+  "created": "2026-10-11T08:47:24.159Z",
+  "verified": "2026-10-11T08:47:24.159Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "generated-serving-dockerfiles-must-bound-apt-timeouts-and-re",
+    "changing-generated-dockerfile-steps-requires-updating-the-do"
+  ],
+  "says": [
+    "Generated container for serving Java models fails to find the Java compiler or runtime.",
+    "Java model serving container fails to start because the Java installation directory is missing.",
+    "Deploying a containerized Java model fails because Maven or Java commands cannot be found.",
+    "Java model serving containers fail when deployed workloads require graphical interface libraries.",
+    "Model serving container image fails to start after updating the installed Java version."
+  ],
+  "search": "In mlflow/models/docker_utils.py:generate_dockerfile, the generated Java serving image setup block must keep the headless openjdk package name and the ENV JAVA_HOME path synchronized using a shared jdk_ver value. Mismatches between the installed openjdk package and the /usr/lib/jvm/java-{jdk_ver}-openjdk-amd64 path cause missing javac, java, or mvn binaries at runtime. Because headless JDK packages omit GUI toolkits like AWT and Swing, serving workloads requiring graphical libraries cannot run in these generated images. Any modifications must be mirrored byte-for-byte in tests/resources/dockerfile fixtures like Dockerfile_java_flavor, applying exclusively to the Java Setup branch of generated serving images.",
+  "saysFor": "s2:8e689decb8652ff01e4af8e1707f49954f3da35f8b212d25e0d1360f8585138e"
+}

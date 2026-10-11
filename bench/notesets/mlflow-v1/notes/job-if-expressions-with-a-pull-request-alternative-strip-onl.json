@@ -1,0 +1,72 @@
+{
+  "id": "job-if-expressions-with-a-pull-request-alternative-strip-onl",
+  "title": "Job if-expressions with a pull_request alternative: strip only the draft term, keep the pull_request branch",
+  "kind": "rule",
+  "answers": [
+    "PR CI jobs stopped running on every pull request after removing the draft check",
+    "examples, R or Windows slow tests no longer appear on non-draft PRs",
+    "how to remove a draft-PR gate from a workflow job if condition without disabling the job"
+  ],
+  "body": "Symptom: after a draft-PR gate is removed, PR-triggered checks (examples, R tests, Windows slow tests, test-requirements, uc-oss, cross-version matrix) never appear on pull requests, draft or not.\nRoot cause: these jobs use `if: <schedule/dispatch terms> || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)`. Deleting the whole parenthesized alternative, instead of only `&& draft == false`, makes the if false for every pull_request event. Affected spots: .github/workflows/examples.yml (jobs with the PR alternative), .github/workflows/r.yml:r, .github/workflows/slow-tests.yml:windows, .github/workflows/test-requirements.yml (skinny and core), .github/workflows/cross-version-tests.yml:set-matrix, .github/workflows/uc-oss.yml.\nFix pattern: replace the alternative with `github.event_name == 'pull_request'`, leaving the schedule `github.repository == 'mlflow/dev'` and dispatch terms unchanged.\nConstraints: the workflow must still declare a pull_request trigger, or the alternative is dead. Jobs whose if was only `github.event_name != 'pull_request' || draft == false` lose the whole if, which is a different shape. Verify the event set each job accepts after editing, not just the diff text.",
+  "applies": "Job-level if expressions in .github/workflows/*.yml that mention pull_request.draft.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "workflow-conditions",
+    "draft-pr"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/cross-version-tests.yml",
+      "hash": "sha256:337123e292fac6d0510b7c6d",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/examples.yml",
+      "hash": "sha256:c171ccb2ff73938c717a1c12",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/r.yml",
+      "hash": "sha256:c5dbdf45ba923e6cb11382d2",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/slow-tests.yml",
+      "hash": "sha256:3b4c714d6c11ca0a1af414ae",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/test-requirements.yml",
+      "hash": "sha256:096ddd3246f444fd41373d3d",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/uc-oss.yml",
+      "hash": "sha256:8a1b8da99fa3a09b8c17cf1b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25668"
+  },
+  "created": "2026-10-11T08:49:07.698Z",
+  "verified": "2026-10-11T08:49:07.698Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "draft-pr-gate-removal-keeps-schedule-dispatch-authorization"
+  ],
+  "says": [
+    "Continuous integration tests stopped running on pull requests after removing draft status checks.",
+    "Automated checks like Windows tests and example suites never appear on pull requests.",
+    "Pull requests are missing verification checks and never trigger automated test runs.",
+    "Make automated test suites run on all pull requests regardless of draft status.",
+    "Pull request status checks no longer show up after changing workflow conditions."
+  ],
+  "search": "When removing draft PR gating from job-level if expressions in .github/workflows/*.yml, strip only the draft check while retaining github.event_name == 'pull_request'. Deleting the entire parenthesized pull request condition completely disables PR-triggered checks across examples, R, Windows slow tests, test requirements, cross-version tests, and uc-oss. Existing repository and dispatch terms must remain untouched, and the workflow must still declare an active pull_request trigger. Jobs formatted as github.event_name != 'pull_request' || draft == false follow a different shape and lose the entire condition.",
+  "saysFor": "s2:e0c5ce550873411fcb3a54748fa810b96c0b93cd562a977aff5bb304595b0ded"
+}
