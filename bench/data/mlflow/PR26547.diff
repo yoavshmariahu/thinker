@@ -1,0 +1,483 @@
+diff --git a/mlflow/entities/span.py b/mlflow/entities/span.py
+index 8709d0f36b2ed..4a9d26eaf1c28 100644
+--- a/mlflow/entities/span.py
++++ b/mlflow/entities/span.py
+@@ -653,13 +653,21 @@ def to_otel_proto(self) -> OTelProtoSpan:
+ 
+         # Convert links to OTLP proto format
+         for link in self.links:
+-            proto_link = otel_span.links.add()
+             # Convert MLflow trace ID (tr-xxx or trace:/loc/xxx) back to OTel bytes
+             link_trace_id_hex = parse_trace_id_v4(link.trace_id)[1].removeprefix(
+                 TRACE_REQUEST_ID_PREFIX
+             )
+-            proto_link.trace_id = decode_id(link_trace_id_hex).to_bytes(16, "big")
+-            proto_link.span_id = decode_id(link.span_id).to_bytes(8, "big")
++            link_trace_id = decode_id(link_trace_id_hex)
++            link_span_id = decode_id(link.span_id)
++            # Some producers (e.g. Claude Code detailed beta tracing) emit IDs wider than the
++            # 16-byte trace / 8-byte span IDs OTLP allows. Drop such links rather than failing
++            # the whole trace.
++            if link_trace_id.bit_length() > 128 or link_span_id.bit_length() > 64:
++                _logger.debug("Skipping link with out-of-range IDs on span '%s'.", self.name)
++                continue
++            proto_link = otel_span.links.add()
++            proto_link.trace_id = link_trace_id.to_bytes(16, "big")
++            proto_link.span_id = link_span_id.to_bytes(8, "big")
+ 
+             # Add link attributes
+             if link.attributes:
+diff --git a/mlflow/tracing/otel/translation/__init__.py b/mlflow/tracing/otel/translation/__init__.py
+index b6b08bb2d2f8b..a737bf4a5dfcc 100644
+--- a/mlflow/tracing/otel/translation/__init__.py
++++ b/mlflow/tracing/otel/translation/__init__.py
+@@ -14,6 +14,7 @@
+ from mlflow.entities.span import Span, SpanType
+ from mlflow.tracing.constant import CostKey, SpanAttributeKey, TokenUsageKey
+ from mlflow.tracing.otel.translation.base import OtelSchemaTranslator
++from mlflow.tracing.otel.translation.claude_code import ClaudeCodeTranslator
+ from mlflow.tracing.otel.translation.gemini_cli import GeminiCliTranslator
+ from mlflow.tracing.otel.translation.genai_semconv import GenAiTranslator
+ from mlflow.tracing.otel.translation.google_adk import GoogleADKTranslator
+@@ -36,6 +37,7 @@
+ _TRANSLATORS: list[OtelSchemaTranslator] = [
+     OpenInferenceTranslator(),
+     GeminiCliTranslator(),
++    ClaudeCodeTranslator(),
+     GenAiTranslator(),
+     SpringAiTranslator(),
+     TraceloopTranslator(),
+@@ -51,6 +53,7 @@
+ _EVENT_TRANSLATORS = [
+     SpringAiTranslator(),
+     LiveKitTranslator(),
++    ClaudeCodeTranslator(),
+ ]
+ 
+ 
+@@ -233,7 +236,7 @@ def _get_input_value(attributes: dict[str, Any], events: list[dict[str, Any]] |
+     if events:
+         for translator in _EVENT_TRANSLATORS:
+             if hasattr(translator, "get_input_value_from_events"):
+-                if value := translator.get_input_value_from_events(events):
++                if value := translator.get_input_value_from_events(events, attributes):
+                     return value
+ 
+ 
+@@ -262,7 +265,7 @@ def _get_output_value(
+     if events:
+         for translator in _EVENT_TRANSLATORS:
+             if hasattr(translator, "get_output_value_from_events"):
+-                if value := translator.get_output_value_from_events(events):
++                if value := translator.get_output_value_from_events(events, attributes):
+                     return value
+ 
+ 
+diff --git a/mlflow/tracing/otel/translation/claude_code.py b/mlflow/tracing/otel/translation/claude_code.py
+new file mode 100644
+index 0000000000000..e2c51576ca350
+--- /dev/null
++++ b/mlflow/tracing/otel/translation/claude_code.py
+@@ -0,0 +1,150 @@
++"""
++Translator for Claude Code OTEL spans.
++
++Claude Code (and the Claude Agent SDK, which runs the Claude Code CLI) emits OTLP traces
++with its own span schema rather than the GenAI semantic conventions. Every span carries a
++``span.type`` attribute equal to its span name, which this translator uses to identify
++Claude Code spans and map them to MLflow span types:
++
++- ``claude_code.interaction`` → AGENT span (one per user prompt, the trace root)
++- ``claude_code.llm_request`` → LLM span
++- ``claude_code.tool``        → TOOL span
++
++Token usage is reported under bare keys (``input_tokens``, ``cache_read_tokens``, ...),
++and prompt/tool content under Claude Code-specific attributes and the ``tool.output``
++span event. Content attributes are ``<REDACTED>`` unless the user opts in via
++``OTEL_LOG_USER_PROMPTS`` / ``OTEL_LOG_TOOL_DETAILS`` / ``OTEL_LOG_TOOL_CONTENT``.
++
++Reference: https://code.claude.com/docs/en/monitoring-usage#traces-beta
++"""
++
++import json
++from typing import Any
++
++from mlflow.entities.span import SpanType
++from mlflow.tracing.otel.translation.base import OtelSchemaTranslator
++from mlflow.tracing.utils import dump_span_attribute_value, try_json_loads
++
++_SPAN_TYPE_PREFIX = "claude_code."
++_INTERACTION = "claude_code.interaction"
++_LLM_REQUEST = "claude_code.llm_request"
++_TOOL = "claude_code.tool"
++_KNOWN_SPAN_TYPES = {_INTERACTION, _LLM_REQUEST, _TOOL}
++_REDACTED = "<REDACTED>"
++_TOOL_OUTPUT_EVENT = "tool.output"
++_TOOL_OUTPUT_EVENT_KEYS = ["output", "content", "diff"]
++_TOOL_DETAIL_KEYS = ["full_command", "file_path", "skill_name", "subagent_type"]
++
++
++class ClaudeCodeTranslator(OtelSchemaTranslator):
++    SPAN_KIND_ATTRIBUTE_KEY = "span.type"
++    SPAN_KIND_TO_MLFLOW_TYPE = {
++        _INTERACTION: SpanType.AGENT,
++        _LLM_REQUEST: SpanType.LLM,
++        _TOOL: SpanType.TOOL,
++    }
++    INPUT_TOKEN_KEY = "input_tokens"
++    OUTPUT_TOKEN_KEY = "output_tokens"
++    CACHE_READ_INPUT_TOKEN_KEY = "cache_read_tokens"
++    CACHE_CREATION_INPUT_TOKEN_KEY = "cache_creation_tokens"
++
++    def _get_claude_code_span_type(self, attributes: dict[str, Any]) -> str | None:
++        span_type = try_json_loads(attributes.get(self.SPAN_KIND_ATTRIBUTE_KEY))
++        if not isinstance(span_type, str):
++            return None
++        if span_type.startswith(_SPAN_TYPE_PREFIX):
++            return span_type if span_type in _KNOWN_SPAN_TYPES else None
++        # Older/newer Claude Code versions emit bare span.type values ("interaction",
++        # "llm_request", "tool") while only the span name carries the "claude_code."
++        # prefix. Normalize them here.
++        normalized = _SPAN_TYPE_PREFIX + span_type
++        return normalized if normalized in _KNOWN_SPAN_TYPES else None
++
++    def _get_content(self, attributes: dict[str, Any], key: str) -> Any:
++        value = self._get_and_check_attribute_value(attributes, key)
++        if value is None or try_json_loads(value) == _REDACTED:
++            return None
++        return value
++
++    def translate_span_type(self, attributes: dict[str, Any]) -> str | None:
++        if span_type := self._get_claude_code_span_type(attributes):
++            return self.SPAN_KIND_TO_MLFLOW_TYPE[span_type]
++        return None
++
++    def get_input_tokens(self, attributes: dict[str, Any]) -> int | None:
++        if self._get_claude_code_span_type(attributes) != _LLM_REQUEST:
++            return None
++        input_tokens = self._get_int(attributes, self.INPUT_TOKEN_KEY)
++        if input_tokens is None:
++            return None
++        # Claude reports input_tokens excluding cache tokens. Normalize to include them,
++        # consistent with mlflow.anthropic autolog and cost calculation.
++        return (
++            input_tokens
++            + (self.get_cache_read_input_tokens(attributes) or 0)
++            + (self.get_cache_creation_input_tokens(attributes) or 0)
++        )
++
++    def get_output_tokens(self, attributes: dict[str, Any]) -> int | None:
++        if self._get_claude_code_span_type(attributes) == _LLM_REQUEST:
++            return self._get_int(attributes, self.OUTPUT_TOKEN_KEY)
++        return None
++
++    def get_cache_read_input_tokens(self, attributes: dict[str, Any]) -> int | None:
++        if self._get_claude_code_span_type(attributes) == _LLM_REQUEST:
++            return self._get_int(attributes, self.CACHE_READ_INPUT_TOKEN_KEY)
++        return None
++
++    def get_cache_creation_input_tokens(self, attributes: dict[str, Any]) -> int | None:
++        if self._get_claude_code_span_type(attributes) == _LLM_REQUEST:
++            return self._get_int(attributes, self.CACHE_CREATION_INPUT_TOKEN_KEY)
++        return None
++
++    @staticmethod
++    def _get_int(attributes: dict[str, Any], key: str) -> int | None:
++        value = try_json_loads(attributes.get(key))
++        try:
++            return int(value) if value is not None else None
++        except (TypeError, ValueError):
++            return None
++
++    def get_input_value(self, attributes: dict[str, Any]) -> Any:
++        span_type = self._get_claude_code_span_type(attributes)
++        if span_type == _INTERACTION:
++            return self._get_content(attributes, "user_prompt") or self._get_content(
++                attributes, "new_context"
++            )
++        if span_type == _LLM_REQUEST:
++            return self._get_content(attributes, "new_context")
++        if span_type == _TOOL:
++            if tool_input := self._get_content(attributes, "tool_input"):
++                return tool_input
++            details = {
++                key: try_json_loads(value)
++                for key in _TOOL_DETAIL_KEYS
++                if (value := self._get_content(attributes, key))
++            }
++            return json.dumps(details) if details else None
++        return None
++
++    def get_output_value(self, attributes: dict[str, Any]) -> Any:
++        span_type = self._get_claude_code_span_type(attributes)
++        if span_type == _LLM_REQUEST:
++            return self._get_content(attributes, "response.model_output")
++        if span_type == _TOOL:
++            return self._get_content(attributes, "new_context")
++        return None
++
++    def get_output_value_from_events(
++        self, events: list[dict[str, Any]], attributes: dict[str, Any] | None = None
++    ) -> Any:
++        if self._get_claude_code_span_type(attributes or {}) != _TOOL:
++            return None
++        for event in events:
++            if event.get("name") == _TOOL_OUTPUT_EVENT:
++                event_attributes = event.get("attributes", {})
++                for key in _TOOL_OUTPUT_EVENT_KEYS:
++                    value = try_json_loads(event_attributes.get(key))
++                    if value and value != _REDACTED:
++                        return dump_span_attribute_value(value)
++        return None
+diff --git a/mlflow/tracing/otel/translation/genai_semconv.py b/mlflow/tracing/otel/translation/genai_semconv.py
+index 6d968b14d34e4..27b59d5d2e500 100644
+--- a/mlflow/tracing/otel/translation/genai_semconv.py
++++ b/mlflow/tracing/otel/translation/genai_semconv.py
+@@ -64,7 +64,9 @@ def _decode_json_value(self, value: Any) -> Any:
+                 pass
+         return value
+ 
+-    def get_input_value_from_events(self, events: list[dict[str, Any]]) -> Any:
++    def get_input_value_from_events(
++        self, events: list[dict[str, Any]], attributes: dict[str, Any] | None = None
++    ) -> Any:
+         """
+         Get input value from GenAI semantic convention events.
+ 
+@@ -75,6 +77,7 @@ def get_input_value_from_events(self, events: list[dict[str, Any]]) -> Any:
+ 
+         Args:
+             events: List of span events
++            attributes: Span attributes (unused)
+ 
+         Returns:
+             JSON-serialized list of input messages or None if not found
+@@ -102,7 +105,9 @@ def get_input_value_from_events(self, events: list[dict[str, Any]]) -> Any:
+ 
+         return json.dumps(messages) if messages else None
+ 
+-    def get_output_value_from_events(self, events: list[dict[str, Any]]) -> Any:
++    def get_output_value_from_events(
++        self, events: list[dict[str, Any]], attributes: dict[str, Any] | None = None
++    ) -> Any:
+         """
+         Get output value from GenAI semantic convention events.
+ 
+@@ -111,6 +116,7 @@ def get_output_value_from_events(self, events: list[dict[str, Any]]) -> Any:
+ 
+         Args:
+             events: List of span events
++            attributes: Span attributes (unused)
+ 
+         Returns:
+             JSON-serialized list of output messages or None if not found
+diff --git a/mlflow/tracing/otel/translation/spring_ai.py b/mlflow/tracing/otel/translation/spring_ai.py
+index 25c8384569739..38c20a9b94236 100644
+--- a/mlflow/tracing/otel/translation/spring_ai.py
++++ b/mlflow/tracing/otel/translation/spring_ai.py
+@@ -49,24 +49,30 @@ class SpringAiTranslator(OtelSchemaTranslator):
+     PROMPT_ATTRIBUTE_KEY = "gen_ai.prompt"
+     COMPLETION_ATTRIBUTE_KEY = "gen_ai.completion"
+ 
+-    def get_input_value_from_events(self, events: list[dict[str, Any]]) -> Any:
++    def get_input_value_from_events(
++        self, events: list[dict[str, Any]], attributes: dict[str, Any] | None = None
++    ) -> Any:
+         """
+         Get input value from Spring AI prompt events.
+ 
+         Args:
+             events: List of span events
++            attributes: Span attributes (unused)
+ 
+         Returns:
+             Input value or None if not found
+         """
+         return self._get_value_from_event(events, self.PROMPT_EVENT_NAME, self.PROMPT_ATTRIBUTE_KEY)
+ 
+-    def get_output_value_from_events(self, events: list[dict[str, Any]]) -> Any:
++    def get_output_value_from_events(
++        self, events: list[dict[str, Any]], attributes: dict[str, Any] | None = None
++    ) -> Any:
+         """
+         Get output value from Spring AI completion events.
+ 
+         Args:
+             events: List of span events
++            attributes: Span attributes (unused)
+ 
+         Returns:
+             Output value or None if not found
+diff --git a/tests/entities/test_span.py b/tests/entities/test_span.py
+index 17bfd16216349..c609792518e70 100644
+--- a/tests/entities/test_span.py
++++ b/tests/entities/test_span.py
+@@ -671,6 +671,26 @@ def test_span_from_otel_proto_can_preserve_request_id_for_round_trip():
+     assert mlflow_span.to_otel_proto().links[0].trace_id == link_trace_id
+ 
+ 
++def test_span_to_otel_proto_skips_links_with_oversized_ids():
++    otel_proto = OTelProtoSpan()
++    otel_proto.trace_id = bytes.fromhex("12345678901234567890123456789012")
++    otel_proto.span_id = bytes.fromhex("1234567890123456")
++    otel_proto.name = "span"
++    otel_proto.start_time_unix_nano = 1000000000
++    otel_proto.end_time_unix_nano = 2000000000
++
++    valid_link = otel_proto.links.add()
++    valid_link.trace_id = bytes.fromhex("aabbccddeeff00112233445566778899")
++    valid_link.span_id = bytes.fromhex("1122334455667788")
++    oversized_link = otel_proto.links.add()
++    oversized_link.trace_id = bytes.fromhex("ff" * 24)
++    oversized_link.span_id = bytes.fromhex("ff" * 12)
++
++    proto = Span.from_otel_proto(otel_proto).to_otel_proto()
++
++    assert [link.trace_id for link in proto.links] == [valid_link.trace_id]
++
++
+ def test_otel_roundtrip_conversion(sample_otel_span_for_conversion):
+     # Start with OTel span -> MLflow span
+     mlflow_span = Span(sample_otel_span_for_conversion)
+diff --git a/tests/tracing/otel/test_span_translation.py b/tests/tracing/otel/test_span_translation.py
+index 5e0a89ba6344f..198a7d0fa8571 100644
+--- a/tests/tracing/otel/test_span_translation.py
++++ b/tests/tracing/otel/test_span_translation.py
+@@ -14,6 +14,7 @@
+     update_token_usage,
+ )
+ from mlflow.tracing.otel.translation.base import OtelSchemaTranslator
++from mlflow.tracing.otel.translation.claude_code import ClaudeCodeTranslator
+ from mlflow.tracing.otel.translation.gemini_cli import GeminiCliTranslator
+ from mlflow.tracing.otel.translation.genai_semconv import GenAiTranslator
+ from mlflow.tracing.otel.translation.google_adk import GoogleADKTranslator
+@@ -1057,3 +1058,129 @@ def test_update_token_usage_without_cached_tokens():
+     # Cached keys should not appear
+     assert TokenUsageKey.CACHE_READ_INPUT_TOKENS not in result
+     assert TokenUsageKey.CACHE_CREATION_INPUT_TOKENS not in result
++
++
++def _translate_claude_code_span(attributes, events=None):
++    span = mock.Mock(spec=Span)
++    span.parent_id = "parent_123"
++    span.to_dict.return_value = {
++        "attributes": {k: json.dumps(v) for k, v in attributes.items()},
++        "events": events or [],
++    }
++    return translate_span_when_storing(span)["attributes"]
++
++
++@pytest.mark.parametrize(
++    ("span_type", "expected_type"),
++    [
++        ("claude_code.interaction", SpanType.AGENT),
++        ("claude_code.llm_request", SpanType.LLM),
++        ("claude_code.tool", SpanType.TOOL),
++        # Real Claude Code telemetry emits bare values; the prefix appears only on span names
++        ("interaction", SpanType.AGENT),
++        ("llm_request", SpanType.LLM),
++        ("tool", SpanType.TOOL),
++    ],
++)
++def test_claude_code_translator_maps_span_types(span_type, expected_type):
++    assert translate_span_type_from_otel({"span.type": json.dumps(span_type)}) == expected_type
++
++
++@pytest.mark.parametrize(
++    "attributes",
++    [
++        {"span.type": "some_other.tool"},
++        {"span.type": "hook"},
++        {"span.type": "tool.blocked_on_user"},
++        {"span.type": "claude_code.tool.blocked_on_user"},
++        {"span.type": "tool.execution"},
++        {"span.type": "claude_code.tool.execution"},
++    ],
++)
++def test_claude_code_translator_does_not_map(attributes):
++    assert ClaudeCodeTranslator().translate_span_type(attributes) is None
++
++
++def test_claude_code_translator_token_usage_includes_cache_tokens():
++    attributes = _translate_claude_code_span({
++        "span.type": "claude_code.llm_request",
++        "gen_ai.request.model": "claude-sonnet-4-5",
++        "input_tokens": 12,
++        "output_tokens": 64,
++        "cache_read_tokens": 1000,
++        "cache_creation_tokens": 400,
++    })
++
++    usage = json.loads(attributes[SpanAttributeKey.CHAT_USAGE])
++    assert usage == {
++        TokenUsageKey.INPUT_TOKENS: 1412,
++        TokenUsageKey.OUTPUT_TOKENS: 64,
++        TokenUsageKey.TOTAL_TOKENS: 1476,
++        TokenUsageKey.CACHE_READ_INPUT_TOKENS: 1000,
++        TokenUsageKey.CACHE_CREATION_INPUT_TOKENS: 400,
++    }
++
++
++def test_claude_code_translator_ignores_bare_token_keys_on_other_spans():
++    attributes = _translate_claude_code_span({"input_tokens": 12, "output_tokens": 64})
++    assert SpanAttributeKey.CHAT_USAGE not in attributes
++
++
++def test_claude_code_translator_interaction_input():
++    attributes = _translate_claude_code_span({
++        "span.type": "claude_code.interaction",
++        "user_prompt": "List the files",
++    })
++    assert json.loads(attributes[SpanAttributeKey.INPUTS]) == "List the files"
++
++
++def test_claude_code_translator_skips_redacted_content():
++    attributes = _translate_claude_code_span({
++        "span.type": "claude_code.interaction",
++        "user_prompt": "<REDACTED>",
++    })
++    assert SpanAttributeKey.INPUTS not in attributes
++
++
++def test_claude_code_translator_llm_request_content():
++    attributes = _translate_claude_code_span({
++        "span.type": "claude_code.llm_request",
++        "new_context": "List the files",
++        "response.model_output": "5",
++    })
++    assert json.loads(attributes[SpanAttributeKey.INPUTS]) == "List the files"
++    assert json.loads(attributes[SpanAttributeKey.OUTPUTS]) == "5"
++
++
++def test_claude_code_translator_tool_input_from_details_and_output_from_event():
++    attributes = _translate_claude_code_span(
++        {"span.type": "claude_code.tool", "tool_name": "Bash", "full_command": "ls"},
++        events=[{"name": "tool.output", "attributes": {"output": "a.txt\nb.txt"}}],
++    )
++    assert json.loads(attributes[SpanAttributeKey.INPUTS]) == {"full_command": "ls"}
++    assert json.loads(attributes[SpanAttributeKey.OUTPUTS]) == "a.txt\nb.txt"
++
++
++def test_claude_code_translator_prefers_serialized_tool_input():
++    attributes = _translate_claude_code_span({
++        "span.type": "claude_code.tool",
++        "tool_input": json.dumps({"command": "ls"}),
++        "full_command": "ls",
++    })
++    assert json.loads(attributes[SpanAttributeKey.INPUTS]) == {"command": "ls"}
++
++
++@pytest.mark.parametrize("attributes", [{}, {"span.type": "claude_code.llm_request"}])
++def test_claude_code_translator_ignores_tool_output_event_on_other_spans(attributes):
++    attributes = _translate_claude_code_span(
++        attributes, events=[{"name": "tool.output", "attributes": {"output": "a.txt"}}]
++    )
++    assert SpanAttributeKey.OUTPUTS not in attributes
++
++
++def test_claude_code_translator_skips_redacted_tool_output_event():
++    attributes = _translate_claude_code_span(
++        {"span.type": "tool"},
++        events=[{"name": "tool.output", "attributes": {"output": "<REDACTED>"}}],
++    )
++    assert SpanAttributeKey.OUTPUTS not in attributes

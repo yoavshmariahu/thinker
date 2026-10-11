@@ -1,0 +1,95 @@
+diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py
+index 8e69b38972440..e1ef55f6c0665 100644
+--- a/mlflow/store/tracking/sqlalchemy_store.py
++++ b/mlflow/store/tracking/sqlalchemy_store.py
+@@ -5535,7 +5535,8 @@ def calculate_trace_filter_correlation(
+ 
+         with self.ManagedSessionMaker() as session:
+             experiment_ids = self._filter_experiment_ids(session, [int(e) for e in experiment_ids])
+-            experiment_ids = [str(e) for e in experiment_ids]
++            # Keep IDs as integers when filtering trace_info.experiment_id. psycopg v3
++            # rejects VARCHAR parameters compared with this INTEGER column.
+ 
+             filter1_combined = (
+                 f"{base_filter} and {filter_string1}" if base_filter else filter_string1
+@@ -5571,7 +5572,7 @@ def calculate_trace_filter_correlation(
+                 total_count=counts.total_count,
+             )
+ 
+-    def _build_trace_filter_subquery(self, session, experiment_ids: list[str], filter_string: str):
++    def _build_trace_filter_subquery(self, session, experiment_ids: list[int], filter_string: str):
+         """Build a subquery for traces that match a given filter in the specified experiments."""
+         stmt = select(SqlTraceInfo.request_id).where(SqlTraceInfo.experiment_id.in_(experiment_ids))
+ 
+@@ -5603,7 +5604,7 @@ def _build_trace_filter_subquery(self, session, experiment_ids: list[str], filte
+     def _get_trace_correlation_counts(
+         self,
+         session,
+-        experiment_ids: list[str],
++        experiment_ids: list[int],
+         filter1_subquery,
+         filter2_subquery,
+         base_filter: str | None = None,
+diff --git a/tests/db/test_workspace_tracking_store.py b/tests/db/test_workspace_tracking_store.py
+index e12bcca02e388..71c4618af6483 100644
+--- a/tests/db/test_workspace_tracking_store.py
++++ b/tests/db/test_workspace_tracking_store.py
+@@ -5,6 +5,9 @@
+ import sqlalchemy as sa
+ 
+ from mlflow.entities.entity_type import EntityAssociationType
++from mlflow.entities.trace_info import TraceInfo
++from mlflow.entities.trace_location import TraceLocation
++from mlflow.entities.trace_state import TraceState
+ from mlflow.environment_variables import MLFLOW_ENABLE_WORKSPACES
+ from mlflow.exceptions import MlflowException
+ from mlflow.store.model_registry.sqlalchemy_workspace_store import (
+@@ -78,6 +81,48 @@ def test_experiment_id_filters_bind_integers(psycopg3_store):
+         assert associations.to_list() == []
+ 
+ 
++@pytest.mark.parametrize("base_filter", [None, 'tags.base = "true"'])
++def test_trace_filter_correlation_binds_integer_experiment_ids(psycopg3_store, base_filter):
++    # psycopg v3 rejects a VARCHAR bind compared with trace_info.experiment_id (INTEGER).
++    # The public API accepts string IDs, but the SQL filter must bind them as integers.
++    with WorkspaceContext("team-a"):
++        exp_id = psycopg3_store.create_experiment(f"correlation-{uuid.uuid4().hex}")
++
++        result = psycopg3_store.calculate_trace_filter_correlation(
++            experiment_ids=[exp_id],
++            filter_string1='tags.has_error = "true"',
++            filter_string2='tags.primary_span_type = "TOOL"',
++            base_filter=base_filter,
++        )
++
++        assert result.total_count == 0
++        assert result.filter1_count == 0
++        assert result.filter2_count == 0
++        assert result.joint_count == 0
++
++        psycopg3_store.start_trace(
++            TraceInfo(
++                trace_id=f"tr-{uuid.uuid4().hex}",
++                trace_location=TraceLocation.from_experiment_id(exp_id),
++                request_time=1234,
++                execution_duration=100,
++                state=TraceState.OK,
++                tags={"base": "true", "has_error": "true", "primary_span_type": "TOOL"},
++            )
++        )
++        result = psycopg3_store.calculate_trace_filter_correlation(
++            experiment_ids=[exp_id],
++            filter_string1='tags.has_error = "true"',
++            filter_string2='tags.primary_span_type = "TOOL"',
++            base_filter=base_filter,
++        )
++
++        assert result.total_count == 1
++        assert result.filter1_count == 1
++        assert result.filter2_count == 1
++        assert result.joint_count == 1
++
++
+ def test_search_experiments_experiment_id_filter_binds_integers(psycopg3_store):
+     # `experiment_id = ...` / `IN (...)` filters bind against the INTEGER
+     # `experiments.experiment_id` column; without coercing the filter value to

@@ -1,0 +1,37 @@
+diff --git a/mlflow/cli/traces.py b/mlflow/cli/traces.py
+index ca295051beb12..63eaef9c50db2 100644
+--- a/mlflow/cli/traces.py
++++ b/mlflow/cli/traces.py
+@@ -462,7 +462,7 @@ def delete_traces(
+     mlflow traces delete --experiment-id 1 --max-timestamp-millis 1700000000000 --max-traces 100
+     """
+     client = TracingClient()
+-    trace_id_list = trace_ids.split(",") if trace_ids else None
++    trace_id_list = [t.strip() for t in trace_ids.split(",")] if trace_ids else None
+ 
+     count = client.delete_traces(
+         experiment_id=experiment_id,
+diff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py
+index cd7f4bb66a88c..8f62c2ec49b91 100644
+--- a/tests/cli/test_traces.py
++++ b/tests/cli/test_traces.py
+@@ -171,6 +171,19 @@ def test_delete_command(runner):
+         assert "Deleted 5 trace(s)" in result.output
+ 
+ 
++def test_delete_command_strips_spaces_in_trace_ids(runner):
++    with mock.patch("mlflow.cli.traces.TracingClient") as mock_client:
++        mock_client.return_value.delete_traces.return_value = 2
++        result = runner.invoke(
++            commands,
++            ["delete", "--experiment-id", "1", "--trace-ids", "tr-1, tr-2"],
++        )
++
++    assert result.exit_code == 0
++    _, kwargs = mock_client.return_value.delete_traces.call_args
++    assert kwargs["trace_ids"] == ["tr-1", "tr-2"]
++
++
+ def test_field_validation_error(runner):
+     trace_location = TraceLocation(
+         type=TraceLocationType.MLFLOW_EXPERIMENT,

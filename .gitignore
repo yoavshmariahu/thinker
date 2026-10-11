@@ -14,3 +14,4 @@ bench/runs/efficiency-simple/
 
 # private gateway deployment snapshots and credentials
 .access-work/
+bench/data/*.bundle

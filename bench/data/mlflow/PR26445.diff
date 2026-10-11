@@ -1,0 +1,402 @@
+diff --git a/docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx b/docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx
+index ca89f858df551..da0269c3ecd0f 100644
+--- a/docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx
++++ b/docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx
+@@ -97,6 +97,29 @@ Usage metadata may also include the standard MLflow judge token metadata keys wh
+ 
+ See TypeSafe's documentation for more about [state](https://docs.typesafe.ai/concepts/state), [question primitives](https://docs.typesafe.ai/primitives), [confidence](https://docs.typesafe.ai/confidence), and [available models](https://docs.typesafe.ai/models).
+ 
++## Custom System One endpoints
++
++Direct `typesafe:/` judges send requests to `https://api.typesafe.ai/v1/systemone` by default. Set `base_url` to route requests through a System One-compatible proxy or custom host. The URL must include the API version, such as `/v1`, and exclude `/systemone`; MLflow appends `/systemone` when it sends the request.
++
++MLflow uses `TYPESAFE_API_KEY` for Bearer authentication by default. When `base_url` points to a custom host, MLflow sends that credential to the custom host unless you provide a different `Authorization` header in `extra_headers`. Only use a host that you trust.
++
++```python
++import os
++
++from mlflow.genai.judges import make_judge
++
++custom_judge = make_judge(
++    name="answer_helpfulness",
++    instructions="Answer yes or no: Does {{ outputs }} answer {{ inputs }}?",
++    model="typesafe:/my-system-one-model",
++    feedback_value_type=bool,
++    base_url="https://system-one.example.com/v1",
++    extra_headers={"Authorization": f"Bearer {os.environ['SYSTEM_ONE_API_KEY']}"},
++)
++```
++
++For a `gateway:/` judge, configure the upstream API base and credentials on the AI Gateway connection instead. Judge-level `base_url` and `extra_headers` do not override a Gateway endpoint's saved connection.
++
+ ## Limitations
+ 
+ TypeSafe judge models in MLflow currently have these limits:
+@@ -107,7 +130,8 @@ TypeSafe judge models in MLflow currently have these limits:
+ - TypeSafe Score questions and fractional score outputs are not exposed through `make_judge()`. This integration currently focuses on binary and categorical decisions, which are generally easier to interpret and act on in evaluation workflows. If Score support would be useful for your evaluation, [open a feature request](https://github.com/mlflow/mlflow/issues/new/choose).
+ - Trace-based judging with `{{ trace }}` is not supported. Use structured `{{ inputs }}`, `{{ outputs }}`, `{{ expectations }}`, or `{{ conversation }}` state instead.
+ - Referenced state values must be JSON-serializable and cannot contain NaN or infinity.
+-- `inference_params`, `base_url`, and `extra_headers` are not supported for TypeSafe judge models.
++- `inference_params` is not supported for TypeSafe judge models.
++- `base_url` and `extra_headers` apply only to direct `typesafe:/` judges. Configure the API base and credentials on the AI Gateway connection for `gateway:/` judges.
+ - A System One Gateway endpoint cannot mix System One models with chat-provider primary or fallback models.
+ - TypeSafe judge responses do not include generated text rationales.
+ - Each MLflow judge sends one TypeSafe question. Multi-question batching through a single `make_judge()` judge is not supported.
+diff --git a/mlflow/genai/judges/typesafe.py b/mlflow/genai/judges/typesafe.py
+index 65e0034983ef6..31483d03f704e 100644
+--- a/mlflow/genai/judges/typesafe.py
++++ b/mlflow/genai/judges/typesafe.py
+@@ -8,6 +8,7 @@
+ import re
+ from dataclasses import dataclass
+ from typing import Any, Literal, get_args, get_origin
++from urllib.parse import urlparse
+ 
+ import requests
+ 
+@@ -33,8 +34,8 @@
+ from mlflow.utils.credentials import get_default_host_creds
+ from mlflow.utils.request_utils import _get_http_response_with_retries
+ from mlflow.utils.rest_utils import http_request
++from mlflow.utils.uri import append_to_uri_path
+ 
+-_DIRECT_ENDPOINT = f"{TYPESAFE_API_BASE_URL}/{TYPESAFE_SYSTEM_ONE_PATH}"
+ _RETRY_CODES = (408, 429, 500, 502, 503, 504, 529)
+ _GATEWAY_PROVIDER = "gateway"
+ _TYPESAFE_PROVIDER = "typesafe"
+@@ -58,6 +59,16 @@
+ _TRACE_REFERENCE_PATTERN = re.compile(r"\{\{\s*trace\s*\}\}")
+ 
+ 
++class _PreserveAuthorizationHeaderAuth(requests.auth.AuthBase):
++    """Prevent Requests from replacing the selected Authorization header with .netrc auth."""
++
++    def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
++        return request
++
++
++_PRESERVE_AUTHORIZATION_HEADER_AUTH = _PreserveAuthorizationHeaderAuth()
++
++
+ @dataclass
+ class _NoulSpec:
+     answer_type: Literal["noul"] = "noul"
+@@ -102,7 +113,7 @@ def _invoke_typesafe_judge(
+         raise MlflowException.invalid_parameter_value(
+             f"Expected a typesafe:/ or gateway:/ model URI, got {model_uri!r}."
+         )
+-    _validate_options(inference_params, base_url, extra_headers)
++    _validate_options(provider, inference_params, base_url, extra_headers)
+     _validate_input(instructions, state)
+ 
+     question, answer_spec = _build_question(feedback_value_type)
+@@ -116,7 +127,7 @@ def _invoke_typesafe_judge(
+     response = (
+         _send_gateway_request(payload, num_retries)
+         if provider == _GATEWAY_PROVIDER
+-        else _send_request(payload, num_retries)
++        else _send_request(payload, num_retries, base_url, extra_headers)
+     )
+     response_data = _parse_json_response(
+         response, allow_gateway_fallback=provider == _GATEWAY_PROVIDER
+@@ -136,23 +147,40 @@ def _invoke_typesafe_judge(
+ 
+ 
+ def _validate_options(
++    provider: str,
+     inference_params: dict[str, Any] | None,
+     base_url: str | None,
+     extra_headers: dict[str, str] | None,
+ ) -> None:
+-    unsupported_options = [
+-        name
+-        for name, value in (
+-            ("inference_params", inference_params),
+-            ("base_url", base_url),
+-            ("extra_headers", extra_headers),
++    unsupported_options = ["inference_params"] if inference_params is not None else []
++    if provider == _GATEWAY_PROVIDER:
++        unsupported_options.extend(
++            name
++            for name, value in (("base_url", base_url), ("extra_headers", extra_headers))
++            if value is not None
+         )
+-        if value is not None
+-    ]
+     if unsupported_options:
+         raise MlflowException.invalid_parameter_value(
+             "TypeSafe judge models do not support " + ", ".join(unsupported_options) + "."
+         )
++    if base_url is not None:
++        if not base_url.strip().strip("/"):
++            raise MlflowException.invalid_parameter_value("base_url must be a non-empty string.")
++        try:
++            parsed_base_url = urlparse(base_url)
++            if parsed_base_url.scheme not in {"http", "https"} or not parsed_base_url.hostname:
++                raise ValueError
++            _ = parsed_base_url.port
++            _ = parsed_base_url.hostname.encode("idna")
++        except (UnicodeError, ValueError):
++            raise MlflowException.invalid_parameter_value(
++                "base_url must be an absolute HTTP or HTTPS URL with a valid host and port."
++            ) from None
++        if parsed_base_url.username is not None or parsed_base_url.password is not None:
++            raise MlflowException.invalid_parameter_value(
++                "Credentials in base_url are not supported. Pass an Authorization header in "
++                "extra_headers instead."
++            )
+ 
+ 
+ def _validate_input(instructions: str, state: dict[str, Any]) -> None:
+@@ -174,18 +202,38 @@ def _validate_input(instructions: str, state: dict[str, Any]) -> None:
+         )
+ 
+ 
+-def _send_request(payload: dict[str, Any], num_retries: int):
++def _send_request(
++    payload: dict[str, Any],
++    num_retries: int,
++    base_url: str | None,
++    extra_headers: dict[str, str] | None,
++):
+     api_key = os.environ.get("TYPESAFE_API_KEY")
+-    if not api_key:
++    headers = dict(extra_headers or {})
++    authorization_headers = [
++        value for name, value in headers.items() if name.lower() == "authorization"
++    ]
++    if authorization_headers and any(
++        not isinstance(value, str) or not value.strip() for value in authorization_headers
++    ):
++        raise MlflowException.invalid_parameter_value(
++            "Authorization header in extra_headers must be non-empty."
++        )
++    if not authorization_headers and api_key:
++        headers["Authorization"] = f"Bearer {api_key}"
++    elif not authorization_headers:
+         raise MlflowException(
+-            "Set TYPESAFE_API_KEY to invoke a typesafe:/ judge model.",
++            "Set TYPESAFE_API_KEY or pass an Authorization header in extra_headers to invoke "
++            "a typesafe:/ judge model.",
+             error_code=INVALID_PARAMETER_VALUE,
+         )
++    endpoint = append_to_uri_path(base_url or TYPESAFE_API_BASE_URL, TYPESAFE_SYSTEM_ONE_PATH)
+     try:
+         return _get_http_response_with_retries(
+             method="POST",
+-            url=_DIRECT_ENDPOINT,
+-            headers={"Authorization": f"Bearer {api_key}"},
++            url=endpoint,
++            headers=headers,
++            auth=_PRESERVE_AUTHORIZATION_HEADER_AUTH,
+             json=payload,
+             max_retries=num_retries,
+             backoff_factor=1,
+diff --git a/tests/genai/judges/test_typesafe.py b/tests/genai/judges/test_typesafe.py
+index b28ea0215dc78..3ad877973e82d 100644
+--- a/tests/genai/judges/test_typesafe.py
++++ b/tests/genai/judges/test_typesafe.py
+@@ -101,6 +101,66 @@ def test_direct_bool_invocation_uses_native_evaluation(monkeypatch):
+     }
+ 
+ 
++@pytest.mark.parametrize(
++    ("base_url", "expected_url"),
++    [
++        (
++            "https://system-one.example.com/v1/",
++            "https://system-one.example.com/v1/systemone",
++        ),
++        (
++            "https://system-one.example.com/v1?region=us",
++            "https://system-one.example.com/v1/systemone?region=us",
++        ),
++        (
++            "http://127.0.0.1:8080/v1",
++            "http://127.0.0.1:8080/v1/systemone",
++        ),
++    ],
++)
++def test_direct_invocation_supports_custom_base_url_and_headers(
++    monkeypatch, base_url, expected_url
++):
++    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
++    response = _response({"type": "noul", "noul": 0.8})
++    with mock.patch(_REQUEST_TARGET, return_value=response) as request:
++        _invoke(
++            base_url=base_url,
++            extra_headers={"X-Request-ID": "request-123"},
++        )
++
++    call = request.call_args.kwargs
++    assert call["url"] == expected_url
++    assert call["headers"] == {
++        "Authorization": "Bearer typesafe-secret",
++        "X-Request-ID": "request-123",
++    }
++
++
++@pytest.mark.parametrize("api_key", [None, "typesafe-secret"])
++def test_direct_invocation_supports_authorization_header(monkeypatch, api_key):
++    if api_key:
++        monkeypatch.setenv("TYPESAFE_API_KEY", api_key)
++    else:
++        monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
++    response = _response({"type": "noul", "noul": 0.8})
++    with mock.patch(_REQUEST_TARGET, return_value=response) as request:
++        _invoke(extra_headers={"authorization": "Bearer custom-token"})
++
++    assert request.call_args.kwargs["headers"] == {"authorization": "Bearer custom-token"}
++
++
++@pytest.mark.parametrize("authorization", ["", " \t ", None])
++def test_direct_invocation_rejects_empty_authorization_header(monkeypatch, authorization):
++    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
++    with (
++        mock.patch(_REQUEST_TARGET) as request,
++        pytest.raises(MlflowException, match="Authorization header.*non-empty"),
++    ):
++        _invoke(extra_headers={"Authorization": authorization})
++    request.assert_not_called()
++
++
+ def test_bool_noul_probability_below_half_is_false(monkeypatch):
+     monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
+     with mock.patch(
+@@ -234,24 +294,114 @@ def test_missing_api_key(monkeypatch):
+     request.assert_not_called()
+ 
+ 
++def test_rejects_inference_params(monkeypatch):
++    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
++    with (
++        mock.patch(_REQUEST_TARGET) as request,
++        pytest.raises(MlflowException, match="inference_params"),
++    ):
++        _invoke(inference_params={"temperature": 0})
++    request.assert_not_called()
++
++
+ @pytest.mark.parametrize(
+     ("option", "value"),
+     [
+-        ("inference_params", {"temperature": 0}),
+         ("base_url", "https://example.com"),
+         ("extra_headers", {"X-Test": "value"}),
+     ],
+ )
+-def test_rejects_unsupported_options(monkeypatch, option, value):
++def test_gateway_invocation_rejects_direct_connection_options(monkeypatch, option, value):
++    with (
++        mock.patch("mlflow.genai.judges.typesafe._send_gateway_request") as request,
++        pytest.raises(MlflowException, match=option),
++    ):
++        _invoke(model_uri="gateway:/jev-evaluator", **{option: value})
++    request.assert_not_called()
++
++
++def test_direct_invocation_rejects_empty_base_url(monkeypatch):
+     monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
+     with (
+         mock.patch(_REQUEST_TARGET) as request,
+-        pytest.raises(MlflowException, match=option),
++        pytest.raises(MlflowException, match="base_url must be a non-empty string"),
++    ):
++        _invoke(base_url="  ///  ")
++    request.assert_not_called()
++
++
++@pytest.mark.parametrize(
++    "base_url",
++    [
++        "http://",
++        "://",
++        "/v1",
++        "v1",
++        "ftp://system-one.example.com/v1",
++        "https://system-one.example.com:not-a-port/v1",
++        "https://system-one.example.com:99999/v1",
++        "https://system-one..example.com/v1",
++        f"https://{'a' * 64}.example.com/v1",
++    ],
++)
++def test_direct_invocation_rejects_invalid_base_url(monkeypatch, base_url):
++    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
++    with (
++        mock.patch(_REQUEST_TARGET) as request,
++        pytest.raises(MlflowException, match="absolute HTTP or HTTPS URL"),
++    ):
++        _invoke(base_url=base_url)
++    request.assert_not_called()
++
++
++@pytest.mark.parametrize(
++    "extra_headers",
++    [None, {"Authorization": "Bearer custom-token"}],
++)
++@pytest.mark.parametrize(
++    "base_url",
++    [
++        "https://user@system-one.example.com/v1",
++        "https://user:password@system-one.example.com/v1",
++        "https://:password@system-one.example.com/v1",
++        "https://us%65r:p%40ss@system-one.example.com/v1",
++    ],
++)
++def test_direct_invocation_rejects_credentials_in_base_url(monkeypatch, extra_headers, base_url):
++    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-secret")
++    with (
++        mock.patch(_REQUEST_TARGET) as request,
++        pytest.raises(MlflowException, match="Credentials in base_url are not supported"),
+     ):
+-        _invoke(**{option: value})
++        _invoke(base_url=base_url, extra_headers=extra_headers)
+     request.assert_not_called()
+ 
+ 
++def test_authorization_header_takes_precedence_over_netrc(monkeypatch):
++    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
++    response = _response({"type": "noul", "noul": 0.8})
++    with (
++        mock.patch(
++            "requests.sessions.get_netrc_auth",
++            return_value=("netrc-user", "netrc-password"),
++        ),
++        mock.patch.object(
++            requests.Session,
++            "send",
++            autospec=True,
++            return_value=response,
++        ) as send,
++    ):
++        _invoke(
++            base_url="https://system-one.example.com/v1",
++            extra_headers={"Authorization": "Bearer custom-token"},
++            num_retries=0,
++        )
++
++    prepared_request = send.call_args.args[1]
++    assert prepared_request.headers["Authorization"] == "Bearer custom-token"
++
++
+ @pytest.mark.parametrize("status_code", [302, 401, 403, 422, 429, 529])
+ def test_http_errors_do_not_expose_response_or_credentials(monkeypatch, status_code):
+     monkeypatch.setenv("TYPESAFE_API_KEY", "private-key")
+@@ -319,10 +469,17 @@ def test_make_judge_invokes_typesafe_through_public_api(monkeypatch):
+             instructions="Does {{ outputs }} answer {{ inputs }}?",
+             model="typesafe:/jev-latest",
+             feedback_value_type=Literal["pass", "fail"],
++            base_url="https://system-one.example.com/v1",
++            extra_headers={"X-Request-ID": "request-123"},
+         )(inputs={"question": "Why?"}, outputs={"answer": "Because."})
+ 
+     assert feedback.value == "pass"
+     request.assert_called_once()
++    assert request.call_args.kwargs["url"] == "https://system-one.example.com/v1/systemone"
++    assert request.call_args.kwargs["headers"] == {
++        "Authorization": "Bearer typesafe-secret",
++        "X-Request-ID": "request-123",
++    }
+     assert request.call_args.kwargs["json"]["state"] == {
+         "inputs": {"question": "Why?"},
+         "outputs": {"answer": "Because."},

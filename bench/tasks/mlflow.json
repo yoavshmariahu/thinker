@@ -1,0 +1,819 @@
+{
+  "repo": "mlflow/mlflow",
+  "base": "c63fb454c7e1",
+  "baseDate": "2026-09-20T23:42:26Z",
+  "builtAt": "2026-10-11T08:59:39.121Z",
+  "tasks": [
+    {
+      "id": "PR26252",
+      "area": "mlflow/models",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\r\n\r\nCloses #26144\r\n\r\n### What changes are proposed in this pull request?\r\n\r\n`MetricThreshold(min_relative_change=...)` computed the relative change as `(candidate - baseline) / baseline`. When the baseline metric is negative, for example an R² below 0, dividing by the signed value reverses the comparison: with a baseline R² of -1.8 and a 5% gate, a worse candidate at -5.0 passes and a perfect candidate at 1.0 fails.\r\n\r\nThis PR divides by `abs(baseline)` for both greater-is-better and lower-is-better metrics. Results for positive baselines are unchanged, and the zero-baseline path is untouched (`_validate` already falls back to a plain comparison there).\r\n\r\nThe `MetricThreshold` docstring gave the rule as `baseline * (1 + min_relative_change)`, which is also wrong for negative baselines. It now reads `baseline + min_relative_change * abs(baseline)` (and the lower-is-better counterpart), with a note that this equals the old formula when the baseline is positive.\r\n\r\n### How is this PR tested?\r\n\r\n- [x] Existing unit/integration tests\r\n- [x] New unit/integration tests\r\n\r\n`test_validation_relative_threshold_uses_baseline_magnitude` in `tests/evaluate/test_validation.py` adds 26 cases: the R² example above, plus candidates 50%, 20% and 5% better and worse than baselines of -2.0 and 2.0, for both metric directions. All tests in `tests/evaluate/test_validation.py` pass with the change, and 10 of the new cases fail on master, all with a negative baseline.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] Yes. I've updated:\r\n- [x] API references\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n- [x] No.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\r\n\r\n`MetricThreshold(min_relative_change=...)` now measures the change against the magnitude of the baseline metric, so model validation no longer accepts worse candidates and rejects better ones when the baseline metric is negative.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n<details>\r\n<summary>What is a minor/patch release?</summary>\r\n\r\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\r\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\r\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\r\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\r\n\r\n</details>\r\n\r\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Use the baseline's magnitude in min_relative_change checks",
+      "goldFiles": [
+        "mlflow/models/evaluation/validation.py",
+        "tests/evaluate/test_validation.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26252.diff",
+      "testFiles": [
+        "tests/evaluate/test_validation.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/evaluate/test_validation.py'",
+      "mergeCommit": "edaaf644c1cff198eb620fa4a31d10605ea87323",
+      "mergedAt": "2026-10-06T02:52:32Z",
+      "loc": 85,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 85
+      }
+    },
+    {
+      "id": "PR26244",
+      "area": "mlflow/entities",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n<!--\r\nDo not remove any sections. Remove unused checkboxes except for the patch release section at the bottom.\r\nUse backticks for code references and file paths in the PR title (e.g., `ClassName`, `function_name`, `utils.py`).\r\n-->\r\n\r\n### Related Issues/PRs\r\n\r\n<!-- 🚨 Choose either \"Closes\" (auto-close on merge) or \"Relates to\" (reference only). 🚨 -->\r\n\r\nNone, small fix.\r\n\r\n### What changes are proposed in this pull request?\r\n\r\n`LoggedModel.from_proto` reads `status_message`, but `LoggedModel.to_proto` never wrote it, so the message was lost whenever a logged model went through its proto form (e.g. a `FAILED` model with a reason attached came back with `status_message == ''`).\r\n\r\n`to_proto` now sets `status_message` on `LoggedModelInfo`, like it does for the other info fields.\r\n\r\n### How is this PR tested?\r\n\r\n- [x] New unit/integration tests\r\n\r\nAdded `tests/entities/test_logged_model.py` with a to_proto/from_proto round trip. It fails on master (`'' == 'Upload failed'`) and passes with the change. The logged model tests in `tests/store/tracking/test_rest_store.py` still pass.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n<!-- When updating APIs or feature usage, please ensure the MLflow Skills repository reflects those changes. -->\r\n\r\n- [x] No.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [x] No.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\r\n\r\n<!--\r\nInsert an empty named anchor here to allow jumping to this section with a fragment URL\r\n(e.g. https://github.com/mlflow/mlflow/pull/123#user-content-release-note-category).\r\nNote that GitHub prefixes anchor names in markdown with \"user-content-\".\r\n-->\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n<details>\r\n<summary>What is a minor/patch release?</summary>\r\n\r\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\r\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\r\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\r\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\r\n\r\n</details>\r\n\r\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix `LoggedModel.to_proto` dropping `status_message`",
+      "goldFiles": [
+        "mlflow/entities/logged_model.py",
+        "tests/entities/test_logged_model.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26244.diff",
+      "testFiles": [
+        "tests/entities/test_logged_model.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/entities/test_logged_model.py'",
+      "mergeCommit": "f639ef745fd8af54e11eb0d57ac369f8ccb3768d",
+      "mergedAt": "2026-09-29T09:50:18Z",
+      "loc": 19,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26245",
+      "area": "mlflow/entities",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n<!--\r\nDo not remove any sections. Remove unused checkboxes except for the patch release section at the bottom.\r\nUse backticks for code references and file paths in the PR title (e.g., `ClassName`, `function_name`, `utils.py`).\r\n-->\r\n\r\n### Related Issues/PRs\r\n\r\n<!-- 🚨 Choose either \"Closes\" (auto-close on merge) or \"Relates to\" (reference only). 🚨 -->\r\n\r\nNone, small fix.\r\n\r\n### What changes are proposed in this pull request?\r\n\r\n`PromptVersion.__init__` did `tags = tags or {}` and then wrote its internal tags (`mlflow.prompt.text`, `mlflow.prompt.type`, `mlflow.prompt.is_prompt`, the model config) into that dict. So the dict the caller passed in got modified, and if it was reused for another prompt, that prompt picked up the previous one's template and model config:\r\n\r\n```python\r\ntags = {\"author\": \"alice\"}\r\nPromptVersion(\"p\", 1, \"Hello {{name}}\", tags=tags, model_config={\"temperature\": 0.7})\r\ntags  # now also has mlflow.prompt.text, mlflow.prompt.model_config, ...\r\nPromptVersion(\"p\", 2, \"Hi!\", tags=tags).model_config  # {'temperature': 0.7}\r\n```\r\n\r\nIt now copies the dict first (`tags = dict(tags or {})`).\r\n\r\n### How is this PR tested?\r\n\r\n- [x] New unit/integration tests\r\n\r\nAdded `test_prompt_does_not_mutate_caller_tags` to `tests/entities/test_prompt.py`. It fails on master and passes with the change; the rest of `test_prompt.py` passes (53 passed).\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n<!-- When updating APIs or feature usage, please ensure the MLflow Skills repository reflects those changes. -->\r\n\r\n- [x] No.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [x] No.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/prompts`: MLflow prompt engineering features, prompt templates, and prompt management\r\n\r\n<!--\r\nInsert an empty named anchor here to allow jumping to this section with a fragment URL\r\n(e.g. https://github.com/mlflow/mlflow/pull/123#user-content-release-note-category).\r\nNote that GitHub prefixes anchor names in markdown with \"user-content-\".\r\n-->\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n<details>\r\n<summary>What is a minor/patch release?</summary>\r\n\r\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\r\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\r\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\r\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\r\n\r\n</details>\r\n\r\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix `PromptVersion` mutating the caller's tags dict",
+      "goldFiles": [
+        "mlflow/entities/model_registry/prompt_version.py",
+        "tests/entities/test_prompt.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26245.diff",
+      "testFiles": [
+        "tests/entities/test_prompt.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/entities/test_prompt.py'",
+      "mergeCommit": "c8303cf9f610a372c7931a13f110ebc690f71b06",
+      "mergedAt": "2026-09-29T10:53:29Z",
+      "loc": 18,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26066",
+      "area": "mlflow/prompt",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nN/A\n\n### What changes are proposed in this pull request?\n\nPartitions prompt cache entries and invalidation by the resolved registry URI. This keeps clients configured for different registries from sharing cached prompt state while preserving the existing TTL and cache reuse behavior.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n\nThe prompt cache and tracking client test suites cover registry-scoped entries, version and alias lookups, invalidation, and failed mutations.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the MLflow Skills repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Corrects prompt cache behavior for applications using multiple registries in one process.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] area/prompts: MLflow prompt engineering features, prompt templates, and prompt management\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [ ] rn/none - No description will be included. The PR will be mentioned only by the PR number in the Small Bugfixes and Documentation Updates section\n- [ ] rn/breaking-change - The PR will be mentioned in the Breaking Changes section\n- [ ] rn/feature - A new user-facing feature worth mentioning in the release notes\n- [x] rn/bug-fix - A user-facing bug fix worth mentioning in the release notes\n- [ ] rn/documentation - A user-facing documentation change\n\n#### Is this a critical bugfix that should go into the next patch release?\n\n- [x] This PR is critical and needs to be in the next patch release\n- [ ] This PR can wait for the next minor release",
+      "goldTitle": "Scope prompt cache entries by registry",
+      "goldFiles": [
+        "mlflow/prompt/registry_utils.py",
+        "mlflow/tracking/client.py",
+        "tests/genai/prompts/test_prompts.py",
+        "tests/genai/utils/test_prompt_cache.py",
+        "tests/tracking/test_client.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26066.diff",
+      "testFiles": [
+        "tests/genai/prompts/test_prompts.py",
+        "tests/genai/utils/test_prompt_cache.py",
+        "tests/tracking/test_client.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/prompts/test_prompts.py' 'tests/genai/utils/test_prompt_cache.py' 'tests/tracking/test_client.py'",
+      "mergeCommit": "36ce73c17f2ea6a594e7f084fcda917eda709857",
+      "mergedAt": "2026-09-22T13:13:31Z",
+      "loc": 434,
+      "preflight": {
+        "baseKind": "symbol",
+        "testNeedsGoldSymbols": true,
+        "secs": 64
+      }
+    },
+    {
+      "id": "PR26249",
+      "area": "mlflow/utils",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #26216\n\n### What changes are proposed in this pull request?\n\nOn a SQL backend store, `search_logged_models` rejected the lowercase forms of `LIKE`, `ILIKE` and `IN`:\n\n```\nMlflowException: Invalid comparison operator for attributes.name: 'like'. Expected one of ('=', '!=', 'LIKE', 'ILIKE', 'IN', 'NOT IN').\n```\n\n`parse_filter_string` in `mlflow/utils/search_logged_model_utils.py` passed the raw operator token to `Entity.validate_op` and later to `SearchUtils.get_sql_comparison_func`, both of which expect the uppercase form. Lowercase `not in` already worked because `_join_in_comparison_tokens` rewrites it to the literal `\"NOT IN\"`, and `search_runs` and the file store both upper-case the operator, so the SQL store was the odd one out.\n\nThis uppercases the operator right after the comparison is split into its three tokens, so `name like 'model-%'`, `name ilike 'MODEL-%'`, `name in ('a', 'b')`, `params.lr like '0.%'` and `tags.team in ('ml')` now behave the same as their uppercase forms.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [ ] Manual tests\n\nNew parametrized test `test_search_logged_models_accepts_lowercase_operators` in `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py` covers `like`, `ilike`, `in` and `not in` on attributes, params and tags. 10 of the 12 cases fail on `master` and all pass with the fix; the other `search_logged_models` tests in that file still pass.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. `search_logged_models` now accepts lowercase `like`, `ilike` and `in` operators in filter strings on SQL backend stores.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Accept lowercase `like`, `ilike` and `in` in `search_logged_models` filters",
+      "goldFiles": [
+        "mlflow/utils/search_logged_model_utils.py",
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26249.diff",
+      "testFiles": [
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py'",
+      "mergeCommit": "3df6d4cb5e018693d738569e20cda26aae4447a2",
+      "mergedAt": "2026-09-29T09:25:08Z",
+      "loc": 28,
+      "preflight": {
+        "baseKind": "other",
+        "testNeedsGoldSymbols": false,
+        "secs": 27
+      }
+    },
+    {
+      "id": "PR26265",
+      "area": "mlflow/artifacts",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #26200\n\n### What changes are proposed in this pull request?\n\n`mlflow.log_text` writes artifacts as UTF-8, but `mlflow.artifacts.load_text` and `load_dict` opened them in the locale encoding. Where that is not UTF-8, non-ASCII text came back silently wrong (`café résumé` as `caf矇 r矇sum矇` on cp950) or raised `MlflowException: Unable to form a str object from file content`, and `load_dict` raised `UnicodeDecodeError`.\n\nBoth `open()` calls in `mlflow/artifacts/__init__.py` now pass `encoding=\"utf-8\"`, matching the writer.\n\nOne trade-off, noted in the issue: a file in the locale encoding uploaded with `log_artifact` used to read back correctly on the same machine and now raises. Following review, that error says the artifact is not valid UTF-8 and points to `download_artifacts`, with the `UnicodeDecodeError` chained, and `load_dict` no longer lets it escape uncaught.\n\nThis PR was written by Claude Code, which also ran the tests below on my machine.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\n`test_load_text_and_dict_read_utf8_regardless_of_default_encoding` logs `café 台北 🚀` and `{\"城市\": \"台北\"}` with `log_text` and reads them back while text-mode `open` in `mlflow.artifacts` defaults to cp1252, so it does not depend on the runner's locale. `test_load_text_and_dict_explain_non_utf8_artifacts` logs cp1252 bytes with `log_artifact` and checks that both functions raise the new message with the `UnicodeDecodeError` as the cause. Results in `tests/artifacts/test_artifacts.py`:\n\n| | cp950 default | `PYTHONUTF8=1` |\n|---|---|---|\n| `read_utf8_regardless_of_default_encoding`, on the PR's base | fail | fail |\n| `explain_non_utf8_artifacts`, on `990730c` | fail | fail |\n| both new tests, at head | pass | pass |\n| whole file, at head | 23 passed, 2 skipped | 23 passed, 2 skipped |\n\nThe first commit was tested on Python 3.10 and 3.11, the review follow-up on 3.10. `ruff check`, `ruff format --check` and `clint` (with `PYTHONUTF8=1`) are clean on both files.\n\nManually, the reproduction script in #26200, run against this branch on this machine's real cp950 default (SQLite backend, no monkeypatch), now prints `'café résumé'`, `'台北今天天氣如何？'` and `{'城市': '台北'}`.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\n`mlflow.artifacts.load_text` and `load_dict` now read artifacts as UTF-8, so non-ASCII text written by `log_text` reads back correctly on systems whose default encoding is not UTF-8. An artifact that is not UTF-8, such as a file in a legacy code page uploaded with `log_artifact`, now raises an error saying so and pointing to `download_artifacts`.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Read `load_text` and `load_dict` artifacts as UTF-8",
+      "goldFiles": [
+        "mlflow/artifacts/__init__.py",
+        "tests/artifacts/test_artifacts.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26265.diff",
+      "testFiles": [
+        "tests/artifacts/test_artifacts.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/artifacts/test_artifacts.py'",
+      "mergeCommit": "2cf3495a4a102f301d6247db94f951e446766e69",
+      "mergedAt": "2026-10-01T04:29:32Z",
+      "loc": 70,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 6
+      }
+    },
+    {
+      "id": "PR26519",
+      "area": "mlflow/utils",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\n### What changes are proposed in this pull request?\n\n`dump_input_data` iterates dict keys instead of key-value pairs, causing named tensor inputs to fail before scoring requests can be sent.\n\n- Change dict serialization to iterate `data.items()`.\n- Add regression coverage for named arrays, multidimensional arrays, custom input keys with params, and unsupported values.\n\n```python\ndump_input_data({\"x\": np.array([1, 2])})\n# '{\"inputs\": {\"x\": [1, 2]}}'\n```\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\n### Does this PR require documentation update?\n\n- [x] No.\n- [ ] Yes. I've updated:\n  - [ ] Examples\n  - [ ] API references\n  - [ ] Instructions\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n- [ ] Yes. Please link the corresponding PR or explain how you plan to update it.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [ ] No.\n- [x] Yes. Fix serialization of named tensor inputs in model scoring requests.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [ ] `area/tracking`: Tracking Service, tracking client APIs, autologging\n- [ ] `area/models`: MLmodel format, model serialization/deserialization, flavors\n- [ ] `area/model-registry`: Model Registry service, APIs, and the fluent client calls for Model Registry\n- [x] `area/scoring`: MLflow Model server, model deployment tools, Spark UDFs\n- [ ] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\n- [ ] `area/gateway`: MLflow AI Gateway client APIs, server, and third-party integrations\n- [ ] `area/prompts`: MLflow prompt engineering features, prompt templates, and prompt management\n- [ ] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n- [ ] `area/projects`: MLproject format, project running backends\n- [ ] `area/uiux`: Front-end, user experience, plotting, JavaScript, JavaScript dev server\n- [ ] `area/build`: Build and test infrastructure for MLflow\n- [ ] `area/docs`: MLflow documentation pages\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [ ] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\n- [ ] `rn/breaking-change` - The PR will be mentioned in the \"Breaking Changes\" section\n- [ ] `rn/feature` - A new user-facing feature worth mentioning in the release notes\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n- [ ] `rn/documentation` - A user-facing documentation change worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #26496",
+      "goldTitle": "Fix `dump_input_data` serialization of dict inputs",
+      "goldFiles": [
+        "mlflow/utils/proto_json_utils.py",
+        "tests/utils/test_proto_json_utils.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26519.diff",
+      "testFiles": [
+        "tests/utils/test_proto_json_utils.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/utils/test_proto_json_utils.py'",
+      "mergeCommit": "b12ba4e3c5499153f765bf004ff75ca722bca7bd",
+      "mergedAt": "2026-10-07T13:02:33Z",
+      "loc": 32,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26204",
+      "area": "mlflow/cli",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nRelates to #26203. This is a follow-on to #26192, which fixed the same thing for `traces search --order-by`.\n\n### What changes are proposed in this pull request?\n\n`mlflow traces delete --trace-ids` splits on `,` without stripping the entries. When there is a space after a comma, that ID reaches the store with a leading space and matches no trace. The command still exits 0 and reports the smaller count:\n\n```\n$ mlflow traces delete --experiment-id 1 --trace-ids \"tr-503c90beb4f88e1f185ed623493941da, tr-7b2b2ddf122c63bab2f4b3305b21e24a\"\nDeleted 1 trace(s) from experiment 1.\n$ mlflow traces search --experiment-id 1 --extract-fields info.trace_id\ntr-8cba07bf8bb76af244c8033296f9c41d\ntr-7b2b2ddf122c63bab2f4b3305b21e24a      <- not deleted\n```\n\n- **Why:** `trace_id_list = trace_ids.split(\",\")` keeps `\" tr-7b2b...\"` with its leading space.\n- **Why no test caught it:** the existing `test_delete_command` uses `tr-1,tr-2,tr-3`, which has no spaces, and it doesn't check which IDs reach `delete_traces`.\n- **Fix:** strip each entry. `traces search --order-by` (since #26192) and `traces evaluate --trace-ids` (`mlflow/cli/eval.py`) already do this:\n\n```python\ntrace_id_list = [t.strip() for t in trace_ids.split(\",\")] if trace_ids else None\n```\n\n- **Other affected paths:** the same command is the MCP `delete_traces` tool, where an agent is likely to write `\"a, b\"`. `mlflow gc --run-ids/--experiment-ids` also doesn't strip, but it fails loudly (`Run with id= ... not found`) rather than silently, so I left it out of this PR.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\nNew test: `test_delete_command_strips_spaces_in_trace_ids` in `tests/cli/test_traces.py`. It follows the pattern of the #26192 test and asserts the IDs that `delete_traces` was called with.\n- On master it fails:\n\n  ```\n  E       AssertionError: assert ['tr-1', ' tr-2'] == ['tr-1', 'tr-2']\n  E         At index 1 diff: ' tr-2' != 'tr-2'\n  ```\n\n- On this branch it passes.\n\nManual test: I ran the command above against a local SQLite tracking store with three traces. On master, 1 of 2 traces is deleted; on this branch, both are.\n\nChecks:\n- `pytest tests/cli/ tests/utils/test_jsonpath_utils.py`: 165 passed.\n- `ruff check` and `ruff format --check` (0.16.8) are clean.\n- `clint` reports no errors.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\n`mlflow traces delete --trace-ids` now accepts a space after each comma instead of silently skipping those IDs.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\n---\n\nAI disclosure: an AI coding agent (Claude Code, Claude Opus 5.5) working through the `breken-ai` account found this bug and wrote the fix, the test and this description. The red/green test and the manual SQLite run above are real. The commit is DCO signed off by `breken-ai`.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+      "goldTitle": "Strip spaces around `--trace-ids` entries in `mlflow traces delete`",
+      "goldFiles": [
+        "mlflow/cli/traces.py",
+        "tests/cli/test_traces.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26204.diff",
+      "testFiles": [
+        "tests/cli/test_traces.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/cli/test_traces.py'",
+      "mergeCommit": "1a4059a3d4d93a523d559901751267f9bd6de6e0",
+      "mergedAt": "2026-09-27T01:38:26Z",
+      "loc": 15,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26523",
+      "area": "mlflow/gateway",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\n### What changes are proposed in this pull request?\n\nOpenAI-compatible clients can send `parallel_tool_calls: false` with a forced tool choice. The AI Gateway currently forwards that field to Anthropic Messages, causing Anthropic and Vertex Claude to reject the request.\n\n- **Translate:** Map `parallel_tool_calls: false` to `tool_choice.disable_parallel_tool_use: true` for supported tool choices.\n- **Drop:** Remove the OpenAI-only top-level field for all values; leave tool choice unchanged when the flag has nowhere to attach.\n- **Cover:** Add focused regression cases for named, automatic, required, disabled, and absent tool choices.\n\n```python\n{\"tool_choice\": {\"type\": \"tool\", \"name\": \"extract\", \"disable_parallel_tool_use\": True}}\n```\n\n### How is this PR tested?\n\n- [ ] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\n### Does this PR require documentation update?\n\n- [x] No.\n- [ ] Yes. I've updated:\n  - [ ] Examples\n  - [ ] API references\n  - [ ] Instructions\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n- [ ] Yes. Please link the corresponding PR or explain how you plan to update it.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [ ] No.\n- [x] Yes. OpenAI-compatible requests that disable parallel tool calls no longer fail against Anthropic or Vertex Claude because of an unsupported request field.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [ ] `area/tracking`: Tracking Service, tracking client APIs, autologging\n- [ ] `area/models`: MLmodel format, model serialization/deserialization, flavors\n- [ ] `area/model-registry`: Model Registry service, APIs, and the fluent client calls for Model Registry\n- [ ] `area/scoring`: MLflow Model server, model deployment tools, Spark UDFs\n- [ ] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\n- [x] `area/gateway`: MLflow AI Gateway client APIs, server, and third-party integrations\n- [ ] `area/prompts`: MLflow prompt engineering features, prompt templates, and prompt management\n- [ ] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n- [ ] `area/projects`: MLproject format, project running backends\n- [ ] `area/uiux`: Front-end, user experience, plotting, JavaScript, JavaScript dev server\n- [ ] `area/build`: Build and test infrastructure for MLflow\n- [ ] `area/docs`: MLflow documentation pages\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [ ] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\n- [ ] `rn/breaking-change` - The PR will be mentioned in the \"Breaking Changes\" section\n- [ ] `rn/feature` - A new user-facing feature worth mentioning in the release notes\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n- [ ] `rn/documentation` - A user-facing documentation change worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\n<!-- START COPILOT CODING AGENT SUFFIX -->\n\n- Fixes #26521",
+      "goldTitle": "Fix `parallel_tool_calls` translation for Anthropic and Vertex Claude",
+      "goldFiles": [
+        "mlflow/gateway/providers/anthropic.py",
+        "tests/gateway/providers/test_anthropic_adapter.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26523.diff",
+      "testFiles": [
+        "tests/gateway/providers/test_anthropic_adapter.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_anthropic_adapter.py'",
+      "mergeCommit": "b89930558c076b39f71d566eff82fee9b9a4eede",
+      "mergedAt": "2026-10-09T09:48:17Z",
+      "loc": 51,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26394",
+      "area": "mlflow/tracing",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #26316\n\n### What changes are proposed in this pull request?\n\n`_build_genai_span_name` (`translator.py:173-175`) named TOOL and AGENT spans `execute_tool` and `invoke_agent`, or `{operation} {model}` with a model, dropping the tool or agent name in the span name.\n- Following the table in #26316, `gen_ai.tool.name` and `gen_ai.agent.name` come from the span name, which becomes `execute_tool {name}` or `invoke_agent {name}`, even with a model, per [gen-ai-spans.md:1148](https://github.com/open-telemetry/semantic-conventions-genai/blob/b31e9e8ea26ac1c086d3313d474e31d7c3f391ae/docs/gen-ai/gen-ai-spans.md#L1148) and [gen-ai-agent-spans.md:555](https://github.com/open-telemetry/semantic-conventions-genai/blob/b31e9e8ea26ac1c086d3313d474e31d7c3f391ae/docs/gen-ai/gen-ai-agent-spans.md#L555-L556). An autologger that names spans `{Class}.{method}` exports that string, so a pydantic-ai 2.x `agent.run()` exports `invoke_agent Agent.run`.\n- A span with no name, or named after its operation, exports as before and gets no name attribute.\n- A name attribute the span already carries wins, because Strands and Semantic Kernel set one and name spans `execute_tool {name}` and `invoke_agent {name}`. The translator overwrote those names with the bare operation, or with `invoke_agent {model}` for a Strands agent with a `model_id`.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\n```\n# master at 59dac6f\n$ python repro_26316.py    # the snippet from #26316\n'get_weather' (TOOL) -> name='execute_tool' attrs=['gen_ai.operation.name', 'gen_ai.tool.call.arguments', 'gen_ai.tool.call.result']\n'travel_planner' (AGENT) -> name='invoke_agent' attrs=['gen_ai.operation.name']\n'my_pipeline' (CHAIN) -> name='CHAIN' attrs=['gen_ai.operation.name']\n$ python repro_agent_run.py    # the same snippet with the one span pydantic_ai/autolog_v2.py:97 starts: Agent.run, typed AGENT\n'Agent.run' (AGENT) -> name='invoke_agent' attrs=['gen_ai.operation.name']\n$ python -m pytest tests/strands/test_semconv_probe.py -q -s | grep '^name='    # scratch test, not in this PR: a Strands agent with one tool, semconv export on\nname='execute_tool' tool.name='sum' agent.name=None\nname='invoke_agent' tool.name=None agent.name='agent'\n$ python -m pytest tests/strands/test_semconv_probe_modelid.py -q -s | grep '^name=.*invoke'    # also scratch: the same agent with a model_id, as a default Agent() has\nname='invoke_agent us.anthropic.claude-sonnet-4' tool.name=None agent.name='agent' model='us.anthropic.claude-sonnet-4'\n\n# with this change\n$ python repro_26316.py\n'get_weather' (TOOL) -> name='execute_tool get_weather' attrs=['gen_ai.operation.name', 'gen_ai.tool.call.arguments', 'gen_ai.tool.call.result', 'gen_ai.tool.name']\n'travel_planner' (AGENT) -> name='invoke_agent travel_planner' attrs=['gen_ai.agent.name', 'gen_ai.operation.name']\n'my_pipeline' (CHAIN) -> name='CHAIN' attrs=['gen_ai.operation.name']\n$ python repro_agent_run.py\n'Agent.run' (AGENT) -> name='invoke_agent Agent.run' attrs=['gen_ai.agent.name', 'gen_ai.operation.name']\n$ python -m pytest tests/strands/test_semconv_probe.py -q -s | grep '^name='\nname='execute_tool sum' tool.name='sum' agent.name=None\nname='invoke_agent agent' tool.name=None agent.name='agent'\n$ python -m pytest tests/strands/test_semconv_probe_modelid.py -q -s | grep '^name=.*invoke'\nname='invoke_agent agent' tool.name=None agent.name='agent' model='us.anthropic.claude-sonnet-4'\n```\n\n```\n$ python -m pytest -q -n 4 -p no:cacheprovider tests/tracing/export/genai_semconv/test_translator.py tests/anthropic/test_anthropic_genai_semconv_converter.py \\\n    tests/bedrock/test_genai_semconv_converter.py tests/gemini/test_gemini_genai_semconv_converter.py \\\n    tests/openai/test_genai_semconv_converter.py tests/tracing/otel/test_span_translation.py\n265 passed, 5 warnings in 23.56s\n# baseline at 59dac6f: 257 passed, so the delta is the 8 new cases\n# translator.py reverted, tests kept: test_translator.py gives 6 failed, 32 passed (test_full_tool_span,\n# test_full_agent_span, both *_is_kept cases, the two updated test_span_name_and_kind rows)\n$ pre-commit run --files mlflow/tracing/constant.py mlflow/tracing/export/genai_semconv/translator.py tests/tracing/export/genai_semconv/test_translator.py\nruff.....................................................................Passed\nformat...................................................................Passed\nunresolved-import........................................................Passed\nclint....................................................................Passed\ntypos....................................................................Passed\n# every other hook Passed or Skipped; ruff 0.16.8 from the lint group, Python 3.12.3\n# not run: the full test suite, and Semantic Kernel or pydantic-ai end to end (span names read from function_tracer.py:49 and autolog_v2.py:97)\n```\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\nGenAI semconv export now names tool and agent spans `execute_tool {name}` and `invoke_agent {name}` from the original span name, and sets `gen_ai.tool.name` and `gen_ai.agent.name`. Previously the names were the bare operation or `{operation} {model}`.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n- [ ] This PR is critical and needs to be in the next patch release\n  - Not a regression: the translator has dropped tool and agent names since #21494 added it.\n- [x] This PR can wait for the next minor release\n\n@aaronteo-db @B-Step62 is `invoke_agent Agent.run` fine, or should autologgers set `gen_ai.agent.name`?",
+      "goldTitle": "Keep tool and agent names on GenAI semconv `execute_tool` and `invoke_agent` spans",
+      "goldFiles": [
+        "mlflow/tracing/constant.py",
+        "mlflow/tracing/export/genai_semconv/translator.py",
+        "tests/tracing/export/genai_semconv/test_translator.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26394.diff",
+      "testFiles": [
+        "tests/tracing/export/genai_semconv/test_translator.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/tracing/export/genai_semconv/test_translator.py'",
+      "mergeCommit": "9340ef7cf347b2bd2b4bcf8bd95735b2596e1156",
+      "mergedAt": "2026-10-04T15:22:50Z",
+      "loc": 135,
+      "preflight": {
+        "baseKind": "symbol",
+        "testNeedsGoldSymbols": true,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26311",
+      "area": "mlflow/data",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n<!--\r\nDo not remove any sections. Remove unused checkboxes except for the patch release section at the bottom.\r\nUse backticks for code references and file paths in the PR title (e.g., `ClassName`, `function_name`, `utils.py`).\r\n-->\r\n\r\n### Related Issues/PRs\r\n\r\n<!-- 🚨 Choose either \"Closes\" (auto-close on merge) or \"Relates to\" (reference only). 🚨 -->\r\n\r\nCloses #12989\r\n\r\n### What changes are proposed in this pull request?\r\n\r\nFixes an error in `EvaluationDataset` hashing when a dataset contains nested variable-length NumPy arrays of dictionaries.\r\n\r\nPreviously, `_hash_array_like_obj_as_bytes()` attempted to convert irregular nested arrays into a rectangular NumPy array with `np.array(data.tolist())`. For variable-length nested arrays, NumPy raises a `ValueError`, causing `to_evaluation_dataset()` to fail.\r\n\r\nThis change falls back to MLflow's existing recursive hashing logic for arrays containing dictionaries when the rectangular conversion fails.\r\n\r\n### How is this PR tested?\r\n\r\n- [ ] Existing unit/integration tests\r\n- [x] New unit/integration tests\r\n- [ ] Manual tests\r\n\r\nAdded a regression test for a Hugging Face dataset containing nested variable-length arrays of dictionaries.\r\n\r\nValidated with:\r\n\r\n- `python -m ruff format --check mlflow/data/evaluation_dataset.py tests/data/test_huggingface_dataset_and_source.py`\r\n- `python -m ruff check mlflow/data/evaluation_dataset.py tests/data/test_huggingface_dataset_and_source.py`\r\n- `python -m pytest -q tests/data/test_huggingface_dataset_and_source.py`\r\n\r\nResult: 13 tests passed.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n- [ ] Yes. I've updated:\r\n  - [ ] Examples\r\n  - [ ] API references\r\n  - [ ] Instructions\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n- [x] No.\r\n- [ ] Yes. Please link the corresponding PR or explain how you plan to update it.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [ ] No.\r\n- [x] Yes. This fixes a user-facing error where `to_evaluation_dataset()` can fail when hashing nested variable-length arrays.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [ ] `area/tracking`: Tracking Service, tracking client APIs, autologging\r\n- [ ] `area/models`: MLmodel format, model serialization/deserialization, flavors\r\n- [ ] `area/model-registry`: Model Registry service, APIs, and the fluent client calls for Model Registry\r\n- [ ] `area/scoring`: MLflow Model server, model deployment tools, Spark UDFs\r\n- [ ] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\r\n- [ ] `area/gateway`: MLflow AI Gateway client APIs, server, and third-party integrations\r\n- [ ] `area/prompts`: MLflow prompt engineering features, prompt templates, and prompt management\r\n- [ ] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\r\n- [ ] `area/projects`: MLproject format, project running backends\r\n- [ ] `area/uiux`: Front-end, user experience, plotting, JavaScript, JavaScript dev server\r\n- [x] `area/build`: Build and test infrastructure for MLflow\r\n- [ ] `area/docs`: MLflow documentation pages\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [ ] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\r\n- [ ] `rn/breaking-change` - The PR will be mentioned in the \"Breaking Changes\" section\r\n- [ ] `rn/feature` - A new user-facing feature worth mentioning in the release notes\r\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\r\n- [ ] `rn/documentation` - A user-facing documentation change worth mentioning in the release notes\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix hashing of nested variable-length arrays",
+      "goldFiles": [
+        "mlflow/data/evaluation_dataset.py",
+        "tests/data/test_evaluation_dataset.py",
+        "tests/data/test_huggingface_dataset_and_source.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26311.diff",
+      "testFiles": [
+        "tests/data/test_evaluation_dataset.py",
+        "tests/data/test_huggingface_dataset_and_source.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/data/test_evaluation_dataset.py' 'tests/data/test_huggingface_dataset_and_source.py'",
+      "mergeCommit": "8d383877adbcef1812ca986fb4bcbac64236ab36",
+      "mergedAt": "2026-10-02T09:33:37Z",
+      "loc": 106,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 18
+      }
+    },
+    {
+      "id": "PR26362",
+      "area": "mlflow/utils",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #5224\n\n### What changes are proposed in this pull request?\n\nReject whitespace-only experiment names through shared validation while preserving valid names unchanged. Add validation and SQL-backed creation/rename regression tests. Existing stored names are not migrated.\n\n### How is this PR tested?\n\n398 passed, 12 skipped in Codex Cloud. Coverage includes shared validation and SQL-backed experiment creation/renaming.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No. This corrects validation without adding an API or workflow.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Experiment creation and renaming reject whitespace-only names while preserving valid names exactly as supplied.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracking`\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix`\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\nAssisted by OpenAI Codex.",
+      "goldTitle": "Reject whitespace-only experiment names",
+      "goldFiles": [
+        "mlflow/utils/validation.py",
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py",
+        "tests/utils/test_validation.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26362.diff",
+      "testFiles": [
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py",
+        "tests/utils/test_validation.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py' 'tests/utils/test_validation.py'",
+      "mergeCommit": "dbffdea0fc96899c3af993a885d0d4b3abbb44df",
+      "mergedAt": "2026-10-07T23:49:18Z",
+      "loc": 28,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 9
+      }
+    },
+    {
+      "id": "PR26172",
+      "area": "mlflow/genai",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n<!--\nDo not remove any sections. Remove unused checkboxes except for the patch release section at the bottom.\nUse backticks for code references and file paths in the PR title (e.g., `ClassName`, `function_name`, `utils.py`).\n-->\n\n### Related Issues/PRs\n\n<!-- 🚨 Choose either \"Closes\" (auto-close on merge) or \"Relates to\" (reference only). 🚨 -->\n\nNone, small fix.\n\n### What changes are proposed in this pull request?\n\nWhen a custom `@scorer` is loaded back, `recreate_function` rebuilds the `def` from the saved `str(inspect.signature(func))`. The parameter list was pulled out with `re.match(r\"\\((.*?)\\)\", signature)`, which stops at the first `)`. So a scorer like\n\n```python\n@scorer\ndef has_keywords(outputs, keywords=(\"refund\", \"order\")) -> bool:\n    return all(k in outputs for k in keywords)\n```\n\ngets cut at `(\"refund\", \"order\"` and the rebuilt function is invalid:\n\n```\nMlflowException: Failed to recreate function from source code ... Error: invalid syntax (<string>, line 2)\n```\n\nIt saves fine but can never be loaded. Since `str(inspect.signature(func))` is valid `def` syntax, the signature is now parsed once with `ast.parse(f\"def _f{signature}: pass\")` (nothing is executed) and the parameter list is taken from `ast.unparse(func_def.args)`. The return annotation is still dropped like before, and the unused `re` import is gone.\n\n### How is this PR tested?\n\n- [x] New unit/integration tests\n\nAdded `test_signature_with_parentheses_in_defaults` to `tests/genai/scorers/test_scorer_utils.py`, covering a tuple default, a call default and a `\")\"` string default. It fails on master with the SyntaxError above and passes with the change. `tests/genai/scorers/test_scorer_utils.py` and `test_serialization.py` pass.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\nCustom `@scorer` functions whose signature has parentheses in a default value or annotation can now be loaded back after being saved.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix loading `@scorer` functions whose signature contains parentheses",
+      "goldFiles": [
+        "mlflow/genai/scorers/scorer_utils.py",
+        "tests/genai/scorers/test_scorer_utils.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26172.diff",
+      "testFiles": [
+        "tests/genai/scorers/test_scorer_utils.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/scorers/test_scorer_utils.py'",
+      "mergeCommit": "b610b1385f7026a4621bf03910f13183005b35a7",
+      "mergedAt": "2026-09-25T09:51:53Z",
+      "loc": 35,
+      "preflight": {
+        "baseKind": "symbol",
+        "testNeedsGoldSymbols": true,
+        "secs": 8
+      }
+    },
+    {
+      "id": "PR26267",
+      "area": "mlflow/server",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #25914\n\n### What changes are proposed in this pull request?\n\nServe `GET /api/3.0/mlflow/server-info` and the AJAX equivalent on native FastAPI routes that use a dedicated AnyIO thread limiter. The shared WSGI pool can be full without blocking capability discovery. The Flask handler remains for Gunicorn and Waitress and still builds the same JSON. The paths stay public, including when `--static-prefix` is set.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\n`/api/3.0/mlflow/server-info` stays available when the tracking server's shared WSGI thread pool is exhausted.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Keep server-info responsive when shared WSGI thread pool is exhausted",
+      "goldFiles": [
+        "mlflow/server/auth/__init__.py",
+        "mlflow/server/fastapi_app.py",
+        "mlflow/server/handlers.py",
+        "mlflow/server/mcp_server_api.py",
+        "mlflow/server/mlflow_response.py",
+        "mlflow/server/server_info_api.py",
+        "tests/server/auth/test_authorization_coverage.py",
+        "tests/server/test_fastapi_app.py",
+        "tests/server/test_server_info_api.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26267.diff",
+      "testFiles": [
+        "tests/server/auth/test_authorization_coverage.py",
+        "tests/server/test_fastapi_app.py",
+        "tests/server/test_server_info_api.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/server/auth/test_authorization_coverage.py' 'tests/server/test_fastapi_app.py' 'tests/server/test_server_info_api.py'",
+      "mergeCommit": "59dac6f73ed74e9cd7a1b7d21dc46aacc7ce3361",
+      "mergedAt": "2026-10-01T20:35:26Z",
+      "loc": 274,
+      "preflight": {
+        "baseKind": "symbol",
+        "testNeedsGoldSymbols": true,
+        "secs": 3
+      }
+    },
+    {
+      "id": "PR26137",
+      "area": "mlflow/models",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nRelates to #issue_number\n\n### What changes are proposed in this pull request?\n\nAdds a new `DatabricksUCModelService` model-serving resource (wire value `uc_model_service`) alongside the existing Databricks resources. Concretely:\n\n- New `ResourceType.UC_MODEL_SERVICE = \"uc_model_service\"` enum member.\n- New `DatabricksUCModelService(model_service_name=..., on_behalf_of_user=...)` class, subclassing `DatabricksResource` so it inherits the standard `to_dict`/`from_dict` and on-behalf-of-user plumbing.\n- Its entry in `_get_resource_class_by_type`, so it round-trips through the resource (de)serialization and YAML paths.\n\nThis targets the resource-metadata surface only. Wiring the type into UC model-version dependency registration (`get_model_version_dependencies` in `mlflow/store/_unity_catalog/registry/rest_store.py`) is **intentionally deferred**: that path feeds `model_version_dependencies` into the `CreateModelVersionRequest` proto, whose `Dependency.type` is the closed `DependencyType` enum. Emitting an unknown type there would fail registration, so it should land only after the backend proto recognizes the new type.\n\nThe existing `serving_endpoint` resource is left untouched for backward compatibility.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [ ] Manual tests\n\nAdded `test_uc_model_service` (parametrized over `on_behalf_of_user`) and extended `test_resources` and `test_resources_from_yaml` to cover the new type's serialization and round-trip. `tests/models/test_resources.py` passes (33 tests).\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\nAdds the `DatabricksUCModelService` resource type for declaring a Databricks Unity Catalog Model Service dependency when logging a model.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/models`: MLmodel format, model serialization/deserialization, flavors\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/feature` - A new user-facing feature worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\nThis pull request and its description were written by Isaac.",
+      "goldTitle": "Add `DatabricksUCModelService` resource type",
+      "goldFiles": [
+        "mlflow/models/resources.py",
+        "tests/models/test_resources.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26137.diff",
+      "testFiles": [
+        "tests/models/test_resources.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/models/test_resources.py'",
+      "mergeCommit": "8328f505c82dda30ef6d3cec9c9a79fa0129f86f",
+      "mergedAt": "2026-09-24T03:42:24Z",
+      "loc": 48,
+      "preflight": {
+        "baseKind": "symbol",
+        "testNeedsGoldSymbols": true,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26332",
+      "area": "mlflow/genai",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nRelates to #22138, which taught the same function to find a ```` ```json ```` block after preamble text.\n\n### What changes are proposed in this pull request?\n\n`_strip_markdown_code_blocks` assumes the opening and closing fences each sit on their own line. Two shapes that break that assumption get through and make the judge fail:\n\n~~~text\n```json {\"result\": \"yes\", \"rationale\": \"ok\"}```     -> returned as \"\" (the whole first line is dropped as the fence line)\n```json\n{\"result\": \"yes\", \"rationale\": \"ok\"}```             -> the trailing ``` is kept\n~~~\n\nBoth then fail in `json.loads`, and the judge raises `MlflowException: Failed to parse response from judge model`. The function is shared by the gateway and LiteLLM judge adapters, both structured-output helpers in `invocation_utils.py`, and the Ragas model wrapper.\n\nThe fix stays inside the branch that handles a response starting with a fence:\n\n- a one-line response has its opening fence (with optional language tag) and trailing fence removed;\n- in a multi-line response, a fence on its own line still closes the block, exactly as before. Only when there is no such line is a fence glued to the end of a line used, keeping the text before it. The order matters: most callers use `json.loads(strict=False)`, which accepts raw newlines inside strings, so a line inside a JSON string can itself end with ```` ``` ````.\n\nThe result is stripped, as the embedded-block branch already does.\n\nTwo shapes are left out and still not stripped: an unlabeled fence after preamble text (`Here is my verdict:` followed by a bare ```` ``` ```` block), and a multi-line reply whose opening fence is glued to the content (```` ```json { ```` on the first line). The first would mean widening the embedded-block regex to unlabeled fences, which could match the closing fence of an earlier non-JSON block, so I would rather handle both in a separate change.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\nNew tests in `tests/genai/judges/utils/test_parsing_utils.py`:\n\n- `test_strip_markdown_fence_on_same_line_as_content`: single-line with and without a language tag, and a glued closing fence on one-line JSON, on multi-line JSON, and followed by trailing prose. On master all five cases fail:\n\n  ~~~text\n  E       assert '' == '{\"result\": \"yes\"}'\n  E       assert '{\"result\": \"yes\"}```' == '{\"result\": \"yes\"}'\n  E       assert '{\"result\": \"...pe this helps' == '{\"result\": \"yes\"}'\n  ~~~\n\n- `test_strip_markdown_line_ending_with_backticks_inside_multiline_string`: a standard fence around JSON whose string holds a raw newline right after a ```` ``` ````. It passes on master and pins that a fence on its own line still wins over a line that merely ends with backticks.\n\nManual test: `make_judge(name=\"politeness\", ..., feedback_value_type=bool, model=\"openai:/gpt-4o-mini\")`, with `send_chat_request` in `gateway_adapter` mocked to return each reply as the message content.\n\n~~~text\n# master\nplain JSON           -> value=True\nmulti-line fence     -> value=True\nsingle-line fence    -> raised MlflowException: Failed to parse response from judge model. Response: ```json {\"result\": true, \"rationale\": \"polite\"}```\nclosing fence glued  -> raised MlflowException: Failed to parse response from judge model. Response: ```json\n{\"result\": true, \"rationale\": \"polite\"}```\n\n# this branch\nplain JSON           -> value=True\nmulti-line fence     -> value=True\nsingle-line fence    -> value=True\nclosing fence glued  -> value=True\n~~~\n\nI also sent a fenced reply whose rationale has a raw newline right after a ```` ``` ```` through `GatewayAdapter.invoke` with `ollama:/llama3.2:3b` (the path of `test_invoke_parses_response_with_newlines_in_json_strings`). It returns `value='yes'` on master and on this branch.\n\nChecks:\n- `uv run pytest tests/genai/judges`: 923 passed, 10 skipped.\n- `tests/genai/scorers/test_builtin_scorers.py`, `test_llm_backend.py`, `test_scorer_utils.py` and `ragas/test_models.py`: 277 passed, 5 skipped. The full `tests/genai/scorers/ragas` run gives the same results as on master.\n- `pre-commit run --files` on both changed files: no hook failed.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\nLLM judges no longer fail with \"Failed to parse response from judge model\" when the model puts its JSON in a single-line code fence or puts the closing fence on the same line as the JSON.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+      "goldTitle": "Fix `_strip_markdown_code_blocks` for single-line and glued closing code fences",
+      "goldFiles": [
+        "mlflow/genai/judges/utils/parsing_utils.py",
+        "tests/genai/judges/utils/test_parsing_utils.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26332.diff",
+      "testFiles": [
+        "tests/genai/judges/utils/test_parsing_utils.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/judges/utils/test_parsing_utils.py'",
+      "mergeCommit": "f9566d17741ad0af8beb134d162d2b34348fe20b",
+      "mergedAt": "2026-10-02T09:38:56Z",
+      "loc": 45,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26619",
+      "area": "mlflow/store",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n> [!NOTE]\r\n> Drafted by [automated triage](https://github.com/mlflow/mlflow/actions/runs/38039829090/attempts/1). Please review carefully before marking it ready.\r\n\r\n### Related Issues/PRs\r\n\r\nCloses #26618\r\n\r\n### What changes are proposed in this pull request?\r\n\r\n`SqlAlchemyStore.search_experiments` rejected lowercase comparators such as `name like 'Def%'` or `tags.t ilike 'v%'` with `Invalid comparator 'like' ...`. `SearchExperimentsUtils._get_comparison` keeps the comparator exactly as typed. `_get_search_experiments_filter_clauses` then compared it against uppercase-only sets, while the runs path and the file store uppercase it first.\r\n\r\nThis PR uppercases the comparator in `_get_search_experiments_filter_clauses`, which matches `_get_sqlalchemy_filter_clauses` for runs.\r\n\r\n### How is this PR tested?\r\n\r\n- [x] Existing unit/integration tests\r\n- [x] New unit/integration tests\r\n- [ ] Manual tests\r\n\r\nAdded `test_search_experiments_filter_with_lowercase_comparator`, which covers lowercase `like`/`ilike` on names and tags and lowercase `is null` on tags, in both workspace modes. Without the fix it fails for `like`/`ilike`; with it, it passes.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n- [x] No.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\r\n\r\n`search_experiments` on SQL backends now accepts lowercase comparators such as `like` and `ilike` in filter strings.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release\r\n\r\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+      "goldTitle": "Accept lowercase comparators in `search_experiments` for SQL stores",
+      "goldFiles": [
+        "mlflow/store/tracking/sqlalchemy_store.py",
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26619.diff",
+      "testFiles": [
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py'",
+      "mergeCommit": "a4d5f3e7b929b60abda621d1cdc20b1d46c47545",
+      "mergedAt": "2026-10-10T10:57:36Z",
+      "loc": 24,
+      "preflight": {
+        "baseKind": "other",
+        "testNeedsGoldSymbols": false,
+        "secs": 8
+      }
+    },
+    {
+      "id": "PR26082",
+      "area": "mlflow/genai",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #26042\n\n### What changes are proposed in this pull request?\n\nIssue discovery can crash when the model proposes a deduplication group containing an index that does not exist. For example, `[0, 3]` is out of range for three candidate issues. Negative indices can silently merge the wrong findings, and repeated indices can overwrite an issue's description without merging distinct findings.\n\nThis PR validates each merge proposal before it changes the merge state or issue metadata:\n\n- Require at least two indices, with no duplicates, negative values, or out-of-range references.\n- Skip the entire malformed proposal and log it at debug level. Its candidate issues remain available for other valid merges.\n- Continue processing valid proposals, including overlapping groups that merge transitively.\n- Add regression coverage for invalid references, duplicate indices, partial-mutation risks, and invalid proposals overlapping valid merges in either order.\n\nI've kept the fallback scoped to the malformed proposal. Removing only its invalid indices could apply a description written for a different set of issues. This adds no model calls or changes to the prompt or public API.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\n`pytest tests/genai/discovery/test_pipeline.py -q`: **70 passed** on this branch.\n\nThe regression tests compare complete snapshots of issue values, so accidental metadata changes cannot be hidden by comparing the same mutable objects. They also verify that valid merges still retain their supporting examples.\n\nAn offline replay of the recorded response described in #26042 now completes instead of raising `IndexError`: 43 candidates become 8 merged findings, preserving all 96 supporting analyses with no live model requests.\n\n**Remaining checks before marking ready for review:** local tests used Python 3.10.18 and pytest 9.0.2. The repository pins pytest 9.1.1 and Ruff 0.16.4. Custom `clint`, whitespace checks, and the available Ruff 0.15.10 lint/format checks passed using an external version-adjusted config; the repository config was not changed. Pinned-tooling validation and two broader discovery tests that require the missing LiteLLM dependency are still outstanding. Package downloads were refused in the local environment.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\nIssue discovery now skips malformed deduplication references instead of crashing or incorrectly merging findings, while continuing to process valid merge proposals.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/evaluation`: MLflow model evaluation features, evaluation metrics, and evaluation workflows\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Validate deduplication group references in issue discovery",
+      "goldFiles": [
+        "mlflow/genai/discovery/pipeline.py",
+        "tests/genai/discovery/test_pipeline.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26082.diff",
+      "testFiles": [
+        "tests/genai/discovery/test_pipeline.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/discovery/test_pipeline.py'",
+      "mergeCommit": "97a050e9ea6d0a0c110d2e497cdda901d3db6082",
+      "mergedAt": "2026-09-25T09:21:15Z",
+      "loc": 74,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 4
+      }
+    },
+    {
+      "id": "PR26192",
+      "area": "mlflow/cli",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nRelates to #17302 (the PR that added `mlflow traces`). No issue filed; this is a small fix.\n\n### What changes are proposed in this pull request?\n\nThe help for `mlflow traces search --order-by` says:\n\n> Comma-separated list of fields to order by (e.g., 'timestamp_ms DESC, status')\n\nThat example doesn't work. The value is split with `order_by.split(\",\")` and the entries aren't stripped, so the second entry reaches `SearchTraceUtils.parse_order_by_for_search_traces` as `' status'`. Its sqlparse-based parser rejects any leading or trailing whitespace:\n\n```\n$ mlflow traces search --experiment-id 1 --order-by \"timestamp_ms DESC, status\"\nmlflow.exceptions.MlflowException: Invalid order_by clause ' status'. Could not be parsed.\n```\n\nThis PR strips each entry, which is what `mlflow datasets search` already does:\n\n```python\norder_by_list = [o.strip() for o in order_by.split(\",\")] if order_by else None\n```\n\nI ran the same command against a local SQLite tracking store. On master it fails with the error above; on this branch it exits 0 and lists the traces.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [x] Manual tests\n\nI added `test_search_command_strips_spaces_in_order_by` to `tests/cli/test_traces.py`. It fails on master and passes on this branch:\n\n```\nE       AssertionError: assert ['timestamp_m...C', ' status'] == ['timestamp_m...SC', 'status']\nE         At index 1 diff: ' status' != 'status'\n```\n\n`pytest tests/cli/test_traces.py` passes. `ruff check` and `ruff format --check` are clean.\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\n\n`mlflow traces search --order-by` now accepts a space after each comma, as in its help example `'timestamp_ms DESC, status'`.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release\n\n---\n\nThis PR was written by an AI agent (Claude Code, operated through the breken-ai account); a human reviews the account's PRs. The failing-then-passing test above was run locally.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+      "goldTitle": "Strip spaces around `--order-by` entries in `mlflow traces search`",
+      "goldFiles": [
+        "mlflow/cli/traces.py",
+        "tests/cli/test_traces.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26192.diff",
+      "testFiles": [
+        "tests/cli/test_traces.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/cli/test_traces.py'",
+      "mergeCommit": "ec25bea15c6239125d0386a0116a572bf23b5159",
+      "mergedAt": "2026-09-26T10:11:23Z",
+      "loc": 15,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26093",
+      "area": "mlflow/store",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nCloses #26086\n\n### What changes are proposed in this pull request?\n\nUse SQLAlchemy boolean equality when looking up the protected default label schema. This compiles to valid `= 1` syntax on MSSQL 2022 and older instead of the unsupported `IS 1` predicate.\n\nAdd a regression test that compiles the actual production query with the MSSQL dialect for both standard and workspace-aware tracking stores.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n\nFocused and surrounding suites:\n\n- New MSSQL predicate regression test: 2 passed\n- Label-schema store tests: 100 passed\n- Review-queue store tests: 189 passed\n- Pre-commit checks on both changed files\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] Yes. Fix label-schema and review-queue question loading when MLflow uses Microsoft SQL Server 2022 or older as its tracking backend.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n<details>\n<summary>What is a minor/patch release?</summary>\n\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\n\n</details>\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix MSSQL label schema boolean predicate",
+      "goldFiles": [
+        "mlflow/store/tracking/sqlalchemy_store.py",
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26093.diff",
+      "testFiles": [
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py'",
+      "mergeCommit": "489fa78365ccb80cee4d8f5e2e42a0674814ad5c",
+      "mergedAt": "2026-09-23T02:37:40Z",
+      "loc": 31,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 4
+      }
+    },
+    {
+      "id": "PR26503",
+      "area": "mlflow/utils",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\r\n\r\nIndependent small correction; no matching issue or fix was found. The diff is under the 100-line exception in `.github/workflows/auto-close-pr.js`, so it does not require a new `ready` issue.\r\n\r\n### What changes are proposed in this pull request?\r\n\r\nPreserve the header row when `_create_table` receives no data rows. Compute empty-column widths from the existing header and minimum-width rules; populated tables keep their existing behavior. This fixes the shared renderer used by run, experiment, dataset, and trace CLI tables.\r\n\r\nAI assistance: OpenAI Codex prepared the patch, reviewed affected callers, and ran the checks below.\r\n\r\n### How is this PR tested?\r\n\r\n- [x] Existing unit/integration tests\r\n- [x] New unit/integration tests\r\n\r\n`python -m pytest tests/utils/test_string_utils.py -q`: the new empty-table regression failed before the fix; all 20 tests pass after it. The regression checks both header labels and the existing padding/minimum-width behavior.\r\n\r\nScoped repository pre-commit hooks passed on the exact saved diff in an Ubuntu checkout at upstream commit `2015e0ae8aaf047bbb8720d29534bb2c3cff6108`. Native Windows unit tests use the real source package and a temporary SQLite database. An existing SQLAlchemy `noload` deprecation warning remains. The full MLflow suite was not run.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n- [x] No.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\r\n\r\nEmpty CLI query results now retain their table headers.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\r\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix `_create_table` headers for empty CLI results",
+      "goldFiles": [
+        "mlflow/utils/string_utils.py",
+        "tests/cli/test_scorers.py",
+        "tests/utils/test_string_utils.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26503.diff",
+      "testFiles": [
+        "tests/cli/test_scorers.py",
+        "tests/utils/test_string_utils.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/cli/test_scorers.py' 'tests/utils/test_string_utils.py'",
+      "mergeCommit": "09bdb2cca50a1ab31feefd513ea059bfbd252269",
+      "mergedAt": "2026-10-07T16:37:20Z",
+      "loc": 18,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 3
+      }
+    },
+    {
+      "id": "PR26063",
+      "area": "mlflow/tracing",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n### Related Issues/PRs\n\nRelates to #26046\n\n### What changes are proposed in this pull request?\n\nTreat UC root-span user and session attribute enrichment as best-effort. If enrichment fails, log the failure at debug level and continue through the normal span export path.\n\nThe OpenTelemetry 1.43 attribute-immutability incompatibility described in #26046 has already been fixed. This change defensively prevents any future enrichment failure from dropping the root span while leaving exporter failures visible.\n\n### How is this PR tested?\n\n- [x] Existing unit/integration tests\n- [x] New unit/integration tests\n- [ ] Manual tests\n\nAdded a regression test that forces root-span enrichment to fail and verifies the span is still exported exactly once. Ran:\n\n- `uv run pytest tests/tracing/processor/test_uc_table_processor.py`\n- `uv run pytest tests/tracing/processor`\n\n### Does this PR require documentation update?\n\n- [x] No.\n\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\n\n- [x] No.\n\n### Release Notes\n\n#### Is this a user-facing change?\n\n- [x] No.\n\n#### What component(s), interfaces, languages, and integrations does this PR affect?\n\nComponents\n\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\n\n<a name=\"release-note-category\"></a>\n\n#### How should the PR be classified in the release notes? Choose one:\n\n- [x] `rn/none` - No description will be included. The PR will be mentioned only by the PR number in the \"Small Bugfixes and Documentation Updates\" section\n\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\n\n- [ ] This PR is critical and needs to be in the next patch release\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Ensure UC spans export after attribute enrichment failures",
+      "goldFiles": [
+        "mlflow/tracing/processor/uc_table.py",
+        "tests/tracing/processor/test_uc_table_processor.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26063.diff",
+      "testFiles": [
+        "tests/tracing/processor/test_uc_table_processor.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/tracing/processor/test_uc_table_processor.py'",
+      "mergeCommit": "af52996823160d231badbc2557f8428c5c9db8ea",
+      "mergedAt": "2026-09-22T04:35:12Z",
+      "loc": 31,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 2
+      }
+    },
+    {
+      "id": "PR26130",
+      "area": "mlflow/store",
+      "type": "change",
+      "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\n<!--\r\nDo not remove any sections. Remove unused checkboxes except for the patch release section at the bottom.\r\nUse backticks for code references and file paths in the PR title (e.g., `ClassName`, `function_name`, `utils.py`).\r\n-->\r\n\r\n### Related Issues/PRs\r\n\r\n<!-- 🚨 Choose either \"Closes\" (auto-close on merge) or \"Relates to\" (reference only). 🚨 -->\r\n\r\nRelates to #22728 (same `ensure_ascii=True` issue, for judge prompts).\r\n\r\n### What changes are proposed in this pull request?\r\n\r\nOn SQL backends, `trace.text` / `span.content` search (also used by the UI Traces search box) never matches non-ASCII text:\r\n\r\n```python\r\nimport mlflow\r\n\r\nmlflow.set_tracking_uri(\"sqlite:///mlflow.db\")\r\n\r\n@mlflow.trace\r\ndef answer(question: str) -> str:\r\n    return f\"respuesta a: {question}\"\r\n\r\nfor q in [\"¿Cuál es la capital de España?\", \"什么是MLflow?\", \"What is MLflow?\"]:\r\n    answer(q)\r\n\r\nfor term in [\"España\", \"什么\", \"What is\"]:\r\n    df = mlflow.search_traces(filter_string=f\"trace.text ILIKE '%{term}%'\", flush=True)\r\n    print(term, len(df))\r\n```\r\n\r\n| Search term | `master` | This PR |\r\n|---|---|---|\r\n| `España` | **0** | 1 |\r\n| `什么` | **0** | 1 |\r\n| `What is` | 1 | 1 |\r\n\r\n`SqlAlchemyStore` writes `spans.content` with `json.dumps(...)` and the default `ensure_ascii=True`, so `España` is stored as `Espa\\u00f1a` and the `LIKE` filter can't match it. This PR serializes it with `ensure_ascii=False`, consistent with span attributes and the trace data artifact.\r\n\r\n- MSSQL keeps the escaped form: its `spans.content` is a non-Unicode `VARCHAR`, so raw CJK/emoji would be lost as `?`.\r\n- Existing rows are not migrated; only newly logged spans become searchable.\r\n\r\n### How is this PR tested?\r\n\r\n- [x] Existing unit/integration tests\r\n- [x] New unit/integration tests\r\n- [x] Manual tests\r\n\r\nNew `test_search_traces_with_full_text_filter_non_ascii` covers `trace.text` / `span.content` with `LIKE` / `ILIKE` over accented, CJK and emoji text, and checks that inputs round-trip through `get_trace`. It fails without the fix (16 failed) and passes with it.\r\n\r\n### Does this PR require documentation update?\r\n\r\n- [x] No.\r\n- [ ] Yes. I've updated:\r\n  - [ ] Examples\r\n  - [ ] API references\r\n  - [ ] Instructions\r\n\r\n### Does this PR require updating the [MLflow Skills](https://github.com/mlflow/skills) repository?\r\n\r\n<!-- When updating APIs or feature usage, please ensure the MLflow Skills repository reflects those changes. -->\r\n\r\n- [x] No.\r\n- [ ] Yes. Please link the corresponding PR or explain how you plan to update it.\r\n\r\n### Release Notes\r\n\r\n#### Is this a user-facing change?\r\n\r\n- [ ] No.\r\n- [x] Yes. Give a description of this change to be included in the release notes for MLflow users.\r\n\r\nTrace full-text search (`trace.text` / `span.content`, and the Traces search box in the UI) now matches non-ASCII text such as accented, CJK or emoji characters in newly logged traces on SQLite, PostgreSQL and MySQL backends.\r\n\r\n#### What component(s), interfaces, languages, and integrations does this PR affect?\r\n\r\nComponents\r\n\r\n- [x] `area/tracking`: Tracking Service, tracking client APIs, autologging\r\n- [x] `area/tracing`: MLflow Tracing features, tracing APIs, and LLM tracing functionality\r\n\r\n<a name=\"release-note-category\"></a>\r\n\r\n#### How should the PR be classified in the release notes? Choose one:\r\n\r\n- [x] `rn/bug-fix` - A user-facing bug fix worth mentioning in the release notes\r\n\r\n#### Is this PR a critical bugfix or security fix that should go into the next patch release?\r\n\r\n<details>\r\n<summary>What is a minor/patch release?</summary>\r\n\r\n- Minor release: a release that increments the second part of the version number (e.g., 1.2.0 -> 1.3.0).\r\n  Minor releases are expected to contain larger changes, such as new features and improvements. Non-critical bug fixes and doc updates can be included as well. By default, your PR should target the next minor release.\r\n- Patch release: a release that increments the third part of the version number (e.g., 1.2.0 -> 1.2.1).\r\n  Patch releases are typically only performed when there has been a major regression or bug in the latest release. For the sake of stability, your PR should not be included in a patch release unless it is a critical fix, or if the risk level of your PR is exceedingly low.\r\n\r\n</details>\r\n\r\n<!-- Do not modify or remove any text inside the parentheses. Keep both checkboxes below. -->\r\n\r\n- [ ] This PR is critical and needs to be in the next patch release\r\n- [x] This PR can wait for the next minor release",
+      "goldTitle": "Fix `trace.text` search missing non-ASCII span content",
+      "goldFiles": [
+        "mlflow/store/tracking/sqlalchemy_store.py",
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py"
+      ],
+      "goldDiff": "bench/data/mlflow/PR26130.diff",
+      "testFiles": [
+        "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py"
+      ],
+      "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py'",
+      "mergeCommit": "218bf8bc183132501f38919364530501e23ba9da",
+      "mergedAt": "2026-09-28T02:49:48Z",
+      "loc": 46,
+      "preflight": {
+        "baseKind": "behaviour",
+        "testNeedsGoldSymbols": false,
+        "secs": 28
+      }
+    }
+  ],
+  "dropped": [
+    {
+      "id": "PR26051",
+      "failToPass": false,
+      "error": "test hunks do not apply: error: tests/genai/skill_content/test_skill_md.py: does not exist in index\n"
+    },
+    {
+      "id": "PR26071",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 3
+    },
+    {
+      "id": "PR26181",
+      "failToPass": false,
+      "baseKind": "behaviour",
+      "testNeedsGoldSymbols": false,
+      "secs": 18
+    },
+    {
+      "id": "PR26327",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' cleanly.\nApplied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_se"
+    },
+    {
+      "id": "PR26223",
+      "failToPass": false,
+      "error": "gold diff does not apply: Applied patch to 'mlflow/store/tracking/gateway/sqlalchemy_mixin.py' cleanly.\nApplied patch to 'mlflow/store/tracking/sqlalchemy_store.py' with conflicts.\nApplied patch to 'mlflow/utils/validation.py'"
+    },
+    {
+      "id": "PR26594",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' cleanly.\nApplied patch to 'tests/server/test_gateway_api.py' with conflicts.\nApplied patch to 'tests/utils/test_uri.py' cleanly.\nU tests/serve"
+    },
+    {
+      "id": "PR26451",
+      "failToPass": false,
+      "baseKind": "behaviour",
+      "testNeedsGoldSymbols": false,
+      "secs": 33
+    },
+    {
+      "id": "PR26390",
+      "failToPass": false,
+      "error": "gold diff does not apply: Applied patch to 'mlflow/gateway/providers/anthropic.py' cleanly.\nApplied patch to 'mlflow/gateway/providers/gemini.py' with conflicts.\nApplied patch to 'tests/gateway/providers/test_anthropic.py' cle"
+    },
+    {
+      "id": "PR26057",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py' with conflicts.\nU tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py\n"
+    },
+    {
+      "id": "PR26433",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/data/test_evaluation_dataset.py' with conflicts.\nU tests/data/test_evaluation_dataset.py\n"
+    },
+    {
+      "id": "PR26292",
+      "failToPass": false,
+      "baseKind": "behaviour",
+      "testNeedsGoldSymbols": false,
+      "secs": 3
+    },
+    {
+      "id": "PR26547",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 4
+    },
+    {
+      "id": "PR26180",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/db/test_workspace_tracking_store.py' with conflicts.\nApplied patch to 'tests/utils/test_search_utils.py' cleanly.\nU tests/db/test_workspace_tracking_store.py\n"
+    },
+    {
+      "id": "PR26260",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 3
+    },
+    {
+      "id": "PR26109",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 5
+    },
+    {
+      "id": "PR26445",
+      "failToPass": false,
+      "error": "test hunks do not apply: error: tests/genai/judges/test_typesafe.py: does not exist in index\n"
+    },
+    {
+      "id": "PR26423",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' cleanly.\nApplied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_se"
+    },
+    {
+      "id": "PR26075",
+      "failToPass": false,
+      "baseKind": "other",
+      "testNeedsGoldSymbols": false,
+      "secs": 1
+    },
+    {
+      "id": "PR26270",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 5
+    },
+    {
+      "id": "PR26439",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 5
+    },
+    {
+      "id": "PR26643",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/metrics/test_metric_definitions.py' with conflicts.\nU tests/metrics/test_metric_definitions.py\n"
+    },
+    {
+      "id": "PR26512",
+      "failToPass": false,
+      "error": "gold diff does not apply: Applied patch to 'mlflow/store/tracking/sqlalchemy_store.py' cleanly.\nApplied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py' with conflicts.\nU tests/store/tracking/sqla"
+    },
+    {
+      "id": "PR26047",
+      "failToPass": false,
+      "baseKind": "behaviour",
+      "testNeedsGoldSymbols": false,
+      "secs": 3
+    },
+    {
+      "id": "PR26462",
+      "failToPass": false,
+      "baseKind": "behaviour",
+      "testNeedsGoldSymbols": false,
+      "secs": 18
+    },
+    {
+      "id": "PR26374",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_eval_datasets.py' with conflicts.\nApplied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store."
+    },
+    {
+      "id": "PR26291",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/store/model_registry/test_sqlalchemy_store.py' with conflicts.\nU tests/store/model_registry/test_sqlalchemy_store.py\n"
+    },
+    {
+      "id": "PR26300",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 4
+    },
+    {
+      "id": "PR26269",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 4
+    },
+    {
+      "id": "PR26546",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/server/test_init.py' with conflicts.\nU tests/server/test_init.py\n"
+    },
+    {
+      "id": "PR26442",
+      "failToPass": false,
+      "error": "test hunks do not apply: error: tests/gateway/providers/test_typesafe.py: does not exist in index\nApplied patch to 'tests/server/test_gateway_api.py' cleanly.\nApplied patch to 'tests/utils/test_providers.py' with conflicts.\n"
+    },
+    {
+      "id": "PR26165",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/entities/test_span.py' with conflicts.\nU tests/entities/test_span.py\n"
+    },
+    {
+      "id": "PR26178",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 1
+    },
+    {
+      "id": "PR26440",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 4
+    },
+    {
+      "id": "PR26179",
+      "failToPass": false,
+      "baseKind": "passes-at-base",
+      "testNeedsGoldSymbols": false,
+      "secs": 2
+    },
+    {
+      "id": "PR26307",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/entities/test_span.py' with conflicts.\nU tests/entities/test_span.py\n"
+    },
+    {
+      "id": "PR26541",
+      "failToPass": false,
+      "error": "test hunks do not apply: error: tests/genai/databricks/review_queues/test_api.py: does not exist in index\n"
+    },
+    {
+      "id": "PR26600",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_search_utils.py\n"
+    },
+    {
+      "id": "PR26574",
+      "failToPass": false,
+      "baseKind": "symbol",
+      "testNeedsGoldSymbols": true,
+      "secs": 1
+    },
+    {
+      "id": "PR26446",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' with conflicts.\nU tests/gateway/providers/test_gemini.py\n"
+    },
+    {
+      "id": "PR26253",
+      "failToPass": false,
+      "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' with conflicts.\nApplied patch to 'tests/gateway/providers/test_vertex_ai.py' cleanly.\nU tests/gateway/providers/test_gemini.py\n"
+    }
+  ]
+}

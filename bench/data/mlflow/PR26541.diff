@@ -1,0 +1,47 @@
+diff --git a/mlflow/genai/databricks/review_queues/api.py b/mlflow/genai/databricks/review_queues/api.py
+index a9646686ffae9..f994d6dd7a40c 100644
+--- a/mlflow/genai/databricks/review_queues/api.py
++++ b/mlflow/genai/databricks/review_queues/api.py
+@@ -219,10 +219,12 @@ def create_review_queue(
+     Returns:
+         The created :py:class:`ReviewQueue`.
+     """
+-    body: dict[str, Any] = {
+-        "display_name": display_name,
+-        "queue_type": ReviewQueueType(queue_type).value,
+-    }
++    queue_type = ReviewQueueType(queue_type)
++    body: dict[str, Any] = {"display_name": display_name, "queue_type": queue_type.value}
++    if queue_type == ReviewQueueType.USER:
++        # The server takes a USER queue's reviewer from `owner` and ignores
++        # `display_name`; without `owner` it creates the caller's own queue.
++        body["owner"] = display_name
+     if question_ids:
+         body["question_names"] = [_question(experiment_id, q) for q in question_ids]
+     resp = _client.call("POST", f"{_experiment(experiment_id)}/reviewQueues", json=body)
+diff --git a/tests/genai/databricks/review_queues/test_api.py b/tests/genai/databricks/review_queues/test_api.py
+index e270bfac6a1e0..eb487bb129c73 100644
+--- a/tests/genai/databricks/review_queues/test_api.py
++++ b/tests/genai/databricks/review_queues/test_api.py
+@@ -159,6 +159,21 @@ def test_create_review_queue():
+     assert queue.queue_type == ReviewQueueType.CUSTOM
+ 
+ 
++def test_create_review_queue_user_sets_owner():
++    with mock.patch(_CALL, return_value={**_QUEUE, "queue_type": "USER"}) as mock_call:
++        queue = create_review_queue("1", "alice@example.com", queue_type="USER")
++    mock_call.assert_called_once_with(
++        "POST",
++        "experiments/1/reviewQueues",
++        json={
++            "display_name": "alice@example.com",
++            "queue_type": "USER",
++            "owner": "alice@example.com",
++        },
++    )
++    assert queue.queue_type == ReviewQueueType.USER
++
++
+ def test_get_review_queue():
+     with mock.patch(_CALL, return_value=_QUEUE) as mock_call:
+         queue = get_review_queue("1", "rq1")

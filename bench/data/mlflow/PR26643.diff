@@ -1,0 +1,58 @@
+diff --git a/mlflow/metrics/metric_definitions.py b/mlflow/metrics/metric_definitions.py
+index 0447f7637a44e..93bea8837a4fa 100644
+--- a/mlflow/metrics/metric_definitions.py
++++ b/mlflow/metrics/metric_definitions.py
+@@ -53,7 +53,7 @@ def _validate_array_like_id_data(data, metric_name, col_specifier):
+             (isinstance(value, list) and all(isinstance(val, (str, int)) for val in value))
+             or (
+                 isinstance(value, np.ndarray)
+-                and (np.issubdtype(value.dtype, str) or np.issubdtype(value.dtype, int))
++                and (np.issubdtype(value.dtype, np.str_) or np.issubdtype(value.dtype, np.integer))
+             )
+         ):
+             _logger.warning(
+diff --git a/tests/metrics/test_metric_definitions.py b/tests/metrics/test_metric_definitions.py
+index 0ecc4e2f3fd53..d4d22345f0032 100644
+--- a/tests/metrics/test_metric_definitions.py
++++ b/tests/metrics/test_metric_definitions.py
+@@ -4,6 +4,7 @@
+ import sys
+ from unittest import mock
+ 
++import numpy as np
+ import pandas as pd
+ import pytest
+ 
+@@ -389,6 +390,32 @@ def test_ndcg_at_k_preserves_relevance_when_ids_are_renamed(predictions, targets
+     assert result.scores == pytest.approx([expected, expected])
+ 
+ 
++@pytest.mark.parametrize(
++    ("metric", "expected"),
++    [
++        (precision_at_k, 2 / 3),
++        (recall_at_k, 1.0),
++        (ndcg_at_k, 1.0),
++    ],
++)
++@pytest.mark.parametrize("dtype", [np.int8, np.int16, np.int32, np.int64, np.uint8])
++def test_retriever_metrics_accept_numpy_integer_ids(metric, expected, dtype):
++    predictions = pd.Series([np.array([1, 2, 9], dtype=dtype)])
++    targets = pd.Series([np.array([1, 2], dtype=dtype)])
++
++    result = metric(3).eval_fn(predictions, targets)
++
++    assert result.scores == pytest.approx([expected])
++
++
++@pytest.mark.parametrize("metric", [precision_at_k, recall_at_k, ndcg_at_k])
++def test_retriever_metrics_reject_numpy_float_ids(metric):
++    predictions = pd.Series([np.array([1.0, 2.0])])
++    targets = pd.Series([np.array([1.0, 2.0])])
++
++    assert metric(2).eval_fn(predictions, targets) is None
++
++
+ def test_bleu():
+     predictions = ["hello world", "this is a test"]
+     targets = ["hello world", "this is a test sentence"]

@@ -1,0 +1,205 @@
+diff --git a/mlflow/gateway/budget_tracker/redis.py b/mlflow/gateway/budget_tracker/redis.py
+index 57f8abdecfec5..89de2dae81ced 100644
+--- a/mlflow/gateway/budget_tracker/redis.py
++++ b/mlflow/gateway/budget_tracker/redis.py
+@@ -33,8 +33,10 @@
+ # Redis key prefix for all budget tracker keys
+ _KEY_PREFIX = "mlflow:budget:"
+ 
+-# Lua script: atomically initialize or roll a window only if the stored
+-# window_start differs (or the key doesn't exist).
++# Lua script: atomically initialize or roll a window only if the stored window
++# no longer describes the same budget period (or the key doesn't exist).
++# The duration is stored with the bounds so that a duration edit rolls the
++# window even when the new bounds happen to start at the same instant.
+ # Returns {created, cumulative_spend, exceeded} so callers don't need a
+ # separate round-trip to read back the state.
+ _ENSURE_WINDOW_LUA = """
+@@ -42,9 +44,13 @@
+ local new_start = ARGV[1]
+ local new_end = ARGV[2]
+ local ttl = tonumber(ARGV[3])
++local duration_unit = ARGV[4]
++local duration_value = ARGV[5]
+ 
+-local current_start = redis.call('HGET', wkey, 'window_start')
+-if current_start == new_start then
++local current = redis.call('HMGET', wkey, 'window_start', 'duration_unit', 'duration_value')
++if current[1] == new_start
++    and current[2] == duration_unit
++    and current[3] == duration_value then
+     local spend = redis.call('HGET', wkey, 'cumulative_spend') or '0.0'
+     local exceeded = redis.call('HGET', wkey, 'exceeded') or '0'
+     return {0, spend, exceeded}
+@@ -53,6 +59,8 @@
+ redis.call('HSET', wkey,
+     'window_start', new_start,
+     'window_end', new_end,
++    'duration_unit', duration_unit,
++    'duration_value', duration_value,
+     'cumulative_spend', '0.0',
+     'exceeded', '0')
+ 
+@@ -86,6 +94,17 @@
+ """
+ 
+ 
++def _window_duration_matches(stored: dict[str, str], policy: GatewayBudgetPolicy) -> bool:
++    """Whether a stored window's bounds were computed from this policy's duration.
++
++    Window bounds come from the duration, so a window written by a process that has
++    not picked up a duration edit yet describes a different budget period than the
++    one this policy defines.
++    """
++    stored_duration = (stored.get("duration_unit"), stored.get("duration_value"))
++    return stored_duration == (policy.duration.unit.value, str(policy.duration.value))
++
++
+ def _window_key(policy_id: str) -> str:
+     return f"{_KEY_PREFIX}window:{policy_id}"
+ 
+@@ -184,6 +203,8 @@ def _ensure_window(
+             window_start.isoformat(),
+             window_end.isoformat(),
+             ttl_seconds,
++            policy.duration.unit.value,
++            str(policy.duration.value),
+         )
+ 
+         created = int(result[0])
+@@ -306,6 +327,13 @@ def should_reject_request(
+             if not (stored := self._client.hgetall(_window_key(pid))):
+                 continue
+ 
++            if not _window_duration_matches(stored, policy):
++                # The window was written by a process still on an older version of this
++                # policy. Its bounds and this budget_amount measure different periods,
++                # so the next refresh or recorded cost has to roll it before it can be
++                # compared against this limit.
++                continue
++
+             window = self._build_window(policy, stored)
+             if now >= window.window_end:
+                 # Stale window: the budget period has ended; don't reject based on old data.
+diff --git a/tests/gateway/test_redis_budget_tracker.py b/tests/gateway/test_redis_budget_tracker.py
+index fccd325a07113..426d28d7eb462 100644
+--- a/tests/gateway/test_redis_budget_tracker.py
++++ b/tests/gateway/test_redis_budget_tracker.py
+@@ -46,6 +46,17 @@ def _make_tracker():
+     return RedisBudgetTracker(_client=client)
+ 
+ 
++def _make_shared_trackers():
++    """Two trackers on one Redis, standing in for two gateway processes."""
++    from mlflow.gateway.budget_tracker.redis import RedisBudgetTracker
++
++    server = fakeredis.FakeServer()
++    return (
++        RedisBudgetTracker(_client=fakeredis.FakeRedis(server=server, decode_responses=True)),
++        RedisBudgetTracker(_client=fakeredis.FakeRedis(server=server, decode_responses=True)),
++    )
++
++
+ def test_redis_tracker_is_budget_tracker():
+     tracker = _make_tracker()
+     assert isinstance(tracker, BudgetTracker)
+@@ -397,6 +408,99 @@ def test_window_rollover_resets_spend():
+     assert window.exceeded is False
+ 
+ 
++def test_should_reject_request_ignores_window_from_another_policy_version():
++    # A budget edit reaches one process before the other. The process still on the old
++    # 1 MONTHS / $500 version rewrites the shared window to monthly bounds, so the
++    # process already on 1 DAYS / $100 must not measure them against its daily limit.
++    stale_proc, fresh_proc = _make_shared_trackers()
++    monthly = _make_policy(
++        budget_policy_id="bp-edited",
++        budget_amount=500.0,
++        duration=BudgetDuration(unit=BudgetDurationUnit.MONTHS, value=1),
++    )
++    daily = _make_policy(
++        budget_policy_id="bp-edited",
++        budget_amount=100.0,
++        duration=BudgetDuration(unit=BudgetDurationUnit.DAYS, value=1),
++        budget_action=BudgetAction.REJECT,
++    )
++
++    fresh_proc.refresh_policies([daily])
++    stale_proc.refresh_policies([monthly])
++    stale_proc.record_cost(150.0)
++
++    exceeded, window = fresh_proc.should_reject_request()
++    assert exceeded is False
++    assert window is None
++
++
++def test_should_reject_request_uses_window_once_the_durations_agree():
++    stale_proc, fresh_proc = _make_shared_trackers()
++    daily = _make_policy(
++        budget_policy_id="bp-edited",
++        budget_amount=100.0,
++        duration=BudgetDuration(unit=BudgetDurationUnit.DAYS, value=1),
++        budget_action=BudgetAction.REJECT,
++    )
++
++    fresh_proc.refresh_policies([daily])
++    stale_proc.refresh_policies([daily])
++    stale_proc.record_cost(150.0)
++
++    exceeded, window = fresh_proc.should_reject_request()
++    assert exceeded is True
++    assert window.cumulative_spend == 150.0
++
++
++def test_window_rolls_when_duration_changes_without_changing_window_start():
++    # On the first of a month, MONTHS and DAYS windows begin at the same instant, so
++    # the stored window_start on its own cannot tell the two budget periods apart.
++    tracker = _make_tracker()
++    first_of_month = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
++
++    with patch("mlflow.gateway.budget_tracker.redis.datetime") as mock_dt:
++        mock_dt.now.return_value = first_of_month
++        mock_dt.fromisoformat = datetime.fromisoformat
++
++        tracker.refresh_policies([
++            _make_policy(
++                budget_amount=500.0,
++                duration=BudgetDuration(unit=BudgetDurationUnit.MONTHS, value=1),
++            )
++        ])
++        tracker.record_cost(150.0)
++
++        rolled = tracker.refresh_policies([
++            _make_policy(
++                budget_amount=100.0,
++                duration=BudgetDuration(unit=BudgetDurationUnit.DAYS, value=1),
++            )
++        ])
++
++    assert len(rolled) == 1
++    window = tracker._get_window_info("bp-test")
++    assert window.window_start == datetime(2026, 9, 1, tzinfo=timezone.utc)
++    assert window.window_end == datetime(2026, 9, 2, tzinfo=timezone.utc)
++    assert window.cumulative_spend == 0.0
++
++
++def test_window_written_without_a_duration_rolls_once():
++    # Windows stored before the duration was recorded alongside the bounds are rolled
++    # once, after which the caller reseeds them from trace history.
++    from mlflow.gateway.budget_tracker.redis import _window_key
++
++    tracker = _make_tracker()
++    policy = _make_policy(budget_amount=100.0)
++    tracker.refresh_policies([policy])
++    tracker.record_cost(50.0)
++
++    tracker._client.hdel(_window_key("bp-test"), "duration_unit", "duration_value")
++
++    rolled = tracker.refresh_policies([policy])
++    assert len(rolled) == 1
++    assert tracker._get_window_info("bp-test").cumulative_spend == 0.0
++
++
+ def test_get_budget_tracker_returns_redis_when_configured():
+     from mlflow.gateway.budget_tracker.redis import RedisBudgetTracker
+ 

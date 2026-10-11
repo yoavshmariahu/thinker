@@ -1,0 +1,127 @@
+diff --git a/mlflow/store/tracking/mcp_server_registry/sqlalchemy_mixin.py b/mlflow/store/tracking/mcp_server_registry/sqlalchemy_mixin.py
+index f79a8f8cad228..485b3a54a967e 100644
+--- a/mlflow/store/tracking/mcp_server_registry/sqlalchemy_mixin.py
++++ b/mlflow/store/tracking/mcp_server_registry/sqlalchemy_mixin.py
+@@ -1,6 +1,5 @@
+ from __future__ import annotations
+ 
+-import re
+ import uuid
+ from dataclasses import asdict, replace
+ from typing import Any
+@@ -1466,9 +1465,7 @@ def _parse_search_mcp_access_endpoints_order_by(order_by_list):
+ 
+ 
+ def _apply_mcp_server_version_filter(query, filter_string, dialect):
+-    parsed = SearchMCPServerVersionUtils.parse_search_filter(
+-        _normalize_mcp_server_version_filter_string(filter_string)
+-    )
++    parsed = SearchMCPServerVersionUtils.parse_search_filter(filter_string)
+     for f in parsed:
+         type_ = f["type"]
+         key = f["key"]
+@@ -1497,14 +1494,6 @@ def _apply_mcp_server_version_filter(query, filter_string, dialect):
+     return query
+ 
+ 
+-def _normalize_mcp_server_version_filter_string(filter_string: str) -> str:
+-    return re.sub(
+-        r"(?<![`\w.])version(?=\s*(?:=|!=|<=|>=|<|>|LIKE|ILIKE))",
+-        "`version`",
+-        filter_string,
+-    )
+-
+-
+ def _get_semver_version_filter_expression(comparator: str, version: str):
+     """Build the SQL filter expression for MCP server version comparisons.
+ 
+diff --git a/mlflow/utils/search_utils.py b/mlflow/utils/search_utils.py
+index a9fe2390229c3..a4a0257d06c8a 100644
+--- a/mlflow/utils/search_utils.py
++++ b/mlflow/utils/search_utils.py
+@@ -2783,6 +2783,15 @@ class SearchMCPServerVersionUtils(SearchUtils):
+     NUMERIC_ATTRIBUTES = {"created_at", "last_updated_at"}
+     LIST_SUPPORTED_KEYS = frozenset({"status"})
+ 
++    @classmethod
++    def _process_statement(cls, statement):
++        # Normalize the keyword-typed field without changing quoted filter values.
++        for index, token in enumerate(statement.tokens):
++            if token.ttype == TokenType.Keyword and token.value == "version":
++                statement.tokens[index] = Identifier([Token(TokenType.Name, token.value)])
++        group_comparison(statement)
++        return super()._process_statement(statement)
++
+ 
+ class SearchMCPAccessEndpointUtils(SearchUtils):
+     """Utility class for parsing MCP access endpoint search filters."""
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
+index 74298872d2b0b..3313f45c7fe50 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
+@@ -2223,6 +2223,25 @@ def test_search_mcp_server_versions_order_by_version_ignores_build_metadata_prec
+     assert set(versions[1:]) == {"1.0.0+aaa", "1.0.0+zzz"}
+ 
+ 
++@pytest.mark.parametrize("name", ["com.example/versionLIKE", "com.example/versionILIKE"])
++@pytest.mark.parametrize(
++    ("filter_template", "expected_versions"),
++    [
++        ("name = '{name}'", {"1.0.0", "2.0.0"}),
++        ("name = '{name}' AND version = '1.0.0'", {"1.0.0"}),
++        ("version = '1.0.0' AND name = '{name}'", {"1.0.0"}),
++    ],
++)
++def test_search_mcp_server_versions_preserves_name_filter_values(
++    store, name, filter_template, expected_versions
++):
++    _setup_server(store, name, versions=("1.0.0", "2.0.0"))
++
++    result = store.search_mcp_server_versions(name, filter_string=filter_template.format(name=name))
++
++    assert {version.version for version in result} == expected_versions
++
++
+ def test_search_mcp_server_versions_filter_by_version_equality_uses_exact_string_match(store):
+     for version in ("1.0.0-alpha+aaa", "1.0.0-alpha+zzz", "1.0.0"):
+         store.create_mcp_server_version(_server_json("io.github.test/serveremver-eq", version))
+diff --git a/tests/utils/test_search_utils.py b/tests/utils/test_search_utils.py
+index f75fc3d744139..51f9590170528 100644
+--- a/tests/utils/test_search_utils.py
++++ b/tests/utils/test_search_utils.py
+@@ -204,6 +204,35 @@ def test_mcp_access_endpoint_server_name_rejects_or():
+         )
+ 
+ 
++@pytest.mark.parametrize("comparator", ["=", "!=", "<", "<=", ">", ">="])
++def test_mcp_server_version_filter(comparator):
++    [condition] = SearchMCPServerVersionUtils.parse_search_filter(
++        f"version {comparator} '1.0.0-Alpha+Build'"
++    )
++
++    assert condition == {
++        "type": "attribute",
++        "key": "version",
++        "comparator": comparator,
++        "value": "1.0.0-Alpha+Build",
++    }
++
++
++@pytest.mark.parametrize(
++    ("filter_string", "match"),
++    [
++        ("version = '1.0.0' OR status = 'draft'", "Invalid clause.*'OR'"),
++        ("version IN ('1.0.0', '2.0.0')", r"Only \['status'\] attributes support comparison"),
++        ("select = '1.0.0'", "Invalid clause.*'select'"),
++    ],
++)
++def test_mcp_server_version_rejects_invalid_filters(filter_string, match):
++    with pytest.raises(MlflowException, match=match) as exc:
++        SearchMCPServerVersionUtils.parse_search_filter(filter_string)
++
++    assert exc.value.error_code == "INVALID_PARAMETER_VALUE"
++
++
+ def test_float_numeric_attribute_value_is_parsed_as_float():
+     [condition] = SearchUtils.parse_search_filter("attributes.start_time > 1234.5")
+ 

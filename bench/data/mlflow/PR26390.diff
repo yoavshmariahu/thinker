@@ -1,0 +1,261 @@
+diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py
+index 8e9c5e30cf14e..38b0b1f65bc43 100644
+--- a/mlflow/gateway/providers/anthropic.py
++++ b/mlflow/gateway/providers/anthropic.py
+@@ -369,7 +369,7 @@ def model_to_chat(cls, resp, config):
+         from mlflow.anthropic.chat import convert_message_to_mlflow_chat
+         from mlflow.types.chat import TextContentPart
+ 
+-        stop_reason = "length" if resp["stop_reason"] == "max_tokens" else "stop"
++        stop_reason = cls._to_finish_reason(resp["stop_reason"])
+ 
+         message = convert_message_to_mlflow_chat(resp)
+ 
+@@ -441,6 +441,10 @@ def _build_chat_usage(cls, usage_data: dict[str, Any]) -> chat.ChatUsage:
+             **extra,
+         )
+ 
++    @classmethod
++    def _to_finish_reason(cls, stop_reason):
++        return {"max_tokens": "length", "tool_use": "tool_calls"}.get(stop_reason, "stop")
++
+     @classmethod
+     def chat_streaming_to_model(cls, payload, config):
+         return cls.chat_to_model(payload, config)
+@@ -449,7 +453,7 @@ def chat_streaming_to_model(cls, payload, config):
+     def model_to_chat_streaming(cls, resp, config):
+         content = resp.get("delta") or resp.get("content_block") or {}
+         if (stop_reason := content.get("stop_reason")) is not None:
+-            stop_reason = "length" if stop_reason == "max_tokens" else "stop"
++            stop_reason = cls._to_finish_reason(stop_reason)
+ 
+         # example of function calling delta message format:
+         # https://platform.openai.com/docs/guides/function-calling#streaming
+diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py
+index 24ce9a82d9449..12da7e9e9182d 100644
+--- a/mlflow/gateway/providers/gemini.py
++++ b/mlflow/gateway/providers/gemini.py
+@@ -346,6 +346,9 @@ def _convert_function_call_to_openai_choice(
+                     )
+                 )
+         content = "".join(text_parts) or None
++        # Gemini reports STOP for a turn that ends in a function call.
++        if tool_calls and finish_reason == "stop":
++            finish_reason = "tool_calls"
+         if stream:
+             return chat_schema.StreamChoice(
+                 index=choice_idx,
+@@ -496,6 +499,10 @@ def model_to_chat_streaming(
+                     continue
+ 
+             delta_text = parts[0].get("text", "") if parts else ""
++            # Gemini ends a tool-call stream with a STOP chunk that carries no functionCall,
++            # so the calls seen in earlier chunks decide the finish reason.
++            if finish_reason == "stop" and (tool_call_offsets or {}).get(idx, 0):
++                finish_reason = "tool_calls"
+             choices.append(
+                 chat_schema.StreamChoice(
+                     index=idx,
+diff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py
+index cdd4cb538fc09..0d58da162d75b 100644
+--- a/tests/gateway/providers/test_anthropic.py
++++ b/tests/gateway/providers/test_anthropic.py
+@@ -493,7 +493,7 @@ async def test_chat_function_calling():
+                         ],
+                         "refusal": None,
+                     },
+-                    "finish_reason": "stop",
++                    "finish_reason": "tool_calls",
+                 }
+             ],
+             "usage": {"prompt_tokens": 10, "completion_tokens": 25, "total_tokens": 35},
+@@ -867,7 +867,7 @@ async def test_chat_function_calling_stream():
+                 "choices": [
+                     {
+                         "index": 0,
+-                        "finish_reason": "stop",
++                        "finish_reason": "tool_calls",
+                         "delta": {"role": None, "content": None, "tool_calls": None},
+                     }
+                 ],
+@@ -1831,3 +1831,40 @@ def test_chat_to_model_string_content_unchanged():
+     result = AnthropicAdapter.chat_to_model(payload, EndpointConfig(**chat_config()))
+ 
+     assert result["messages"] == [{"role": "user", "content": "just text"}]
++
++
++def test_chat_finish_reason_tool_use_is_tool_calls():
++    resp = {
++        "id": "msg_1",
++        "type": "message",
++        "role": "assistant",
++        "model": "claude-sonnet-5",
++        "content": [
++            {"type": "tool_use", "id": "toolu_A", "name": "get_weather", "input": {"city": "Paris"}}
++        ],
++        "stop_reason": "tool_use",
++        "stop_sequence": None,
++        "usage": {"input_tokens": 30, "output_tokens": 40},
++    }
++
++    result = AnthropicAdapter.model_to_chat(resp, EndpointConfig(**chat_config()))
++
++    assert result.choices[0].finish_reason == "tool_calls"
++
++
++@pytest.mark.parametrize(
++    ("stop_reason", "expected"),
++    [("tool_use", "tool_calls"), ("max_tokens", "length"), ("end_turn", "stop")],
++)
++def test_chat_stream_finish_reason(stop_reason, expected):
++    resp = {
++        "type": "message_delta",
++        "id": "msg_1",
++        "model": "claude-sonnet-5",
++        "index": 0,
++        "delta": {"stop_reason": stop_reason, "stop_sequence": None},
++    }
++
++    result = AnthropicAdapter.model_to_chat_streaming(resp, EndpointConfig(**chat_config()))
++
++    assert result.choices[0].finish_reason == expected
+diff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py
+index e249b57cee673..59a3a70235ca2 100644
+--- a/tests/gateway/providers/test_gemini.py
++++ b/tests/gateway/providers/test_gemini.py
+@@ -640,7 +640,7 @@ async def test_gemini_chat_function_calling():
+                     ],
+                     "refusal": None,
+                 },
+-                "finish_reason": "stop",
++                "finish_reason": "tool_calls",
+             }
+         ],
+         "usage": {
+@@ -769,7 +769,7 @@ async def test_gemini_chat_multi_function_calling():
+                     ],
+                     "refusal": None,
+                 },
+-                "finish_reason": "stop",
++                "finish_reason": "tool_calls",
+             }
+         ],
+         "usage": {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None},
+@@ -1510,7 +1510,7 @@ async def test_gemini_chat_function_calling_stream():
+             "choices": [
+                 {
+                     "index": 0,
+-                    "finish_reason": "stop",
++                    "finish_reason": "tool_calls",
+                     "delta": {
+                         "role": "assistant",
+                         "content": None,
+@@ -2139,3 +2139,108 @@ def test_chat_to_model_unknown_content_part_passed_through():
+     result = GeminiAdapter.chat_to_model(payload, EndpointConfig(**chat_config()))
+ 
+     assert result["contents"] == [{"role": "user", "parts": [{"text": "transcribe"}, audio_part]}]
++
++
++@pytest.mark.parametrize("stream", [False, True])
++def test_gemini_finish_reason_is_tool_calls_for_function_call(stream):
++    resp = {
++        "candidates": [
++            {
++                "content": {
++                    "role": "model",
++                    "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}}],
++                },
++                "finishReason": "STOP",
++                "index": 0,
++            }
++        ],
++        "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 1, "totalTokenCount": 4},
++        "modelVersion": "gemini-2.0-flash",
++    }
++    config = EndpointConfig(**chat_config())
++    convert = GeminiAdapter.model_to_chat_streaming if stream else GeminiAdapter.model_to_chat
++
++    assert convert(resp, config).choices[0].finish_reason == "tool_calls"
++
++
++def test_gemini_finish_reason_stays_stop_for_text():
++    resp = {
++        "candidates": [
++            {
++                "content": {"role": "model", "parts": [{"text": "hi"}]},
++                "finishReason": "STOP",
++                "index": 0,
++            }
++        ],
++        "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 1, "totalTokenCount": 4},
++        "modelVersion": "gemini-2.0-flash",
++    }
++
++    result = GeminiAdapter.model_to_chat(resp, EndpointConfig(**chat_config()))
++
++    assert result.choices[0].finish_reason == "stop"
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    ("call_chunks", "stop_candidate"),
++    [
++        (1, {"content": {"role": "model", "parts": [{"text": ""}]}, "finishReason": "STOP"}),
++        (1, {"finishReason": "STOP"}),
++        (3, {"content": {"role": "model", "parts": [{"text": ""}]}, "finishReason": "STOP"}),
++    ],
++    ids=["single_call_empty_text", "single_call_no_content", "parallel_calls_empty_text"],
++)
++async def test_gemini_chat_stream_finish_reason_is_tool_calls_for_trailing_stop_chunk(
++    call_chunks, stop_candidate
++):
++    # Live Gemini streams send each functionCall in its own chunk and STOP in a final chunk
++    # that has no functionCall.
++    call = {"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}}
++    chunks_in = [
++        {"candidates": [{"content": {"role": "model", "parts": [call]}, "index": 0}]}
++    ] * call_chunks + [{"candidates": [{**stop_candidate, "index": 0}]}]
++    resp = [line for c in chunks_in for line in (b"data: " + json.dumps(c).encode() + b"\n", b"\n")]
++    resp.append(b"data: [DONE]\n")
++    mock_client = mock_http_client(MockAsyncStreamingResponse(resp))
++    provider = GeminiProvider(EndpointConfig(**chat_config()))
++    payload = chat_function_calling_payload(stream=True)
++
++    with mock.patch("aiohttp.ClientSession", return_value=mock_client) as mock_session:
++        chunks = [c async for c in provider.chat_stream(chat.RequestPayload(**payload))]
++
++    mock_session.assert_called_once()
++    mock_client.post.assert_called_once()
++    assert [c.choices[0].finish_reason for c in chunks] == [None] * call_chunks + ["tool_calls"]
++
++
++@pytest.mark.asyncio
++async def test_gemini_chat_stream_trailing_stop_finish_reason_is_per_candidate():
++    call = {"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}}
++    chunks_in = [
++        {
++            "candidates": [
++                {"content": {"parts": [call]}, "index": 0},
++                {"content": {"parts": [{"text": "Sunny."}]}, "index": 1},
++            ]
++        },
++        {
++            "candidates": [
++                {"content": {"parts": [{"text": ""}]}, "finishReason": "STOP", "index": 0},
++                {"content": {"parts": [{"text": ""}]}, "finishReason": "STOP", "index": 1},
++            ]
++        },
++    ]
++    resp = [line for c in chunks_in for line in (b"data: " + json.dumps(c).encode() + b"\n", b"\n")]
++    resp.append(b"data: [DONE]\n")
++    mock_client = mock_http_client(MockAsyncStreamingResponse(resp))
++    provider = GeminiProvider(EndpointConfig(**chat_config()))
++    payload = chat_function_calling_payload(stream=True)
++
++    with mock.patch("aiohttp.ClientSession", return_value=mock_client) as mock_session:
++        chunks = [c async for c in provider.chat_stream(chat.RequestPayload(**payload))]
++
++    mock_session.assert_called_once()
++    mock_client.post.assert_called_once()
++    finish_reasons = {choice.index: choice.finish_reason for choice in chunks[-1].choices}
++    assert finish_reasons == {0: "tool_calls", 1: "stop"}

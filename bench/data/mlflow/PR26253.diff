@@ -1,0 +1,73 @@
+diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py
+index 566e141433ae0..22ad8897d09e7 100644
+--- a/mlflow/gateway/providers/gemini.py
++++ b/mlflow/gateway/providers/gemini.py
+@@ -197,7 +197,15 @@ def chat_to_model(cls, payload, config):
+                     system_message = {"parts": []}
+                 system_message["parts"].append({"text": message["content"]})
+             elif role == "tool":
+-                call_id = message["tool_call_id"]
++                call_id = message.get("tool_call_id")
++                if call_id not in call_id_to_function_name_map:
++                    raise AIGatewayException(
++                        status_code=422,
++                        detail=(
++                            f"Invalid tool message: tool_call_id={call_id} does not match "
++                            "any tool call in a preceding assistant message."
++                        ),
++                    )
+                 function_response = {
+                     "functionResponse": {
+                         "id": call_id,
+diff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py
+index d61c9ba8cd0e7..f4dce741e7e0c 100644
+--- a/tests/gateway/providers/test_gemini.py
++++ b/tests/gateway/providers/test_gemini.py
+@@ -1013,6 +1013,21 @@ async def test_gemini_chat_function_calling_sequential_calls_keep_separate_respo
+     ]
+ 
+ 
++@pytest.mark.parametrize("tool_message", [{"tool_call_id": "call_002"}, {}])
++@pytest.mark.asyncio
++async def test_gemini_chat_function_calling_unmatched_tool_call_id(tool_message):
++    provider = GeminiProvider(EndpointConfig(**chat_config()))
++    payload = chat_function_calling_payload()
++    payload["messages"].extend([
++        {"role": "assistant", "tool_calls": [_weather_tool_call("call_001", "Singapore")]},
++        {"role": "tool", "content": '{"temperature": 31.2}', **tool_message},
++    ])
++
++    with pytest.raises(AIGatewayException, match="does not match any tool call") as exc_info:
++        await provider.chat(chat.RequestPayload(**payload))
++    assert exc_info.value.status_code == 422
++
++
+ @pytest.mark.asyncio
+ async def test_gemini_chat_function_calling_thought_signature():
+     config = chat_config()
+diff --git a/tests/gateway/providers/test_vertex_ai.py b/tests/gateway/providers/test_vertex_ai.py
+index bc63f4626abf5..eef9c1fb9ddec 100644
+--- a/tests/gateway/providers/test_vertex_ai.py
++++ b/tests/gateway/providers/test_vertex_ai.py
+@@ -265,6 +265,21 @@ async def test_chat_tool_calling_omits_function_call_id():
+     assert function_call["args"] == {"location": "Singapore"}
+ 
+ 
++@pytest.mark.parametrize("tool_call_id", ["call_002", None])
++@pytest.mark.asyncio
++async def test_chat_tool_message_with_unmatched_tool_call_id_returns_422(tool_call_id):
++    provider = _make_provider()
++    payload = _tool_calling_second_turn_payload()
++    if tool_call_id is None:
++        del payload["messages"][2]["tool_call_id"]
++    else:
++        payload["messages"][2]["tool_call_id"] = tool_call_id
++
++    with pytest.raises(AIGatewayException, match="does not match any tool call") as exc_info:
++        await provider.chat(chat.RequestPayload(**payload))
++    assert exc_info.value.status_code == 422
++
++
+ @pytest.mark.asyncio
+ async def test_chat_tool_calling_preserves_thought_signature():
+     provider = _make_provider()

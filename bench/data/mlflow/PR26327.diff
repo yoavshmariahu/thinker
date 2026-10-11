@@ -1,0 +1,134 @@
+diff --git a/mlflow/utils/search_utils.py b/mlflow/utils/search_utils.py
+index 7c5f25e8c9c16..a9fe2390229c3 100644
+--- a/mlflow/utils/search_utils.py
++++ b/mlflow/utils/search_utils.py
+@@ -10,6 +10,7 @@
+ 
+ import sqlparse
+ from packaging.version import Version
++from sqlparse.engine.grouping import group_comparison
+ from sqlparse.sql import (
+     Comparison,
+     Identifier,
+@@ -2794,11 +2795,17 @@ class SearchMCPAccessEndpointUtils(SearchUtils):
+         "last_updated_at",
+     }
+     NUMERIC_ATTRIBUTES = {"created_at", "last_updated_at"}
+-    # `server_name` is not usable with `IN`/`NOT IN` today because `server_name`
+-    # is also a reserved word in sqlparse's builtin keyword table, so it never
+-    # tokenizes as an Identifier even with a plain `=` comparator. See
+-    # https://github.com/mlflow/mlflow/issues/25203.
+-    LIST_SUPPORTED_KEYS = frozenset()
++    LIST_SUPPORTED_KEYS = frozenset({"server_name"})
++
++    @classmethod
++    def _process_statement(cls, statement):
++        # sqlparse treats server_name as a SQL keyword, so it does not group
++        # comparisons using this valid endpoint attribute.
++        for index, token in enumerate(statement.tokens):
++            if token.ttype == TokenType.Keyword and token.value == "server_name":
++                statement.tokens[index] = Identifier([Token(TokenType.Name, token.value)])
++        group_comparison(statement)
++        return super()._process_statement(statement)
+ 
+ 
+ class SearchIssuesUtils(SearchUtils):
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
+index a2b1a989b8d75..74298872d2b0b 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py
+@@ -1850,26 +1850,28 @@ def test_search_mcp_servers_filter_by_name_in(store):
+     assert {s.name for s in result} == {"io.github.test/server2"}
+ 
+ 
+-def test_search_mcp_access_endpoints_filter_by_server_name_in_is_currently_broken(store):
+-    # Known bug (https://github.com/mlflow/mlflow/issues/25203): sqlparse's
+-    # builtin keyword table includes the literal string "server_name" (matching
+-    # a T-SQL/ODBC reserved word), so it tokenizes as a Keyword rather than an
+-    # Identifier. `_join_in_comparison_tokens` in search_utils.py only joins
+-    # `key IN (...)` when `key` is an Identifier, so this fails for *any*
+-    # comparator, not just IN/NOT IN. This test pins the current (broken)
+-    # behavior until that issue is fixed.
+-    _setup_server(store, "io.github.test/server1")
+-    store.create_mcp_access_endpoint(
+-        "io.github.test/server1", "https://a.com", server_version="1.0.0"
+-    )
+-
+-    with pytest.raises(MlflowException, match=r"Invalid clause\(s\) in filter string") as exc:
+-        store.search_mcp_access_endpoints(filter_string="server_name IN ('io.github.test/server1')")
+-    assert exc.value.error_code == "INVALID_PARAMETER_VALUE"
++def test_search_mcp_access_endpoints_filter_by_server_name(store):
++    first_name = "Com.Example/MyServer"
++    second_name = "com.example/other"
++    for name, url, transport in (
++        (first_name, "https://a.com", MCPRemoteTransportType.SSE),
++        (second_name, "https://b.com", MCPRemoteTransportType.STREAMABLE_HTTP),
++    ):
++        _setup_server(store, name)
++        store.create_mcp_access_endpoint(
++            name, url, server_version="1.0.0", transport_type=transport
++        )
+ 
+-    with pytest.raises(MlflowException, match=r"Invalid clause\(s\) in filter string") as exc:
+-        store.search_mcp_access_endpoints(filter_string="server_name = 'io.github.test/server1'")
+-    assert exc.value.error_code == "INVALID_PARAMETER_VALUE"
++    filters_and_urls = (
++        (f"server_name = '{first_name}'", {"https://a.com"}),
++        (f"server_name IN ('{first_name}')", {"https://a.com"}),
++        (f"server_name NOT IN ('{first_name}')", {"https://b.com"}),
++        (f"transport_type = 'sse' AND server_name = '{first_name}'", {"https://a.com"}),
++        (f"server_name = '{first_name}' AND transport_type = 'sse'", {"https://a.com"}),
++    )
++    for filter_string, expected_urls in filters_and_urls:
++        result = store.search_mcp_access_endpoints(filter_string=filter_string)
++        assert {endpoint.url for endpoint in result} == expected_urls
+ 
+ 
+ def test_search_mcp_servers_filter_by_status(store):
+diff --git a/tests/utils/test_search_utils.py b/tests/utils/test_search_utils.py
+index 6c27cdf6e1e38..f75fc3d744139 100644
+--- a/tests/utils/test_search_utils.py
++++ b/tests/utils/test_search_utils.py
+@@ -168,6 +168,42 @@ def test_numeric_attribute_values_are_parsed_as_integers(search_utils, filter_st
+     assert isinstance(condition["value"], int)
+ 
+ 
++@pytest.mark.parametrize(
++    ("filter_string", "expected"),
++    [
++        ("server_name = 'Com.Example/MyServer'", [("server_name", "=", "Com.Example/MyServer")]),
++        (
++            "server_name IN ('Com.Example/MyServer', 'com.example/other')",
++            [("server_name", "IN", ("Com.Example/MyServer", "com.example/other"))],
++        ),
++        (
++            "server_name NOT IN ('Com.Example/MyServer')",
++            [("server_name", "NOT IN", ("Com.Example/MyServer",))],
++        ),
++        (
++            "transport_type = 'sse' AND server_name = 'Com.Example/MyServer'",
++            [("transport_type", "=", "sse"), ("server_name", "=", "Com.Example/MyServer")],
++        ),
++        (
++            "server_name = 'Com.Example/MyServer' AND transport_type = 'sse'",
++            [("server_name", "=", "Com.Example/MyServer"), ("transport_type", "=", "sse")],
++        ),
++    ],
++)
++def test_mcp_access_endpoint_server_name_filter(filter_string, expected):
++    parsed = SearchMCPAccessEndpointUtils.parse_search_filter(filter_string)
++    assert [
++        (condition["key"], condition["comparator"], condition["value"]) for condition in parsed
++    ] == expected
++
++
++def test_mcp_access_endpoint_server_name_rejects_or():
++    with pytest.raises(MlflowException, match="Invalid clause"):
++        SearchMCPAccessEndpointUtils.parse_search_filter(
++            "server_name = 'com.example/one' OR transport_type = 'sse'"
++        )
++
++
+ def test_float_numeric_attribute_value_is_parsed_as_float():
+     [condition] = SearchUtils.parse_search_filter("attributes.start_time > 1234.5")
+ 

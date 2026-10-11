@@ -1,0 +1,442 @@
+diff --git a/mlflow/store/tracking/gateway/sqlalchemy_mixin.py b/mlflow/store/tracking/gateway/sqlalchemy_mixin.py
+index cd5340e02feb2..4816e269c06e3 100644
+--- a/mlflow/store/tracking/gateway/sqlalchemy_mixin.py
++++ b/mlflow/store/tracking/gateway/sqlalchemy_mixin.py
+@@ -99,6 +99,7 @@
+ )
+ from mlflow.utils.search_utils import SearchUtils
+ from mlflow.utils.time import get_current_time_millis
++from mlflow.utils.validation import _parse_experiment_id
+ 
+ 
+ def _validate_one_of(
+@@ -708,7 +709,9 @@ def create_gateway_endpoint(
+                     last_updated_by=created_by,
+                     routing_strategy=routing_strategy.value if routing_strategy else None,
+                     fallback_config_json=fallback_config_json,
+-                    experiment_id=int(experiment_id) if experiment_id else None,
++                    experiment_id=_parse_experiment_id(experiment_id)
++                    if experiment_id is not None
++                    else None,
+                     usage_tracking=usage_tracking,
+                 )
+             )
+@@ -820,7 +823,7 @@ def update_gateway_endpoint(
+                 )
+ 
+             if experiment_id is not None:
+-                sql_endpoint.experiment_id = int(experiment_id)
++                sql_endpoint.experiment_id = _parse_experiment_id(experiment_id)
+ 
+             if routing_strategy is not None:
+                 sql_endpoint.routing_strategy = routing_strategy.value
+diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py
+index 03010edd8abb9..c2f7f69ccf355 100644
+--- a/mlflow/store/tracking/sqlalchemy_store.py
++++ b/mlflow/store/tracking/sqlalchemy_store.py
+@@ -283,6 +283,8 @@
+     resolve_uri_if_local,
+ )
+ from mlflow.utils.validation import (
++    _parse_experiment_id,
++    _parse_experiment_ids,
+     _resolve_experiment_ids_and_locations,
+     _validate_batch_log_data,
+     _validate_batch_log_limits,
+@@ -782,7 +784,7 @@ def _get_experiment(self, session, experiment_id, view_type, eager=False):
+         stages = LifecycleStage.view_type_to_stages(view_type)
+         query_options = self._get_eager_experiment_query_options() if eager else []
+ 
+-        experiment_id_int = self._parse_experiment_id(experiment_id)
++        experiment_id_int = _parse_experiment_id(experiment_id)
+ 
+         experiment = (
+             self
+@@ -828,16 +830,6 @@ def _filter_experiment_ids(self, session, experiment_ids, lifecycle_stage: str |
+             .all()
+         ]
+ 
+-    @staticmethod
+-    def _parse_experiment_id(experiment_id: str) -> int:
+-        try:
+-            return int(experiment_id)
+-        except (ValueError, TypeError):
+-            raise MlflowException(
+-                f"Invalid experiment ID '{experiment_id}'. Experiment ID must be a valid integer.",
+-                INVALID_PARAMETER_VALUE,
+-            )
+-
+     def _filter_entity_ids(
+         self, session, entity_type: EntityAssociationType, entity_ids: list[str]
+     ):
+@@ -957,13 +949,14 @@ def _hard_delete_experiment(self, experiment_id):
+             # Rollup tables deliberately have no experiment foreign key. Remove their rows in the
+             # same transaction so backends that reuse integer experiment ids (notably SQLite)
+             # cannot expose aggregates or rebuild state from the deleted experiment.
++            experiment_id_int = _parse_experiment_id(experiment_id)
+             for model in (
+                 SqlTraceRollupRebuild,
+                 SqlTraceMetricDailyRollup,
+                 SqlSpanCostDailyRollup,
+                 SqlAssessmentDailyRollup,
+             ):
+-                session.query(model).filter(model.experiment_id == int(experiment_id)).delete(
++                session.query(model).filter(model.experiment_id == experiment_id_int).delete(
+                     synchronize_session=False
+                 )
+             session.delete(experiment)
+@@ -1026,7 +1019,7 @@ def _list_run_infos(self, session, experiment_id):
+         return (
+             self
+             ._get_query(session, SqlRun)
+-            .filter(SqlRun.experiment_id == int(experiment_id))
++            .filter(SqlRun.experiment_id == _parse_experiment_id(experiment_id))
+             .all()
+         )
+ 
+@@ -2011,7 +2004,7 @@ def _search_datasets(self, experiment_ids):
+         """
+ 
+         MAX_DATASET_SUMMARIES_RESULTS = 1000
+-        experiment_ids = [int(e) for e in experiment_ids]
++        experiment_ids = _parse_experiment_ids(experiment_ids)
+         with self.ManagedSessionMaker() as session:
+             experiment_ids = self._filter_experiment_ids(session, experiment_ids)
+             # Note that the join with the input tag table is a left join. This is required so if an
+@@ -2166,7 +2159,7 @@ def delete_experiment_tag(self, experiment_id, key):
+             filtered_tags = (
+                 session
+                 .query(SqlExperimentTag)
+-                .filter_by(experiment_id=int(experiment_id), key=key)
++                .filter_by(experiment_id=_parse_experiment_id(experiment_id), key=key)
+                 .all()
+             )
+             if len(filtered_tags) == 0:
+@@ -2356,7 +2349,7 @@ def compute_next_token(current_size):
+                 stmt = stmt.outerjoin(j)
+ 
+             offset = SearchUtils.parse_start_offset_from_page_token(page_token)
+-            experiment_ids = [int(e) for e in experiment_ids]
++            experiment_ids = _parse_experiment_ids(experiment_ids)
+             experiment_ids = self._filter_experiment_ids(session, experiment_ids)
+             stmt = (
+                 stmt
+@@ -3040,13 +3033,7 @@ def list_scorers_across_experiments(self, experiment_ids: list[str]) -> list[Sco
+         # rejects the comparison ("operator does not exist:
+         # integer = character varying"). Coerce with the same error contract
+         # as ``_get_experiment``.
+-        try:
+-            experiment_ids = [int(experiment_id) for experiment_id in experiment_ids]
+-        except (ValueError, TypeError):
+-            raise MlflowException(
+-                "Invalid experiment IDs: experiment IDs must be valid integers.",
+-                INVALID_PARAMETER_VALUE,
+-            )
++        experiment_ids = _parse_experiment_ids(experiment_ids)
+         with self.ManagedSessionMaker() as session:
+             scorer_ids: list[str] = []
+             for chunk_start in range(0, len(experiment_ids), self._ID_CHUNK_SIZE):
+@@ -3110,7 +3097,7 @@ def list_scorers_across_experiments(self, experiment_ids: list[str]) -> list[Sco
+     def filter_active_experiment_ids(self, experiment_ids: list[str]) -> list[str]:
+         if not experiment_ids:
+             return []
+-        parsed_ids = [self._parse_experiment_id(e) for e in experiment_ids]
++        parsed_ids = _parse_experiment_ids(experiment_ids)
+         with self.ManagedSessionMaker() as session:
+             active_ids: list[str] = []
+             for chunk_start in range(0, len(parsed_ids), self._ID_CHUNK_SIZE):
+@@ -3503,7 +3490,7 @@ def upsert_online_scoring_config(
+                 online_scoring_config_id=uuid.uuid4().hex,
+                 scorer_id=scorer.scorer_id,
+                 sample_rate=sample_rate,
+-                experiment_id=int(experiment_id),
++                experiment_id=_parse_experiment_id(experiment_id),
+                 filter_string=filter_string,
+             )
+             session.add(config)
+@@ -3778,7 +3765,7 @@ def _apply_filter_string_datasets_search_logged_models(
+             )
+             models = models.join(subquery)
+ 
+-        experiment_ids = [int(e) for e in experiment_ids]
++        experiment_ids = _parse_experiment_ids(experiment_ids)
+         return models.filter(
+             SqlLoggedModel.lifecycle_stage != LifecycleStage.DELETED,
+             SqlLoggedModel.experiment_id.in_(experiment_ids),
+@@ -4369,7 +4356,7 @@ def find_completed_sessions(
+             session_id ASC).
+         """
+         with self.ManagedSessionMaker() as session:
+-            experiment_id_int = self._parse_experiment_id(experiment_id)
++            experiment_id_int = _parse_experiment_id(experiment_id)
+ 
+             experiment_ids = self._filter_experiment_ids(session, [experiment_id_int])
+             if not experiment_ids:
+@@ -4638,7 +4625,7 @@ def query_trace_metrics(
+             # statements. Establish their shared snapshot before the first database read.
+             configure_rollup_read_snapshot(session, self.db_type)
+             experiment_ids_int = self._filter_experiment_ids(
+-                session, [int(exp_id) for exp_id in experiment_ids]
++                session, _parse_experiment_ids(experiment_ids)
+             )
+ 
+             def raw_query():
+@@ -4805,10 +4792,11 @@ def _delete_traces(
+         Returns:
+             The number of traces deleted.
+         """
++        experiment_id_int = _parse_experiment_id(experiment_id)
+         deleted_db_backed_count = 0
+         selected_archived_traces: list[_TraceDeleteSelection] = []
+         with self.ManagedSessionMaker(read_only=False) as session:
+-            filters = [SqlTraceInfo.experiment_id == int(experiment_id)]
++            filters = [SqlTraceInfo.experiment_id == experiment_id_int]
+             if max_timestamp_millis is not None:
+                 filters.append(SqlTraceInfo.timestamp_ms <= max_timestamp_millis)
+             if trace_ids:
+@@ -4836,7 +4824,7 @@ def _delete_traces(
+ 
+             if use_rollups:
+                 self._enqueue_rollup_rebuilds_for_trace_delete(
+-                    session, int(experiment_id), selected_trace_ids
++                    session, experiment_id_int, selected_trace_ids
+                 )
+                 selected_trace_ids = self._lock_trace_ids_for_delete(session, selected_trace_ids)
+                 if not selected_trace_ids:
+@@ -4875,7 +4863,7 @@ def _delete_traces(
+ 
+         with self.ManagedSessionMaker(read_only=False) as session:
+             self._enqueue_rollup_rebuilds_for_trace_delete(
+-                session, int(experiment_id), deleted_archived_trace_ids
++                session, experiment_id_int, deleted_archived_trace_ids
+             )
+             deleted_archived_count = (
+                 session
+@@ -5543,7 +5531,9 @@ def calculate_trace_filter_correlation(
+         """
+ 
+         with self.ManagedSessionMaker() as session:
+-            experiment_ids = self._filter_experiment_ids(session, [int(e) for e in experiment_ids])
++            experiment_ids = self._filter_experiment_ids(
++                session, _parse_experiment_ids(experiment_ids)
++            )
+             # Keep IDs as integers when filtering trace_info.experiment_id. psycopg v3
+             # rejects VARCHAR parameters compared with this INTEGER column.
+ 
+@@ -6473,7 +6463,7 @@ def _query_trace_infos_in_batches(
+         unique_trace_ids = list(trace_id_order)
+         experiment_id_chunks: list[list[int] | None] = [None]
+         if experiment_ids is not None:
+-            parsed_ids = list(dict.fromkeys(self._parse_experiment_id(e) for e in experiment_ids))
++            parsed_ids = list(dict.fromkeys(_parse_experiment_ids(experiment_ids)))
+             experiment_id_chunks = [
+                 parsed_ids[i : i + self._TRACE_BATCH_QUERY_ID_CHUNK_SIZE]
+                 for i in range(0, len(parsed_ids), self._TRACE_BATCH_QUERY_ID_CHUNK_SIZE)
+@@ -8686,7 +8676,7 @@ def create_issue(
+             # Create SqlIssue record
+             sql_issue = SqlIssue(
+                 issue_id=issue_id,
+-                experiment_id=int(experiment_id),
++                experiment_id=_parse_experiment_id(experiment_id),
+                 name=name,
+                 description=description,
+                 status=status.value,
+@@ -8829,8 +8819,8 @@ def search_issues(
+                     .group_by(SqlIssue.issue_id)
+                 )
+ 
+-            if experiment_id:
+-                query = query.filter(SqlIssue.experiment_id == int(experiment_id))
++            if experiment_id is not None:
++                query = query.filter(SqlIssue.experiment_id == _parse_experiment_id(experiment_id))
+ 
+             if filter_string:
+                 parsed_filters = SearchIssuesUtils.parse_search_filter(filter_string)
+@@ -10201,9 +10191,9 @@ def _get_search_experiments_filter_clauses(parsed_filters, dialect):
+                         f"Invalid comparator for experiment_id: {comparator}"
+                     )
+                 value = (
+-                    tuple(SqlAlchemyStore._parse_experiment_id(v) for v in value)
++                    tuple(_parse_experiment_id(v) for v in value)
+                     if isinstance(value, tuple)
+-                    else SqlAlchemyStore._parse_experiment_id(value)
++                    else _parse_experiment_id(value)
+                 )
+             else:
+                 if SearchExperimentsUtils.is_string_attribute(
+diff --git a/mlflow/utils/validation.py b/mlflow/utils/validation.py
+index f2574959143d6..f9ff26acbbd51 100644
+--- a/mlflow/utils/validation.py
++++ b/mlflow/utils/validation.py
+@@ -575,6 +575,22 @@ def _validate_experiment_id(exp_id):
+         )
+ 
+ 
++def _parse_experiment_id(experiment_id: str | int) -> int:
++    """Parse a non-None experiment ID into an integer."""
++    try:
++        return int(experiment_id)
++    except (ValueError, TypeError):
++        raise MlflowException(
++            f"Invalid experiment ID '{experiment_id}'. Experiment ID must be a valid integer.",
++            error_code=INVALID_PARAMETER_VALUE,
++        )
++
++
++def _parse_experiment_ids(experiment_ids: list[str | int]) -> list[int]:
++    """Parse non-None experiment IDs into integers."""
++    return [_parse_experiment_id(experiment_id) for experiment_id in experiment_ids]
++
++
+ def _validate_batch_limit(entity_name, limit, length):
+     if length > limit:
+         error_msg = (
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_core.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_core.py
+index 014b8ca63b015..fa3481064c4d3 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_core.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_core.py
+@@ -8,7 +8,9 @@
+ 
+ import mlflow.db
+ from mlflow import entities
++from mlflow.entities.trace_metrics import AggregationType, MetricAggregation, MetricViewType
+ from mlflow.exceptions import MlflowException
++from mlflow.protos.databricks_pb2 import INVALID_PARAMETER_VALUE, ErrorCode
+ from mlflow.store.db.db_types import MSSQL, MYSQL
+ from mlflow.store.db.utils import (
+     _get_latest_schema_revision,
+@@ -354,3 +356,45 @@ def test_get_orderby_clauses(tmp_sqlite_uri):
+         assert "value IS NULL" in select_clause[0]
+         # test that clause name is in parsed
+         assert "clause_1" in parsed[0]
++
++
++@pytest.mark.parametrize(
++    ("method_name", "make_args"),
++    [
++        ("_search_datasets", lambda exp_id: ([exp_id],)),
++        ("search_runs", lambda exp_id: ([exp_id], None, entities.ViewType.ALL, 10)),
++        ("search_logged_models", lambda exp_id: ([exp_id],)),
++        ("_delete_traces", lambda exp_id: (exp_id, 1)),
++        ("calculate_trace_filter_correlation", lambda e: ([e], "name = 'a'", "name = 'b'")),
++        ("search_issues", lambda exp_id: (exp_id,)),
++        (
++            "query_trace_metrics",
++            lambda exp_id: (
++                [exp_id],
++                MetricViewType.TRACES,
++                "trace_count",
++                [MetricAggregation(aggregation_type=AggregationType.COUNT)],
++            ),
++        ),
++    ],
++)
++@pytest.mark.parametrize("bad_experiment_id", ["not-a-number", "12abc", ""])
++def test_store_methods_reject_non_numeric_experiment_id(
++    store, method_name, make_args, bad_experiment_id
++):
++    with pytest.raises(MlflowException, match="Experiment ID must be a valid integer") as exc_info:
++        getattr(store, method_name)(*make_args(bad_experiment_id))
++
++    assert exc_info.value.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE)
++
++
++def test_store_methods_accept_valid_experiment_id(store):
++    exp_id = store.create_experiment("valid-experiment-id")
++
++    assert store._search_datasets([exp_id]) == []
++    assert store.search_runs([exp_id], None, entities.ViewType.ALL, 10) == []
++    assert store.search_runs([int(exp_id)], None, entities.ViewType.ALL, 10) == []
++    assert store.search_logged_models([exp_id]) == []
++    assert store._delete_traces(exp_id, 1) == 0
++    correlation = store.calculate_trace_filter_correlation([exp_id], "name = 'a'", "name = 'b'")
++    assert correlation.total_count == 0
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_scorers.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_scorers.py
+index b54850166638c..3d893c8b6dafa 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_scorers.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_scorers.py
+@@ -577,8 +577,9 @@ def test_scorer_experiment_ids_are_coerced_to_int(store: SqlAlchemyStore):
+     store.delete_scorer(exp_id, "coerced", version=1)
+     assert [v.scorer_version for v in store.list_scorer_versions(exp_id, "coerced")] == [2]
+ 
+-    with pytest.raises(MlflowException, match="must be valid integers"):
+-        store.list_scorers_across_experiments(["not-a-number"])
++    for bad_experiment_id in ["not-a-number", ""]:
++        with pytest.raises(MlflowException, match="Experiment ID must be a valid integer"):
++            store.list_scorers_across_experiments([bad_experiment_id])
+ 
+ 
+ @pytest.mark.parametrize(
+diff --git a/tests/store/tracking/test_gateway_sql_store.py b/tests/store/tracking/test_gateway_sql_store.py
+index 39276f53e42a0..69d049373acc9 100644
+--- a/tests/store/tracking/test_gateway_sql_store.py
++++ b/tests/store/tracking/test_gateway_sql_store.py
+@@ -644,6 +644,68 @@ def test_create_gateway_endpoint_nonexistent_model_raises(store: SqlAlchemyStore
+     assert exc.value.error_code == ErrorCode.Name(RESOURCE_DOES_NOT_EXIST)
+ 
+ 
++def _create_gateway_test_model_definition(store: SqlAlchemyStore, prefix: str):
++    secret = store.create_gateway_secret(
++        secret_name=f"{prefix}-key-{uuid.uuid4().hex}", secret_value={"api_key": "value"}
++    )
++    return store.create_gateway_model_definition(
++        name=f"{prefix}-model-{uuid.uuid4().hex}",
++        secret_id=secret.secret_id,
++        provider="openai",
++        model_name="gpt-4",
++    )
++
++
++def _primary_gateway_model_config(model_definition_id: str) -> GatewayEndpointModelConfig:
++    return GatewayEndpointModelConfig(
++        model_definition_id=model_definition_id,
++        linkage_type=GatewayModelLinkageType.PRIMARY,
++        weight=1.0,
++    )
++
++
++@pytest.mark.parametrize("bad_experiment_id", ["not-a-number", ""])
++def test_gateway_endpoint_rejects_non_numeric_experiment_id(
++    store: SqlAlchemyStore, bad_experiment_id
++):
++    model_def = _create_gateway_test_model_definition(store, "bad-exp")
++
++    with pytest.raises(MlflowException, match="Experiment ID must be a valid integer") as exc:
++        store.create_gateway_endpoint(
++            name=f"bad-create-exp-endpoint-{uuid.uuid4().hex}",
++            model_configs=[_primary_gateway_model_config(model_def.model_definition_id)],
++            experiment_id=bad_experiment_id,
++            usage_tracking=False,
++        )
++
++    assert exc.value.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE)
++
++    endpoint = store.create_gateway_endpoint(
++        name=f"bad-update-exp-endpoint-{uuid.uuid4().hex}",
++        model_configs=[_primary_gateway_model_config(model_def.model_definition_id)],
++        usage_tracking=False,
++    )
++
++    with pytest.raises(MlflowException, match="Experiment ID must be a valid integer") as exc:
++        store.update_gateway_endpoint(endpoint.endpoint_id, experiment_id=bad_experiment_id)
++
++    assert exc.value.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE)
++
++
++@pytest.mark.parametrize("experiment_id", ["0", 0])
++def test_create_gateway_endpoint_accepts_zero_experiment_id(store: SqlAlchemyStore, experiment_id):
++    model_def = _create_gateway_test_model_definition(store, "zero-exp")
++
++    endpoint = store.create_gateway_endpoint(
++        name=f"zero-exp-endpoint-{uuid.uuid4().hex}",
++        model_configs=[_primary_gateway_model_config(model_def.model_definition_id)],
++        experiment_id=experiment_id,
++        usage_tracking=True,
++    )
++
++    assert endpoint.experiment_id == "0"
++
++
+ def test_get_gateway_endpoint_by_id(store: SqlAlchemyStore):
+     secret = store.create_gateway_secret(
+         secret_name="get-ep-key", secret_value={"api_key": "value"}

@@ -1,0 +1,81 @@
+diff --git a/mlflow/entities/span.py b/mlflow/entities/span.py
+index 8b5c6bda91c0d..3d5f36a70ecec 100644
+--- a/mlflow/entities/span.py
++++ b/mlflow/entities/span.py
+@@ -330,6 +330,17 @@ def __getitem__(self, item: Any) -> NoReturn:
+ 
+         raise TypeError(f"'{type(self).__name__}' object is not subscriptable.{hint}")
+ 
++    def __getattr__(self, name: str) -> NoReturn:
++        # Only reached when normal lookup fails. Keeps `hasattr(span, "get")`
++        # False and makes `span.get` itself raise, unlike defining a real method.
++        if name == "get":
++            raise AttributeError(
++                f"'{type(self).__name__}' object has no attribute 'get'; a span is not a dict. "
++                "Use attribute access such as `span.name`, `span.inputs`, `span.outputs`, "
++                "or `span.attributes`, or `span.get_attribute(key)` for a span attribute."
++            )
++        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
++
+     def get_attribute(self, key: str) -> Any | None:
+         """
+         Get a single attribute value from the span.
+@@ -1394,7 +1405,10 @@ def _ensure_materialized(self) -> None:
+ 
+     def __getattr__(self, name: str):
+         self._ensure_materialized()
+-        return object.__getattribute__(self, name)
++        try:
++            return object.__getattribute__(self, name)
++        except AttributeError:
++            return super().__getattr__(name)
+ 
+     def __repr__(self):
+         if self.__dict__.get("_materialized"):
+diff --git a/tests/entities/test_span.py b/tests/entities/test_span.py
+index 2724f45675c29..a1559fb3ae3c4 100644
+--- a/tests/entities/test_span.py
++++ b/tests/entities/test_span.py
+@@ -1535,3 +1535,42 @@ def test_span_is_not_iterable():
+         iter(span)
+     with pytest.raises(TypeError, match="not iterable"):
+         _ = "name" in span
++
++
++def test_span_get_raises_helpful_attribute_error():
++    from mlflow.entities.span import LazySpan, NoOpSpan
++
++    expected_pattern = (
++        r"object has no attribute 'get'; a span is not a dict\. "
++        r"Use attribute access such as `span\.name`, `span\.inputs`, "
++        r"`span\.outputs`, or `span\.attributes`, or `span\.get_attribute\(key\)` "
++        r"for a span attribute\."
++    )
++
++    with mlflow.start_span("test_span") as live_span:
++        assert hasattr(live_span, "get") is False
++        with pytest.raises(AttributeError, match=expected_pattern):
++            _ = live_span.get
++        with pytest.raises(AttributeError, match=expected_pattern):
++            live_span.get("name")
++
++    span = live_span.to_immutable_span()
++    assert hasattr(span, "get") is False
++    with pytest.raises(AttributeError, match=expected_pattern):
++        _ = span.get
++    with pytest.raises(AttributeError, match=expected_pattern):
++        span.get("name")
++
++    lazy_span = LazySpan(span.to_dict())
++    assert hasattr(lazy_span, "get") is False
++    with pytest.raises(AttributeError, match=expected_pattern):
++        _ = lazy_span.get
++    with pytest.raises(AttributeError, match=expected_pattern):
++        lazy_span.get("name")
++
++    noop_span = NoOpSpan()
++    assert hasattr(noop_span, "get") is False
++    with pytest.raises(AttributeError, match=expected_pattern):
++        _ = noop_span.get
++    with pytest.raises(AttributeError, match=expected_pattern):
++        noop_span.get("name")

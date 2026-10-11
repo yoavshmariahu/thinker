@@ -1,0 +1,76 @@
+diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py
+index 3cdd225b4f178..96edced5f1b15 100644
+--- a/mlflow/gateway/providers/gemini.py
++++ b/mlflow/gateway/providers/gemini.py
+@@ -99,6 +99,11 @@ def _tool_result_to_response(content: Any) -> dict[str, Any]:
+ 
+ 
+ class GeminiAdapter(ProviderAdapter):
++    @staticmethod
++    def _join_text_parts(parts):
++        """Concatenate the text of every part; Gemini may split one reply across parts."""
++        return "".join(part.get("text") or "" for part in parts or [])
++
+     @classmethod
+     def _normalize_finish_reason(cls, finish_reason):
+         """Normalize Gemini finish reasons to OpenAI format (lowercase)."""
+@@ -442,7 +447,7 @@ def model_to_chat(cls, resp, config):
+                         )
+                     )
+ 
+-                elif content := parts[0].get("text"):
++                elif content := GeminiAdapter._join_text_parts(parts):
+                     choices.append(
+                         chat_schema.Choice(
+                             index=idx,
+@@ -509,7 +514,7 @@ def model_to_chat_streaming(
+                     )
+                     continue
+ 
+-            delta_text = parts[0].get("text", "") if parts else ""
++            delta_text = GeminiAdapter._join_text_parts(parts)
+             # Gemini ends a tool-call stream with a STOP chunk that carries no functionCall,
+             # so the calls seen in earlier chunks decide the finish reason.
+             if finish_reason == "stop" and (tool_call_offsets or {}).get(idx, 0):
+@@ -589,7 +594,7 @@ def model_to_completions(cls, resp, config):
+         for idx, candidate in enumerate(resp.get("candidates", [])):
+             text = ""
+             if parts := candidate.get("content", {}).get("parts", None):
+-                text = parts[0].get("text", None)
++                text = cls._join_text_parts(parts)
+             if not text:
+                 continue
+ 
+@@ -643,7 +648,7 @@ def model_to_completions_streaming(
+         choices = []
+         for idx, cand in enumerate(resp.get("candidates", [])):
+             parts = cand.get("content", {}).get("parts", [])
+-            delta_text = parts[0].get("text", "") if parts else ""
++            delta_text = cls._join_text_parts(parts)
+             choices.append(
+                 completions_schema.StreamChoice(
+                     index=idx,
+diff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py
+index 031b289f5b782..b6cfa6ad74377 100644
+--- a/tests/gateway/providers/test_gemini.py
++++ b/tests/gateway/providers/test_gemini.py
+@@ -2439,3 +2439,19 @@ async def test_gemini_chat_stream_trailing_stop_finish_reason_is_per_candidate()
+     mock_client.post.assert_called_once()
+     finish_reasons = {choice.index: choice.finish_reason for choice in chunks[-1].choices}
+     assert finish_reasons == {0: "tool_calls", 1: "stop"}
++
++
++@pytest.mark.parametrize(
++    ("method", "config_fn", "get_text"),
++    [
++        ("model_to_chat", chat_config, lambda r: r.choices[0].message.content),
++        ("model_to_chat_streaming", chat_config, lambda r: r.choices[0].delta.content),
++        ("model_to_completions", completions_config, lambda r: r.choices[0].text),
++        ("model_to_completions_streaming", completions_config, lambda r: r.choices[0].text),
++    ],
++)
++def test_gemini_multiple_text_parts_are_joined(method, config_fn, get_text):
++    config = EndpointConfig(**config_fn())
++    resp = _mixed_parts_response([{"text": "Hello, "}, {"text": "world."}])
++
++    assert get_text(getattr(GeminiAdapter, method)(resp, config)) == "Hello, world."

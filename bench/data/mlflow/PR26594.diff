@@ -1,0 +1,603 @@
+diff --git a/docs/api_reference/api_inventory.txt b/docs/api_reference/api_inventory.txt
+index 8793edfff0bde..3f1bd3dffb2a3 100644
+--- a/docs/api_reference/api_inventory.txt
++++ b/docs/api_reference/api_inventory.txt
+@@ -850,6 +850,7 @@ mlflow.gateway.config.EndpointType
+ mlflow.gateway.config.GatewayConfig
+ mlflow.gateway.config.GatewayRequestType
+ mlflow.gateway.config.GeminiConfig
++mlflow.gateway.config.GeminiConfig.validate_gemini_api_base
+ mlflow.gateway.config.GeminiConfig.validate_gemini_api_key
+ mlflow.gateway.config.HuggingFaceTextGenerationInferenceConfig
+ mlflow.gateway.config.Limit
+diff --git a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
+index 203b0910c52e6..5120b2ffbdce8 100644
+--- a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
++++ b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
+@@ -169,6 +169,20 @@ See [Anthropic API Reference](https://docs.anthropic.com/en/api) for complete do
+ 
+ Access Gemini models through Google's API format:
+ 
++To use a Gemini-native-compatible relay, set **API Base URL** in the connection settings
++(`auth_config["api_base"]`, or `gemini_api_base` in gateway YAML). You can specify an
++origin or relay prefix such as `https://relay.example.com/gemini`, a versioned root
++such as `https://relay.example.com/gemini/v1beta`, or the full models base ending in
++`/v1beta/models`. Origins and relay prefixes default to `/v1beta/models`; versioned
++roots ending in `/v1`, `/v1beta`, or `/v1alpha` use that version and append `/models`.
++Bases ending in `/models` must have one of these versions immediately before `/models`;
++otherwise, configuration raises an error. Other suffixes, including `/v1beta1`, are treated
++as relay prefixes and get `/v1beta/models` appended, not as API versions.
++Trailing slashes are ignored. This setting applies to generation, embeddings, streaming,
++and native passthrough. Raw proxy requests retain the configured host and relay prefix
++and use the versioned API path supplied by the caller. If omitted, the gateway uses Google's
++`https://generativelanguage.googleapis.com/v1beta/models` base.
++
+ **Base URL:** `http://localhost:5000/gateway/gemini`
+ 
+ **Supported Endpoints:**
+diff --git a/mlflow/gateway/config.py b/mlflow/gateway/config.py
+index 98e96e8ebc712..7808dfac1f2d5 100644
+--- a/mlflow/gateway/config.py
++++ b/mlflow/gateway/config.py
+@@ -5,6 +5,7 @@
+ from enum import Enum
+ from pathlib import Path
+ from typing import TYPE_CHECKING, Any, Literal
++from urllib.parse import urlparse
+ 
+ import pydantic
+ import yaml
+@@ -226,11 +227,26 @@ def validate_palm_api_key(cls, value):
+ 
+ class GeminiConfig(ConfigModel):
+     gemini_api_key: str
++    gemini_api_base: str = "https://generativelanguage.googleapis.com/v1beta/models"
+ 
+     @field_validator("gemini_api_key", mode="before")
+     def validate_gemini_api_key(cls, value):
+         return _resolve_api_key_from_input(value)
+ 
++    @field_validator("gemini_api_base")
++    def validate_gemini_api_base(cls, value):
++        path = urlparse(value).path.rstrip("/")
++        if path.endswith("/models") and not path.endswith((
++            "/v1/models",
++            "/v1beta/models",
++            "/v1alpha/models",
++        )):
++            raise ValueError(
++                "gemini_api_base ending in /models must include a supported API version "
++                "(/v1, /v1beta, or /v1alpha) immediately before /models."
++            )
++        return value
++
+ 
+ class MlflowModelServingConfig(ConfigModel):
+     model_server_url: str
+diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py
+index b649e19ebe88c..3cdd225b4f178 100644
+--- a/mlflow/gateway/providers/gemini.py
++++ b/mlflow/gateway/providers/gemini.py
+@@ -2,6 +2,7 @@
+ import json
+ import time
+ from typing import Any, AsyncIterable
++from urllib.parse import parse_qsl, urlparse, urlunparse
+ 
+ from mlflow.gateway.config import EndpointConfig, GeminiConfig
+ from mlflow.gateway.exceptions import AIGatewayException
+@@ -14,6 +15,7 @@
+ )
+ from mlflow.gateway.providers.utils import (
+     parse_base64_data_url,
++    proxy_root_url,
+     rename_payload_keys,
+     send_proxy_request,
+     send_request,
+@@ -30,6 +32,7 @@
+ )
+ from mlflow.gateway.utils import handle_incomplete_chunks, strip_sse_prefix
+ from mlflow.types.chat import Function, ToolCall
++from mlflow.utils.uri import append_to_uri_path, append_to_uri_query_params
+ 
+ GENERATION_CONFIG_KEY_MAPPING = {
+     "stop": "stopSequences",
+@@ -803,7 +806,13 @@ def _get_headers(
+ 
+     @property
+     def base_url(self):
+-        return "https://generativelanguage.googleapis.com/v1beta/models"
++        # Accept an API origin, a versioned API root, or a full models base.
++        parsed = urlparse(self.gemini_config.gemini_api_base)
++        path = parsed.path.rstrip("/")
++        versions = ("/v1", "/v1beta", "/v1alpha")
++        if not path.endswith(tuple(f"{version}/models" for version in versions)):
++            path += "/models" if path.endswith(versions) else "/v1beta/models"
++        return urlunparse(parsed._replace(path=path))
+ 
+     @property
+     def adapter_class(self):
+@@ -812,9 +821,9 @@ def adapter_class(self):
+     def get_endpoint_url(self, route_type: str) -> str:
+         model_name = self.config.model.name
+         if route_type in ("llm/v1/chat", "llm/v1/completions"):
+-            return f"{self.base_url}/{model_name}:generateContent"
++            return append_to_uri_path(self.base_url, f"{model_name}:generateContent")
+         elif route_type == "llm/v1/embeddings":
+-            return f"{self.base_url}/{model_name}:embedContent"
++            return append_to_uri_path(self.base_url, f"{model_name}:embedContent")
+         raise ValueError(f"Invalid route type {route_type}")
+ 
+     async def _request(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+@@ -875,11 +884,14 @@ async def _completions_stream(
+         self.check_for_model_field(body)
+ 
+         model_payload = self.adapter_class.completions_to_model(body, self.config)
+-        path = f"{self.config.model.name}:streamGenerateContent?alt=sse"
++        path = f"{self.config.model.name}:streamGenerateContent"
+ 
+         # Documentation: https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
+         sse = send_stream_request(
+-            headers=self.headers, base_url=self.base_url, path=path, payload=model_payload
++            headers=self.headers,
++            base_url=append_to_uri_query_params(self.base_url, ("alt", "sse")),
++            path=path,
++            payload=model_payload,
+         )
+ 
+         async for raw in handle_incomplete_chunks(sse):
+@@ -921,8 +933,8 @@ async def _chat_stream(
+         # Documentation: https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
+         sse = send_stream_request(
+             headers=self.headers,
+-            base_url=self.base_url,
+-            path=f"{self.config.model.name}:streamGenerateContent?alt=sse",
++            base_url=append_to_uri_query_params(self.base_url, ("alt", "sse")),
++            path=f"{self.config.model.name}:streamGenerateContent",
+             payload=body,
+         )
+ 
+@@ -1018,10 +1030,16 @@ async def _proxy(
+         payload: dict[str, Any],
+         headers: dict[str, str] | None = None,
+     ) -> dict[str, Any] | AsyncIterable[Any]:
+-        # base_url includes /v1beta/models; the caller's path already starts with
+-        # v1beta/models/..., so use the bare origin to avoid double-prefixing.
+-        api_origin = "https://generativelanguage.googleapis.com"
+-        gen = send_proxy_request(self._get_headers(None, headers), api_origin, path, payload)
++        # Strip the models and version suffixes, retaining any relay path prefix.
++        # Raw proxy callers already supply the full versioned API path.
++        api_root = proxy_root_url(proxy_root_url(self.base_url))
++        if urlparse(api_root).query:
++            parsed_path = urlparse(path)
++            api_root = append_to_uri_query_params(
++                api_root, *parse_qsl(parsed_path.query, keep_blank_values=True)
++            )
++            path = urlunparse(parsed_path._replace(query=""))
++        gen = send_proxy_request(self._get_headers(None, headers), api_root, path, payload)
+         meta = await gen.__anext__()
+         if meta["is_streaming"]:
+             return gen
+@@ -1043,9 +1061,10 @@ async def _passthrough(
+         is_streaming = action == PassthroughAction.GEMINI_STREAM_GENERATE_CONTENT
+ 
+         if is_streaming:
++            provider_path = provider_path.removesuffix("?alt=sse")
+             stream = send_stream_request(
+                 headers=request_headers,
+-                base_url=self.base_url,
++                base_url=append_to_uri_query_params(self.base_url, ("alt", "sse")),
+                 path=provider_path,
+                 payload=payload,
+             )
+diff --git a/mlflow/server/gateway_api.py b/mlflow/server/gateway_api.py
+index 2efed4ddaedd2..9fdcbf734a220 100644
+--- a/mlflow/server/gateway_api.py
++++ b/mlflow/server/gateway_api.py
+@@ -432,9 +432,12 @@ def _build_endpoint_config(
+             typesafe_config["typesafe_api_base"] = model_config.auth_config[_AuthConfigKey.API_BASE]
+         provider_config = TypeSafeConfig(**typesafe_config)
+     elif model_config.provider == Provider.GEMINI:
+-        provider_config = GeminiConfig(
+-            gemini_api_key=model_config.secret_value.get(_AuthConfigKey.API_KEY),
+-        )
++        gemini_config = {
++            "gemini_api_key": model_config.secret_value.get(_AuthConfigKey.API_KEY),
++        }
++        if model_config.auth_config and _AuthConfigKey.API_BASE in model_config.auth_config:
++            gemini_config["gemini_api_base"] = model_config.auth_config[_AuthConfigKey.API_BASE]
++        provider_config = GeminiConfig(**gemini_config)
+     elif model_config.provider in {
+         Provider.GROQ,
+         Provider.DEEPSEEK,
+diff --git a/mlflow/utils/uri.py b/mlflow/utils/uri.py
+index a7e8cc547c65b..8b231a62e4f8c 100644
+--- a/mlflow/utils/uri.py
++++ b/mlflow/utils/uri.py
+@@ -365,7 +365,7 @@ def append_to_uri_query_params(uri, *query_params: tuple[str, Any]) -> str:
+             be a 2-element tuple. For example, ``("key", "value")``.
+     """
+     parsed_uri = urllib.parse.urlparse(uri)
+-    parsed_query = urllib.parse.parse_qsl(parsed_uri.query)
++    parsed_query = urllib.parse.parse_qsl(parsed_uri.query, keep_blank_values=True)
+     new_parsed_query = parsed_query + list(query_params)
+     new_query = urllib.parse.urlencode(new_parsed_query)
+     new_parsed_uri = parsed_uri._replace(query=new_query)
+diff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py
+index 506215841b119..031b289f5b782 100644
+--- a/tests/gateway/providers/test_gemini.py
++++ b/tests/gateway/providers/test_gemini.py
+@@ -3,6 +3,7 @@
+ 
+ import pytest
+ from fastapi.encoders import jsonable_encoder
++from pydantic import ValidationError
+ 
+ from mlflow.gateway.config import EndpointConfig
+ from mlflow.gateway.exceptions import AIGatewayException
+@@ -59,6 +60,75 @@ def embedding_config():
+     }
+ 
+ 
++@pytest.fixture(params=[None, "https://gemini.example.com/relay/v1beta/models"])
++def api_base(request):
++    return request.param
++
++
++@pytest.mark.parametrize(
++    ("api_base", "expected_base"),
++    [
++        ("https://gemini.example.com", "https://gemini.example.com/v1beta/models"),
++        ("https://gemini.example.com/", "https://gemini.example.com/v1beta/models"),
++        ("https://gemini.example.com/relay/", "https://gemini.example.com/relay/v1beta/models"),
++        ("https://gemini.example.com/relay/v1/", "https://gemini.example.com/relay/v1/models"),
++        ("https://gemini.example.com/v1alpha", "https://gemini.example.com/v1alpha/models"),
++        ("https://gemini.example.com/v1beta/", "https://gemini.example.com/v1beta/models"),
++        ("https://gemini.example.com/v1/models/", "https://gemini.example.com/v1/models"),
++        ("https://gemini.example.com/v1alpha/models", "https://gemini.example.com/v1alpha/models"),
++        ("https://gemini.example.com/v1beta/models/", "https://gemini.example.com/v1beta/models"),
++        (
++            "https://gemini.example.com/v1beta1",
++            "https://gemini.example.com/v1beta1/v1beta/models",
++        ),
++        (
++            "https://gemini.example.com/relay/v1beta/?tenant=acme",
++            "https://gemini.example.com/relay/v1beta/models?tenant=acme",
++        ),
++        (
++            "https://gemini.example.com/relay/v1beta/models/?tenant=acme",
++            "https://gemini.example.com/relay/v1beta/models?tenant=acme",
++        ),
++    ],
++)
++def test_gemini_base_url(api_base, expected_base):
++    config = chat_config()
++    config["model"]["config"]["gemini_api_base"] = api_base
++    provider = GeminiProvider(EndpointConfig(**config))
++
++    assert provider.base_url == expected_base
++    base_path, _, query = expected_base.partition("?")
++    query_suffix = f"?{query}" if query else ""
++    assert (
++        provider.get_endpoint_url("llm/v1/chat")
++        == f"{base_path}/gemini-2.0-flash:generateContent{query_suffix}"
++    )
++    assert (
++        provider.get_endpoint_url("llm/v1/embeddings")
++        == f"{base_path}/gemini-2.0-flash:embedContent{query_suffix}"
++    )
++
++
++@pytest.mark.parametrize(
++    "api_base",
++    [
++        "https://gemini.example.com/models",
++        "https://gemini.example.com/gemini/models",
++        "https://gemini.example.com/gemini/models///?flag=&tenant=acme",
++        "https://gemini.example.com/v1beta1/models",
++    ],
++)
++def test_gemini_api_base_rejects_unversioned_models(api_base):
++    config = chat_config()
++    config["model"]["config"]["gemini_api_base"] = api_base
++
++    with pytest.raises(
++        ValidationError,
++        match="gemini_api_base ending in /models must include a supported API version",
++    ):
++        EndpointConfig(**config)
++
++
+ def fake_single_embedding_response():
+     return {"embeddings": [{"values": [0.1, 0.2, 0.3]}]}
+ 
+@@ -145,15 +215,16 @@ def test_get_headers_preserves_client_key_for_credential_agents(user_agent):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_gemini_single_embedding():
++async def test_gemini_single_embedding(api_base):
+     config = embedding_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
+     provider = GeminiProvider(EndpointConfig(**config))
+     payload = {"input": "This is a test embedding."}
+ 
+     expected_payload = {"content": {"parts": [{"text": "This is a test embedding."}]}}
+-    expected_url = (
+-        "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+-    )
++    expected_base = api_base or "https://generativelanguage.googleapis.com/v1beta/models"
++    expected_url = f"{expected_base}/text-embedding-004:embedContent"
+ 
+     with mock.patch(
+         "aiohttp.ClientSession.post",
+@@ -226,8 +297,10 @@ async def test_gemini_batch_embedding():
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_gemini_completions():
++async def test_gemini_completions(api_base):
+     config = completions_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
+     provider = GeminiProvider(EndpointConfig(**config))
+     payload = {
+         "prompt": "Tell me a joke",
+@@ -250,9 +323,8 @@ async def test_gemini_completions():
+             "topK": 40,
+         },
+     }
+-    expected_url = (
+-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+-    )
++    expected_base = api_base or "https://generativelanguage.googleapis.com/v1beta/models"
++    expected_url = f"{expected_base}/gemini-2.0-flash:generateContent"
+ 
+     with (
+         mock.patch("time.time", return_value=1234567890),
+@@ -1326,8 +1398,10 @@ def chat_stream_response_incomplete():
+ 
+ @pytest.mark.parametrize("resp", [chat_stream_response(), chat_stream_response_incomplete()])
+ @pytest.mark.asyncio
+-async def test_gemini_chat_stream(resp):
++async def test_gemini_chat_stream(resp, api_base):
+     config = chat_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
+     mock_client = mock_http_client(MockAsyncStreamingResponse(resp))
+     provider = GeminiProvider(EndpointConfig(**config))
+     payload = {"messages": [{"role": "user", "content": "Tell me a joke"}]}
+@@ -1382,10 +1456,8 @@ async def test_gemini_chat_stream(resp):
+ 
+     mock_build_client.assert_called_once()
+ 
+-    expected_url = (
+-        "https://generativelanguage.googleapis.com/v1beta/models/"
+-        "gemini-2.0-flash:streamGenerateContent?alt=sse"
+-    )
++    expected_base = api_base or "https://generativelanguage.googleapis.com/v1beta/models"
++    expected_url = f"{expected_base}/gemini-2.0-flash:streamGenerateContent?alt=sse"
+ 
+     mock_client.post.assert_called_once_with(
+         expected_url,
+@@ -1666,9 +1738,11 @@ def passthrough_stream_generate_content_response():
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_passthrough_gemini_generate_content():
++async def test_passthrough_gemini_generate_content(api_base):
+     resp = passthrough_generate_content_response()
+     config = chat_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
+ 
+     captured_session_headers = {}
+     mock_session_client = mock_http_client(MockAsyncResponse(resp))
+@@ -1701,7 +1775,8 @@ def mock_client_session(headers=None, **kwargs):
+ 
+         mock_session_client.post.assert_called_once()
+         call_args = mock_session_client.post.call_args
+-        assert "gemini-2.0-flash:generateContent" in call_args[0][0]
++        expected_base = api_base or "https://generativelanguage.googleapis.com/v1beta/models"
++        assert call_args[0][0] == f"{expected_base}/gemini-2.0-flash:generateContent"
+         assert call_args[1]["json"]["contents"] == [{"role": "user", "parts": [{"text": "Hello"}]}]
+ 
+         # Verify provider headers are propagated correctly
+@@ -1717,9 +1792,11 @@ def mock_client_session(headers=None, **kwargs):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_passthrough_gemini_stream_generate_content():
++async def test_passthrough_gemini_stream_generate_content(api_base):
+     resp = passthrough_stream_generate_content_response()
+     config = chat_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
+ 
+     captured_session_headers = {}
+     mock_session_client = mock_http_client(MockAsyncStreamingResponse(resp))
+@@ -1753,7 +1830,8 @@ def mock_client_session(headers=None, **kwargs):
+ 
+         mock_session_client.post.assert_called_once()
+         call_args = mock_session_client.post.call_args
+-        assert "gemini-2.0-flash:streamGenerateContent?alt=sse" in call_args[0][0]
++        expected_base = api_base or "https://generativelanguage.googleapis.com/v1beta/models"
++        assert call_args[0][0] == f"{expected_base}/gemini-2.0-flash:streamGenerateContent?alt=sse"
+         assert call_args[1]["json"]["contents"] == [{"role": "user", "parts": [{"text": "Hello"}]}]
+ 
+         # Verify provider headers are propagated correctly
+@@ -1763,6 +1841,108 @@ def mock_client_session(headers=None, **kwargs):
+         assert captured_session_headers["X-Stream-Context"] == "gemini-stream"
+ 
+ 
++@pytest.mark.asyncio
++@pytest.mark.parametrize("streaming", [False, True])
++@pytest.mark.parametrize(
++    ("api_base", "expected_root"),
++    [
++        (None, "https://generativelanguage.googleapis.com"),
++        ("https://gemini.example.com/", "https://gemini.example.com"),
++        ("https://gemini.example.com/relay/", "https://gemini.example.com/relay"),
++        ("https://gemini.example.com/relay/v1/", "https://gemini.example.com/relay"),
++        ("https://gemini.example.com/relay/v1beta/models/", "https://gemini.example.com/relay"),
++        (
++            "https://gemini.example.com/relay/v1beta/?tenant=acme",
++            "https://gemini.example.com/relay?tenant=acme",
++        ),
++    ],
++)
++async def test_gemini_proxy(api_base, expected_root, streaming):
++    config = chat_config()
++    if api_base is not None:
++        config["model"]["config"]["gemini_api_base"] = api_base
++    provider = GeminiProvider(EndpointConfig(**config))
++    payload = {"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}
++    response_body = passthrough_generate_content_response()
++    chunks = passthrough_stream_generate_content_response()
++    upstream_response = (
++        MockAsyncStreamingResponse(chunks, headers={"Content-Type": "text/event-stream"})
++        if streaming
++        else MockAsyncResponse(response_body)
++    )
++    mock_client = mock_http_client(upstream_response)
++    path = (
++        "v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse"
++        if streaming
++        else "v1beta/models/gemini-2.0-flash:generateContent"
++    )
++
++    with mock.patch("aiohttp.ClientSession", return_value=mock_client) as mock_session:
++        response = await provider.proxy(path, payload)
++        if streaming:
++            assert [chunk async for chunk in response] == chunks
++        else:
++            assert response == response_body
++
++    mock_session.assert_called_once()
++    root_path, _, query = expected_root.partition("?")
++    request_path, _, request_query = path.partition("?")
++    expected_url = f"{root_path}/{request_path}"
++    if combined_query := "&".join(filter(None, [query, request_query])):
++        expected_url += f"?{combined_query}"
++    mock_client.post.assert_called_once_with(
++        expected_url,
++        json=payload,
++        timeout=mock.ANY,
++        allow_redirects=False,
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("streaming", [False, True])
++@pytest.mark.parametrize("passthrough", [False, True])
++async def test_gemini_query_parameters(streaming, passthrough):
++    config = chat_config()
++    config["model"]["config"]["gemini_api_base"] = (
++        "https://gemini.example.com/relay/v1beta?flag=&tenant=acme"
++    )
++    provider = GeminiProvider(EndpointConfig(**config))
++    response_body = fake_chat_response()
++    chunks = passthrough_stream_generate_content_response()
++    upstream_response = (
++        MockAsyncStreamingResponse(chunks, headers={"Content-Type": "text/event-stream"})
++        if streaming
++        else MockAsyncResponse(response_body)
++    )
++    mock_client = mock_http_client(upstream_response)
++
++    with mock.patch("aiohttp.ClientSession", return_value=mock_client) as mock_session:
++        if passthrough:
++            action = (
++                PassthroughAction.GEMINI_STREAM_GENERATE_CONTENT
++                if streaming
++                else PassthroughAction.GEMINI_GENERATE_CONTENT
++            )
++            response = await provider.passthrough(action, {"contents": []})
++        else:
++            payload = chat.RequestPayload(messages=[{"role": "user", "content": "Hello"}])
++            response = provider.chat_stream(payload) if streaming else await provider.chat(payload)
++        if streaming:
++            assert [chunk async for chunk in response]
++        else:
++            assert response
++
++    mock_session.assert_called_once()
++    action_name = "streamGenerateContent" if streaming else "generateContent"
++    query = "flag=&tenant=acme&alt=sse" if streaming else "flag=&tenant=acme"
++    mock_client.post.assert_called_once_with(
++        f"https://gemini.example.com/relay/v1beta/models/gemini-2.0-flash:{action_name}?{query}",
++        json=mock.ANY,
++        timeout=mock.ANY,
++        allow_redirects=False,
++    )
++
++
+ @pytest.mark.asyncio
+ async def test_chat_with_structured_output():
+     config = {
+diff --git a/tests/server/test_gateway_api.py b/tests/server/test_gateway_api.py
+index 93946de9c303f..3cefed68423bb 100644
+--- a/tests/server/test_gateway_api.py
++++ b/tests/server/test_gateway_api.py
+@@ -185,6 +185,28 @@ def test_build_endpoint_config_typesafe_reads_api_base_from_auth_config():
+     assert config.model.config.typesafe_api_base == "https://typesafe.example.com/v1"
+ 
+ 
++@pytest.mark.parametrize(
++    ("auth_config", "expected_base"),
++    [
++        (None, "https://generativelanguage.googleapis.com/v1beta/models"),
++        ({}, "https://generativelanguage.googleapis.com/v1beta/models"),
++        (
++            {"api_base": "https://gemini.example.com/relay/v1"},
++            "https://gemini.example.com/relay/v1",
++        ),
++    ],
++)
++def test_build_endpoint_config_gemini_api_base(auth_config, expected_base):
++    model_config = _make_model_config("gemini", "gemini-2.0-flash")
++    model_config.auth_config = auth_config
++    config = _build_endpoint_config("test-ep", model_config, EndpointType.LLM_V1_CHAT)
++
++    assert isinstance(config.model.config, GeminiConfig)
++    assert config.model.config.gemini_api_key == "sk-test"
++    assert config.model.config.gemini_api_base == expected_base
++    assert GeminiProvider(config).get_endpoint_url("llm/v1/chat").startswith(expected_base + "/")
++
++
+ def test_create_provider_from_endpoint_name_openai(store: SqlAlchemyStore):
+     # Create test data
+     secret = store.create_gateway_secret(
+@@ -590,9 +612,12 @@ def _create_endpoint(store: SqlAlchemyStore, name: str, provider: str, auth_conf
+     )
+ 
+ 
+-def test_upstream_ssrf_protection_enabled_for_user_supplied_api_base(store: SqlAlchemyStore):
++@pytest.mark.parametrize("provider", ["openai", "gemini"])
++def test_upstream_ssrf_protection_enabled_for_user_supplied_api_base(
++    store: SqlAlchemyStore, provider: str
++):
+     endpoint = _create_endpoint(
+-        store, "custom-base", "openai", auth_config={"api_base": "https://llm.example.com/v1"}
++        store, "custom-base", provider, auth_config={"api_base": "https://llm.example.com/v1"}
+     )
+     assert upstream_ssrf_protection.get() is False
+ 
+diff --git a/tests/utils/test_uri.py b/tests/utils/test_uri.py
+index 40e11af577949..4154670dcc980 100644
+--- a/tests/utils/test_uri.py
++++ b/tests/utils/test_uri.py
+@@ -326,6 +326,12 @@ def test_append_to_uri_throws_for_malicious_query_string_in_uri(uri):
+             [("new_param", "new_value")],
+             "s3://bucket/key?existing_param=existing_value&new_param=new_value",
+         ),
++        (
++            "https://example.com?flag=&key=value",
++            "",
++            [("new_key", "new_value")],
++            "https://example.com?flag=&key=value&new_key=new_value",
++        ),
+     ],
+ )
+ def test_append_to_uri_query_params_appends_as_expected(

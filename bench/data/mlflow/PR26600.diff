@@ -1,0 +1,64 @@
+diff --git a/mlflow/utils/search_utils.py b/mlflow/utils/search_utils.py
+index 86dcf2def41ca..05f059363c91f 100644
+--- a/mlflow/utils/search_utils.py
++++ b/mlflow/utils/search_utils.py
+@@ -1403,6 +1403,10 @@ def _get_model_search_identifier(cls, identifier, valid_attributes):
+     def _get_comparison(cls, comparison):
+         stripped_comparison = [token for token in comparison.tokens if not token.is_whitespace]
+         cls._validate_comparison(stripped_comparison)
++        if len(stripped_comparison) == 2:
++            raise MlflowException.invalid_parameter_value(
++                "IS NULL / IS NOT NULL is not supported for registered model search."
++            )
+         left, comparator, right = stripped_comparison
+         comp = cls._get_model_search_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
+         comp["comparator"] = comparator.value.upper()
+@@ -1590,6 +1594,10 @@ def _get_model_version_search_identifier(cls, identifier, valid_attributes):
+     def _get_comparison(cls, comparison):
+         stripped_comparison = [token for token in comparison.tokens if not token.is_whitespace]
+         cls._validate_comparison(stripped_comparison)
++        if len(stripped_comparison) == 2:
++            raise MlflowException.invalid_parameter_value(
++                "IS NULL / IS NOT NULL is not supported for model version search."
++            )
+         left, comparator, right = stripped_comparison
+         comp = cls._get_model_version_search_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
+         comp["comparator"] = comparator.value.upper()
+diff --git a/tests/utils/test_search_utils.py b/tests/utils/test_search_utils.py
+index b40a06ddd91e0..41ae83e55140c 100644
+--- a/tests/utils/test_search_utils.py
++++ b/tests/utils/test_search_utils.py
+@@ -31,11 +31,33 @@
+     SearchMCPAccessEndpointUtils,
+     SearchMCPServerUtils,
+     SearchMCPServerVersionUtils,
++    SearchModelUtils,
++    SearchModelVersionUtils,
+     SearchTraceUtils,
+     SearchUtils,
+ )
+ 
+ 
++@pytest.mark.parametrize(
++    ("search_utils", "search_type"),
++    [
++        (SearchModelUtils, "registered model"),
++        (SearchModelVersionUtils, "model version"),
++    ],
++)
++@pytest.mark.parametrize("identifier", ["tags.stage", "name"])
++@pytest.mark.parametrize("comparator", ["IS NULL", "IS NOT NULL", "is null", "is not null"])
++def test_model_registry_search_rejects_null_comparisons(
++    search_utils, search_type, identifier, comparator
++):
++    with pytest.raises(
++        MlflowException,
++        match=f"IS NULL / IS NOT NULL is not supported for {search_type} search",
++    ) as exc:
++        search_utils.parse_search_filter(f"{identifier} {comparator}")
++    assert exc.value.error_code == "INVALID_PARAMETER_VALUE"
++
++
+ @pytest.mark.parametrize(
+     ("filter_string", "parsed_filter"),
+     [
