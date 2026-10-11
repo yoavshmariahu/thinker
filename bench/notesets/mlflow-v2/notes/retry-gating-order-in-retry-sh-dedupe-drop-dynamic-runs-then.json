@@ -1,0 +1,70 @@
+{
+  "id": "retry-gating-order-in-retry-sh-dedupe-drop-dynamic-runs-then",
+  "title": "Retry gating order in retry.sh: dedupe, drop dynamic runs, then pending and budget checks",
+  "kind": "rule",
+  "answers": [
+    "why did the scheduled CI retry skip my Copilot PR",
+    "Copilot review check blocks automatic CI retries",
+    "retry sweep says workflows are pending even though my CI failed",
+    "CI auto-retry gave up after three attempts"
+  ],
+  "body": "Symptom: The scheduled CI retry skips a Copilot PR as \"workflows are pending\", or stops retrying a commit because a failed run looks exhausted, when the blocking run is a GitHub-managed Copilot review run.\nRoot cause: .github/workflows/retry.sh:suites builds the per-commit run list from check suites. Before this PR, GitHub-managed `dynamic` runs (Copilot agent and review, which use the github-actions app) were not filtered out, so they reached the pending and retry-budget checks.\nFix pattern: Keep the order fixed in retry.sh: (1) paginate and dedupe by [workflow resourcePath, event] keeping the max by [createdAt, databaseId]; (2) drop event == \"dynamic\" in the same jq select; (3) only then run the pending check on `suites` and the budget check on `runs`.\nConstraints: Dedupe must happen before any status check, otherwise older attempts from later pages can count. A resolve error (GraphQL errors or null object) must fail the script, not skip. Ordinary pending CI still blocks retries; only dynamic runs are exempt.",
+  "applies": "Applies to the candidate-run filtering in .github/workflows/retry.sh; does not cover the PR selection in retry.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "copilot"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "suites",
+      "hash": "sha256:15eb7d4fbc98cd5f6a123682",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "runs",
+      "hash": "sha256:3fadbfb022af8eeb0436aeb9",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T10:29:12.625Z",
+  "verified": "2026-10-11T10:29:12.625Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+    "renaming-the-rerun-workflows-requires-updating-three-differe",
+    "protect-workflow-is-rerun-last-and-only-after-the-other-reru",
+    "dry-run-the-ci-retry-sweep-locally-and-by-manual-dispatch"
+  ],
+  "says": [
+    "Automated test retries skip pull requests because an AI review check is still pending",
+    "Copilot code review checks block the scheduled retry sweep on failed pull request runs",
+    "Automatic test rerun gave up early because an automated review run counted against attempts",
+    "Make scheduled rerun ignore automated assistant review checks when deciding whether to retry tests",
+    "Scheduled test retries claim checks are pending even though our pull request build failed"
+  ],
+  "search": "Candidate-run filtering in .github/workflows/retry.sh must follow a fixed order of deduplicating check suites by workflow resourcePath and event, filtering out dynamic runs via jq select, and only then running pending and budget checks. Deduplication must happen before status checks so older attempts from later pages do not count. The script must fail on GraphQL resolve errors or null objects rather than skipping. This applies to candidate-run filtering in .github/workflows/retry.sh, exempting only dynamic runs while ordinary pending CI continues to block retries, and does not cover PR selection in retry.yml.",
+  "saysFor": "s2:c746510410c86e441abcec388f52718451d4ca99abd2048dcfc0a239e78e6712"
+}

@@ -1,0 +1,96 @@
+{
+  "id": "import-time-schema-construction-in-mlflow-types-responses-mu",
+  "title": "Import-time schema construction in mlflow.types.responses must suppress its expected union-inference logs",
+  "kind": "rule",
+  "answers": [
+    "importing mlflow.types.responses prints union type warnings in my logs",
+    "custom root logging gets noise on import of mlflow responses types",
+    "Union type hint is inferred as AnyType warning appears when importing MLflow",
+    "how do I silence expected type-inference warnings at module import in MLflow"
+  ],
+  "body": "Symptom: Applications with custom root logging see \"Union type hint ... is inferred as AnyType, and MLflow doesn't validate the data against its element types.\" when they import mlflow.types.responses, though nothing is wrong.\nRoot cause: mlflow/types/responses.py builds ResponsesAgentRequest/response schemas at module level via _infer_schema_from_type_hint, which logs those expected messages on logger \"mlflow.types.type_hints\".\nFix pattern: keep the module-level block in a `with` that combines MlflowEventsAndWarningsBehaviorGlobally with suppress_logs(\"mlflow.types.type_hints\", filter_regex=...), where the regex (_EXPECTED_UNION_INFERENCE_WARNING) matches the two exact messages anchored with ^ and $.\nConstraints: Applies only to schema construction at import; do not widen the regex or drop the logger name, because ordinary union-inference warnings elsewhere must stay visible. If the message text in mlflow/types/type_hints.py changes, the regex must change with it or the noise returns silently.",
+  "applies": "Module-level schema construction in mlflow/types/responses.py; any new import-time type inference added there.",
+  "tags": [
+    "logging",
+    "warnings",
+    "types",
+    "responses",
+    "import-time"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/responses.py",
+      "symbol": "_EXPECTED_UNION_INFERENCE_WARNING",
+      "hash": "sha256:aa826f7f9ac6f7d31c58424c",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/logging_utils.py",
+      "symbol": "suppress_logs",
+      "hash": "sha256:50714a158b96303b1c4632e5",
+      "line": 223,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:50714a158b96303b1c4632e5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/utils/autologging_utils/logging_and_warnings.py",
+      "symbol": "MlflowEventsAndWarningsBehaviorGlobally",
+      "hash": "sha256:55efc6d5eaeb37be8cbf07d6",
+      "line": 242,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55efc6d5eaeb37be8cbf07d6",
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/types/type_hints.py",
+      "symbol": "_infer_schema_from_type_hint",
+      "hash": "sha256:fb5fd4ae9a6436b20577aaec",
+      "line": 384,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fb5fd4ae9a6436b20577aaec",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26033"
+  },
+  "created": "2026-10-11T10:28:31.838Z",
+  "verified": "2026-10-11T10:28:31.838Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Importing response types pollutes application startup logs with union type warnings.",
+    "Silence expected type inference warning messages printed when loading response schemas.",
+    "Spurious warnings about union type hints appear in custom application console output.",
+    "Noisy schema validation alerts clutter service logs during initial package initialization.",
+    "Suppress benign type hint warnings when importing agent response data models."
+  ],
+  "search": "Module-level schema generation in mlflow/types/responses.py must suppress expected union-inference warning logs emitted by _infer_schema_from_type_hint. Suppression uses a with block combining MlflowEventsAndWarningsBehaviorGlobally and suppress_logs on logger 'mlflow.types.type_hints' with anchored regex _EXPECTED_UNION_INFERENCE_WARNING. The suppression regex and logger target must not be broadened so ordinary union-inference warnings elsewhere remain visible. If warning text in mlflow/types/type_hints.py changes, the suppression regex must be updated accordingly.",
+  "saysFor": "s2:f8996702ee64bd4d593a7a02ff1fe376fe68a0bbcb40d490655d018eade80f51"
+}

@@ -1,0 +1,83 @@
+{
+  "id": "uc-root-span-dropped-when-user-session-attribute-enrichment",
+  "title": "UC root span dropped when user/session attribute enrichment raises",
+  "kind": "rule",
+  "answers": [
+    "UC trace missing from Databricks after user or session attribute error",
+    "root span not exported when setting user_id or session_id fails",
+    "tracing spans disappear when enrichment throws in UC table processor",
+    "make Unity Catalog span enrichment best-effort so export still happens"
+  ],
+  "body": "Symptom: Traces sent to Unity Catalog tables lose their root span entirely when setting user or session attributes fails, so the trace shows up incomplete or not at all.\nRoot cause: mlflow/tracing/processor/uc_table.py:DatabricksUCTableSpanProcessor.on_end calls _set_user_session_span_attributes for root spans without a try block, so the exception skips the super().on_end(span) export call.\nFix pattern: Wrap the enrichment call in try/except Exception, log the failure at debug level with exc_info, and fall through to super().on_end(span) so the export path always runs.\nConstraints: Applies only to the best-effort enrichment step. Exporter failures must still surface and must not be swallowed by this handler. Regression coverage: tests/tracing/processor/test_uc_table_processor.py:test_on_end_exports_root_span_when_user_session_enrichment_fails.",
+  "applies": "Any change to DatabricksUCTableSpanProcessor.on_end or other optional enrichment steps that run before export in the tracing processors.",
+  "tags": [
+    "tracing",
+    "uc-table",
+    "span-processor",
+    "error-handling",
+    "export"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/processor/uc_table.py",
+      "symbol": "DatabricksUCTableSpanProcessor.on_end",
+      "hash": "sha256:f09609592c0a5377836739f6",
+      "line": 86,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f09609592c0a5377836739f6",
+      "fanout": {
+        "files": 18,
+        "sites": 35,
+        "refs": 48
+      }
+    },
+    {
+      "path": "mlflow/tracing/processor/uc_table.py",
+      "symbol": "DatabricksUCTableSpanProcessor._set_user_session_span_attributes",
+      "hash": "sha256:ca5047533b9da8b49c781cb1",
+      "line": 96,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ca5047533b9da8b49c781cb1",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/tracing/processor/test_uc_table_processor.py",
+      "symbol": "test_on_end_exports_root_span_when_user_session_enrichment_fails",
+      "hash": "sha256:b7d7d1c9b1e13f232d25de75",
+      "line": 135,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b7d7d1c9b1e13f232d25de75",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26063"
+  },
+  "created": "2026-10-11T10:25:00.510Z",
+  "verified": "2026-10-11T10:25:00.510Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Application traces in Databricks show up incomplete or disappear entirely from monitoring tables.",
+    "Traces sent to catalog tables are missing their top-level root spans.",
+    "Ensure trace exports still publish even if user or session tagging encounters an error.",
+    "Why are whole trace timelines vanishing from the dashboard when session tagging fails?"
+  ],
+  "search": "In DatabricksUCTableSpanProcessor.on_end (mlflow/tracing/processor/uc_table.py), user and session attribute enrichment via _set_user_session_span_attributes must be treated as best-effort by wrapping it in a try-except block that logs exceptions at debug level before calling super().on_end(span). Without error handling, an enrichment failure bypasses the export call and causes Unity Catalog tables to drop root spans entirely, leaving traces broken or missing. Exporter failures must not be swallowed and must continue to surface normally. This applies to optional pre-export enrichment steps in tracing processors, with regression coverage in tests/tracing/processor/test_uc_table_processor.py:test_on_end_exports_root_span_when_user_session_enrichment_fails.",
+  "saysFor": "s2:b6acc7ed245d42d51383b2bb8a760ed718339e345c2640582fdefc37500f0d7b"
+}

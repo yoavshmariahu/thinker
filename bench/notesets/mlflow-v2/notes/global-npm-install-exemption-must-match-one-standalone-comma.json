@@ -1,0 +1,46 @@
+{
+  "id": "global-npm-install-exemption-must-match-one-standalone-comma",
+  "title": "Global npm install exemption must match one standalone command, not the whole line",
+  "kind": "rule",
+  "answers": [
+    "npm install -g flagged as lockfile violation",
+    "global npm install bypasses lockfile check",
+    "chained npm install exempt from lockfile policy",
+    "npm --global exemption too broad"
+  ],
+  "body": "Symptom: A mutable local `npm install` (no lockfile) can pass the lockfile check when it is chained with a global install, or a global install is wrongly flagged as a lockfile violation.\nRoot cause: The exemption in .github/policy.rego tested for a `-g`/`--global` token across the whole run line, so an unrelated later flag or a chained command could exempt a local install.\nFix pattern: Exempt only a complete standalone global npm install whose arguments are plain package names. Evaluate each `npm install` command separately, not the line.\nConstraints: Chained commands (`&&`) and `--global` tokens that belong to other commands must still be flagged. Review noted that `npm install <pkg> -g` and `npm install <pkg> --global` (option after the packages) should also be recognized; the final diff was truncated, so verify this form before relying on it.",
+  "applies": "The npm lockfile-check rule in .github/policy.rego and any similar exemption added to run-line checks.",
+  "tags": [
+    "github-actions",
+    "npm",
+    "policy",
+    "lockfile"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T10:30:58.691Z",
+  "verified": "2026-10-11T10:30:58.691Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The pull request policy check wrongly flags global package installation as a lockfile violation.",
+    "Chained package installs in pipeline steps are bypassing our dependency lockfile enforcement.",
+    "Workflow compliance checks should allow standalone global tool installations without requiring lockfiles.",
+    "A local dependency installation incorrectly passed security review because another global command followed.",
+    "Automated build validation fails on global package setup in continuous integration scripts."
+  ],
+  "search": "The npm lockfile policy in .github/policy.rego must evaluate each npm install command independently instead of scanning the full run line for global flags. Only standalone global npm install commands with plain package arguments should be exempted, preventing chained commands using '&&' from bypassing lockfile checks. Global flags placed after package arguments require verification against the policy diff before reliance.",
+  "saysFor": "s2:8297a473b3bebadb44e4b005f457370a5e5fe9f8ff6e114fdc076401c19fe941"
+}

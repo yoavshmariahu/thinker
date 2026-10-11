@@ -1,0 +1,55 @@
+{
+  "id": "protect-workflow-is-rerun-last-and-only-after-the-other-reru",
+  "title": "Protect workflow is rerun last, and only after the other rerun requests",
+  "kind": "rule",
+  "answers": [
+    "protect check fails immediately after a retry",
+    "Protect used up an attempt while other CI jobs were still rerunning",
+    "why is protect rerun after the other workflows",
+    "Protect ordering in scheduled retries"
+  ],
+  "body": "Symptom: The Protect check fails straight away on a retry while the other failed workflows are still being rerun, which uses up one of the commit's limited retry attempts.\nRoot cause: .github/workflows/retry.sh: the while loop over `rows` sends non-protect reruns to `rerun ... &` and records the protect run in `protect_id`; `protect_id` is rerun only after `wait`.\nFix pattern: Keep Protect out of the parallel batch. Submit it after `wait` returns so it is requested only once the other rerun requests have been sent.\nConstraints: Per the PR review, Protect should be submitted only when every preceding rerun request succeeds, and a failure should still give a nonzero exit. In the diff as shown, backgrounded `rerun` calls do not report their exit status back, so that check must be added explicitly. `wait` covers the rerun requests, not the workflows finishing. Only one protect run is tracked.",
+  "applies": "Applies to rerun ordering in .github/workflows/retry.sh; does not cover which runs are selected as rerun candidates.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "protect"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "protect_id",
+      "hash": "sha256:348df65e0e31196f410d65c6",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T10:29:12.683Z",
+  "verified": "2026-10-11T10:29:12.683Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+    "retry-gating-order-in-retry-sh-dedupe-drop-dynamic-runs-then"
+  ],
+  "says": [
+    "The protection check fails immediately on retry while other failed tests are still restarting.",
+    "Retrying failed checks wastes an attempt because the merge gate restarts too early.",
+    "Ensure automated retries trigger the protection check only after restarting all other workflows.",
+    "Automatic retry should not run the protection verification before other jobs are re-queued."
+  ],
+  "search": "In .github/workflows/retry.sh, the protect workflow must be excluded from the parallel rerun batch and submitted only after preceding rerun requests are sent. Applies to rerun ordering using protect_id and wait, without covering which candidate runs are selected by the script. Only tracks a single protect run, wait only ensures requests were submitted rather than completed, and background exit codes are not automatically caught.",
+  "saysFor": "s2:3ae6e177b6a7529bd14168f3185f2fb4373ee34c38c5b9125eaa1435f8007e17"
+}

@@ -1,0 +1,89 @@
+{
+  "id": "artifact-inline-preview-needs-the-extension-in-both-server-m",
+  "title": "Artifact inline preview needs the extension in both server MIME list and client TEXT_EXTENSIONS",
+  "kind": "rule",
+  "answers": [
+    "artifact viewer downloads file instead of previewing it",
+    "notebook .ipynb opens as download not inline text",
+    "add a new file type to artifact inline preview",
+    "artifact served as application/octet-stream but should show as text"
+  ],
+  "body": "Symptom: Opening a previewable text-like artifact (e.g. a .ipynb notebook) in the artifact viewer prompts a download instead of rendering inline text.\nRoot cause: Two independent lists decide this. Server-side Content-Type comes from mlflow/utils/mime_type_utils.py:get_text_extensions; the client-side inline preview is chosen by TEXT_EXTENSIONS in mlflow/server/js/src/common/utils/FileUtils.ts (ShowArtifactPage.tsx checks TEXT_EXTENSIONS.has(extension), not the served Content-Type). An extension missing from the client set gets no preview even if the server returns text/plain.\nFix pattern: When adding a previewable extension, add it to both get_text_extensions() and TEXT_EXTENSIONS in the same change, plus a parametrized case in tests/utils/test_mime_type_utils.py and a has() assertion in FileUtils.test.ts.\nConstraints: Updating only the server list does not enable inline preview; updating only the client set leaves the download Content-Type as octet-stream. Applies to text formats only; binary types must not be added to either list.",
+  "applies": "Any change to which artifact file extensions are previewable as text in the MLflow artifact viewer.",
+  "tags": [
+    "artifacts",
+    "mime-type",
+    "frontend",
+    "preview",
+    "ipynb"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/mime_type_utils.py",
+      "symbol": "get_text_extensions",
+      "hash": "sha256:838308c7ccf9e19b73a99999",
+      "line": 10,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:838308c7ccf9e19b73a99999",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/common/utils/FileUtils.ts",
+      "symbol": "TEXT_EXTENSIONS",
+      "hash": "sha256:5c01fd77d76150280355e75b",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5c01fd77d76150280355e75b",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/common/utils/FileUtils.test.ts",
+      "hash": "sha256:94ef6b3c8aceeaedba1a66ca",
+      "missing": false
+    },
+    {
+      "path": "tests/utils/test_mime_type_utils.py",
+      "symbol": "test_guess_mime_type",
+      "hash": "sha256:111786b2c0af41e1b6e4047c",
+      "line": 21,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:111786b2c0af41e1b6e4047c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25829"
+  },
+  "created": "2026-10-11T10:25:51.961Z",
+  "verified": "2026-10-11T10:25:51.961Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Clicking a notebook in the artifact viewer downloads the file instead of displaying it.",
+    "Text files trigger a browser file download rather than opening directly in the previewer.",
+    "Enable inline preview inside the artifact tab for newly supported text document formats.",
+    "Viewing run artifacts forces a file download instead of rendering text on the page.",
+    "Render text artifacts directly within the application viewer without downloading them to disk."
+  ],
+  "search": "Enabling inline text preview for an artifact file extension requires adding it to both mlflow/utils/mime_type_utils.py:get_text_extensions and mlflow/server/js/src/common/utils/FileUtils.ts:TEXT_EXTENSIONS. ShowArtifactPage.tsx checks the client TEXT_EXTENSIONS set while the server sets Content-Type, so updating only one results in download prompts or application/octet-stream headers. Changes require test cases in tests/utils/test_mime_type_utils.py:test_guess_mime_type and FileUtils.test.ts, and apply strictly to text formats without adding binary types.",
+  "saysFor": "s2:a2c1bb4d1e0d0b634f574aa81e151560b546ce5b278f62689423dc4e833abe95"
+}

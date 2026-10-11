@@ -1,0 +1,85 @@
+{
+  "id": "sdk-models-repo-workspace-client-must-resolve-host-and-token",
+  "title": "SDK models repo workspace client must resolve host and token before falling back to default auth",
+  "kind": "rule",
+  "answers": [
+    "serverless model load fails with default auth cannot configure default credentials",
+    "SEG or internet-restricted compute cannot download UC model",
+    "Databricks SDK WorkspaceClient fails on Spark executors",
+    "why does DatabricksSDKModelsArtifactRepository need registry_uri"
+  ],
+  "body": "Symptom: On serverless or SEG compute, loading or registering a UC model through the SDK path fails with a 'default auth: cannot configure default credentials' error.\nRoot cause: mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client builds the client; a bare WorkspaceClient() has no credentials on Spark executors there.\nFix pattern: Resolve host and token first through mlflow/utils/databricks_utils.py:get_databricks_host_creds(registry_uri), build WorkspaceClient(host=..., token=...) when both are present, and fall back to WorkspaceClient() only otherwise. Log resolution failures at debug and continue.\nConstraints: Callers must pass registry_uri (load) or store_uri (register) through to the repo constructor. Classic compute still works through the default-auth fallback.",
+  "applies": "Client construction inside DatabricksSDKModelsArtifactRepository; any new SDK-backed artifact repo that runs on executors.",
+  "tags": [
+    "unity-catalog",
+    "databricks-sdk",
+    "serverless",
+    "credentials"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "_get_databricks_workspace_client",
+      "hash": "sha256:9d13e5702befd242cd970849",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d13e5702befd242cd970849",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository.__init__",
+      "hash": "sha256:f16e269e1f0d7db7310af61b",
+      "line": 44,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f16e269e1f0d7db7310af61b",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    },
+    {
+      "path": "mlflow/utils/databricks_utils.py",
+      "symbol": "get_databricks_host_creds",
+      "hash": "sha256:b57679061c18bd0d48dc2239",
+      "line": 815,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b57679061c18bd0d48dc2239",
+      "fanout": {
+        "files": 36,
+        "sites": 43,
+        "refs": 117
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25986"
+  },
+  "created": "2026-10-11T10:30:03.387Z",
+  "verified": "2026-10-11T10:30:03.387Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bare-workspaceclient-fails-on-serverless-seg-executors-build",
+    "cloudartifactrepository-single-stream-download-guard-must-co"
+  ],
+  "says": [
+    "Loading catalog models on serverless compute fails with missing default credential errors.",
+    "Cannot download registered models when running on secure internet-restricted clusters.",
+    "Model registry operations fail on distributed worker nodes because credentials are not found.",
+    "Allow serverless jobs to access registered models using the configured workspace credentials."
+  ],
+  "search": "In DatabricksSDKModelsArtifactRepository, the Databricks SDK client must explicitly resolve host and token before falling back to default authentication. mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client must resolve credentials via mlflow/utils/databricks_utils.py:get_databricks_host_creds using registry_uri for loading or store_uri for registering, instantiating WorkspaceClient(host=..., token=...) when available. Bare WorkspaceClient() is retained strictly as a fallback for classic compute, while credential resolution failures log at debug level.",
+  "saysFor": "s2:665b4bdbaac78ea28f033dbc5ff9b4a4cc3fca345eed21413e3daa66a4a2a9b3"
+}

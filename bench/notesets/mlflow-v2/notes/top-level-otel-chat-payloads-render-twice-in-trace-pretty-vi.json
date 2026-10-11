@@ -1,0 +1,86 @@
+{
+  "id": "top-level-otel-chat-payloads-render-twice-in-trace-pretty-vi",
+  "title": "Top-level OTEL chat payloads render twice in trace Pretty view",
+  "kind": "rule",
+  "answers": [
+    "trace detail shows duplicate User and Assistant cards",
+    "Pretty view repeats chat messages for OTEL span inputs and outputs",
+    "why does the span input chat show up twice in the trace viewer",
+    "duplicate chat messages in MLflow trace Pretty mode"
+  ],
+  "body": "Symptom: In the trace detail Pretty view, a span whose input or output is a top-level OTEL-style chat array (`[{role, parts:[{type, content}]}]`) shows its User/Assistant cards twice.\nRoot cause: ModelTraceExplorerDefaultSpanView.tsx:renderNonChatFields re-rendered the anonymous top-level field (key '') through the generic field renderer after ModelTraceExplorerChatSections / ModelTraceExplorerConversation had already rendered it as chat.\nFix pattern: getInputChatMessages and getOutputChatMessages now also return hasTopLevelChatPayload. When it is true, filterNonChatFields drops the field with key '' before rendering, while named non-chat fields still render.\nConstraints: Applies only when the chat cards came from the top-level payload. Named fields such as `{messages: [...]}` keep their generic rendering and must not be filtered.",
+  "applies": "Pretty render mode of the trace span detail panel (model-trace-explorer v2 right pane), for inputs and outputs separately.",
+  "tags": [
+    "tracing",
+    "trace-explorer",
+    "pretty-view",
+    "chat-messages",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx",
+      "symbol": "getInputChatMessages",
+      "hash": "sha256:0b230369c4e81e7dd167e252",
+      "line": 58,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0b230369c4e81e7dd167e252",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx",
+      "symbol": "getOutputChatMessages",
+      "hash": "sha256:389246003b5f6bab9b380167",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:389246003b5f6bab9b380167",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx",
+      "symbol": "renderNonChatFields",
+      "hash": "sha256:1dc42262da31684b876e8a79",
+      "line": 250,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1dc42262da31684b876e8a79",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26097"
+  },
+  "created": "2026-10-11T10:24:53.853Z",
+  "verified": "2026-10-11T10:24:53.853Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pretty-section-rendering-must-not-bypass-chat-cards-for-acti"
+  ],
+  "says": [
+    "Trace detail Pretty view displays duplicate User and Assistant chat message cards.",
+    "Conversation messages appear twice in the right pane when viewing trace spans.",
+    "Top-level chat inputs and outputs repeat inside the trace explorer span viewer.",
+    "Fix duplicate message bubbles showing up in the trace span detail view.",
+    "Span input cards should only render once in the trace Pretty display mode."
+  ],
+  "search": "Top-level OpenTelemetry chat payloads in trace span inputs and outputs render duplicate cards in the trace detail Pretty view. In ModelTraceExplorerDefaultSpanView.tsx, renderNonChatFields re-rendered the anonymous top-level field with key '' after chat sections already displayed it. getInputChatMessages and getOutputChatMessages return hasTopLevelChatPayload to signal filterNonChatFields to drop the empty-key field before generic rendering. This filtering applies only to top-level payloads in the v2 right pane, while named fields like messages retain generic rendering.",
+  "saysFor": "s2:33f015432df8510a8e34a229ed3271b91eceaf0ab7b64fa7a05c812cfb11fec8"
+}
