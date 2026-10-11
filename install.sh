@@ -131,9 +131,15 @@ main() {
     fancy=1 bold=$'\033[1m' dim=$'\033[2m' cyan=$'\033[36m' green=$'\033[32m' yellow=$'\033[33m' red=$'\033[31m' magenta=$'\033[35m' reset=$'\033[0m'
   fi
   # box <color> <line>...: a rounded box 74 columns wide, as setup draws it; a line may carry color codes, padded on its plain text
+  # box <color> <line>...: the lines in a rounded frame, at least 68 columns wide and as wide as the
+  # longest line (a path can run past 68, and a frame narrower than its text comes out ragged)
   box() {
     local color="$1"; shift
     local width=68 line plain
+    for line in "$@"; do
+      plain="$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')"
+      [ "${#plain}" -gt "$width" ] && width=${#plain}
+    done
     printf '%s╭%s╮%s\n' "$color" "$(printf '─%.0s' $(seq 1 $((width + 4))))" "$reset"
     for line in "$@"; do
       plain="$(printf '%s' "$line" | sed $'s/\033\\[[0-9;]*m//g')"
@@ -380,7 +386,7 @@ EOF
   [ "$opened" = 1 ] || how="Pick the repositories to warm up: ${cyan}thinker ui${reset}"
   if [ "$fancy" = 1 ]; then
     box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
-      "Installed into $home and wired into your agents." \
+      "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
       "$how" \
       "${dim}(open it again any time with thinker ui).${reset}" \

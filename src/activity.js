@@ -18,10 +18,27 @@ function readBatch(file) {
   for (const r of recs) {
     if (r.event === 'start') b.current = r.item || '';
     else if (r.event === 'complete') { b.completed++; b.saved += (r.notes || []).length; if (r.error) b.failed++; if (r.item === b.current) b.current = ''; }
-    else if (r.event === 'finish') b.done = true;
-    else if (r.event === 'cancelled') { b.done = true; b.cancelled = true; }
+    else if (r.event === 'finish') { b.done = true; b.ended = r.time || null; }
+    else if (r.event === 'cancelled') { b.done = true; b.cancelled = true; b.ended = r.time || null; }
   }
   return b;
+}
+
+// Seconds a batch has left at its pace so far (the time per item, times the items left), or null
+// before its first item is done.
+export function batchEta(b, startedMs, now = Date.now()) {
+  if (!b.total || !b.completed || b.completed >= b.total) return b.total && b.completed >= b.total ? 0 : null;
+  return Math.round((now - startedMs) / 1000 / b.completed * (b.total - b.completed));
+}
+
+// The newest batch of one kind started at or after `sinceMs`, finished or not, with when it started
+// and ended: a warm-up build's stage is read from its mining batch (ui/server.js:jobProgress).
+export function latestBatch(storeDir, kind, sinceMs = 0) {
+  const dir = path.join(storeDir, 'state');
+  let names = []; try { names = fs.readdirSync(dir); } catch { return null; }
+  const files = names.map(n => ({ n, m: FILE.exec(n) })).filter(x => x.m && x.m[1] === kind && Number(x.m[2]) >= sinceMs).sort((a, b) => Number(b.m[2]) - Number(a.m[2]));
+  for (const { n, m } of files) { const b = readBatch(path.join(dir, n)); if (b) return { ...b, pid: Number(m[3]), startedMs: Number(m[2]) }; }
+  return null;
 }
 
 // The live batch of a cache, newest first, or null. `storeDir` is the cache's .thinker directory.
@@ -37,6 +54,7 @@ export function activity(storeDir) {
     return {
       kind: KINDS[m[1]], pid, started: new Date(Number(m[2])).toISOString(), file: path.join(dir, n),
       total: b.total, completed: b.completed, saved: b.saved, failed: b.failed, current: b.current,
+      etaSeconds: batchEta(b, Number(m[2])),
       // "mining 3/20 PRs", "distilling 1/4 sessions"
       status: `${KINDS[m[1]]} ${b.completed}/${b.total} ${m[1] === 'pr-mining' ? 'PRs' : 'sessions'}`,
     };

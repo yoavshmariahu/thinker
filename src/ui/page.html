@@ -91,15 +91,16 @@
     td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    /* repository cards: the cache overview and the warm-up page, in rows, kept short */
-    .rgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; margin-top: 1.4rem; }
-    @media (max-width: 860px) { .rgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 520px) { .rgrid { grid-template-columns: 1fr; } }
-    .rcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.85rem 1rem 0.8rem; min-width: 0; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; display: flex; flex-direction: column; gap: 0.55rem; }
+    /* repository cards: the cache overview, one repository per row (name, its numbers, the notes pill;
+       what runs against it on a full-width line below) */
+    .rgrid { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.4rem; }
+    .rcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.7rem 1rem; min-width: 0; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) auto; gap: 0.5rem 1.2rem; align-items: center; }
     .rcard:hover { border-color: #111; background: #fff; }
     .rcard.none { cursor: default; background: #fff; border-style: dashed; }
     .rcard.none:hover { border-color: #e5e7eb; }
-    .rtop { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; }
+    .rcard > .prog, .rcard > .prog-line { grid-column: 1 / -1; }
+    @media (max-width: 700px) { .rcard { grid-template-columns: minmax(0, 1fr) auto; } .rcard > .rstats { grid-column: 1 / -1; } }
+    .rtop { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; min-width: 0; }
     .rname { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .rtop .pill, .wtop input { flex-shrink: 0; }
     .rname small { font-weight: 400; color: #9ca3af; font-size: 0.78rem; }
@@ -109,9 +110,9 @@
     .prog { display: flex; flex-direction: column; gap: 0.3rem; }
     .track { height: 6px; border-radius: 3px; background: #e5e7eb; overflow: hidden; position: relative; }
     .track i { display: block; height: 100%; width: var(--w, 0%); background: #111; border-radius: 3px; transition: width 0.4s ease; }
-    .track.busy i { width: 30%; animation: slide 1.4s ease-in-out infinite; }
-    @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
     .prog-line { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.76rem; color: #444; }
+    .prog-line .eta { color: #111; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .prog-line .pct { color: #6b7280; font-variant-numeric: tabular-nums; }
     .prog-line .stop { border: 1px solid #d4d4d8; background: #fff; color: #991b1b; border-radius: 5px; padding: 0.1rem 0.5rem; font-size: 0.72rem; cursor: pointer; }
     .prog-line .stop:hover { border-color: #991b1b; background: #fef2f2; }
     .prog-line .stop:disabled { opacity: 0.5; cursor: default; }
@@ -159,6 +160,8 @@
     .wbar .sum { text-align: right; white-space: nowrap; }
     .wbar .sum b { display: block; font-size: 1.25rem; color: #111; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
     .wbar .sum span { display: block; font-size: 0.74rem; color: #6b7280; }
+    .wbar .wgo { display: flex; gap: 0.5rem; align-items: center; }
+    .wrow .rname .pill { margin-left: 0.5rem; vertical-align: 1px; font-size: 0.66rem; padding: 0.1rem 0.45rem; }
     @media (max-width: 760px) {
       .wrow { grid-template-columns: minmax(0, 1fr) auto; }
       .wmain { grid-column: 1 / 2; }
@@ -324,7 +327,7 @@
       <button class="back" id="w-back">← Your repositories</button>
       <div class="kicker">Warm up your cache</div>
       <h1>Which repositories should thinker learn first?</h1>
-      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
+      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
       <div class="wbar" id="w-bar" hidden>
         <div class="model">
           <span>Model</span>
@@ -334,7 +337,7 @@
         </div>
         <div class="sum"><b id="w-tokens">0</b><span>tokens of usage</span></div>
         <div class="sum"><b id="w-eta">—</b><span id="w-count">0 repositories</span></div>
-        <button class="btn big" id="w-start">Start building</button>
+        <div class="wgo"><button class="btn big" id="w-start">Start building</button><button class="btn ghost" id="w-skip" title="Nothing is built now; every cache still grows from your sessions">Skip for now</button></div>
       </div>
       <div class="wlist" id="w-grid"><div class="empty"><span class="spinner"></span>Looking for repositories…</div></div>
       <div class="pager" id="w-pager"></div>
@@ -530,12 +533,20 @@ function waitCount() { const c = $('#wait-count'), n = REPOS.reduce((a, r) => a 
 const jobOf = r => (r.job && ['queued', 'running'].includes(r.job.status)) || (r.job?.ended && Date.now() - Date.parse(r.job.ended) < 10 * 60_000) ? r.job : null;
 // what is running against a cache: the mining or distilling batch with its count, else the state of its warm-up
 // build; the item in hand (`detail`) only on the repository's own page
+// A running warm-up build shows the build's own progress (ui/server.js:jobProgress: its stage, the fraction done
+// and the seconds left); any other batch shows its count with the ETA at its pace so far.
+const left = s => s == null ? '' : s <= 0 ? 'finishing' : `about ${dur(Math.max(5, s))} left`;
 function progress(r, { detail = false } = {}) {
   const a = ACT[r.id], j = jobOf(r);
+  if (j && j.status === 'running' && j.progress) {
+    const p = j.progress, pct = Math.round(100 * p.fraction);
+    return `<div class="prog"><div class="track"><i style="--w:${pct}%"></i></div>
+    <div class="prog-line"><span><span class="pct">${pct}%</span> · warming up · ${esc(p.stage)}${p.saved ? ` · ${p.saved} note${p.saved === 1 ? '' : 's'}` : ''}${detail && p.current ? ` · ${esc(p.current)}` : ''}</span><span><span class="eta">${left(p.etaSeconds)}</span> <button class="stop" data-stop-job="${esc(j.id)}">Stop</button></span></div></div>`;
+  }
   if (a) return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
-    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${detail && a.current ? ` · ${esc(a.current)}` : ''}</span><button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></div></div>`;
-  if (j && j.status === 'running') return `<div class="prog"><div class="track busy"><i></i></div><div class="prog-line"><span>warming up · reading the design documents</span><button class="stop" data-stop-job="${esc(j.id)}">Stop</button></div></div>`;
-  if (j && j.status === 'queued') return `<div class="prog"><div class="track"><i></i></div><div class="prog-line"><span>queued for warm-up (${j.depth})</span><button class="stop" data-stop-job="${esc(j.id)}">Remove</button></div></div>`;
+    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${detail && a.current ? ` · ${esc(a.current)}` : ''}</span><span><span class="eta">${left(a.etaSeconds)}</span> <button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></span></div></div>`;
+  if (j && j.status === 'running') return `<div class="prog"><div class="track"><i style="--w:2%"></i></div><div class="prog-line"><span>warming up · starting</span><button class="stop" data-stop-job="${esc(j.id)}">Stop</button></div></div>`;
+  if (j && j.status === 'queued') return `<div class="prog"><div class="track"><i></i></div><div class="prog-line"><span>queued for warm-up (${j.depth})${j.estimateSeconds ? ` · about ${dur(j.estimateSeconds)} once it starts` : ''}</span><button class="stop" data-stop-job="${esc(j.id)}">Remove</button></div></div>`;
   if (j && j.status === 'done') return `<div class="prog-line"><span class="gain">warm-up finished</span></div>`;
   if (j && j.status === 'failed') return `<div class="prog-line"><span class="loss">warm-up did not finish · ~/.thinker/state/warmup-${esc(j.name.replace(/\W+/g, '-'))}.log</span></div>`;
   if (j && j.status === 'cancelled') return `<div class="prog-line"><span class="muted">warm-up stopped</span></div>`;
@@ -544,15 +555,16 @@ function progress(r, { detail = false } = {}) {
 function rcard(r) {
   const s = r.stats || {};
   return `<div class="rcard" data-id="${esc(r.id)}" title="${esc(r.checkout)}">
-    <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div><span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span></div>
+    <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div></div>
     <div class="rstats"><span><b>${fmt(s.fresh || 0)}</b> fresh</span>${s.stale ? `<span><b>${fmt(s.stale)}</b> stale</span>` : ''}<span><b>${fmt(s.behaviors || 0)}</b> behaviors${r.pending ? ` <b>+${r.pending}</b> proposed` : ''}</span><span><b>${fmt(s.hits || 0)}</b> hits</span><span>${esc(ago(s.lastUsed))}</span></div>
+    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>
     ${progress(r)}</div>`;
 }
 async function loadRepos() {
   try {
     await fetchRepos();
     // a warm-up still waiting for its repository's first cache file shows up as a card of its own
-    const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div><span class="pill">starting</span></div>${progress({ id: '', job: j })}</div>`);
+    const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div></div><div class="rstats"></div><span class="pill">starting</span>${progress({ id: '', job: j })}</div>`);
     const cards = REPOS.map(rcard).concat(jobCards);
     $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository, or warm one up now.</div>`;
     wireGrid();
@@ -791,8 +803,10 @@ async function loadWarmup() {
   try {
     W = await api('/api/machine');
     W.agents = AGENTS?.agents || [];
-    // preselected: the three with the most sessions these 30 days that have history to read and were not warmed up before
-    if (!SEL.size) for (const r of [...W.repos].filter(r => r.canMine && !r.warmed && r.sessions > 0).sort((a, b) => b.sessions - a.sessions).slice(0, 3)) SEL.set(r.checkout, { depth: 'full', directories: [] });
+    // preselected: the five used most recently (the list is most recently active first) that have history to
+    // read and no cache yet (one that was warmed up before, or holds notes, is marked instead); they lead the list
+    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [] });
+    W.repos = [...W.repos.filter(r => SEL.has(r.checkout)), ...W.repos.filter(r => !SEL.has(r.checkout))];
     renderWarmup();
     // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
     if (!AGENTS) { $('#w-agent').innerHTML = '<option value="">checking your agents…</option>'; AGENTS = await api('/api/agents'); W.agents = AGENTS.agents; }
@@ -823,8 +837,9 @@ function fuzzy(q, s) {
 function dirLabel(sel) { const n = sel.directories.length; return !n ? 'Whole repository' : `${n} director${n === 1 ? 'y' : 'ies'}`; }
 function wrow(r) {
   const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
-  const sub = [owner(r.name), home(r.checkout), when(r.lastUsed, 'used'), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', when(r.pushed, 'pushed'), r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', r.warmed ? 'warmed up before' : r.hasCache ? 'has a cache' : ''].filter(Boolean).join(' · ');
-  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
+  const cached = r.warmed || r.hasCache;
+  const sub = [owner(r.name), home(r.checkout), when(r.lastUsed, 'used'), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', when(r.pushed, 'pushed'), r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', cached ? `${r.warmed ? 'warmed up before' : 'has a cache'}${r.notes ? ` · ${fmt(r.notes)} notes` : ''}` : ''].filter(Boolean).join(' · ');
+  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}${cached ? `<span class="pill ok" title="${r.warmed ? 'Its pull requests were read before; a warm-up reads only the newer ones' : 'Notes from sessions already; a warm-up adds the pull requests'}">cache exists</span>` : ''}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
   if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span></div><div class="weta"><b class="dim">—</b></div></div>`;
   const ctl = on ? `<div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
       ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
@@ -872,6 +887,9 @@ function renderDrop() {
 }
 document.addEventListener('mousedown', e => { if (DROP && !e.target.closest('.wdir')) { DROP = null; renderWarmup(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && DROP) { DROP = null; renderWarmup(); } });
+// skipping builds nothing; the page opens on the caches from then on (the warm-up stays a click away)
+const skipped = () => { try { return localStorage.getItem('thinker.warmupSkipped') === '1'; } catch { return false; } };
+$('#w-skip').onclick = () => { try { localStorage.setItem('thinker.warmupSkipped', '1'); } catch {} toast('Warm-up skipped: every cache grows from your sessions'); DREPO = ''; show('cache'); };
 $('#w-start').onclick = async () => {
   const btn = $('#w-start'); btn.disabled = true;
   try {
@@ -886,7 +904,7 @@ $('#w-start').onclick = async () => {
 // first view: the tab the URL names, else the caches; the warm-up page when nothing has a cache yet
 (async () => {
   let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
   show(tab);
 })();
 </script>

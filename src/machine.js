@@ -77,7 +77,9 @@ export const displayName = (id, checkout) => /^[^/]+\.[a-z]+\/[^/]/.test(id) ? S
 // Every repository the machine knows: from the agents' transcripts and thinker's log, one entry per
 // repository (its clones and worktrees share one history, so they are one line: `checkout` is the
 // main checkout, or the latest used, and `checkouts` all of them), newest use first. `store` is any
-// store, for reading the machine's log.
+// store, for reading the machine's log. `hasCache` says the repository's cache holds notes (`notes`
+// how many, over its checkouts); a .thinker folder alone says nothing, since every checkout an agent
+// has worked in gets one.
 export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
   const by = new Map();
   const touch = (checkout, t, sessions) => {
@@ -96,10 +98,12 @@ export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
   return [...groups].map(([id, cs]) => {
     cs.sort((a, b) => main(b) - main(a) || b.lastUsed - a.lastUsed);
     const lastUsed = Math.max(...cs.map(c => c.lastUsed));
+    // a cache exists when it holds notes: every checkout an agent worked in has a .thinker folder, most of them empty
+    const notes = cs.reduce((a, c) => a + (cacheStats(c.checkout)?.notes || 0), 0);
     return {
       id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
       lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
-      current: cs.some(c => c.checkout === here), hasCache: fs.existsSync(path.join(cs[0].checkout, '.thinker')),
+      current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
     };
   }).sort((a, b) => (Date.parse(b.lastUsed) || 0) - (Date.parse(a.lastUsed) || 0));
 }
