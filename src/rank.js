@@ -191,7 +191,7 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     const a = n.attest || {}, acted = ((a.confirmed || 0) + 1) / ((a.confirmed || 0) + (a.unused || 0) + 2);
     let score = rel + aff * 0.4 + prior + 0.05 * conf + 0.2 * (acted - 0.5);
     if (n.status === 'stale') score *= 0.6;
-    if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for review, drilldown and lookup by id (ops.js:archiveNotes)
+    if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for drilldown and lookup by id (ops.js:archiveNotes)
     return { note: n, score, rel, aff, cover, coverQ, dense: ds, matched: mq + mb };
   });
   // with dense scores the blend is normalized to the best passing note, as the lexical relevance is

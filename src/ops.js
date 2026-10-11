@@ -792,7 +792,7 @@ export const BEHAVIOR_VERIFY_SCHEMA = {
 // default branch (origin's HEAD when there is a remote, else a local main or master). A behavior the
 // merged code no longer upholds is revised to match it (the pull request was reviewed and merged with
 // the change called out, so the change is the decision); one broken only in a working tree or on a
-// branch is marked violated, which is what the review and the ⚠ banner are for.
+// branch is marked violated, which is what the ⚠ banner is for.
 export function onDefaultBranch(repo, paths = []) {
   const g = args => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   try { if (g(['status', '--porcelain', '--untracked-files=no', '--', ...(paths.length ? paths : ['.'])])) return false; } catch { return false; }
@@ -896,8 +896,8 @@ export function holdoutSession(store, session) {
   return h < rate;
 }
 
-// Archive: notes that the sessions showed are not worth serving are kept for `thinker review`,
-// `drilldown`, `find` and `lookup` by id, and taken out of orientation, the edit hook and
+// Archive: notes that the sessions showed are not worth serving are kept for `drilldown`, `find`
+// and `lookup` by id, and taken out of orientation, the edit hook and
 // maintenance (no re-verification, no phrasing). Two rules, both free: a kind that was never
 // acted on when served (in a week on this repository: location 0 of 6, fix 0 of 12, cochange 0
 // of 5, convention 0 of 3; `find` covers what location notes said, and co-change was dropped
@@ -907,9 +907,9 @@ export function holdoutSession(store, session) {
 // kinds: none by default since the kinds were collapsed to four (the location, fix, cochange and
 // convention notes the sessions never acted on are rules and maps now, beside notes they did act on)
 export const ARCHIVE_DEFAULTS = { kinds: [], unservedDays: 30 };
-// The kinds `thinker review` reasons with (review.js:KIND_WEIGHT): rules, traps, past fixes and
-// why. An archived kind among them is still worth distilling, since review reads the archive;
-// an archived kind outside them (location: `find` answers it) is not worth a note at all.
+// The kinds worth distilling even when archived: rules, traps, past fixes and why (what a reviewer
+// draws on when a change touches the code). An archived kind outside them (location: `find`
+// answers it) is not worth a note at all.
 export const REVIEW_KINDS = ['behavior', 'rule'];
 export function distillKinds(store) {
   const arch = archiveConfig(store);

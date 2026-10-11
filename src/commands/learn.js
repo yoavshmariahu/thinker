@@ -191,7 +191,7 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   try {
   const accounting = { store, phase, transcript: path.basename(file), session, dry: !!dry };
   plan = plan || { mode: 'full', served, discover: true, trace: condense(events) };
-  // the kinds worth a note here: what is served, and what review reads from the archive (ops.js:distillKinds)
+  // the kinds worth a note here: what is served, and the archived kinds still worth distilling (ops.js:distillKinds)
   const kinds = distillKinds(store);
   // the notes resting on the files the session touched, and up to four on the topic of its requests
   const existing = relatedNotes(store, events, { max: 12 });

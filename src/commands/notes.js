@@ -181,7 +181,7 @@ async function rehashCommand(ctx) {
 async function archiveCommand(ctx) {
   const { pos, flags, store, out } = ctx;
   // thinker archive [--dry] [--list] [--restore] [ids…] [--kinds a,b] [--days n]: notes out of
-  // serving and upkeep, kept for review (ops.js:archiveNotes); maintenance runs the same rules
+  // serving and upkeep, kept for lookup by id (ops.js:archiveNotes); maintenance runs the same rules
   const cfg = archiveConfig(store);
   if (flags.list) {
     const arch = store.list().filter(n => n.archived);

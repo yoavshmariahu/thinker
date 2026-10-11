@@ -34,7 +34,6 @@ export class Repo {
     this.id = id.toLowerCase();
     this.dir = path.join(root, 'repos', this.id.replace(/\//g, '__'));
     this.checkout = path.join(this.dir, 'checkout');
-    this.reviewsDir = path.join(this.dir, 'reviews');
     this.journalFile = path.join(this.dir, 'journal.jsonl');
     this.metaFile = path.join(this.dir, 'repo.json');
     this.queue = Promise.resolve();
@@ -44,7 +43,6 @@ export class Repo {
   saveMeta(patch) { const m = { ...this.meta(), ...patch }; fs.mkdirSync(this.dir, { recursive: true }); writeJson(this.metaFile, m); return m; }
   create({ clone } = {}) {
     fs.mkdirSync(this.checkout, { recursive: true });
-    fs.mkdirSync(this.reviewsDir, { recursive: true });
     if (!this.exists()) this.saveMeta({ id: this.id, seq: 0, clone: clone || defaultClone(this.id), created: new Date().toISOString() });
     else if (clone) this.saveMeta({ clone });
     this.store().init();
@@ -145,44 +143,6 @@ export class Repo {
     }, by);
   }
 
-  // --- pull requests to review ----------------------------------------------------------------------
-  // One record per pull request number, the latest request winning: a push replaces the pending
-  // request for the same number. {status: queued | running | done | failed, ...}; the record of a
-  // finished review keeps the counts, the behaviors and the review body, so the action can wait for
-  // it and fail the check.
-  reviewFile(n) { if (!/^\d{1,9}$/.test(String(n))) throw new Error('invalid pull request number'); return path.join(this.reviewsDir, `${n}.json`); }
-  review(n) { return readJson(this.reviewFile(n), null); }
-  queueReview(rv) {
-    fs.mkdirSync(this.reviewsDir, { recursive: true });
-    const prev = this.review(rv.number);
-    if (prev && prev.headSha && rv.headSha && prev.headSha === rv.headSha && prev.status !== 'failed') return { queued: false, ...prev };
-    const rec = { ...rv, status: 'queued', queuedAt: new Date().toISOString() };
-    writeJson(this.reviewFile(rv.number), rec);
-    return { queued: true, ...rec };
-  }
-  saveReview(n, patch) { const rec = { ...(this.review(n) || { number: n }), ...patch }; writeJson(this.reviewFile(n), rec); return rec; }
-  finishReview(n, patch) { return this.saveReview(n, { ...patch, doneAt: new Date().toISOString() }); }
-  pendingReviews() {
-    let files = []; try { files = fs.readdirSync(this.reviewsDir); } catch {}
-    return files.filter(f => /^\d+\.json$/.test(f)).map(f => readJson(path.join(this.reviewsDir, f), null)).filter(r => r && r.status === 'queued').sort((a, b) => String(a.queuedAt).localeCompare(String(b.queuedAt)));
-  }
-  // The pull request's head commit into the clone: GitHub's refs/pull/N/head first, then the branch
-  // named, then the commit itself (GitHub serves a reachable commit by id). Returns the commit to
-  // review: the one asked for when it arrived, else the tip that was fetched.
-  async fetchPrHead({ number, headSha, headRef }, token) {
-    const has = sha => { try { this.git(['cat-file', '-e', `${sha}^{commit}`]); return true; } catch { return false; } };
-    const tries = [['+refs/pull/' + number + '/head:refs/thinker/pr/' + number], headRef ? ['+refs/heads/' + headRef + ':refs/thinker/pr/' + number] : null, headSha ? [headSha] : null].filter(Boolean);
-    let fetched = null, err = null;
-    for (const spec of tries) {
-      try { await this.gitAsync(['fetch', '--quiet', 'origin', ...spec], token); } catch (e) { err = e; continue; }
-      if (headSha && has(headSha)) return headSha;
-      if (spec[0] !== headSha) { try { fetched = this.git(['rev-parse', '--verify', `refs/thinker/pr/${number}^{commit}`]); } catch {} }
-      if (fetched && !headSha) return fetched;
-    }
-    if (headSha && has(headSha)) return headSha;
-    if (fetched) return fetched;
-    throw new Error(`could not fetch the pull request's head (${headSha || headRef || 'refs/pull/' + number + '/head'}): ${String(err?.stderr || err?.message || 'not found').split('\n')[0].slice(0, 160)}`);
-  }
   hasCommit(sha) { try { this.git(['cat-file', '-e', `${sha}^{commit}`]); return true; } catch { return false; } }
 
   // --- the checkout ---------------------------------------------------------------------------------

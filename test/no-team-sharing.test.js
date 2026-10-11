@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { installGitHooks, preCommitHook } from '../src/git-hooks.js';
+import { installGitHooks } from '../src/git-hooks.js';
 import { commands } from '../src/commands/cache.js';
 import { Store } from '../src/store.js';
 import { maintain, maintenanceNotice } from '../src/maintain.js';
@@ -43,7 +43,6 @@ test('rewiring removes obsolete note checks and preserves custom pre-push hooks'
   fs.writeFileSync(hook, '#!/bin/sh\n# thinker: report shared-note issues without blocking a push\nnode old.js share --check --pre-push\n');
   installGitHooks(repo, cli, true);
   assert.equal(fs.existsSync(hook), false);
-  assert.doesNotMatch(preCommitHook(cli), /share|repair/);
   const custom = '#!/bin/sh\n# repository policy\nexit 1\n';
   fs.writeFileSync(hook, custom);
   installGitHooks(repo, cli, true);

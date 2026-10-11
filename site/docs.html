@@ -673,9 +673,6 @@
       <div class="sidebar-group">
         <div class="sidebar-heading">Code Review</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#review">Reviewing a change</a></li>
-          <li class="sidebar-item"><a href="#proof-of-correctness">Proof of correctness</a></li>
-          <li class="sidebar-item"><a href="#ci">In CI and before commits</a></li>
           <li class="sidebar-item"><a href="#behaviors">Desired behaviors</a></li>
         </ul>
       </div>
@@ -718,13 +715,6 @@
         </p>
 
         <div class="outcomes">
-          <a class="outcome" href="#review">
-            <div class="outcome-kicker">Code Review</div>
-            <div class="outcome-num">73% fewer bugs</div>
-            <div class="outcome-label">Missed in review, across 100 tests</div>
-            <p class="outcome-body">A review checks a change against what the repository already learned: fixes it must not undo, conventions and behaviors it must keep.</p>
-            <div class="outcome-cta">How review works &rarr;</div>
-          </a>
           <a class="outcome" href="#in-a-session">
             <div class="outcome-kicker">Efficient coding</div>
             <div class="outcome-num">18% less tokens</div>
@@ -745,7 +735,7 @@
           <div class="loop-step">
             <span class="step-badge">2</span>
             <h4>Use</h4>
-            <p>Hooks hand the agent the note that fits each request. <code>thinker review</code> checks a change against the notes before it merges.</p>
+            <p>Hooks hand the agent the note that fits each request.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">3</span>
@@ -860,7 +850,7 @@ thinker setup --build --yes</code></pre>
           <code>thinker setup --build</code> fills the cache from merged pull requests, and prints what it will cost in tokens and minutes before spending anything. Ctrl-C stops it at any time and keeps every note saved so far; the cache keeps growing from your sessions and a few merged pull requests per background run.
         </p>
         <ul>
-          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a review draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
+          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a reviewing agent draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
         </ul>
         <pre><code>thinker setup --build --prs 100              <span class="code-comment"># more history</span>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
@@ -899,229 +889,6 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
 
       <div class="part-label">Code Review</div>
 
-      <section id="review">
-        <h2>Reviewing a change</h2>
-        <p>
-          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. It runs from the command line, before a commit or on a pull request.
-        </p>
-        <p>
-          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Across 100 tests in seven open-source repositories, each a fix reversed so the change brings its bug back, review with Thinker missed 73% fewer bugs than the same model without it. The cache had learned the fixes being tested. The benchmark modal shows the results by model and explains the scoring.
-        </p>
-        <pre><code>thinker review                      <span class="code-comment"># the working tree against HEAD</span>
-thinker review --staged             <span class="code-comment"># what is about to be committed</span>
-thinker review --base origin/main   <span class="code-comment"># the branch since its merge base</span>
-thinker review --ref &lt;commit&gt;       <span class="code-comment"># one commit, read from git alone</span>
-thinker review --state src/auth/    <span class="code-comment"># no change: the current code against the notes on it</span></code></pre>
-        <p>
-          It makes two model calls and merges what they find: one sees the diff and the code it touched, as any reviewer would; the other sees the notes resting on the changed code and the notes that bear on it. Every finding carries a file, a line, the evidence it rests on and the note it came from. Findings that are the same problem seen from several notes are reported once.
-        </p>
-        <ul>
-          <li><strong>The cache is evidence, not truth.</strong> A note that already disagreed with the code before the change is reported as drift of the cache, never charged to the change. Nothing in the cache is rewritten by a review.</li>
-          <li><strong>It says where it is blind.</strong> When most of the changed files carry no note, the review says so first: there it is the model reading the diff alone, and "no findings" is not a clean bill.</li>
-          <li><strong>Removed definitions still referenced</strong> are reported without a model call.</li>
-        </ul>
-        <p>
-          <code>--kinds behavior</code> consults the desired behaviors alone, <code>--dry</code> makes no model call, <code>--json</code> gives the report as data, <code>--model</code> picks the model (<code>reviewModel</code> in the config, default <code>sonnet</code>).
-        </p>
-      </section>
-
-      <section id="proof-of-correctness">
-        <h2>Proof of correctness</h2>
-        <p>
-          Agent-written code arrives with a diff and a claim that it works. A reviewer has to ask three more things: <strong>what the agent set out to do and why</strong>, <strong>how that was tested</strong>, and <strong>what the repository already knows that the agent did not</strong>. Thinker posts the answers as one comment on the pull request, from your own GitHub login, each part marked by where it came from: the agent, the test runner, the cache, or a model&#39;s reading.
-        </p>
-        <p>
-          The report below is a real one, produced by the command at the end of this section on a small demonstration repository. The change makes auto-pause react within two seconds of the runner stopping, instead of five. Both named tests passed. The cache remembered why the old detector waited: under a bridge the GPS reports zero speed with no fix, and that paused people&#39;s runs in every tunnel.
-        </p>
-
-        <figure class="gh" aria-label="Pull request comment posted by thinker">
-          <div class="gh-pr">
-            <span class="gh-pr-title">Auto-pause a run within two seconds of stopping <span class="gh-pr-num">#318</span></span>
-            <span class="gh-pr-state">Open</span>
-          </div>
-          <div class="gh-timeline">
-            <div class="gh-event">
-              <span class="gh-avatar" aria-hidden="true"></span>
-              <span><strong>devuser</strong> commented 4 minutes ago</span>
-            </div>
-
-            <article class="gh-comment">
-              <div class="gh-comment-head"><span class="gh-avatar gh-avatar-sm" aria-hidden="true"></span><strong>devuser</strong> <span class="gh-muted">commented</span></div>
-              <div class="gh-md">
-                <h1>Change review: <span class="gh-fail">failed</span></h1>
-                <p class="gh-fine"><em>Generated by claude-sonnet-5 + thinker.</em></p>
-                <p><strong>Requested change:</strong> Pause a run within two seconds of the runner stopping; resume when they move</p>
-
-                <h2>Why and how <span class="gh-tag tag-agent">supplied by the agent</span></h2>
-                <p><strong>Reason for the approach (supplied by the agent):</strong> Two GPS samples under 0.5 m/s are enough to tell a stop from a slow stride</p>
-                <ol>
-                  <li>Shorten the stop window from five samples to two
-                    <ul><li>Seen in the diff at <code>src/run/autopause.js:4</code>: STOP_SAMPLES is changed from 5 to 2, shrinking the window of recent samples checked for a stop. <span class="gh-tag tag-model">model reading</span></li></ul>
-                  </li>
-                  <li>Resume on the first moving sample
-                    <ul><li>Seen in the diff at <code>src/run/autopause.js:5</code>: RESUME_SAMPLES is changed from 3 to 1, so a single moving sample is enough to trigger resume. <span class="gh-tag tag-model">model reading</span></li></ul>
-                  </li>
-                </ol>
-
-                <h2>Before approving <span class="gh-tag tag-reviewer">for the reviewer</span></h2>
-                <ul>
-                  <li>Should the window stay at five for watches sampling GPS at 0.5 Hz? <span class="gh-tag tag-agent">the agent&#39;s own question</span></li>
-                  <li>Inspect the 1 error and 0 warning finding below.</li>
-                  <li>1 desired behavior is reported as violated: GPS loss never pauses a run.</li>
-                </ul>
-
-                <h2>Evidence for the requested behavior <span class="gh-tag tag-runner">observed by the runner</span></h2>
-                <div class="gh-scroll">
-                <table>
-                  <thead><tr><th>Criterion</th><th>Observed result</th><th>What the assertion supports or leaves open</th></tr></thead>
-                  <tbody>
-                    <tr>
-                      <td>A run pauses within two seconds of the runner stopping</td>
-                      <td>unit: pauses within two seconds of a stop (<code>test/autopause.test.js</code>) <span class="gh-pass">passed</span></td>
-                      <td><strong>partial:</strong> Confirms detectStop returns true once the last two samples are below STOP_SPEED, matching the new 2-sample window, but it doesn&#39;t verify those two samples correspond to an actual two-second interval (no timestamps/sampling-rate check) (<code>test/autopause.test.js:9</code>, model reading) <span class="gh-tag tag-model">model reading</span></td>
-                    </tr>
-                    <tr>
-                      <td>A paused run resumes when the runner moves</td>
-                      <td>unit: resumes on the first moving sample (<code>test/autopause.test.js</code>) <span class="gh-pass">passed</span></td>
-                      <td><strong>direct:</strong> Asserts detectResume returns true as soon as the single trailing sample (2.6 m/s) exceeds RESUME_SPEED, directly matching &#39;resumes on the first moving sample&#39; with RESUME_SAMPLES=1. (<code>test/autopause.test.js:14</code>, model reading) <span class="gh-tag tag-model">model reading</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-                </div>
-                <p class="gh-fine">The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.</p>
-                <p><strong>Desired behaviors directly in play (model reading):</strong></p>
-                <ul><li>GPS loss never pauses a run: <span class="gh-fail">violated</span> — detectStop no longer filters samples by accuracy before testing speed; a GPS dropout (speed 0, accuracy 0) now counts toward the stop window, so a run that is simply losing its fix while the runner keeps moving will be paused. This directly violates the fixed behavior that GPS loss must never pause a run. (human-authored). <span class="gh-tag tag-model">model reading</span></li></ul>
-
-                <h2>Checks run <span class="gh-tag tag-runner">observed by the runner</span></h2>
-                <div class="gh-scroll">
-                <table>
-                  <thead><tr><th>Check</th><th>Result</th><th>Observed tests</th></tr></thead>
-                  <tbody><tr><td>unit</td><td><span class="gh-pass">passed</span></td><td>3 passed; 0 skipped</td></tr></tbody>
-                </table>
-                </div>
-                <p class="gh-fine">Full output: unit.log (stored locally; not uploaded).</p>
-                <p><strong>Gate integrity:</strong> No pattern-based weakening signals found.</p>
-
-                <h2>Code assessment <span class="gh-tag tag-cache">from the cache</span></h2>
-                <p>1 errors; 0 warnings. This is a model reading of the change, not an executed check.</p>
-                <ul>
-                  <li><code>src/run/autopause.js:9</code> — detectStop no longer filters samples by accuracy before testing speed; a GPS dropout (speed 0, accuracy 0) now counts toward the stop window, so a run that is simply losing its fix while the runner keeps moving will be paused. This directly violates the fixed behavior that GPS loss must never pause a run. <strong>Basis:</strong> GPS loss never pauses a run, human-authored; Zero-speed samples with no fix paused runs in tunnels; count a stop only from samples with a fix, <em>source PR 241</em>. <strong>Evidence:</strong> <code>const recent = samples.slice(-STOP_SAMPLES);</code></li>
-                </ul>
-
-                <details class="gh-details">
-                  <summary>Review thoroughness, and evidence source and scope</summary>
-                  <div class="gh-scroll">
-                  <table>
-                    <thead><tr><th>Decision</th><th>What happened</th><th>Basis</th></tr></thead>
-                    <tbody>
-                      <tr><td>Code assessment</td><td>assessed</td><td>Default configuration</td></tr>
-                      <tr><td>Caller context</td><td>skipped</td><td>Default configuration</td></tr>
-                      <tr><td>Split review</td><td>skipped</td><td>Default configuration</td></tr>
-                      <tr><td>Verify findings</td><td>skipped</td><td>Default configuration</td></tr>
-                      <tr><td>Run tests</td><td>not-recommended</td><td>Default configuration</td></tr>
-                    </tbody>
-                  </table>
-                  </div>
-                  <p class="gh-fine">Scores reflect the gate policy, not a case-specific justification. Test recommendations do not establish execution. Skipped steps have not been checked for missed findings.</p>
-                  <p class="gh-fine">Finding verification: 0 attempts; 0 retained, 0 dropped, 0 severity changes, 0 errors; 0 tokens.</p>
-                  <ul>
-                    <li>The task framing came from the calling agent via CLI at 2026-10-07T06:12:29.046Z. The criteria and test links are the agent&#39;s interpretation.</li>
-                    <li>The checks came from the verification contract at base <code>80d8440346bd</code> and ran against frozen snapshot <code>72e70ac51bc7</code>. CI acceptance: not established.</li>
-                    <li>unit command: <code>node --test --test-reporter=/thinker/reporter.mjs test/*.test.js</code>.</li>
-                    <li>The code assessment read the change against frozen notes. A clean model assessment does not replace a human reading of the diff.</li>
-                    <li>Run <code>5d750e14-e6c6-43a1-a782-5c4d457e1099</code>; 2026-10-07T06:12:29.093Z to 2026-10-07T06:15:29.670Z.</li>
-                  </ul>
-                </details>
-              </div>
-            </article>
-          </div>
-          <figcaption class="gh-caption">A real report, from a run on a small demonstration repository: one pull request comment posted by <code>review --run … --post</code> through the author&#39;s own GitHub login. The text is the report&#39;s own, with its <em>(model reading)</em> parentheticals shown as badges and the thoroughness and provenance sections folded into the disclosure above.</figcaption>
-        </figure>
-
-        <h3>What each part rests on</h3>
-        <div class="gh-legend">
-          <div class="gh-legend-item">
-            <span class="gh-tag tag-agent">supplied by the agent</span>
-            <p><strong>The agent's intention.</strong> With the run the agent sends a task: the request, its reason for the approach, the steps it meant to take, its open questions, and acceptance criteria linked to named tests (<code>task.json</code>). Thinker anchors each step to a changed line, so the intention is checked against the diff rather than taken on trust, and the review says where no anchor was found.</p>
-          </div>
-          <div class="gh-legend-item">
-            <span class="gh-tag tag-runner">observed by the runner</span>
-            <p><strong>How it was tested.</strong> The checks are the commands committed in <code>.thinker/verification.json</code> on the base branch, run in Docker on a frozen snapshot of the candidate; thinker's reporter records each named test as passed, skipped or failed and matches it to the criterion it was linked to. The candidate cannot replace its own checks, and a skipped or missing test is called out, not quietly counted as a pass.</p>
-          </div>
-          <div class="gh-legend-item">
-            <span class="gh-tag tag-cache">from the cache</span>
-            <p><strong>What the repository already knows.</strong> Notes mined from merged fixes and earlier sessions rest on the changed definitions, and desired behaviors written by the team are held against the change. A finding names the note and the pull request it was learned from. In the report above both tests are green and the diff reads as a tidy simplification; only the cache knew that the filter it removed was the fix for runs pausing in tunnels.</p>
-          </div>
-          <div class="gh-legend-item">
-            <span class="gh-tag tag-model">model reading</span>
-            <p><strong>Labeled, never silent.</strong> Wherever a model read a line of the diff or an assertion, the review says so. An observed pass is a fact about the snapshot; whether its assertions cover the request is a judgment, and the review leaves that judgment, under <em>Before approving</em>, to the reviewer.</p>
-          </div>
-        </div>
-
-        <h3>Run it and post the evidence</h3>
-        <p>First, commit <code>.thinker/verification.json</code> on the trusted base. This contract pins the Docker image and required check commands; a candidate cannot replace its own evaluation commands. Docker, a configured review model, and an authenticated GitHub CLI (<code>gh auth login</code>) are required for this flow.</p>
-        <details>
-          <summary>Example execution contract</summary>
-          <p>Save as <code>.thinker/verification.json</code> and commit it to the base branch. Replace the image placeholder with an actual image digest containing Node and your project’s system dependencies. This example allows network access for <code>npm ci</code>.</p>
-          <pre><code>{
-  "version": 1,
-  "image": "your-registry/verification@sha256:&lt;64-character-image-digest&gt;",
-  "platform": "linux/amd64",
-  "network": "bridge",
-  "setup": "npm ci",
-  "checks": [{
-    "id": "unit",
-    "command": "node --test --test-reporter=/thinker/reporter.mjs test/*.test.js",
-    "reporter": "node",
-    "timeoutSeconds": 600
-  }]
-}</code></pre>
-          <p>Each required check runs in a fresh container. The Node reporter records named test results. A setup failure, timeout, or missing report leaves verification incomplete.</p>
-        </details>
-        <p>Save the request and links to existing tests as <code>task.json</code>. Test names and paths must match your repository:</p>
-        <pre><code>{
-  "request": "Pause a run within two seconds of the runner stopping; resume when they move",
-  "rationale": "Two GPS samples under 0.5 m/s are enough to tell a stop from a slow stride",
-  "intendedChanges": [
-    "Shorten the stop window from five samples to two",
-    "Resume on the first moving sample"
-  ],
-  "questions": ["Should the window stay at five for watches sampling GPS at 0.5 Hz?"],
-  "criteria": [{
-    "text": "A run pauses within two seconds of the runner stopping",
-    "tests": [{ "check": "unit", "name": "pauses within two seconds of a stop", "file": "test/autopause.test.js" }]
-  }, {
-    "text": "A paused run resumes when the runner moves",
-    "tests": [{ "check": "unit", "name": "resumes on the first moving sample", "file": "test/autopause.test.js" }]
-  }]
-}</code></pre>
-        <pre><code>thinker review --run --base origin/main --task task.json \
-  --pr 318 --post</code></pre>
-        <p><code>--run</code> waits for the checks and code assessment, then <code>--post</code> adds the report as a PR conversation comment through your GitHub login. Run this in the PR’s checkout: <code>--pr</code> identifies the destination, it does not select the code to review. Each invocation adds a new comment.</p>
-        <p>To keep working while checks run, use <code>--start</code>, then post the result with <code>thinker review --status &lt;run-id&gt; --pr 318 --post</code>. If the code or other tracked inputs have changed, the report marks the evidence as outdated. Full check logs stay local and are not uploaded.</p>
-        <h3>What the proof establishes</h3>
-        <p>A named test pass establishes that the test ran successfully on the captured snapshot. Thinker labels its reading of the assertions and code as a model assessment, and calls out skipped or unobserved tests, missing criterion coverage, and possible weakening of test or CI gates. The reviewer decides whether that evidence covers the request.</p>
-        <p>This is practical correctness evidence with an explicit scope. It is not a mathematical proof, a signed CI attestation, or a guarantee that every edge case is covered. Ordinary <code>thinker review --post</code> posts a code assessment without executing tests; use <code>--run</code> or a completed verification run for execution evidence. Your existing CI checks still apply.</p>
-        <p><a href="https://github.com/yoavshmariahu/thinker/blob/main/docs/task-verification.md">Execution contract and full verification reference &rarr;</a></p>
-      </section>
-
-      <section id="ci">
-        <h2>In CI and before commits</h2>
-        <p>
-          <code>--strict</code> exits 2 on an error-severity finding, so a review can gate a pull request. <code>--pr n --post</code> posts the report as a comment on the pull request through your <code>gh</code> login.
-        </p>
-        <pre><code><span class="code-comment"># In a CI job on a pull request branch, after thinker setup has run on the checkout:</span>
-thinker review --base origin/main --strict
-thinker review --base origin/main --pr 142 --post   <span class="code-comment"># and comment on the pull request</span></code></pre>
-        <p>
-          For a check before every commit, turn it on per checkout; the pre-commit hook then runs <code>thinker review --staged --strict</code> and blocks the commit on an error-severity finding, warnings alone do not:
-        </p>
-        <pre><code>git config --local thinker.reviewBeforeCommit true</code></pre>
-        <p>
-          A review uses your configured model and adds latency and tokens to each commit, so it is off unless you turn it on. <code>thinker impact</code> connects reviews and recorded agent work to the pull requests they went into: tokens per pull request, and findings confirmed as bugs fixed before merge.
-        </p>
-      </section>
-
       <section id="behaviors">
         <h2>Desired behaviors</h2>
         <p>
@@ -1135,7 +902,7 @@ thinker system propose              <span class="code-comment"># drafts from the
 thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span>
 thinker ui                          <span class="code-comment"># accept, edit or discard them in the browser</span></code></pre>
         <p>
-          A <code>fixed</code> behavior makes a change that stops upholding it an error, with the behavior quoted in full at the top of the review. A <code>mutable</code> one is a warning, and may be revised by a change that edits the note itself. Before a merge the behavior is the truth; once the change is merged, the behavior is revised to match the code, with the old text in its history. Agents can propose one with <code>remember</code> (listed as proposed until <code>thinker system accept</code>) and read them all with <code>lookup</code> and <code>kind: "behavior"</code>.
+          A <code>fixed</code> behavior is never revised by a change; a <code>mutable</code> one is revised when merged code changes it. Either way the agent reviewing a change that touches the code a behavior governs is handed that behavior.
         </p>
       </section>
 
@@ -1241,18 +1008,17 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-              <tr><td><code>thinker review [--staged | --base ref | --ref commit | --state]</code></td><td>Check a change against the cache: undone fixes, broken conventions and behaviors; <code>--strict</code> for CI, <code>--pr n --post</code> to comment</td></tr>
               <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
               <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
               <tr><td><code>thinker ui [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: usage, the notes in the cache, and the behaviors waiting to be accepted</td></tr>
               <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
-              <tr><td><code>thinker impact [--pr n]</code></td><td>Reviews and agent work connected to the pull requests they went into</td></tr>
+              <tr><td><code>thinker impact [--pr n]</code></td><td>Agent work connected to the pull requests it went into</td></tr>
               <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
               <tr><td><code>thinker learn</code></td><td>Distill every session a supported agent ran here that has not been distilled yet</td></tr>
               <tr><td><code>thinker maintain [--dry]</code></td><td>One maintenance run by hand: re-verify, mine, phrase, archive</td></tr>
               <tr><td><code>thinker check</code>, <code>thinker verify</code></td><td>Mark stale notes against the working tree; re-verify them with a small model</td></tr>
-              <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
+              <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for lookup by id</td></tr>
               <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
               <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
               <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and whether the tree-sitter parser is loaded</td></tr>
@@ -1277,7 +1043,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
               <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
-              <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
+              <tr><td><code>distillModel</code>, <code>verifyModel</code></td><td>The model for each kind of call</td></tr>
               <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
             </tbody>
           </table>
@@ -1290,7 +1056,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings, and the totals of the holdout comparison: session counts and summed tool calls and tokens of sessions with and without notes) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Note ranking runs on your machine. Learning, verification and review use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings, and the totals of the holdout comparison: session counts and summed tool calls and tokens of sessions with and without notes) to monitor cache quality. <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> Note ranking runs on your machine. Learning and verification use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off
@@ -1311,7 +1077,7 @@ export THINKER_TELEMETRY=off
           </p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
-            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning, verification, mining and review run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key). A session is distilled from a condensed transcript; a pull request is read as its title, description, review comments and diff; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
+            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning, verification and mining run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key). A session is distilled from a condensed transcript; a pull request is read as its title, description, review comments and diff; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
             <li><strong>Telemetry is counts only.</strong> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it; see <a href="#telemetry">Privacy and telemetry</a>.</li>
             <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
           </ul>
@@ -1350,7 +1116,7 @@ export THINKER_TELEMETRY=off
             <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
           </ul>
           <p>
-            What a build gives you that sessions cannot is the record of past fixes, which is what a review draws on most. A repository with little history loses little by skipping it.
+            What a build gives you that sessions cannot is the record of past fixes, which is what a reviewing agent draws on most. A repository with little history loses little by skipping it.
           </p>
         </div>
 
@@ -1361,7 +1127,6 @@ export THINKER_TELEMETRY=off
             <li><strong><code>thinker usage</code></strong>, and the Usage view of <code>thinker ui</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><strong>The holdout is measured, not estimated.</strong> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
             <li><strong><code>thinker benchmark pr</code></strong> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality. See <a href="#benchmark">Benchmark in your repo</a>.</li>
-            <li><strong>A caught regression</strong> is the clearest signal: a review that names the fix a change undoes, with the pull request it came from.</li>
           </ul>
           <p>
             A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.

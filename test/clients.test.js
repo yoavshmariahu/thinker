@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring } from '../src/clients.js';
-import { installGitHooks, preCommitHook, mainCheckout } from '../src/git-hooks.js';
+import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -373,7 +373,7 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   fs.writeFileSync(pre, `#!/bin/sh\n# thinker: old shape\nnode '${CLI}' share --repair-staged\n`);
   const r3 = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry });
   assert.deepEqual(r3.changed, ['.git/hooks/pre-commit']);
-  assert.equal(fs.readFileSync(pre, 'utf8'), preCommitHook(CLI));
+  assert.equal(fs.existsSync(pre), false, 'the pre-commit hook ran `thinker review --staged`; it is removed now');
 
   // the command, for one checkout
   // the command, for one checkout

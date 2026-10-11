@@ -1,5 +1,5 @@
 // Desired behaviors (behavior.js): a person's rule the code must uphold until a change that breaks it is merged. Verification never retires
-// or rewrites one; a review reports code that stops upholding it; the repair hook, archiving and
+// or rewrites one; a reviewing agent is served it; the repair hook, archiving and
 // distillation leave it alone; lookup finds it by kind.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,6 @@ import { hashDep } from '../src/deps.js';
 import { createNote, verifyNote, refresh, lookup, archiveReason, distillKinds, noteUnreported } from '../src/ops.js';
 import { distillSpec } from '../src/distill.js';
 import { listBehaviors, renderBehaviors, renderSystemMarkdown, promoteBehavior, proposeBehaviors, addBehavior, behaviorState } from '../src/behavior.js';
-import { review, resolveScope, renderReview, noteFileChanged, assessHolistic, selectNotes, collectChange, makeReader } from '../src/review.js';
 import { maintenanceNotice } from '../src/maintain.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -91,7 +90,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(refresh(store, [store.get(n.id)])[0].status, 'violated');
   assert.equal(behaviorState(store.get(n.id)), 'violated');
   assert.match(renderBehaviors(listBehaviors(store)), /^violated\s+\[fixed, local\].*\n\s+since [0-9a-f]{10}: invoke no longer calls validate/m);
-  assert.match(maintenanceNotice(store), /1 desired behavior needs review/);
+  assert.match(maintenanceNotice(store), /1 desired behavior is violated/);
   assert.equal(maintenanceNotice(store), '');
   // 2. committed on a branch: still violated
   git('checkout', '-qb', 'feature'); git('add', 'src'); git('commit', '-qm', 'drop validation on a branch'); // src only: .thinker/ state stays untracked
@@ -132,61 +131,6 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(moved.status, 'fresh'); assert.equal(moved.body, revisedBody); // moved never rewrites: the text is the revised one from the merge
   assert.deepEqual(moved.deps.map(d => d.symbol).sort(), ['Command.main', 'validate']);
   assert.ok(moved.history.at(-1).prevDeps.length >= 2); // the body's own pointers were deps too
-});
-
-test('a review reports code that stops upholding a behavior as a violation; a mutable one is revised only by a change that edits its note', async t => {
-  const { repo, store, write, commit, behavior, git } = fixture(t);
-  const fixed = behavior({ mutability: 'fixed' });
-  const mutable = behavior({ id: 'entry-validates-too', title: 'The CLI entry validates before invoking', body: 'cli.py:entry calls core.py:validate before core.py:Command.invoke.', answers: ['does entry validate'], deps: [{ path: 'src/cli.py', symbol: 'entry' }] });
-  store.promote(fixed); store.promote(mutable); commit('notes');
-  write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
-  write('src/cli.py', CLI.replace('    validate(ctx)\n', ''));
-  const seen = [];
-  const assess = async (s, n, e, change, reader, opts) => { seen.push({ id: n.id, revisable: opts.revisable }); return { id: n.id, verdict: 'revised', reason: 'the change restates it', findings: [], noteCorrection: '', cost: 0 }; };
-  // neither note is edited: "revised" is not available, so both are violations; the fixed one an error
-  let r = await review(store, { scope: resolveScope(repo), strategy: { mode: 'per-note', related: false }, assess });
-  assert.deepEqual(seen.map(x => x.revisable), [false, false]);
-  assert.equal(r.behaviors.length, 2);
-  // now the mutable note is edited in the working tree: the change may revise it
-  const file = path.join(store.notesDir, `${mutable.id}.json`);
-  const raw = JSON.parse(fs.readFileSync(file, 'utf8')); raw.body = 'cli.py:entry relies on core.py:Command.invoke to validate.'; fs.writeFileSync(file, JSON.stringify(raw, null, 2) + '\n');
-  assert.equal(noteFileChanged(repo, resolveScope(repo), mutable.id), true);
-  assert.equal(noteFileChanged(repo, resolveScope(repo), fixed.id), false);
-  git('add', '-A');
-  assert.equal(noteFileChanged(repo, resolveScope(repo, { staged: true }), mutable.id), true);
-  const c = commit('revise');
-  assert.equal(noteFileChanged(repo, resolveScope(repo, { ref: c }), mutable.id), true);
-  assert.equal(noteFileChanged(repo, resolveScope(repo, { ref: c }), fixed.id), false);
-  // the real assessBehavior with a model that always says "revised"
-  fakeModel(t, repo, { verdict: 'revised', reason: 'the change restates it', findings: [], noteCorrection: '' });
-  r = await review(store, { scope: resolveScope(repo, { ref: c }), strategy: { mode: 'per-note', related: false } });
-  const by = Object.fromEntries(r.behaviors.map(b => [b.id, b]));
-  assert.equal(by[mutable.id].outcome, 'revised');
-  assert.equal(by[fixed.id].outcome, 'violated');
-  assert.equal(r.verdicts.find(v => v.id === fixed.id).verdict, 'violation');
-  const f = r.findings.find(x => x.note === fixed.id || x.notes?.includes(fixed.id));
-  assert.equal(f.severity, 'error'); assert.equal(f.file, 'src/core.py'); assert.match(f.message, /fixed behavior "Every command validates/);
-  assert.equal(r.notes.outdated.length, 0);
-  const text = renderReview(r);
-  assert.match(text, /Desired behaviors \(2 in play/);
-  assert.match(text, /violated\s+\[fixed\] Every command validates/);
-  assert.match(text, /revised\s+\[mutable\] The CLI entry validates.*edits the behavior note/);
-  // dry: the behaviors are listed as consulted, with the revised one marked
-  const dry = await review(store, { scope: resolveScope(repo, { ref: c }), dry: true, strategy: { mode: 'per-note', related: false } });
-  assert.deepEqual(dry.behaviors.map(b => b.outcome).sort(), ['consulted', 'revised']);
-});
-
-test('the holistic call turns a behavior it calls outdated into a finding, and never into an outdated note', async t => {
-  const { repo, store, write, behavior } = fixture(t);
-  const n = behavior({ mutability: 'fixed' });
-  write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
-  const scope = resolveScope(repo), reader = makeReader(repo, scope), change = collectChange(repo, scope);
-  const { exposures } = selectNotes(store.list(), change, reader);
-  fakeModel(t, repo, { findings: [], outdated: [{ id: n.id, reason: 'invoke does not validate any more' }], summary: 'x' });
-  const r = await assessHolistic(store, [store.get(n.id)], exposures, change, reader, { model: 'x' });
-  assert.equal(r.outdated.length, 0);
-  assert.equal(r.findings.length, 1); assert.equal(r.findings[0].severity, 'error'); assert.equal(r.findings[0].note, n.id);
-  assert.match(r.findings[0].message, /no longer upheld: invoke does not validate any more/);
 });
 
 test('promote makes a rule note a behavior, propose lists the candidates, and the markdown is written', t => {

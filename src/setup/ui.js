@@ -40,7 +40,7 @@ export function box(lines, { title = '', width = 76, borderColor = 'cyan' } = {}
   return [bColor(topBorder), ...formattedLines, bColor(bottomBorder)].join('\n');
 }
 
-export const HEADLINE = 'A knowledge cache for coding & review agents';
+export const HEADLINE = 'A knowledge cache for coding agents';
 
 // The opening of `thinker setup` (and of the installer, which draws the same box in shell).
 export function banner() {

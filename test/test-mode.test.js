@@ -6,7 +6,6 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { isTestMode } from '../src/test-mode.js';
 import { postCommitHook } from '../src/maintain.js';
-import { preCommitHook } from '../src/git-hooks.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -40,7 +39,7 @@ test('one inherited test flag blocks automatic work before touching state or spa
     execFileSync(process.execPath, ['--input-type=module', '-e', script, home], { cwd: ROOT, env, stdio: 'pipe' });
     // Real generated git hook must also inherit the one flag, before any shell work.
     const hook = path.join(home, 'post-commit');
-    for (const script of [postCommitHook('/missing/cli.js', '/missing/repo', true), preCommitHook('/missing/cli.js')]) {
+    for (const script of [postCommitHook('/missing/cli.js', '/missing/repo', true)]) {
       fs.writeFileSync(hook, script);
       assert.equal(execFileSync('sh', [hook], { env, encoding: 'utf8', stdio: 'pipe' }), '');
     }

@@ -15,7 +15,7 @@ test('the release archive loads without the server: no src/server, no thinker-se
   t.after(() => { fs.rmSync(dist, { recursive: true, force: true }); fs.rmSync(app, { recursive: true, force: true }); });
   execFileSync('bash', [path.join(root, 'scripts', 'pack.sh')], { cwd: root, env: { ...process.env, THINKER_DIST_DIR: dist }, stdio: 'ignore' });
   const listing = execFileSync('tar', ['-tzf', path.join(dist, 'thinker.tgz')], { encoding: 'utf8' }).split('\n').filter(Boolean);
-  assert.ok(listing.includes('src/cli.js') && listing.includes('src/review.js') && listing.includes('src/behavior.js') && listing.includes('src/sync-wire.js'));
+  assert.ok(listing.includes('src/cli.js') && listing.includes('src/change.js') && listing.includes('src/behavior.js') && listing.includes('src/sync-wire.js'));
   assert.ok(!listing.some(f => f.startsWith('src/server')), 'the server is not in the archive');
   assert.ok(!listing.some(f => f.endsWith('.test.js')), 'the tests are not in the archive');
   assert.ok(listing.includes('LICENSE'), 'the MIT license ships with the archive');
@@ -27,10 +27,11 @@ test('the release archive loads without the server: no src/server, no thinker-se
   const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_AST: 'off' };
   const help = spawnSync('node', [path.join(app, 'src', 'cli.js'), 'help'], { encoding: 'utf8', env });
   assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /review \[paths…\]/); assert.match(help.stdout, /system add/);
+  assert.match(help.stdout, /mine-prs \[owner\/repo\]/); assert.match(help.stdout, /system add/);
+  assert.ok(!/\n  review /.test(help.stdout), 'the help lists no review command');
   assert.ok(!/\n  sync /.test(help.stdout), 'the help lists no sync commands');
-  // a review runs from the archive (dry: no model), against this repository
-  const dry = spawnSync('node', [path.join(app, 'src', 'cli.js'), 'review', '--dry', '--kinds', 'behavior', '--json', '--repo', root, 'src/review.js'], { encoding: 'utf8', env });
-  assert.equal(dry.status, 0, dry.stderr);
-  assert.deepEqual(JSON.parse(dry.stdout).kinds, ['behavior']);
+  // a cache command runs from the archive (no model), against this repository
+  const sys = spawnSync('node', [path.join(app, 'src', 'cli.js'), 'system', '--json', '--repo', root], { encoding: 'utf8', env });
+  assert.equal(sys.status, 0, sys.stderr);
+  assert.ok(Array.isArray(JSON.parse(sys.stdout).behaviors ?? JSON.parse(sys.stdout)), 'system --json answers from the archive');
 });

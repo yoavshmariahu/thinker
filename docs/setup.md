@@ -101,7 +101,7 @@ The file can be committed or kept personal using `.git/info/exclude`.
 Project builds mine the changes touching the selected directories.
 GitHub history is scanned in bounded batches; `thinker mine-prs` continues
 through older history on later runs. All notes go into the same local
-repository cache: retrieval, review, and ongoing learning remain repository-wide.
+repository cache: retrieval and ongoing learning remain repository-wide.
 File and symbol dependencies already connect notes to relevant paths for retrieval;
 the project file adds no retrieval filter.
 
@@ -110,8 +110,8 @@ the project file adds no retrieval filter.
 Thinker learns and stores notes locally in `.thinker/local/notes/`, which is
 ignored by Git. It does not publish notes or synchronize them with a team.
 Older committed notes remain readable; updates to those notes stay local.
-Local storage does not mean all processing is offline: learning, verification
-and review run through your configured agent or model provider.
+Local storage does not mean all processing is offline: learning and verification
+run through your configured agent or model provider.
 
 Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
@@ -167,8 +167,7 @@ set one inherited environment flag:
 THINKER_TEST=1 node bench/your-benchmark.js
 ```
 
-Test mode blocks production telemetry and automatic updates, learning, verification,
-and automatic git-hook reviews. Usage logs default to the checkout, and machine-wide agent hooks
+Test mode blocks production telemetry and automatic updates, learning and verification. Usage logs default to the checkout, and machine-wide agent hooks
 stay quiet. Explicit commands such as `distill`, `verify`, and `maintain` still work;
 MCP tools remain available. Existing per-feature controls still work when an experiment
 needs them. Set `THINKER_HOOKS=on` only when testing machine-wide hook serving;

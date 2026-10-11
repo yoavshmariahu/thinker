@@ -36,12 +36,7 @@ async function impactCommand({ store, pos, flags, out }) {
     const allocations = typeof flags.split === 'string' ? flags.split.split(',').map(s => { const [n, share] = s.split(':'); return { pr: n, share: Number(share) }; }) : [{ pr, share: 1 }];
     result = linkSession(store, flags.session, allocations);
   } else if (pos[0] === 'finding') result = decideFinding(store, { pr, finding: pos[1], validity: flags.validity, resolution: flags.resolution, evidence: flags.evidence, fixCommit: flags.fix, duplicateOf: flags['duplicate-of'] });
-  else if (pos[0] === 'link-review') {
-    if (!pr || !pos[1]) throw new Error('usage: thinker impact link-review <run-id> --pr <number>');
-    const review = readImpact(store).events.filter(e => e.op === 'impact-review' && e.runId === pos[1]).at(-1);
-    if (!review) throw new Error('Unknown review run ID');
-    result = appendImpact(store, { ...review, completedAt: review.completedAt || review.t, eventId: undefined, t: undefined, pr });
-  } else if (pos.length) throw new Error(`Unknown impact subcommand: ${pos[0]}`);
+  else if (pos.length) throw new Error(`Unknown impact subcommand: ${pos[0]}`);
   else { const r = impactReport(store, { pr, days }); out(flags.json ? JSON.stringify(r, null, 2) : renderImpact(r, { detail: pr !== undefined })); return; }
   out(flags.json ? JSON.stringify(result, null, 2) : pos[0] === 'sync' ? `Synced ${result.synced} PRs. Run thinker impact to see delivery outcomes.` : pos[0] === 'import' ? `Imported ${result.imported} events.` : 'Impact evidence recorded.');
 }

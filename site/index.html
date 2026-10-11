@@ -791,7 +791,7 @@
 
   <main>
     <h1>thinker</h1>
-    <p class="subtitle">A knowledge cache for coding &amp; review agents</p>
+    <p class="subtitle">A knowledge cache for coding agents</p>
 
     <div class="install-container">
 
@@ -806,17 +806,6 @@
 
     <!-- Benchmark cards -->
     <div class="benchmark-cards">
-      <div class="benchmark-card" onclick="openModal('bench-bugs')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-bugs')}">
-        <div class="metric-kicker">Code Review · 7 repositories</div>
-        <div class="metric-num gain">73% fewer bugs</div>
-        <div class="metric-label">Missed in review, across 100 tests</div>
-        <ul class="metric-models">
-          <li><span>Claude Opus 5.5</span><span><span class="before">7 &rarr;</span> 2 missed of 25</span></li>
-          <li><span>GPT-6.1 Sol</span><span><span class="before">18 &rarr;</span> 2 missed of 50</span></li>
-          <li><span>Gemini 3.8 Flash</span><span><span class="before">8 &rarr;</span> 5 missed of 25</span></li>
-        </ul>
-        <div class="metric-cta">See the results &rarr;</div>
-      </div>
       <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
         <div class="metric-kicker">Efficiency</div>
         <div class="metric-num gain">18% less tokens</div>
@@ -829,8 +818,6 @@
         <div class="metric-cta">See the results &rarr;</div>
       </div>
     </div>
-
-    <a class="ci-link" href="docs.html#review">See how CI review catches regressions &rarr;</a>
 
     <div class="supported-agents">
       Claude Code &bull; Codex CLI &bull; Gemini CLI &bull; Cursor &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
@@ -847,42 +834,6 @@
         <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
-
-        <section class="bench-section" aria-labelledby="bench-bugs">
-          <div class="bench-kicker">Code Review</div>
-          <h3 class="bench-headline" id="bench-bugs"><span class="gain">73% fewer bugs</span></h3>
-          <p class="bench-lede">100 tests across seven open-source repositories, each a reversed fix. Results cover Grafana, PostHog, pandas, scikit-learn, Pydantic, Autoscaler and mitmproxy. Sol combines its runs across all seven repositories. Each pair uses the same model and effort; models receive different bugs, so these are not model rankings.</p>
-          <div class="bench-legend" aria-hidden="true">
-            <span><i class="swatch before"></i> without thinker</span>
-            <span><i class="swatch"></i> with thinker</span>
-          </div>
-          <div class="bench-rows">
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5.5</div><div class="bench-model-sub">High effort · 25 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 28%"></i>7 missed</div>
-                <div class="bar after"><i style="--w: 8%"></i>2 missed</div>
-              </div>
-              <div class="bench-delta">&minus;71% bugs</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">High effort · 50 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 36%"></i>18 missed</div>
-                <div class="bar after"><i style="--w: 4%"></i>2 missed</div>
-              </div>
-              <div class="bench-delta">&minus;89% bugs</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">High effort · 25 tests</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 32%"></i>8 missed</div>
-                <div class="bar after"><i style="--w: 20%"></i>5 missed</div>
-              </div>
-              <div class="bench-delta">&minus;38% bugs</div>
-            </div>
-          </div>
-        </section>
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>

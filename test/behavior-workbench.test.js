@@ -8,7 +8,6 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { hashDep } from '../src/deps.js';
 import { createNote } from '../src/ops.js';
-import { review } from '../src/review.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../src/behavior-workbench.js';
 import { listBehaviorProposals } from '../src/behavior-proposals.js';
 import { createUiServer, usageView } from '../src/ui/server.js';
@@ -33,16 +32,6 @@ function fixture(t) {
   fs.writeFileSync(path.join(store.localDir, 'behavior-proposals.json'), JSON.stringify({ proposals: [{ id: 'proposal-other-returns-one', sourceId: rule.id, sourceHash: 'x', source: rule.source, title: 'other always returns one', body: 'Callers rely on src/guard.js:other returning 1.', answers: [], deps: [{ path: 'src/guard.js', symbol: 'other' }], reason: 'The fix says so.', mutability: 'mutable' }] }));
   return { repo, store, git };
 }
-
-test('a behavior an agent saved is not held against a change until a person accepts it', async t => {
-  const { repo, store } = fixture(t);
-  fs.writeFileSync(path.join(repo, 'src/guard.js'), GUARD.replace("return input.trim();", 'return input;'));
-  const consulted = async () => (await review(store, { dry: true })).toAssess.map(n => n.id);
-  assert.ok((await consulted()).includes('guard-rejects-empty'), 'a behavior a person wrote is consulted');
-  assert.ok(!(await consulted()).includes('guard-trims'), 'an agent proposal is not');
-  acceptPending(store, 'guard-trims', { mutability: 'mutable' });
-  assert.ok((await consulted()).includes('guard-trims'), 'once accepted it is');
-});
 
 test('what waits for a decision: build drafts and agent proposals, accepted as written or edited, or discarded', t => {
   const { store } = fixture(t);

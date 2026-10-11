@@ -1,21 +1,19 @@
-# thinker — a knowledge cache for coding & review agents
+# thinker — a knowledge cache for coding agents
 
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
 Every merged fix leaves knowledge behind that the next change can quietly undo.
 `thinker` learns from your repository's merged pull requests and your agent
 sessions, and keeps what it learns as short notes tied to the code they describe.
-Coding agents get the notes that fit their task while they work. A review flags
-a change that brings back a fixed bug or breaks a rule your team wrote down,
-before it merges.
+Coding agents get the notes that fit their task while they work, and the notes
+that rest on the code a change touches when they review one.
 
 <table align="center">
   <tr>
-    <td align="center" width="280"><h2>73%</h2>fewer bugs</td>
     <td align="center" width="280"><h2>18%</h2>fewer tokens per task</td>
   </tr>
 </table>
-<p align="center">across 100 PR benchmark from 7 open source repos</p>
+<p align="center">on real coding tasks from open-source repositories, same model with and without the cache</p>
 
 Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 
@@ -35,7 +33,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 
 1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
 2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code.
-3. **It checks changes against your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code), and you can add, change or remove one by asking your agent. `thinker review` flags a change that brings back a fixed bug or breaks one of them.
+3. **It knows your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code), and you can add, change or remove one by asking your agent. When a change touches the code a rule governs, the agent reviewing it is handed that rule.
 4. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
@@ -44,7 +42,6 @@ the coding agent you already use, on its own login.
 ## Everyday commands
 
 ```bash
-thinker review --base origin/main   # check this branch against the notes and behaviors
 thinker system docs                 # behaviors from the READMEs and design documents checked in
 thinker ui                          # local page: usage, the cache, behaviors to accept or edit
 thinker benchmark                   # compare your agent with and without the cache
@@ -54,21 +51,6 @@ thinker usage --here                # what the cache cost and what it saved
 Otherwise, work with your agent as usual: the notes arrive on their own.
 
 ## Results
-
-**Code review: bugs missed.** 100 real bug fixes from seven open-source
-repositories, each reversed so the change brings the bug back, then reviewed by
-the same model with and without thinker.
-
-```
-Claude Opus 5.5    without thinker  ██████████████░░░░░░  7 missed of 25
-                   with thinker     ████░░░░░░░░░░░░░░░░  2 missed of 25    71% fewer
-
-GPT-6.1 Sol        without thinker  ██████████████████░░  18 missed of 50
-                   with thinker     ██░░░░░░░░░░░░░░░░░░  2 missed of 50    89% fewer
-
-Gemini 3.8 Flash   without thinker  ████████████████░░░░  8 missed of 25
-                   with thinker     ██████████░░░░░░░░░░  5 missed of 25    38% fewer
-```
 
 **Coding agents: input tokens per task.** Real tasks from merged pull requests,
 same model with and without thinker.
@@ -84,13 +66,13 @@ GPT-6 Astra        without thinker  ██████████████�
                    with thinker     ████████████████░░░░  384k    19% less tokens
 ```
 
-Each model saw different bugs and tasks, so the rows are not a model ranking; one
-run per arm. Method, uncertainty and per-task results: [bench/RESULTS.md](bench/RESULTS.md).
+Each model saw different tasks, so the rows are not a model ranking; one run per
+arm. Bug detection is not claimed: on held-out bugs the cache did not change what a
+reviewer caught (research/regression-heldout on the `agent/heldout-regression` branch). Method, uncertainty and per-task results: [bench/RESULTS.md](bench/RESULTS.md).
 
 ## Learn more
 
 - [Setup, updates and telemetry](docs/setup.md): install options, build depth and cost, large repositories, the local cache, updates, test mode, telemetry and opting out
-- [Review and system behaviors](docs/review.md): writing behaviors, review modes and output, proof of correctness on a PR, review before committing
 - [Usage, savings and learning](docs/usage.md): `thinker stats` and `usage`, the holdout comparison, how sessions are learned from
 - [Delivery outcomes](docs/delivery-outcomes.md): `thinker impact`, tokens and fixes per merged PR
 - [Task verification](docs/task-verification.md): verification contracts run in Docker
