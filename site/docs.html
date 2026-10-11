@@ -1030,6 +1030,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
               <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and whether the tree-sitter parser is loaded</td></tr>
               <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
+              <tr><td><code>thinker disable</code> · <code>thinker enable</code></td><td>Switch thinker off for this repository, machine-wide, or back on (for sensitive content; also on the warm-up page)</td></tr>
               <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
             </tbody>
           </table>
@@ -1090,6 +1091,9 @@ export THINKER_TELEMETRY=off
           </ul>
           <p>
             <code>gh</code> reads merged pull requests from GitHub during mining; it posts nothing. The local page of <code>thinker ui</code> listens on 127.0.0.1 only. Notes reach teammates through git alone.
+          </p>
+          <p>
+            <strong>A repository with sensitive content can be turned off</strong> on the warm-up page of <code>thinker ui</code>, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it. <code>thinker enable</code> turns it back on.
           </p>
         </div>
 
