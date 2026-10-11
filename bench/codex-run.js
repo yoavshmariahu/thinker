@@ -10,6 +10,7 @@ import { installClient } from '../src/clients.js';
 import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
 import { complete } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
+import { runOracle, goldTouched, codexLoopStats, listCost } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -119,11 +120,14 @@ function cacheUse(wt) {
 // cross-encoder reading the request's first 120 tokens it crowded the request out (2026-10-04: nothing served
 // on four tasks that get a note on the bare request). The agent still receives the whole prompt.
 const requestOf = p => /^Implement the following change/.test(p) ? (p.split('\n\n').slice(1).join('\n\n') || p) : p;
-function contextFor(task, session) {
+// hook-bm25: the lexical ranking with two notes, as the hook served before 2026-10-04
+const ARM_ENV = { 'hook-bm25': { THINKER_CE: 'off' } };
+function contextFor(task, session, arm = 'hook') {
   const env = {
     ...process.env,
     THINKER_NOTES_DIR: NOTES,
     THINKER_NO_BG_VERIFY: '1',
+    ...(ARM_ENV[arm] || {}),
   };
   try {
     const text = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO, '--budget', String(BUDGET)], {
@@ -225,8 +229,8 @@ async function runWorker(cwd) {
     const session = `codex-${TAG}-${task.id}-${rep}`;
     let prompt = task.prompt;
     let injected = '';
-    if (arm === 'hook') {
-      injected = contextFor(task, session);
+    if (arm === 'hook' || arm === 'hook-bm25') {
+      injected = contextFor(task, session, arm);
       // the notes carry their own preamble; no second instruction around them
       prompt = `${injected}\n\n${task.prompt}`;
     }
@@ -246,7 +250,14 @@ async function runWorker(cwd) {
       run.cost = null;
       run.api_ms = null;
       run.diff = task.type === 'change' ? getDiff(cwd) : null;
-      run.grade = await gradePatch(task, run.diff, run.result);
+      // the executable oracle where the task has one; the model judge otherwise (or on request)
+      run.grade = task.testCmd ? runOracle(task, cwd) : null;
+      if (!flags['no-judge'] && !task.testCmd) run.grade = await gradePatch(task, run.diff, run.result);
+      Object.assign(run.tools, codexLoopStats(run.raw_events));
+      run.goldTouched = run.diff ? goldTouched(task, run.diff) : null;
+      run.fresh_in_tokens = run.in_tokens - (run.cached_tokens || 0);
+      run.cost = listCost(MODEL, { inTokens: run.in_tokens, cachedTokens: run.cached_tokens, outTokens: run.out_tokens });
+      run.costBasis = run.cost != null ? 'list price from token classes' : null;
       // the session is ephemeral, so this stream is the only record of what the agent did
       fs.writeFileSync(path.join(OUT, 'events', `${id}.jsonl`), run.raw_events.map(e => JSON.stringify(e)).join('\n'));
       delete run.raw_events;
