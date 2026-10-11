@@ -134,12 +134,35 @@
     .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #111; color: #fff; font-size: 0.84rem; padding: 0.6rem 1rem; border-radius: 8px; opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #991b1b; }
-    .hint { position: fixed; right: 1.4rem; bottom: 1.4rem; background: #111; color: #fff; font-size: 0.84rem; padding: 0.7rem 1rem; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; z-index: 50; }
+    .hint { position: fixed; right: 1.4rem; bottom: 4.6rem; background: #111; color: #fff; font-size: 0.84rem; padding: 0.7rem 1rem; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); opacity: 0; transform: translateY(12px); transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none; z-index: 50; }
     .hint.show { opacity: 1; transform: translateY(0); }
     .hint code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: rgba(255,255,255,0.14); padding: 0.1rem 0.35rem; border-radius: 4px; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d4d4d8; border-top-color: #111; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.4rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
     [hidden] { display: none !important; }
+
+    /* FAQ: a button in the corner, a modal in the site's look (site/docs.html) */
+    .faq-fab { position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 40; border: 1px solid #e5e7eb; background: #fff; color: #111; font-size: 0.84rem; font-weight: 500; padding: 0.55rem 0.95rem; border-radius: 999px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.08); transition: all 0.15s ease; }
+    .faq-fab:hover { border-color: #111; box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; padding: 1.5rem; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; width: 100%; max-width: 720px; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 45px -10px rgba(0,0,0,0.15); overflow: hidden; animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes modalIn { from { transform: scale(0.97) translateY(8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+    .modal-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .modal-title { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+    .modal-subtitle { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
+    .modal-subtitle a { color: #111; }
+    .btn-close { background: transparent; border: none; font-size: 1.35rem; color: #666; cursor: pointer; line-height: 1; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    .btn-close:hover { color: #000; background: #f5f5f5; }
+    .modal-body { padding: 0 1.5rem 1.5rem; overflow-y: auto; }
+    .faq-item { padding: 1.25rem 0; border-top: 1px solid #f0f0f0; }
+    .faq-item:first-child { border-top: none; }
+    .faq-item h3 { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; margin-bottom: 0.6rem; }
+    .faq-item p, .faq-item li { font-size: 0.88rem; color: #374151; line-height: 1.6; }
+    .faq-item p + p, .faq-item ul + p { margin-top: 0.7rem; }
+    .faq-item ul { margin: 0.5rem 0 0 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+    .faq-item code { font-size: 0.82em; background: #f0f0f2; border-radius: 4px; padding: 0.05rem 0.3rem; }
+    .faq-item b { color: #111; font-weight: 600; }
 
     @media (max-width: 640px) {
       nav { padding: 0.85rem 1rem; }
@@ -151,6 +174,8 @@
       .pills { justify-content: flex-start; }
       .search { min-width: 0; width: 100%; }
       .brand-sub { display: none; }
+      .modal-overlay { padding: 0.75rem; }
+      .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
     }
   </style>
 </head>
@@ -207,6 +232,66 @@
   </main>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
+  <button class="faq-fab" id="faq-fab" type="button" aria-haspopup="dialog">FAQ</button>
+  <div class="modal-overlay" id="faq-overlay">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="faq-title">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="faq-title">Frequently asked questions</div>
+          <div class="modal-subtitle">The same answers, with the rest of the documentation, at <a href="https://zerotime.dev/docs.html#faq" target="_blank" rel="noopener">zerotime.dev/docs</a>.</div>
+        </div>
+        <button class="btn-close" id="faq-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="faq-item">
+          <h3>Where is my data stored? Does anything leave my machine?</h3>
+          <p>The cache lives in the repository it describes: notes built from pull requests and shared with the team under <code>.thinker/notes/</code>, committed like code; what the sessions on this checkout learned under <code>.thinker/local/</code>, which git ignores; the configuration in <code>.thinker/config.json</code>. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log this page reads, and the ranking model.</p>
+          <p>Three things leave the machine, and nothing else:</p>
+          <ul>
+            <li><b>Model calls go to the provider you already use for your agent</b>, through its own login (claude, codex, gemini, cursor, or an Anthropic API key): a condensed transcript when a session is distilled, a pull request's title, description, review comments and diff when it is mined, a note with the diff of its code when it is re-verified. Thinker runs no model and stores nothing of its own in the cloud.</li>
+            <li><b>Telemetry is counts only</b>: an hourly report of notes served, verdicts, token totals and the holdout sums, with an install id and a hashed device id. No code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
+            <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine.</li>
+          </ul>
+          <p><code>gh</code> reads merged pull requests from GitHub during mining and posts nothing. This page listens on 127.0.0.1 only. Notes reach teammates through git alone.</p>
+        </div>
+        <div class="faq-item">
+          <h3>How does the cache work? What does it do to make my agents faster?</h3>
+          <p>A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The work is in putting the right one in front of the agent without being asked:</p>
+          <ul>
+            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves one note only when it scores it relevant, with the code behind its pointers. The agent starts at the code instead of searching for it.</li>
+            <li><b>On each file edit</b> the notes resting on that file are served, rules first, so a trap on that code is in view while it is changed.</li>
+            <li><b>On demand</b>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
+            <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
+            <li><b>Once per session</b>, not for one-word turns, and not at all when nothing fits.</li>
+            <li><b>Review draws on the same notes.</b> The record of a past fix is what lets <code>thinker review</code> say that a change undoes it.</li>
+          </ul>
+          <p>The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Why does mining take so long? Can I skip it?</h3>
+          <p>Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents, writes search phrasings for every new note and drafts desired behaviors from the strongest rules, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is printed before anything is spent.</p>
+          <p>Yes, you can skip it, and nothing stops working:</p>
+          <ul>
+            <li>Answer no at setup, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
+            <li>Pick <b>Shallow</b>: the newest 30% of the same pull requests.</li>
+            <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+          </ul>
+          <p>What a build gives you that sessions cannot is the record of past fixes, which is what a review draws on most. A repository with little history loses little by skipping it.</p>
+        </div>
+        <div class="faq-item">
+          <h3>How can I tell if Thinker is helping my agents?</h3>
+          <ul>
+            <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+            <li><b>The Usage view here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><b>The holdout is measured, not estimated.</b> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
+            <li><b><code>thinker benchmark pr</code></b> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality.</li>
+            <li><b>A caught regression</b> is the clearest signal: a review that names the fix a change undoes, with the pull request it came from.</li>
+          </ul>
+          <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script>
 const TOKEN = new URLSearchParams(location.hash.slice(1)).get('t') || sessionStorage.getItem('thinker-token') || '';
@@ -235,6 +320,15 @@ const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3
 const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
 let toastTimer;
 function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2600); }
+
+// FAQ modal
+const faqOverlay = $('#faq-overlay');
+function openFaq() { faqOverlay.classList.add('active'); $('#faq-close').focus(); }
+function closeFaq() { faqOverlay.classList.remove('active'); $('#faq-fab').focus(); }
+$('#faq-fab').onclick = openFaq;
+$('#faq-close').onclick = closeFaq;
+faqOverlay.onclick = e => { if (e.target === faqOverlay) closeFaq(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && faqOverlay.classList.contains('active')) closeFaq(); });
 
 // tabs
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));

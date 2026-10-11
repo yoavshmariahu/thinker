@@ -307,6 +307,12 @@
 
     .callout code { background: rgba(0, 0, 0, 0.05); }
 
+    /* FAQ */
+    .faq-item { padding: 1.35rem 0; border-top: 1px solid #f0f0f0; }
+    .faq-item:first-of-type { border-top: none; padding-top: 0.5rem; }
+    .faq-item h3 { margin-top: 0; }
+    .faq-item p:last-child, .faq-item ul:last-child { margin-bottom: 0; }
+
     /* Code */
     pre {
       background: #0f172a;
@@ -694,6 +700,12 @@
           <li class="sidebar-item"><a href="#cli-reference">CLI</a></li>
           <li class="sidebar-item"><a href="#configuration">Configuration</a></li>
           <li class="sidebar-item"><a href="#telemetry">Privacy and telemetry</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-heading">FAQ</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#faq">Frequently asked questions</a></li>
         </ul>
       </div>
     </aside>
@@ -1287,6 +1299,76 @@ export THINKER_TELEMETRY=off
 
 <span class="code-comment"># Or in .thinker/config.json:</span>
 { "telemetry": false }</code></pre>
+      </section>
+
+      <div class="part-label">FAQ</div>
+
+      <section id="faq">
+        <h2>Frequently asked questions</h2>
+
+        <div class="faq-item" id="faq-data">
+          <h3>Where is my data stored? Does anything leave my machine?</h3>
+          <p>
+            The cache lives in the repository it describes. Notes built from pull requests and notes shared with the team are under <code>.thinker/notes/</code>, committed and reviewed like code. What the sessions on this checkout learned is under <code>.thinker/local/</code>, which git ignores. <code>.thinker/config.json</code> holds the configuration and <code>.thinker/prs.json</code> the list of pull requests already read. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model.
+          </p>
+          <p>Three things leave the machine, and nothing else:</p>
+          <ul>
+            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning, verification, mining and review run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key). A session is distilled from a condensed transcript; a pull request is read as its title, description, review comments and diff; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
+            <li><strong>Telemetry is counts only.</strong> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it; see <a href="#telemetry">Privacy and telemetry</a>.</li>
+            <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
+          </ul>
+          <p>
+            <code>gh</code> reads merged pull requests from GitHub during mining; it posts nothing. The local page of <code>thinker ui</code> listens on 127.0.0.1 only. Notes reach teammates through git alone.
+          </p>
+        </div>
+
+        <div class="faq-item" id="faq-how">
+          <h3>How does the cache work? What does it do to make my agents faster?</h3>
+          <p>
+            A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:
+          </p>
+          <ul>
+            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves one note only when it scores it relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
+            <li><strong>On each file edit</strong> the notes resting on that file are served, rules first, so a trap on that code is in view while it is changed.</li>
+            <li><strong>On demand</strong>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
+            <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
+            <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
+            <li><strong>Review draws on the same notes.</strong> The record of a past fix is what lets <code>thinker review</code> say that a change undoes it.</li>
+          </ul>
+          <p>
+            The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on. See <a href="#keeping-current">Keeping it current</a>.
+          </p>
+        </div>
+
+        <div class="faq-item" id="faq-mining">
+          <h3>Why does mining take so long? Can I skip it?</h3>
+          <p>
+            Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents, writes search phrasings for every new note, and drafts desired behaviors from the strongest rules, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is printed before anything is spent.
+          </p>
+          <p>Yes, you can skip it, and nothing stops working:</p>
+          <ul>
+            <li>Answer no at setup, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
+            <li>Pick <strong>Shallow</strong>: the newest 30% of the same pull requests.</li>
+            <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+          </ul>
+          <p>
+            What a build gives you that sessions cannot is the record of past fixes, which is what a review draws on most. A repository with little history loses little by skipping it.
+          </p>
+        </div>
+
+        <div class="faq-item" id="faq-helping">
+          <h3>How can I tell if Thinker is helping my agents?</h3>
+          <ul>
+            <li><strong>At the end of each turn</strong> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+            <li><strong><code>thinker usage</code></strong>, and the Usage view of <code>thinker ui</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><strong>The holdout is measured, not estimated.</strong> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
+            <li><strong><code>thinker benchmark pr</code></strong> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality. See <a href="#benchmark">Benchmark in your repo</a>.</li>
+            <li><strong>A caught regression</strong> is the clearest signal: a review that names the fix a change undoes, with the pull request it came from.</li>
+          </ul>
+          <p>
+            A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.
+          </p>
+        </div>
       </section>
     </main>
   </div>
