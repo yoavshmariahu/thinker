@@ -10,7 +10,8 @@
 //              THINKER_LLM_API_KEY, else OPENAI_API_KEY; THINKER_LLM_MODEL or
 //              the repository's distillModel/verifyModel name the model
 //   command    THINKER_LLM_CMD: any shell command that reads the prompt on
-//              stdin and prints the answer
+//              stdin and prints the answer; THINKER_TIER, THINKER_MODEL and
+//              THINKER_SCHEMA in its environment say what was asked for
 // Each agent uses the login it already has. THINKER_LLM picks one; otherwise
 // the first that is available, preferring THINKER_LLM_PREFER (set by the hooks
 // to the agent that is running). All return a parsed JSON object when a
@@ -27,6 +28,7 @@ import { logModelUsage, normalizeModelUsage } from './model-usage.js';
 const ALIASES = { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5', fable: 'claude-fable-5-1' };
 export const BINS = { claude: ['claude'], gemini: ['agy', 'gemini'], codex: ['codex'], cursor: ['agent', 'cursor-agent'] };
 export const FALLBACK_ORDER = ['claude', 'gemini', 'codex', 'cursor'];
+export const TIERS = ['haiku', 'sonnet', 'opus', 'fable'];
 
 export const TIER_MODELS = {
   sonnet: {
@@ -53,7 +55,7 @@ export function resolveModel(provider, model) {
   if (process.env.THINKER_LLM_MODEL) return process.env.THINKER_LLM_MODEL;
   const tier = model || 'sonnet';
   if (TIER_MODELS[tier] && TIER_MODELS[tier][provider]) return TIER_MODELS[tier][provider];
-  if (model && !['haiku', 'sonnet', 'opus', 'fable'].includes(model)) return model;
+  if (model && !TIERS.includes(model)) return model;
   if (provider === 'gemini') return 'gemini-3.8-flash-high';
   if (provider === 'codex') return 'gpt-6-luna';
   return model || 'sonnet';
@@ -478,9 +480,9 @@ export function extractJson(text, schema) {
   throw new Error('no JSON in the reply: ' + t.slice(0, 300));
 }
 
-function run(bin, args, { input, cwd, timeoutMs, shell = false }) {
+function run(bin, args, { input, cwd, timeoutMs, shell = false, env = {} }) {
   return new Promise((resolve, reject) => {
-    const p = spawn(bin, args, { cwd, shell, env: { ...process.env, THINKER_IN_LLM: '1' } });
+    const p = spawn(bin, args, { cwd, shell, env: { ...process.env, THINKER_IN_LLM: '1', ...env } });
     let o = '', e = '';
     const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`${path.basename(bin)} timed out`)); }, timeoutMs);
     p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
@@ -503,7 +505,15 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
   fs.mkdirSync(cwd, { recursive: true });
   try {
     let text, usage = null, cost = null;
-    if (p === 'command') text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true });
+    if (p === 'command') {
+      // The command gets the prompt on stdin, and in its environment what the call asked for: the
+      // tier (a cheap verification or a costly distillation), the model name resolved for it, and the
+      // schema on its own, so a shim can use its backend's structured output instead of parsing the prompt.
+      const env = { THINKER_MODEL: resolvedModel };
+      if (TIERS.includes(model)) env.THINKER_TIER = model;
+      if (schema) env.THINKER_SCHEMA = JSON.stringify(schema);
+      text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true, env });
+    }
     else if (p === 'codex') {
       // The user's config.toml stays loaded: it holds model_providers (a gateway's base URL and key
       // variable), without which codex has no model at all. What the call must not inherit is
@@ -556,7 +566,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
 // as the CLI replies are. The model must be named: a gateway has no tier names of its own.
 export function openaiModel(model) {
   const resolved = resolveModel('openai', model);
-  if (['haiku', 'sonnet', 'opus', 'fable'].includes(resolved)) {
+  if (TIERS.includes(resolved)) {
     throw new Error(`THINKER_LLM_BASE_URL is set but no model is named for it: set THINKER_LLM_MODEL, or distillModel and verifyModel in .thinker/config.json (got the tier "${resolved}")`);
   }
   return resolved;

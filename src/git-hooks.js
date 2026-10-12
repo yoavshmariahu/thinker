@@ -21,7 +21,7 @@ export function installGitHooks(repo, cli, learn, out = () => {}) {
     const file = gitHookPath(repo, name);
     if (!file) { out(`skipped git ${name} hook: not a git checkout`); continue; }
     if (fs.existsSync(file) && !fs.readFileSync(file, 'utf8').includes('# thinker:')) {
-      out(`skipped git ${name} hook: existing hook is not ours`); continue;
+      out(`skipped git ${name} hook: the existing hook at ${file} is not ours`); continue;
     }
     if (name === 'pre-push' || name === 'pre-commit') {   // the pre-commit hook ran `thinker review --staged`; review was removed on 2026-10-11
       if (fs.existsSync(file)) { fs.unlinkSync(file); out(`removed obsolete git ${name} hook`); }

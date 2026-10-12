@@ -131,3 +131,42 @@ plugins and project files switched off:
 - `gemini` keeps its settings and environment (`GEMINI_API_KEY`, a base URL); extensions and
   MCP servers are off. Cursor's `agent` runs in ask mode with its own login.
 
+`thinker doctor` names the provider that answers thinker's calls and makes one short call to it, so a
+gateway that answers 401 shows up there, with the endpoint's answer, before any session is distilled.
+
+## Your own model command
+
+For a backend no provider speaks (another API shape, a company SDK, a local model), `THINKER_LLM_CMD`
+names any command and thinker runs it for each model call. The contract:
+
+- **stdin**: the whole prompt (system text, the request, and when a JSON answer is expected, the
+  schema with "Reply with one JSON object ... It must match this JSON Schema: ...").
+- **stdout**: only the reply. A JSON answer may be fenced or surrounded by prose; thinker finds the object.
+- **exit code**: non-zero on failure, with the reason on stderr; thinker then falls back to the next
+  provider (`THINKER_LLM=command` pins the command, with no fallback).
+- **environment**: `THINKER_TIER` (`haiku`, `sonnet` or `opus`: what the call is worth, a
+  verification being cheap and a distillation costly; unset when a full model name was asked for),
+  `THINKER_MODEL` (the name resolved for the call: the tier, a name from the repository's config, or
+  `THINKER_LLM_MODEL`), and `THINKER_SCHEMA` (the JSON Schema on its own, when one is expected), so a
+  shim can pick its backend's model per tier and use the backend's structured output.
+
+A reference shim for a gateway with the `/chat/completions` shape (the `openai` provider above
+does this without a shim):
+
+```js
+#!/usr/bin/env node
+// THINKER_LLM_CMD="node ~/thinker-llm.mjs"
+import fs from 'node:fs';
+const MODELS = { haiku: 'small-model', sonnet: 'medium-model', opus: 'large-model' };
+const prompt = fs.readFileSync(0, 'utf8');
+const body = { model: MODELS[process.env.THINKER_TIER] || process.env.THINKER_MODEL, messages: [{ role: 'user', content: prompt }] };
+if (process.env.THINKER_SCHEMA) body.response_format = { type: 'json_schema', json_schema: { name: 'reply', schema: JSON.parse(process.env.THINKER_SCHEMA) } };
+const res = await fetch(`${process.env.GATEWAY_URL}/chat/completions`, {
+  method: 'POST', body: JSON.stringify(body),
+  headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+if (!res.ok) { console.error(`gateway answered ${res.status}: ${await res.text()}`); process.exit(1); }
+const reply = await res.json();
+process.stdout.write(reply.choices[0].message.content);
+```
+
