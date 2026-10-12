@@ -8,13 +8,10 @@ sessions, and keeps what it learns as short notes tied to the code they describe
 Coding agents get the notes that fit their task while they work, and the notes
 that rest on a file as they edit it.
 
-<table align="center">
-  <tr>
-    <td align="center" width="280"><h2>18%</h2>fewer tokens per task</td>
-    <td align="center" width="280"><h2>10%</h2>less wall time per task</td>
-  </tr>
-</table>
-<p align="center">on real coding tasks from open-source repositories, same model with and without the cache</p>
+<p align="center">
+  <b>18% fewer tokens per task</b> &nbsp;·&nbsp; <b>10% less wall time per task</b><br>
+  <sub>on real coding tasks from open-source repositories, same model with and without the cache</sub>
+</p>
 
 Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 
