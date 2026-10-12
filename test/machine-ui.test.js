@@ -212,3 +212,30 @@ test('usage for all repositories works from a directory that is no checkout', as
   assert.equal((await call(port, '/api/repos', { token: 'a'.repeat(32) })).status, 200);
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
+
+test('the switch flips a repository off and on without rebuilding the page\'s lists, and the warm-up sees the change', async t => {
+  const { dir } = repo(t);
+  const th = tmp('thinker-sw-th-');
+  const claude = path.join(th, '.claude', 'projects', dir.replace(/[/.]/g, '-')); fs.mkdirSync(claude, { recursive: true });
+  fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
+  const home = tmp('thinker-sw-home-');
+  const ui = createUiServer(new Store(dir), { token: 'a'.repeat(32), home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn: () => { throw new Error('no build expected'); } });
+  const { port } = await ui.listen(0);
+  t.after(() => ui.close());
+  const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
+  const post = async (p, body) => { const r = await call(port, p, { token: 'a'.repeat(32), body }); return { status: r.status, ...JSON.parse(r.body) }; };
+  assert.equal((await get('/api/machine')).repos.find(r => r.checkout === dir).disabled, false);
+  // off: the page's lists are kept and the flag is flipped in place, so the next call answers at once
+  const offAt = Date.now();
+  assert.equal((await post('/api/repos/switch', { checkout: dir, disabled: true })).disabled, true);
+  const on = await post('/api/repos/switch', { checkout: dir, disabled: false });
+  const onMs = Date.now() - offAt;
+  assert.equal(on.disabled, false);
+  assert.ok(onMs < 1000, `two switches in a row took ${onMs}ms: the warm-up list was rebuilt`);
+  assert.equal((await get('/api/machine')).repos.find(r => r.checkout === dir).disabled, false);
+  // while off, a warm-up of it is refused, and on again it is accepted by the kept list
+  await post('/api/repos/switch', { checkout: dir, disabled: true });
+  assert.equal((await post('/api/warmup', { repos: [{ checkout: dir }] })).status, 400);
+  await post('/api/repos/switch', { checkout: dir, disabled: false });
+  assert.equal((await get('/api/repos')).repos.length, 0, 'no cache yet, so the cache list is empty either way');
+});
