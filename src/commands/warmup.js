@@ -12,34 +12,18 @@ import { warmupCandidates } from '../machine.js';
 import { selectMenu, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
 
-export const PICKED = 5; // as the page: the five most recently active, not yet warmed, are picked
+export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
 
 export function headless(env = process.env, platform = process.platform) {
   if (env.SSH_CONNECTION || env.SSH_TTY || env.SSH_CLIENT) return true;
   return platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY;
 }
 
-// The answer to the multi-select: numbers, `all`, or `skip`; nothing keeps the picked ones.
-export function parseSelection(answer, items, picked) {
-  const a = String(answer || '').trim().toLowerCase();
-  if (!a) return { chosen: picked };
-  if (['skip', 's', 'none', 'no', 'n'].includes(a)) return { chosen: [] };
-  if (['all', 'a'].includes(a)) return { chosen: items };
-  const chosen = [];
-  for (const tok of a.split(/[\s,]+/).filter(Boolean)) {
-    const m = /^(\d+)(?:-(\d+))?$/.exec(tok);
-    if (!m) return { error: `not a number: ${tok}` };
-    const from = Number(m[1]), to = Number(m[2] || m[1]);
-    for (let n = from; n <= to; n++) { if (n < 1 || n > items.length) return { error: `no repository ${n}` }; if (!chosen.includes(items[n - 1])) chosen.push(items[n - 1]); }
-  }
-  return { chosen };
-}
-
-const row = (r, i, picked, width) => {
+const row = (r, picked, width) => {
   const est = r.estimates[DEFAULT_DEPTH], mark = picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]');
   const what = est.prs ? `~${formatDuration(est.seconds)}, ${est.prs} pull requests` : 'no merged pull requests to read';
   const tags = [r.current ? 'current' : '', r.warmed ? 'warmed before' : r.hasCache ? `${r.notes} notes already` : ''].filter(Boolean).join(', ');
-  return `    ${String(i + 1).padStart(2)}) ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}`;
+  return `    ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}`;
 };
 
 export async function warmupCommand(ctx) {
@@ -72,28 +56,25 @@ export async function warmupCommand(ctx) {
   // the terminal: the page's list, the page's defaults
   // the page's list (ui/server.js): the agents' own session records under the user's home, and thinker's log
   const all = await withSpinner(out, 'Looking at the repositories your agents work in', async () => warmupCandidates(store, {}));
-  const items = all.filter(r => !r.disabled);
+  const items = all.filter(r => !r.disabled).slice(0, SHOWN);
   if (!items.length) { out('  No git repository your agents have worked in was found. A cache starts with the first session in one; run thinker warmup again after that.'); later(); return; }
   // as the page: the most recently active with pull requests to read and no cache yet
   const picked = items.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, PICKED);
   out(`\n  Your agents worked in these repositories, the most recently active first. A warm-up reads merged pull requests into notes, around where you are most active:\n`);
   const width = Math.min(44, Math.max(...items.map(r => r.name.length)));
-  items.forEach((r, i) => out(row(r, i, picked, width)));
+  for (const r of items) out(row(r, picked, width));
   let chosen;
   if (flags.repos) {
     const want = String(flags.repos).split(',').map(s => s.trim()).filter(Boolean);
-    chosen = items.filter(r => want.includes(r.name) || want.includes(r.checkout) || want.includes(r.id));
+    chosen = all.filter(r => !r.disabled && (want.includes(r.name) || want.includes(r.checkout) || want.includes(r.id)));
     const missing = want.filter(w => !chosen.some(r => [r.name, r.checkout, r.id].includes(w)));
     if (missing.length) { out(`  Not on this machine's list: ${missing.join(', ')}`); process.exitCode = 1; return; }
-  } else if (flags.yes) chosen = picked;
+  } else if (flags.yes || !picked.length) chosen = picked;
   else {
-    for (;;) {
-      const def = picked.length ? picked.map(r => items.indexOf(r) + 1).join(' ') : 'skip';
-      const r = parseSelection(await ask(`\n  Repositories to warm up ${c.dim(`[${def}]`)} ${c.dim('(numbers, all, or skip)')}: `), items, picked);
-      if (!process.stdin.isTTY) out('');
-      if (r.error) { out(`  ${r.error}`); continue; }
-      chosen = r.chosen; break;
-    }
+    const a = (await ask(`\n  Warm up the ${picked.length === 1 ? 'picked repository' : `${picked.length} picked`} ${c.dim('[Y/n]')} ${c.dim('(the page, thinker ui, picks others)')}: `)).trim().toLowerCase();
+    if (!process.stdin.isTTY) out('');
+    chosen = ['', 'y', 'yes'].includes(a) ? picked : [];
+    if (!chosen.length) { out('  Skipped.'); later(); return; }
   }
   const noPrs = chosen.filter(r => !r.canMine);
   chosen = chosen.filter(r => r.canMine);

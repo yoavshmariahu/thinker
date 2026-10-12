@@ -4,25 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { parseSelection, headless, PICKED } from '../src/commands/warmup.js';
+import { headless, SHOWN, PICKED } from '../src/commands/warmup.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
-const items = ['a', 'b', 'c', 'd'].map(name => ({ name }));
-const picked = [items[0], items[2]];
-
-test('the multi-select answer: nothing keeps the picked ones, all, skip, numbers and ranges, and what is not a number', () => {
-  assert.deepEqual(parseSelection('', items, picked).chosen, picked);
-  assert.deepEqual(parseSelection('all', items, picked).chosen, items);
-  assert.deepEqual(parseSelection('skip', items, picked).chosen, []);
-  assert.deepEqual(parseSelection('none', items, picked).chosen, []);
-  assert.deepEqual(parseSelection('2 4', items, picked).chosen, [items[1], items[3]]);
-  assert.deepEqual(parseSelection('1-3, 3', items, picked).chosen, items.slice(0, 3));
-  assert.match(parseSelection('5', items, picked).error, /no repository 5/);
-  assert.match(parseSelection('b', items, picked).error, /not a number: b/);
-  assert.equal(PICKED, 5);
-});
-
-test('a machine without a display is not offered the browser: ssh, or linux with no DISPLAY', () => {
+test('ten rows, the top five picked; a machine without a display is not offered the browser: ssh, or linux with no DISPLAY', () => {
+  assert.equal(SHOWN, 10); assert.equal(PICKED, 5);
   assert.equal(headless({ SSH_CONNECTION: '1.2.3.4 22' }, 'darwin'), true);
   assert.equal(headless({}, 'linux'), true);
   assert.equal(headless({ DISPLAY: ':0' }, 'linux'), false);
@@ -59,11 +45,12 @@ test('--skip and a pipe with no answer say how to come back; --browser --dry say
 
 test('in the terminal the current repository is listed; one with no merged pull requests is not built, and says so', t => {
   const { repo, run } = machine(t);
-  const r = run(['--terminal', '--dry'], 'all\n');
+  const r = run(['--terminal', '--dry'], 'y\n');
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  assert.match(r.stdout, new RegExp(`1\\) \\[ \\] ${path.basename(repo)}`));
+  assert.match(r.stdout, new RegExp(`\\[ \\] ${path.basename(repo)}`));
   assert.match(r.stdout, /no merged pull requests to read/);
   assert.match(r.stdout, /Nothing to warm up/);
+  assert.ok(!/Warm up the/.test(r.stdout), 'nothing picked, nothing asked');
   assert.ok(!/would run/.test(r.stdout));
   // --yes takes the picked ones: none here
   const yes = run(['--yes', '--dry']);
