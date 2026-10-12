@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build the release files: dist/thinker.tgz, dist/version.json (version, commit, sha256 of the
-# archive) and dist/install.sh. scripts/release.sh runs it and attaches the three to the GitHub
-# release of the tag. To self-host instead, pass the base URL the three will be served from:
+# archive) and dist/install.sh, plus dist/npm, the @zerotime/thinker package that carries the
+# installer. scripts/release.sh runs it, attaches the three files to the GitHub release of the
+# tag and publishes the package. To self-host instead, pass the base URL the three will be served from:
 #   scripts/pack.sh https://your.host/thinker
 # and the built install.sh downloads from there instead of the GitHub releases.
 set -euo pipefail
@@ -51,5 +52,16 @@ else
   cp install.sh "$dist/install.sh"
 fi
 chmod +x "$dist/install.sh"
+# The npm package (npx @zerotime/thinker): the same installer with a launcher, at the release's
+# version. scripts/release.sh publishes the directory.
+rm -rf "$dist/npm" && mkdir -p "$dist/npm"
+cp npm/install.mjs npm/README.md LICENSE "$dist/npm/"
+cp "$dist/install.sh" "$dist/npm/install.sh"
+node --input-type=module - "$dist/npm/package.json" <<'JS'
+import fs from 'node:fs';
+const pkg = JSON.parse(fs.readFileSync('npm/package.json', 'utf8'));
+pkg.version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+fs.writeFileSync(process.argv[2], JSON.stringify(pkg, null, 2) + '\n');
+JS
 echo "built $dist/thinker.tgz, $dist/version.json ($(du -h "$dist/thinker.tgz" | cut -f1)) and $dist/install.sh"
 if [ -n "$base" ]; then echo "upload all three files to ${base%/}/ ; users run: curl -fsSL ${base%/}/install.sh | bash -s -- --no-build"; fi

@@ -26,6 +26,12 @@ Run this in a terminal, inside your repository:
 curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
 ```
 
+Or, with npm, the same installer carried in a package instead of fetched at run time:
+
+```bash
+npx @zerotime/thinker
+```
+
 Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
 Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
 OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).

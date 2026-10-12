@@ -15,7 +15,10 @@
 #      from the merged pull requests since the previous tag
 #   5. waits until https://github.com/<repo>/releases/latest/download/version.json reports the
 #      version, which is what the installer and `thinker update` read
-# Needs git, node, tar and the GitHub CLI logged in with write access to the repository.
+#   6. publishes the npm package @zerotime/thinker (the installer, for npx) at the same version;
+#      THINKER_NPM_PUBLISH=0 skips it, and without an npm login it prints the command instead
+# Needs git, node, tar and the GitHub CLI logged in with write access to the repository; npm
+# logged in as a member of the zerotime org for step 6.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 repo="$(pwd)"
@@ -73,3 +76,15 @@ for _ in $(seq 1 30); do
 done
 [ "$live" = "$version" ] || die "$latest still reports ${live:-nothing}; the release is published, check it on GitHub"
 say "The latest release reports $version; installs and 'thinker update' now pull it"
+
+# the npm package carries the installer only, so it goes out last: by now the release it installs is live
+npmpkg="$(node -p "JSON.parse(require('fs').readFileSync('$dist/npm/package.json', 'utf8')).name")"
+if [ "${THINKER_NPM_PUBLISH:-1}" = 0 ]; then
+  say "Skipped the npm package (THINKER_NPM_PUBLISH=0)"
+elif ! command -v npm >/dev/null || ! npm whoami >/dev/null 2>&1; then
+  say "npm is not logged in: $npmpkg@$version was not published. Log in (npm login), check out $tag and run:"
+  say "  d=\$(mktemp -d) && THINKER_DIST_DIR=\$d bash scripts/pack.sh && npm publish \$d/npm --access public"
+else
+  npm publish "$dist/npm" --access public >/dev/null || die "npm publish failed; the GitHub release is out, publish $npmpkg@$version by hand"
+  say "Published $npmpkg@$version: npx $npmpkg"
+fi
