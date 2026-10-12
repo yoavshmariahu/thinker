@@ -22,7 +22,7 @@ Warming a cache reads the repository's merged pull requests into it, so the firs
 session there already finds notes. The installer ends with `thinker warmup`, which asks
 where to choose the repositories: the local page in your browser, or the terminal, where
 one list is shown (the five most recently used are picked; type numbers, `all`, or
-`skip`) and each pick is built at full depth with `thinker setup --build`. Over ssh, or
+`skip`) and each pick is built at full depth around your areas with `thinker setup --build`. Over ssh, or
 on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
 the machine it runs on. `thinker warmup` runs again any time; `thinker warmup --skip`
 and `--yes` answer without asking. Depth, directories and the model are chosen on the
@@ -45,9 +45,12 @@ of the build in tokens and minutes.
 
 - **Full** reads the newest 60 merged pull requests. **Shallow** reads the newest 30%
   of them, for a quicker, cheaper start.
-- **Directories** limits the build to the history of the directories you pick, for a
-  large repository where you work in one part. Without a selection the whole
-  repository is read.
+- **Directories**: a build reads around where you are most active, the directories
+  your own commits touch (the row says **Your areas**), so the cache is warm where you
+  work rather than wherever the newest pull requests happen to be. Pick other
+  directories for a large repository where you work in one part, or clear the
+  selection to read the whole repository (the generic build). Maintenance keeps
+  warming the same areas afterwards.
 - The **switch** on a row turns thinker off for that repository, in every clone and
   worktree: for one with sensitive content that no model should read. `thinker disable`
   and `thinker enable` do the same from the terminal.

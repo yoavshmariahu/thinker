@@ -174,7 +174,8 @@ grows from the sessions there. Nothing is opt-in but the warm-up: building a
 cache from merged pull requests. The installer ends with `thinker warmup`
 (`commands/warmup.js`): browser or terminal, then one multi-select of the
 repositories the agents work in (`machine.js:warmupCandidates`), each built
-with `thinker setup --build` at full depth. A machine without a display (ssh,
+with `thinker setup --build` at full depth around the person's areas
+(`setup/project.js`, `--yes`). A machine without a display (ssh,
 `headless`) is offered the terminal alone: the page binds 127.0.0.1 of the
 machine it runs on, and until 2026-10-12 the installer launched it blind there.
 Outside a git repository there is nowhere to keep a cache: the CLI's cache

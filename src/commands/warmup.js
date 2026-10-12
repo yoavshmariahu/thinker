@@ -38,7 +38,9 @@ const row = (r, i, picked, width) => {
   const est = r.estimates.full, mark = picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]');
   const what = est.prs ? `~${formatDuration(est.seconds)}, ${est.prs} pull requests` : 'no merged pull requests to read';
   const tags = [r.current ? 'current' : '', r.warmed ? 'warmed before' : r.hasCache ? `${r.notes} notes already` : ''].filter(Boolean).join(', ');
-  return `    ${String(i + 1).padStart(2)}) ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}`;
+  // where the build reads: the person's areas, the directories their own commits touch (areas.js)
+  const areas = est.prs && r.areas?.length ? `\n        ${c.dim(`your areas: ${r.areas.join(', ')}`)}` : '';
+  return `    ${String(i + 1).padStart(2)}) ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}${areas}`;
 };
 
 export async function warmupCommand(ctx) {
@@ -75,7 +77,7 @@ export async function warmupCommand(ctx) {
   if (!items.length) { out('  No git repository your agents have worked in was found. A cache starts with the first session in one; run thinker warmup again after that.'); later(); return; }
   // as the page: the most recently active with pull requests to read and no cache yet
   const picked = items.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, PICKED);
-  out(`\n  Your agents worked in these repositories, the most recently active first:\n`);
+  out(`\n  Your agents worked in these repositories, the most recently active first. A warm-up reads a repository's merged pull requests into notes, around where you are most active:\n`);
   const width = Math.min(44, Math.max(...items.map(r => r.name.length)));
   items.forEach((r, i) => out(row(r, i, picked, width)));
   let chosen;
@@ -99,10 +101,11 @@ export async function warmupCommand(ctx) {
   if (noPrs.length) out(`  ${noPrs.map(r => r.name).join(', ')}: no merged pull requests to read; the cache there grows from your sessions.`);
   if (!chosen.length) { out('  Nothing to warm up.'); later(); return; }
   const seconds = chosen.reduce((a, r) => a + (r.estimates.full.seconds || 0), 0);
-  out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes.')}\n`);
+  out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time, each around where you are most active: the directories your own commits touch, or the whole repository where none stand out. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes; the page (thinker ui) picks other directories.')}\n`);
   let failed = 0;
   for (const r of chosen) {
-    const args = [cli, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', 'full', '--full-repo', '--repo', r.checkout];
+    // --yes takes the person's areas when there are any (setup/project.js), the whole repository otherwise
+    const args = [cli, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', 'full', '--repo', r.checkout];
     if (flags.dry) { out(`  would run: thinker ${args.slice(1).join(' ')}`); continue; }
     out(`  ${c.bold(r.name)}`);
     const res = spawnSync(process.execPath, args, { cwd: r.checkout, stdio: 'inherit', env: { ...process.env, THINKER_INSTALLER: '1' } });
