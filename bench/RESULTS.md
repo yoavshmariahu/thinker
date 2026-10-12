@@ -1221,6 +1221,29 @@ to be made on short real prompts.
 Cost: 72 cards, 11 + 7 audits, 6 dry distillations, phrasings for 77 cards, all Haiku; about 1.5M
 tokens through the agent login.
 
+**Live, on a fixture (2026-10-12).** Does a served skill card get used? Two skills under
+`.agents/skills/` (which Claude Code does not list natively; its init message carried only the
+built-in skills): `deploy` (build, then `scripts/deploy.sh --promote`, main only) and
+`running-tests` (`npm test`, never bare `node --test`). Claude Code, Sonnet, `claude -p`, the
+prompt hook on, the MCP server as on main (no instruction about skills), one run per prompt.
+
+| prompt | hook served | what the agent did |
+|---|---|---|
+| "please deploy latest main" | the `deploy` card | read the skill file and the two scripts it names, ran `build.sh` then `deploy.sh --promote` (7 turns, 169k input tokens) |
+| "run the tests" | the `running-tests` card | invoked the skill, read its file, ran `npm test` (4 turns, 133k) |
+
+Without the hook (same server, two runs), the agent found the deploy skill by `find` over
+`.agents/` and deployed right in 8 turns, and on the tests prompt consulted thinker only at turn 22
+of a 32-turn run; its own `orient("run the tests")` then returned the card, as `orient` returns any
+note. An instruction telling the agent to call `lookup` with kind `skill` before a deploy, a release
+or the tests was also tried (the agent called it first on both prompts) and not shipped: skill cards
+are served like any note, not asked for. On this two-note fixture the hook served the right card for
+5 of 7 phrasings (`please deploy latest main`, `deploy to production`, `how do I deploy this project
+to production?`, `run the tests`, `how are tests run in this repo?`; not `ship the latest build to
+prod, main is green` nor `run the test suite and tell me if it passes`), unlike on codervibes above,
+where it competed with 7 cards and hundreds of notes. What the agent does with a card it is given
+is not the gap; the ranking on real repositories is.
+
 ## mlflow: executable oracles, loop counters, Opus 5.5 and GPT-6 Astra (2026-10-11)
 
 The first benchmark built to the plan in [MEASUREMENT.md](MEASUREMENT.md): tasks are merged

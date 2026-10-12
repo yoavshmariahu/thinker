@@ -11,7 +11,7 @@ it. Nothing here edits a skill file.
 A skill file under `.claude/skills`, `.agents/skills`, `.codex/skills`, `.cursor/skills`,
 `.github/skills` or `skills/` gets a note of kind `skill`: a short card saying what the skill is
 for, when to invoke it and what it prescribes, with `path:Symbol` pointers at the code it talks
-about. The card is served like any note, and tells the agent to invoke the skill for the full
+about. The card is ranked like any note, and tells the agent to invoke the skill for the full
 instructions. Its dependencies are the skill file itself and the code the skill names, so the card
 goes stale when either changes.
 
