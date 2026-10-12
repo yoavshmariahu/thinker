@@ -1,0 +1,60 @@
+{
+  "id": "PR26311-hard-nocache-1",
+  "task": "PR26311-hard",
+  "area": "mlflow/data",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "079690d2-f671-46ca-b5c3-1241951c3aa7",
+  "turns": 8,
+  "wall_ms": 102770,
+  "api_ms": 50673,
+  "cost": 0.2799078,
+  "in_tokens": 158903,
+  "out_tokens": 5177,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 6,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": 2,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": " (sorted)\n\n| Rank | File                                                | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/data/test_huggingface_dataset_and_source.py` | 11.33s   | 13    | 0.005s | 4.417s | 0.872s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6113193984)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=52762, name='python3.12', status='running', started='03:37:14')\n\u001b[33m======================= \u001b[32m25 passed\u001b[0m, \u001b[33m\u001b[1m20 warnings\u001b[0m\u001b[33m in 12.51s\u001b[0m\u001b[33m =======================\u001b[0m\n"
+  },
+  "result": "Converting a dataset with uneven-length nested arrays of dictionaries into an evaluation dataset now works; the hashing step no longer errors. The fix is in `mlflow/data/evaluation_dataset.py`.\n\n**Cause:** `_hash_array_like_obj_as_bytes` handled an array of arrays by stacking it into one 2D grid with `np.array(data.tolist())`. When the rows differ in length, NumPy can't build the grid and raises a `ValueError`, which is the error users saw.\n\n**What changed:**\n- **Same path as before when stacking works.** It still tries the 2D grid first, so any dataset that hashed fine before gets exactly the same hash.\n- **Fallback for uneven rows.** If stacking raises `ValueError`, a new helper, `_hash_ragged_ndarray_as_bytes`, hashes each row separately using the existing `_hash_array_of_dict_as_bytes`. It also mixes in each row's length. Without the length, `[[a, b], [c]]` and `[[a], [b, c]]` would get the same hash, and an early version of my fix did exactly that.\n- **Detection of nested arrays.** The branch used to fire only if the first element was an array. It now fires if any element is (`_has_nested_ndarray`), so a missing value (`None`/NaN) in the first row no longer sends the data down a path that fails with \"unhashable type\". Rows like that already failed before, so no previous result changes.\n\n**Tests:** Your staged tests in `tests/data/test_evaluation_dataset.py` and `tests/data/test_huggingface_dataset_and_source.py` match this case and I left them as they were. They cover uneven arrays of dicts and of plain numbers, missing rows, the hash being stable and telling different row splits apart, and the Hugging Face example. Before the fix they failed; now all 25 tests in those two files pass. I also ran the dataset/hash-related tests in `tests/evaluate/test_evaluation.py`: 17 passed and 2 errored. The error output was about Spark configuration, so they look like Spark environment setup problems rather than something this change caused, but I didn't confirm that.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..cdc011eb9 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -105,6 +105,26 @@ def _hash_dict_as_bytes(data_dict):\n     return result\n \n \n+def _has_nested_ndarray(data):\n+    if data.dtype != object:\n+        return False\n+    return any(isinstance(elm, np.ndarray) for elm in data)\n+\n+\n+def _hash_ragged_ndarray_as_bytes(data):\n+    # Hash each nested array along with its length so that arrays with the same flattened\n+    # contents but different row boundaries (e.g. [[a, b], [c]] vs [[a], [b, c]]) differ.\n+    result = b\"\"\n+    for elm in data:\n+        if isinstance(elm, (list, np.ndarray)):\n+            result += _hash_array_of_dict_as_bytes(elm) + _hash_uint64_ndarray_as_bytes(\n+                np.array([len(elm)], dtype=\"uint64\")\n+            )\n+        else:\n+            result += _hash_data_as_bytes(elm)\n+    return result\n+\n+\n def _hash_array_like_obj_as_bytes(data):\n     \"\"\"\n     Helper method to convert pandas dataframe/numpy array/list into bytes for\n@@ -142,10 +162,15 @@ def _hash_array_like_obj_as_bytes(data):\n         # because lists are not hashable\n         hashable = np.array(str(val) for val in data)\n         return _hash_ndarray_as_bytes(hashable)\n-    elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n+    elif isinstance(data, np.ndarray) and len(data) > 0 and _has_nested_ndarray(data):\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n-        hashable = np.array(data.tolist())\n+        try:\n+            hashable = np.array(data.tolist())\n+        except ValueError:\n+            # The nested arrays have varying lengths (e.g. a Hugging Face column of lists of\n+            # dicts), so they can't be stacked into a 2d array. Hash them element-wise instead.\n+            return _hash_ragged_ndarray_as_bytes(data)\n         return _hash_ndarray_as_bytes(hashable)\n     elif isinstance(data, np.ndarray):\n         return _hash_ndarray_as_bytes(data)\ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..dbb3a1af4 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,10 +1,21 @@\n import numpy as np\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+import mlflow\n+from mlflow.data.evaluation_dataset import (\n+    _hash_array_like_obj_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n+def _ragged_array(rows):\n+    # np.array() can't build an object array of uneven-length arrays directly.\n+    arr = np.empty(len(rows), dtype=object)\n+    arr[:] = [np.array(row) for row in rows]\n+    return arr\n+\n+\n @pytest.mark.parametrize(\"data\", [[[1], [2], [3]], [1, 2, 3]])\n def test_convert_list_data_with_numpy_targets(data):\n     targets = np.array([1, 2, 3])\n@@ -36,3 +47,39 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+@pytest.mark.parametrize(\n+    (\"rows_a\", \"rows_b\"),\n+    [\n+        ([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]], [[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]]),\n+        ([[1, 2], [3]], [[1], [2, 3]]),\n+    ],\n+)\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays(rows_a, rows_b):\n+    hash_a = _hash_array_like_obj_as_bytes(_ragged_array(rows_a))\n+\n+    assert hash_a == _hash_array_like_obj_as_bytes(_ragged_array(rows_a))\n+    assert hash_a != _hash_array_like_obj_as_bytes(_ragged_array(rows_b))\n+\n+\n+@pytest.mark.parametrize(\"missing_idx\", [0, 1])\n+@pytest.mark.parametrize(\"missing\", [None, float(\"nan\")])\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows(\n+    missing, missing_idx\n+):\n+    data = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    data[missing_idx] = missing\n+\n+    assert _hash_array_like_obj_as_bytes(data) == _hash_array_like_obj_as_bytes(data.copy())\n+\n+\n+def test_from_numpy_with_ragged_nested_targets():\n+    features = np.array([[1], [2]])\n+    targets_a = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    targets_b = _ragged_array([[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]])\n+\n+    eval_dataset_a = mlflow.data.from_numpy(features, targets=targets_a).to_evaluation_dataset()\n+    eval_dataset_b = mlflow.data.from_numpy(features, targets=targets_b).to_evaluation_dataset()\n+\n+    assert eval_dataset_a.hash != eval_dataset_b.hash\ndiff --git a/tests/data/test_huggingface_dataset_and_source.py b/tests/data/test_huggingface_dataset_and_source.py\nindex 36bd0cea5..53012b667 100644\n--- a/tests/data/test_huggingface_dataset_and_source.py\n+++ b/tests/data/test_huggingface_dataset_and_source.py\n@@ -275,6 +275,44 @@ def test_to_evaluation_dataset():\n     assert np.array_equal(evaluation_dataset.labels_data, dataset.ds.to_pandas()[\"label\"].values)\n \n \n+def test_to_evaluation_dataset_with_nested_variable_length_arrays():\n+    data = {\n+        \"id\": [\"1\", \"2\"],\n+        \"expected_results\": [\n+            [\n+                {\n+                    \"id\": \"1\",\n+                    \"text\": (\n+                        \"The main idea of the document is to provide an overview of the project.\"\n+                    ),\n+                },\n+                {\n+                    \"id\": \"2\",\n+                    \"text\": (\n+                        \"The expected outcomes of the project were to gain insights and \"\n+                        \"develop a robust solution.\"\n+                    ),\n+                },\n+            ],\n+            [\n+                {\n+                    \"id\": \"3\",\n+                    \"text\": \"Another result.\",\n+                }\n+            ],\n+        ],\n+    }\n+\n+    ds = datasets.Dataset.from_dict(data)\n+    dataset = mlflow.data.from_huggingface(ds, targets=\"expected_results\")\n+\n+    evaluation_dataset = dataset.to_evaluation_dataset()\n+    evaluation_dataset_2 = dataset.to_evaluation_dataset()\n+\n+    assert isinstance(evaluation_dataset, EvaluationDataset)\n+    assert evaluation_dataset.hash == evaluation_dataset_2.hash\n+\n+\n def test_from_huggingface_dataset_with_sample_source():\n     source_uri = \"test:/my/test/uri\"\n     source = SampleDatasetSource._resolve(source_uri)\n",
+  "distill": null,
+  "cache_read_tokens": 140359,
+  "cache_write_tokens": 18530,
+  "fresh_in_tokens": 14,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

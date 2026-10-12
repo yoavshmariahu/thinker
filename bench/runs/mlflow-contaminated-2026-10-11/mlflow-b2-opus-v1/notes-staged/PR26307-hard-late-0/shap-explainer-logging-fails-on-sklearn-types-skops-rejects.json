@@ -1,0 +1,72 @@
+{
+  "id": "shap-explainer-logging-fails-on-sklearn-types-skops-rejects",
+  "title": "SHAP explainer logging fails on sklearn types skops rejects; nested model must use cloudpickle",
+  "kind": "rule",
+  "answers": [
+    "SHAP explainer logging fails with untrusted type sklearn.tree._tree.Tree",
+    "mlflow.shap.log_explainer breaks for tree models after skops 0.15",
+    "Why does logging a SHAP explainer require skops trusted types?",
+    "Save SHAP explainer with sklearn decision tree without extra trust config"
+  ],
+  "body": "Symptom: Logging a SHAP explainer backed by a scikit-learn tree model fails with an untrusted-type error unless the caller supplies extra trust configuration.\nRoot cause: mlflow/shap/__init__.py:save_explainer called mlflow.sklearn.save_model on the nested model with default serialization (skops), and skops 0.15 rejects sklearn.tree._tree.Tree by default.\nFix pattern: Pass serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE for the nested model inside save_explainer. The explainer state is already pickle, so the nested model stays on the same trust boundary. Do not auto-add skops_trusted_types.\nConstraints: Applies only to the SHAP-nested sklearn model. Direct mlflow.sklearn.save_model/log_model calls keep the skops default. Tests should expect serialization_format cloudpickle, a model.pkl file, and skops_trusted_types None; pip requirement expectations use mlflow.sklearn.get_default_pip_requirements(include_cloudpickle=True).",
+  "applies": "Changes to how mlflow/shap serializes its nested scikit-learn or pytorch model; not standalone sklearn serialization.",
+  "tags": [
+    "shap",
+    "sklearn",
+    "serialization",
+    "cloudpickle",
+    "skops"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "save_explainer",
+      "hash": "sha256:abce7b96f9c639006b9bfd18",
+      "line": 387,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:abce7b96f9c639006b9bfd18",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/shap/test_log.py",
+      "symbol": "test_log_model_serializes_underlying_model_with_cloudpickle",
+      "hash": "sha256:8582ab344d28efe3692a4b75",
+      "line": 388,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8582ab344d28efe3692a4b75",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26138"
+  },
+  "created": "2026-10-11T10:24:29.633Z",
+  "verified": "2026-10-11T10:24:29.633Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shap-explainer-artifacts-are-pickle-based-keep-docs-and-nest"
+  ],
+  "says": [
+    "Saving a decision tree model explainer fails with an untrusted type error during experiment tracking.",
+    "Allow logging tree model explanations without forcing users to configure custom trusted types.",
+    "Tree-based model explainer runs crash because the underlying tree structure is flagged as untrusted.",
+    "Model explainers created for decision trees should save successfully out of the box.",
+    "Logging an explainer for a trained tree classifier prompts for unnecessary security configurations."
+  ],
+  "search": "Logging a SHAP explainer backed by a scikit-learn tree model fails with an untrusted-type error because `save_explainer` in `mlflow/shap/__init__.py` defaulted to skops, which rejects `sklearn.tree._tree.Tree` in skops 0.15. To fix this, `save_explainer` must serialize nested models using `serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE` without auto-adding `skops_trusted_types`. This applies only to SHAP-nested scikit-learn models; standalone `mlflow.sklearn.save_model` and `log_model` calls keep the default skops serialization. Tests in `tests/shap/test_log.py` should assert cloudpickle serialization, a `model.pkl` artifact, `skops_trusted_types` set to None, and pip requirements using `include_cloudpickle=True`.",
+  "saysFor": "s2:32179f872862d17b08130440051b5d3e90ee3c1645f9ff5b8e6638f4b605c657"
+}

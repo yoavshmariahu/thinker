@@ -1,0 +1,125 @@
+{
+  "id": "nested-graphql-fields-over-protected-resources-must-be-liste",
+  "title": "Nested GraphQL fields over protected resources must be listed in the auth middleware and post-filtered",
+  "kind": "rule",
+  "answers": [
+    "run page shows registered model versions I have no permission for",
+    "GraphQL nested modelVersions on a run leaks model names without READ grant",
+    "how do I protect a nested GraphQL field in the MLflow basic-auth server",
+    "mlflowGetRun or mlflowSearchRuns returns model versions the user cannot read"
+  ],
+  "body": "Symptom: a user with READ on an experiment sees name, version, source URI, tags and aliases of registered models they hold no grant on, through the nested run.modelVersions field shown on the run page and runs table.\nRoot cause: mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware.PROTECTED_FIELDS listed only top-level query names, so the nested modelVersions resolver (which calls search_model_versions_impl with no per-user filtering) bypassed the middleware.\nFix pattern: list the nested field as a (parent GraphQL type, field name) pair in GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS, gate in GraphQLAuthorizationMiddleware.resolve on info.parent_type.name, and apply the per-resource filter in GraphQLAuthorizationMiddleware._post_resolve.\nConstraints: keying on the bare field name would also catch the same-named sub-field of MlflowSearchModelVersionsResponse and filter it a second time; the parent-type key avoids that. The nested field has no input, so the pre-check passes and only the post-resolution filter applies; admins still short-circuit.\nApplies: any GraphQL field in mlflow/server/auth/__init__.py that returns protected resources, including ones reachable only as sub-fields of list or get queries.",
+  "applies": "GraphQL resolvers in the basic-auth app that return protected resources, top-level or nested.",
+  "tags": [
+    "auth",
+    "graphql",
+    "security",
+    "basic-auth"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware",
+      "hash": "sha256:29bd157beeed792da5c02b35",
+      "line": 5147,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29bd157beeed792da5c02b35",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS",
+      "hash": "sha256:7d3523d7c9691b4ca6a4df05",
+      "line": 5169,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._post_resolve",
+      "hash": "sha256:e6060ba25423d27a457e697d",
+      "line": 5263,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e6060ba25423d27a457e697d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_graphql_nested_run_model_versions_filtered_by_model_permission",
+      "hash": "sha256:055139fc4c468cf0c71cdb32",
+      "line": 1581,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:055139fc4c468cf0c71cdb32",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.PROTECTED_FIELDS",
+      "hash": "sha256:aa782636f07b3f84c8f44724",
+      "line": 5155,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.resolve",
+      "hash": "sha256:fdce265e6ac5606dc3680e3a",
+      "line": 5171,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fdce265e6ac5606dc3680e3a",
+      "fanout": {
+        "files": 171,
+        "sites": 139,
+        "refs": 322
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-11T10:30:39.885Z",
+  "verified": "2026-10-11T10:30:39.885Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "createmodelversion-source-read-check-must-authorize-the-prot",
+    "model-version-create-denies-a-nonexistent-source-run-model-w",
+    "authorization-validators-must-parse-the-route-s-own-request",
+    "issue-detection-invoke-must-require-use-on-the-gateway-secre"
+  ],
+  "says": [
+    "The experiment run details page displays registered model versions that the user cannot access.",
+    "Unauthorized model names, tags, and aliases are visible in the experiment runs table.",
+    "Users with read access to an experiment can see protected model versions inside runs.",
+    "Hide registered model details on the run page if the user lacks model permissions."
+  ],
+  "search": "In mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware, nested GraphQL fields returning protected resources must be registered as parent type and field name pairs in GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS and post-filtered in GraphQLAuthorizationMiddleware._post_resolve. Because PROTECTED_FIELDS checked only top-level queries, nested resolvers like run.modelVersions leaked registered model metadata to users with only experiment read permissions. Parent-type keying in resolve prevents double filtering MlflowSearchModelVersionsResponse sub-fields, while input-free nested fields pass pre-checks and admins short-circuit.",
+  "saysFor": "s2:92aa188f0931121b69f9346b413dd8e3e15289f3b7d1d7b4c439fb83da693e59"
+}

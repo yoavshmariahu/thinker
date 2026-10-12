@@ -1,0 +1,44 @@
+{
+  "id": "setup-python-action-picks-micro-versions-per-os-in-one-shell",
+  "title": "setup-python action picks micro versions per OS in one shell block",
+  "kind": "map",
+  "answers": [
+    "where does CI choose the Python patch version for Linux, macOS, and Windows",
+    "which runner OS gets which Python 3.11 micro version",
+    "setup-python version selection by RUNNER_OS"
+  ],
+  "body": "Where: .github/actions/setup-python/action.yml, the shell step that runs when PIN_MICRO_VERSION is true. It maps a major.minor input (3.10, 3.11, 3.12) to a patch version by branching on RUNNER_OS.\nCurrent split after PR #25903: 3.10 is 3.10.21 on Linux and 3.10.11 elsewhere; 3.11 is 3.11.16 on Linux and 3.11.9 on macOS and Windows.\nThe branches are per-OS, so a pin can differ between platforms; when a runner image changes its cached versions, edit the matching branch here rather than adding a global default.\nThe selected version feeds the setup step, so the same block also determines what the companion fixtures must record.",
+  "applies": "Applies to version selection in the setup-python composite action only; the caching of versions is decided by GitHub's runner images, not by this repo.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "python-version"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:1fff3b3c63cfad8835c62c6e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-11T08:45:04.802Z",
+  "verified": "2026-10-11T08:45:04.802Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test runs use an outdated Python patch version on Mac build runners.",
+    "Linux and Windows pull request checks are running different Python patch releases.",
+    "Update the pinned Python release for continuous integration when build machine images change.",
+    "Continuous integration builds fail because the runner image no longer caches that patch version.",
+    "Set a specific Python patch version for continuous integration jobs running on Linux."
+  ],
+  "search": "In .github/actions/setup-python/action.yml, the shell step active when PIN_MICRO_VERSION is true maps major.minor inputs (3.10, 3.11, 3.12) to patch versions by branching on RUNNER_OS. Version pins can differ across platforms, currently splitting 3.10 into 3.10.21 on Linux versus 3.10.11 elsewhere, and 3.11 into 3.11.16 on Linux versus 3.11.9 on macOS and Windows. When runner images update their cached versions, developers should update the per-OS branch here rather than introducing a global default. This version selection feeds the setup step and determines fixture recordings, applying strictly to version selection in the composite action.",
+  "saysFor": "s2:7515430196b98c38db5d1570393cf5fe356d137f3f71851ea7648aaa424ed1e9"
+}

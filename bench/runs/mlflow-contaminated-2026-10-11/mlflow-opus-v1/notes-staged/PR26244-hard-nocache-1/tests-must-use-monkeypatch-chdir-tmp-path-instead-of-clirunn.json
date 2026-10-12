@@ -1,0 +1,68 @@
+{
+  "id": "tests-must-use-monkeypatch-chdir-tmp-path-instead-of-clirunn",
+  "title": "Tests must use monkeypatch.chdir(tmp_path) instead of CliRunner.isolated_filesystem",
+  "kind": "rule",
+  "answers": [
+    "CliRunner isolated_filesystem is deprecated in click, what to use instead in tests",
+    "how do I run a click CLI test inside a temp directory",
+    "isolated filesystem DeprecationWarning error in pytest",
+    "change working directory for CliRunner invoke tests"
+  ],
+  "body": "Symptom: The test suite fails with a DeprecationWarning saying 'isolated_filesystem' is deprecated once tests call CliRunner.isolated_filesystem (deprecated in Click 8.5, removal planned for Click 9.0).\nRoot cause: Tests in tests/test_cli.py and tests/claude_code/test_cli.py wrapped runner.invoke in runner.isolated_filesystem() to get a temp working directory.\nFix pattern: Add monkeypatch and tmp_path to the test signature, call monkeypatch.chdir(tmp_path) first, then call runner.invoke directly with no with-block. Keep the existing runner fixture or CliRunner() instance.\nConstraints: Use this for any test that needs a clean cwd around CliRunner. Do not reintroduce isolated_filesystem, since the pytest filter turns its warning into an error. Keep mock.patch context managers in their own with-block when they were previously grouped with isolated_filesystem.",
+  "applies": "Pytest tests in this repository that use click's CliRunner and need a temporary working directory.",
+  "tags": [
+    "tests",
+    "click",
+    "cli",
+    "pytest",
+    "monkeypatch"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_cli.py",
+      "symbol": "test_server_mlflow_artifacts_options",
+      "hash": "sha256:ea0da9f11e7caa47bf2a4347",
+      "line": 256,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea0da9f11e7caa47bf2a4347",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/claude_code/test_cli.py",
+      "symbol": "test_trace_status_with_no_config",
+      "hash": "sha256:8228841c53e15c4cca03abd5",
+      "line": 44,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8228841c53e15c4cca03abd5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25633"
+  },
+  "created": "2026-10-11T08:49:32.546Z",
+  "verified": "2026-10-11T08:49:32.546Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Command line interface test suite fails with deprecation warnings on modern library versions.",
+    "Update command line automated tests to avoid deprecated filesystem isolation.",
+    "Command line tool tests crash due to isolated filesystem deprecation errors."
+  ],
+  "search": "Tests using click's CliRunner must switch from the deprecated isolated_filesystem to monkeypatch.chdir(tmp_path). This prevents pytest from failing on Click 8.5 deprecation warnings in test suites like tests/test_cli.py and tests/claude_code/test_cli.py. Call monkeypatch.chdir(tmp_path) before runner.invoke directly without a with-block, while keeping any mock.patch context managers in their own blocks.",
+  "saysFor": "s2:524c5774c9c1e336efa9c905bc5ccb8bec05f30c841fdfaef250997dfbe0f9ba"
+}

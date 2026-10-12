@@ -1,0 +1,141 @@
+{
+  "id": "prompt-cache-entries-must-be-scoped-by-registry-uri-and-acti",
+  "title": "Prompt cache entries must be scoped by registry URI and active workspace",
+  "kind": "rule",
+  "answers": [
+    "load_prompt returns a prompt from the wrong registry after switching registry URI in one process",
+    "prompt cache shared across multiple registries or workspaces returns another team's prompt version",
+    "cached prompt from workspace A appears in workspace B until TTL expires"
+  ],
+  "body": "Symptom: after an application uses two registries (or two workspaces) in one process, load_prompt returns a prompt version from the other registry or workspace without contacting it, until the cache TTL expires.\nRoot cause: mlflow/prompt/registry_utils.py:PromptCacheKey.from_parts keyed entries only by name, version and alias, and PromptCache.delete_all filtered only by name, so the process-wide PromptCache.get_instance() was shared across registries and workspaces.\nFix pattern: give PromptCacheKey a registry_namespace (sha256 hex of the resolved registry URI, via _get_prompt_cache_namespace) and a workspace (get_request_workspace()). Make registry_uri a required keyword on from_parts, from_uri, PromptCache.delete and PromptCache.delete_all, and pass self._registry_uri from each MlflowClient prompt method in mlflow/tracking/client.py:MlflowClient.\nConstraints: Do not put the raw registry URI in the key; it can contain credentials (the tests assert the repr does not leak them). Bulk invalidation must build its scope through the same from_parts path so its match equals key creation. TTL and reuse behavior are unchanged.",
+  "applies": "Any code that reads, writes or invalidates prompt cache entries in mlflow/prompt or the prompt methods of the tracking client.",
+  "tags": [
+    "prompts",
+    "prompt-cache",
+    "registry",
+    "workspace",
+    "caching"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCacheKey",
+      "hash": "sha256:f74fe8617006a6fa56da1623",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f74fe8617006a6fa56da1623",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 53
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache",
+      "hash": "sha256:68e7895635bd0621346f6063",
+      "line": 354,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:68e7895635bd0621346f6063",
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 59
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient",
+      "hash": "sha256:b04e50d06bb4ef2d0faf470f",
+      "line": 224,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04e50d06bb4ef2d0faf470f",
+      "fanout": {
+        "files": 206,
+        "sites": 945,
+        "refs": 1391
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCacheKey.from_parts",
+      "hash": "sha256:e6f48fa327618afb855dede7",
+      "line": 53,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e6f48fa327618afb855dede7",
+      "fanout": {
+        "files": 3,
+        "sites": 44,
+        "refs": 44
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache.delete_all",
+      "hash": "sha256:54a740f2495f6f20894eb37c",
+      "line": 443,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54a740f2495f6f20894eb37c",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache.get_instance",
+      "hash": "sha256:bc4110ae13bf3ffb72fa6543",
+      "line": 373,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bc4110ae13bf3ffb72fa6543",
+      "fanout": {
+        "files": 37,
+        "sites": 127,
+        "refs": 128
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache.delete",
+      "hash": "sha256:9849258b8febb79d5c95ab45",
+      "line": 430,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9849258b8febb79d5c95ab45"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26066"
+  },
+  "created": "2026-10-11T10:28:18.307Z",
+  "verified": "2026-10-11T10:28:18.307Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "invalidate-prompt-cache-after-the-registry-mutation-succeeds",
+    "prompt-placeholder-source-strings-are-a-shared-contract-betw"
+  ],
+  "says": [
+    "Switching between workspaces causes our application to load prompts belonging to another team.",
+    "Loading a registered prompt returns stale versions cached from a different model registry.",
+    "Isolate prompt versions so one workspace cannot see prompt templates from another.",
+    "Fetching prompts in multi-tenant environments serves cached content from the wrong project space."
+  ],
+  "search": "Prompt cache entries must include a registry namespace and workspace identifier to isolate cached prompts across different registries and workspaces. PromptCacheKey uses a sha256 hex digest of the resolved registry URI via _get_prompt_cache_namespace alongside get_request_workspace() in mlflow/prompt/registry_utils.py. MlflowClient passes self._registry_uri to prompt caching methods, requiring registry_uri on from_parts, from_uri, delete, and delete_all without embedding raw URI credentials in key representations.",
+  "saysFor": "s2:8f4e5060e0019482f438dd165f191c01f72a238cc16f140220f0ea5654ea5d03",
+  "lastUsed": "2026-10-11T18:43:09.467Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26291-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26291-hard-1"
+  ]
+}

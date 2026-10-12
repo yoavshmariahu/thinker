@@ -1,0 +1,85 @@
+{
+  "id": "psycopg-v3-regression-tests-go-in-tests-db-test-workspace-tr",
+  "title": "psycopg v3 regression tests go in tests/db/test_workspace_tracking_store.py, not generic store fixtures",
+  "kind": "howto",
+  "answers": [
+    "how do I test the psycopg v3 numeric filter bug",
+    "which fixture forces postgresql+psycopg in tests",
+    "where should a PostgreSQL VARCHAR bind regression test live",
+    "why do my store search tests pass on SQLite but fail in CI on PostgreSQL"
+  ],
+  "body": "Generic store fixtures run on SQLite or psycopg2 and cannot detect the psycopg v3 VARCHAR bind bug, so the old code passes them. Reviewers asked for explicit coverage.\nAdd psycopg v3 regression tests to tests/db/test_workspace_tracking_store.py using the psycopg3_store fixture (tracking store) or psycopg3_registry_store (model registry). Both build their URI via _psycopg3_uri(), which rewrites MLFLOW_TRACKING_URI to postgresql+psycopg.\nThe helper skips unless MLFLOW_TRACKING_URI starts with postgresql and the psycopg package is importable (pytest.importorskip), so these tests only run in the database CI job against a real PostgreSQL. Run them against a local PostgreSQL with the psycopg driver before relying on them.\nTests should exercise a valid filter with a real timestamp or version value, not only the validation error path, because validation tests pass on the old code.",
+  "applies": "Tests that guard numeric SQL search filters against the psycopg v3 driver on PostgreSQL. Not needed for SQLite-only logic.",
+  "tags": [
+    "testing",
+    "postgresql",
+    "psycopg",
+    "database-ci",
+    "fixtures"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "_psycopg3_uri",
+      "hash": "sha256:a7dde55be2ced1981665f978",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7dde55be2ced1981665f978",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "psycopg3_store",
+      "hash": "sha256:5981319a1b8c8d02ea9a9b98",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5981319a1b8c8d02ea9a9b98",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "psycopg3_registry_store",
+      "hash": "sha256:847760230de3b0dfb7fc65fa",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:847760230de3b0dfb7fc65fa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-11T10:24:37.821Z",
+  "verified": "2026-10-11T10:24:37.821Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-filter-correlation-must-pass-experiment-ids-to-trace-i"
+  ],
+  "says": [
+    "Searching runs by numerical values fails with a database error on PostgreSQL servers.",
+    "Filtering experiment runs by timestamp or version number crashes on PostgreSQL backends.",
+    "Search filters with numeric comparison operators work locally but break in PostgreSQL environments.",
+    "Fix experiment search bar failing when filtering models by numeric version numbers on PostgreSQL."
+  ],
+  "search": "Regression tests guarding numeric SQL search filters against the psycopg v3 VARCHAR bind bug on PostgreSQL must be placed in tests/db/test_workspace_tracking_store.py using the psycopg3_store or psycopg3_registry_store fixtures. The helper _psycopg3_uri rewrites MLFLOW_TRACKING_URI to postgresql+psycopg and skips unless the URI starts with postgresql and psycopg is importable, running only in the database CI job against real PostgreSQL. Tests must exercise valid filters with real timestamp or version values rather than validation error paths, and are not needed for SQLite-only logic.",
+  "saysFor": "s2:d54b1ad5796072b3d200a16133200a7b7ea640096b69121a15d68658dccd5484"
+}

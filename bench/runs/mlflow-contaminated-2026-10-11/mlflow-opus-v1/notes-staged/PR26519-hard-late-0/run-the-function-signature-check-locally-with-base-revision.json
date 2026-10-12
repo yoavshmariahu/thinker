@@ -1,0 +1,71 @@
+{
+  "id": "run-the-function-signature-check-locally-with-base-revision",
+  "title": "Run the function-signature check locally with --base-revision; the script no longer fetches the base branch",
+  "kind": "howto",
+  "answers": [
+    "how do I run the function signature check locally",
+    "check_function_signatures.py base branch not found locally",
+    "how to compare my branch against master for signature breaking changes",
+    "what flag sets the base for the signature check"
+  ],
+  "body": "Invoke: `uv run --no-project dev/check_function_signatures.py --base-revision master` (the default is $GITHUB_BASE_REF if set, else `master`).\nThe script runs `git diff --name-only BASE HEAD` and `git show BASE:path` directly, and no longer runs `git fetch origin BASE:BASE`, so the revision must already exist locally (for example `git fetch origin master:master` first, or a full clone).\nAny ref works, e.g. `--base-revision HEAD^1` to compare the last commit, or a release branch name; argument parsing is in dev/check_function_signatures.py:parse_args.",
+  "applies": "Local invocation of dev/check_function_signatures.py; CI uses HEAD^1 explicitly and does not depend on this default.",
+  "tags": [
+    "ci",
+    "lint",
+    "howto",
+    "dev-scripts"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_function_signatures.py",
+      "symbol": "parse_args",
+      "hash": "sha256:ca81089efcef5fe1fc82ead9",
+      "line": 358,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ca81089efcef5fe1fc82ead9",
+      "fanout": {
+        "files": 57,
+        "sites": 73,
+        "refs": 75
+      }
+    },
+    {
+      "path": "dev/check_function_signatures.py",
+      "symbol": "compare_signatures",
+      "hash": "sha256:1fb84b58fae7e94cc32aae68",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1fb84b58fae7e94cc32aae68",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25723"
+  },
+  "created": "2026-10-11T08:48:18.125Z",
+  "verified": "2026-10-11T08:48:18.125Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "function-signature-check-diffs-against-an-explicit-base-revi"
+  ],
+  "says": [
+    "API signature check fails locally with an error that the base branch was not found.",
+    "Function signature comparison script crashes because it does not fetch remote branches automatically anymore.",
+    "Check my local branch for breaking function signature changes against the master branch.",
+    "Compare API changes against the previous commit instead of the default base revision.",
+    "Run the local function signature verification tool against an existing local git reference."
+  ],
+  "search": "Running dev/check_function_signatures.py locally using --base-revision to compare signatures against an existing local git ref. The script runs git diff --name-only BASE HEAD and git show BASE:path without fetching from origin, defaulting to $GITHUB_BASE_REF or master. Invocation is uv run --no-project dev/check_function_signatures.py --base-revision master (or any ref such as HEAD^1), whereas CI specifies HEAD^1 explicitly.",
+  "saysFor": "s2:a82f586605eaf5bbd7d437b79d0af5d3f0aff95d6027b0e34f89afa52f7fa752"
+}

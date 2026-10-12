@@ -1,0 +1,101 @@
+{
+  "id": "model-version-read-checks-must-be-prompt-aware-and-judge-the",
+  "title": "Model-version read checks must be prompt-aware and judge the whole model-version object",
+  "kind": "rule",
+  "answers": [
+    "prompt versions visible to users with only a registered model grant",
+    "wildcard model grant reveals prompts in mlflowSearchModelVersions",
+    "prompt grant not honored in GraphQL model version search",
+    "model version filter hides prompts I have a prompt grant for"
+  ],
+  "body": "Symptom: a user with a registered-model grant (even a wildcard \"*\") can see prompt versions they have no prompt grant for, or users with a prompt grant cannot see prompt versions in mlflowSearchModelVersions or run.modelVersions.\nRoot cause: mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware._filter_model_versions_result built its predicate with _role_based_read_predicate(username, \"registered_model\") and checked only mv.name, though model versions and prompt versions share this resolver.\nFix pattern: build the predicate with _rm_or_prompt_read_predicate(username) via GraphQLAuthorizationMiddleware._model_version_read_predicate and pass the whole model-version object to it, the same way the REST filter_search_model_versions does.\nConstraints: a registered_model grant must not reach into the prompt namespace, and a prompt grant must reveal prompt versions. Keep the GraphQL and REST filters in agreement.\nApplies: any code that filters model or prompt version rows returned to a user, in the GraphQL middleware or elsewhere in the auth app.",
+  "applies": "Filtering of model-version rows (including prompt versions) returned by GraphQL or REST search in the auth app.",
+  "tags": [
+    "auth",
+    "prompts",
+    "model-registry",
+    "graphql"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._model_version_read_predicate",
+      "hash": "sha256:ebe3709771f7d058714fee16",
+      "line": 5274,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ebe3709771f7d058714fee16",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._filter_model_versions_result",
+      "hash": "sha256:833140c4c06a4f22e0110243",
+      "line": 5284,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:833140c4c06a4f22e0110243",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_rm_or_prompt_read_predicate",
+      "hash": "sha256:cac5dee3a86cf72667a080bb",
+      "line": 1881,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cac5dee3a86cf72667a080bb",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_graphql_search_model_versions_judges_prompts_by_prompt_grants",
+      "hash": "sha256:40feba487cde6ef1a275ea44",
+      "line": 1540,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:40feba487cde6ef1a275ea44",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-11T10:30:40.309Z",
+  "verified": "2026-10-11T10:30:40.309Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nested-graphql-fields-over-protected-resources-must-be-liste",
+    "unscoped-gateway-endpoint-binding-listing-is-admin-only-endp",
+    "per-row-permission-predicates-in-graphql-resolvers-are-memoi",
+    "gateway-secret-create-needs-a-workspace-create-grant-fail-cl"
+  ],
+  "says": [
+    "Users with model permissions can see prompt versions they do not have access to.",
+    "Searching model versions does not show prompt versions even though I have prompt permissions.",
+    "A full model permission grant incorrectly exposes restricted prompt versions in search results.",
+    "Prompt versions linked to a run should only be visible to authorized prompt users."
+  ],
+  "search": "In mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware._filter_model_versions_result, authorization predicates must use _rm_or_prompt_read_predicate(username) via GraphQLAuthorizationMiddleware._model_version_read_predicate and evaluate the entire model-version object. Checking only mv.name with a registered-model role improperly exposed prompt versions to model grants or hid them in mlflowSearchModelVersions and run.modelVersions. Registered model grants must not access prompts, prompt grants must reveal prompt versions, and GraphQL filtering must agree with REST filter_search_model_versions.",
+  "saysFor": "s2:22ed2ea1cfa300b2221488d3e7e032321e2154ab0589dfc378168d6330235fc6"
+}

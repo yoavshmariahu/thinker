@@ -1,0 +1,84 @@
+{
+  "id": "optional-experiment-id-must-be-checked-with-is-not-none-not",
+  "title": "Optional experiment_id must be checked with 'is not None', not truthiness",
+  "kind": "rule",
+  "answers": [
+    "gateway endpoint created with experiment 0 has no experiment linked",
+    "empty experiment_id accepted silently when creating a gateway endpoint",
+    "usage tracking enabled but experiment is null"
+  ],
+  "body": "Invariant: In gateway endpoint create, an omitted experiment_id is None; any other supplied value, including integer 0 or \"\", must go through the parser. Test with `is not None`, not truthiness.\nEnforced in: mlflow/store/tracking/gateway/sqlalchemy_mixin.py:create_gateway_endpoint (experiment_id=_parse_experiment_id(experiment_id) if experiment_id is not None else None) and update_gateway_endpoint (if experiment_id is not None).\nWhat breaks if skipped: A truthiness check turns integer 0 into null, so the endpoint silently has no experiment while usage_tracking is still True. An empty string is never rejected as invalid.\nConstraints: The string \"0\" is a valid experiment ID and must be stored as experiment \"0\". Empty string must raise INVALID_PARAMETER_VALUE.",
+  "applies": "Any optional integer-like ID field in SQL store create/update paths where 0 or \"\" are legal inputs.",
+  "tags": [
+    "gateway",
+    "sqlalchemy",
+    "experiment-id",
+    "optional-parameter",
+    "truthiness"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+      "symbol": "create_gateway_endpoint",
+      "hash": "sha256:f3cad726ff3f7e0ee176ff50",
+      "line": 614,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f3cad726ff3f7e0ee176ff50",
+      "fanout": {
+        "files": 12,
+        "sites": 131,
+        "refs": 140
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+      "symbol": "update_gateway_endpoint",
+      "hash": "sha256:5ec641b1b93527af9f528c77",
+      "line": 773,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5ec641b1b93527af9f528c77",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_id",
+      "hash": "sha256:3228e73fee5e5753168f8687",
+      "line": 578,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3228e73fee5e5753168f8687",
+      "fanout": {
+        "files": 4,
+        "sites": 14,
+        "refs": 18
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26223"
+  },
+  "created": "2026-10-11T10:26:42.862Z",
+  "verified": "2026-10-11T10:26:42.862Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val"
+  ],
+  "says": [
+    "Gateway endpoints created with default experiment zero show no linked experiment in tracking",
+    "Saving an empty experiment identifier on a gateway route should display a validation error",
+    "Endpoint usage tracking is active but the associated experiment remains empty for experiment zero",
+    "Updating an AI gateway endpoint to experiment zero drops the experiment link"
+  ],
+  "search": "Optional experiment_id fields in gateway endpoint creation and updates must be validated using is not None instead of truthiness checks. Enforced in mlflow/store/tracking/gateway/sqlalchemy_mixin.py:create_gateway_endpoint and update_gateway_endpoint with mlflow/utils/validation.py:_parse_experiment_id, an omitted ID remains None while supplied values like 0 or \"\" are parsed. The string \"0\" must be preserved as experiment \"0\" to prevent usage tracking from having a null experiment, while an empty string must raise INVALID_PARAMETER_VALUE.",
+  "saysFor": "s2:d1c205ede3bdbeaf536d50c5c4d4b40fe21a8f9c8170d230d673a0f06083ce11"
+}

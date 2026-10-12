@@ -1,0 +1,74 @@
+{
+  "id": "team-review-js-skips-when-a-team-member-is-already-requested",
+  "title": "team-review.js skips when a team member is already requested, using live API reviewers",
+  "kind": "rule",
+  "answers": [
+    "team-review assigned a third reviewer on re-run",
+    "double counted review stats after re-running workflow",
+    "how does team-review avoid duplicate reviewer assignment",
+    "why are reviewers read from the API instead of the event payload"
+  ],
+  "body": "Symptom: re-running the team-review workflow (or a queued duplicate run) assigns an extra reviewer and double-counts the stats issue.\nRoot cause: .github/workflows/team-review.js:module.exports read `context.payload.pull_request.requested_reviewers`, a snapshot from the event that does not reflect reviewers assigned by earlier runs.\nFix pattern: read requests via `github.rest.pulls.listRequestedReviewers` and return early when a requested user is a `stats.reviewCounts` key, excluding `copilotInitiator`. The early return must run before eligible reviewers are chosen.\nConstraints: Copilot and non-team requests must not suppress team review; .github/workflows/copilot-review.yml requests @copilot on eligible PRs, so a Copilot-only request must still lead to 2 team reviewers. Manually requested non-team users must not block assignment either.",
+  "applies": "Any change to reviewer selection or stats handling in .github/workflows/team-review.js.",
+  "tags": [
+    "team-review",
+    "github-script",
+    "reviewers",
+    "idempotency"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/team-review.js",
+      "symbol": "stats",
+      "hash": "sha256:1f337763b4b82eab9e2eb501",
+      "line": 16,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b01b7db3a0e3ea37ff1d2e7b",
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 42
+      }
+    },
+    {
+      "path": ".github/workflows/team-review.js",
+      "symbol": "copilotInitiator",
+      "hash": "sha256:d3a4b90c94996cb28434c18e",
+      "line": 175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d3a4b90c94996cb28434c18e",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26281"
+  },
+  "created": "2026-10-11T10:26:17.275Z",
+  "verified": "2026-10-11T10:26:17.275Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Re-running review assignment adds an unexpected third reviewer to the pull request.",
+    "Review statistics tracking issue double-counts reviewer metrics whenever the assignment workflow reruns.",
+    "Stop the reviewer assignment bot from adding duplicate team reviewers during workflow retries.",
+    "Why does re-triggering team review request an extra reviewer instead of keeping current ones?",
+    "Prevent automated reviewer assignment from assigning additional reviewers to already assigned pull requests."
+  ],
+  "search": "Reviewer selection in .github/workflows/team-review.js must check live reviewers via github.rest.pulls.listRequestedReviewers and exit early before choosing eligible reviewers if a team member is already requested. Reading context.payload.pull_request.requested_reviewers used a stale event snapshot, causing workflow re-runs or queued runs to assign a third reviewer and double-count reviewer tallies in stats.reviewCounts. The early return checks if a requested user is a stats.reviewCounts key while excluding copilotInitiator. Copilot requests from .github/workflows/copilot-review.yml and manually requested non-team users must not suppress team review or block the assignment of two team reviewers.",
+  "saysFor": "s2:6f6f70f39c203e393dbdfd1377bc44d6847e0ac8677f264d147c142d20525685"
+}

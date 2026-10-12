@@ -1,0 +1,60 @@
+{
+  "id": "codex-notify-hook-must-log-only-the-error-stack-or-message-n",
+  "title": "Codex notify hook must log only the error stack or message, never the raw exception",
+  "kind": "rule",
+  "answers": [
+    "Codex hook prints my Databricks credentials in the error log",
+    "auth failure in codex notify leaks token to console",
+    "console.error of exception shows secret config fields",
+    "credential-safe error logging for MLflow codex integration"
+  ],
+  "body": "Symptom: When Codex trace export fails with a Databricks authentication error, the hook output shows credential values from the error.\nRoot cause: integrations/codex/src/hooks/stop.ts:runNotifyHook passed the caught error object directly to `console.error`. Databricks SDK exceptions carry a `config` property containing credentials, and console formatting prints it.\nFix pattern: Log `err.stack ?? err.message` for Error instances and `String(err)` for anything else, so only text is emitted.\nConstraints: Keep this rule for any catch block that may receive SDK errors; do not pass raw error objects to console. Covered by libs/typescript/integrations/codex/tests/stop.test.ts, which checks the logged args do not contain the secret token.",
+  "applies": "Error logging in the Codex notify hook path; other integrations' catch blocks were not changed by this PR.",
+  "tags": [
+    "codex",
+    "logging",
+    "credentials",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/hooks/stop.ts",
+      "symbol": "runNotifyHook",
+      "hash": "sha256:94d2770420455524c73ba040",
+      "line": 15,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:94d2770420455524c73ba040",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/stop.test.ts",
+      "hash": "sha256:74c77e5f62754310a6e26dc1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T08:42:07.796Z",
+  "verified": "2026-10-11T08:42:07.796Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Authentication tokens are exposed in terminal output when Codex trace upload fails.",
+    "Stop printing secret credentials in the console log during assistant connection errors.",
+    "Console output reveals private access keys when agent authentication encounters an error.",
+    "Sanitize error messages so failed trace exports do not leak sensitive configuration values.",
+    "Codex session logs display confidential authentication details after an upload failure."
+  ],
+  "search": "Error logging in libs/typescript/integrations/codex/src/hooks/stop.ts:runNotifyHook must log err.stack ?? err.message for Error instances and String(err) otherwise, never passing raw error objects to console.error. This prevents Databricks SDK exceptions from printing their config property and leaking credentials or secret tokens to console output during trace export authentication failures. The rule applies to any catch block handling SDK errors and is tested in libs/typescript/integrations/codex/tests/stop.test.ts.",
+  "saysFor": "s2:82cce5bfd29bb808cdbc483bdd3d2ad5194001f37d8cc5f58feb10725bb7d152"
+}

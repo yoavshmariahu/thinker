@@ -1,0 +1,54 @@
+{
+  "id": "test-import-time-logging-in-a-subprocess-with-mlflow-configu",
+  "title": "Test import-time logging in a subprocess with MLFLOW_CONFIGURE_LOGGING=0 and host-managed logging",
+  "kind": "howto",
+  "answers": [
+    "how to test that importing an mlflow module stays quiet under custom logging",
+    "subprocess regression test for MLflow logging configuration",
+    "why does my logging test not see mlflow's log config",
+    "test host-managed root logging in mlflow"
+  ],
+  "body": "Import-time logging behavior can only be checked in a fresh interpreter, since the test process has already imported mlflow.\nRun `sys.executable -c <code>` via subprocess.run with capture_output=True, text=True, check=True.\nIn the code string, call logging.basicConfig(level=logging.WARNING) before importing the module under test, so the host owns logging.\nBuild env from os.environ.copy(), pop MLFLOW_LOGGING_CONFIGURE_LOGGING, and set MLFLOW_CONFIGURE_LOGGING=\"0\" so MLflow does not reconfigure the root logger.\nAssert on result.stderr: the expected message appears exactly once, and the suppressed variant string is absent. Also trigger an ordinary warning in the same subprocess to prove visibility is preserved.",
+  "applies": "Tests in tests/types/ or elsewhere that verify MLflow import-time log or warning output.",
+  "tags": [
+    "testing",
+    "logging",
+    "subprocess",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "tests/types/test_type_hints.py",
+      "symbol": "test_import_responses_suppresses_expected_schema_inference_warnings",
+      "hash": "sha256:bf82e4398962d0efeefeab37",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b84652fd9360777e27ca796f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26033"
+  },
+  "created": "2026-10-11T10:28:32.083Z",
+  "verified": "2026-10-11T10:28:32.083Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Importing the package overwrites existing application logging settings and produces unexpected console warnings.",
+    "Spurious schema inference warning messages appear in terminal logs during module startup.",
+    "Respect host logging configurations rather than resetting the root logger on startup.",
+    "Terminal output shows duplicate log entries when launching scripts with custom logging."
+  ],
+  "search": "Testing import-time logging and warning output requires executing a fresh interpreter subprocess with host-managed logging. The test builds an environment popping MLFLOW_LOGGING_CONFIGURE_LOGGING and setting MLFLOW_CONFIGURE_LOGGING='0', calling logging.basicConfig before importing the module under test in tests/types/. Assertions on standard error check that expected messages appear once while suppressed variants are absent, alongside triggering an ordinary warning to verify visibility.",
+  "saysFor": "s2:a74cb0a7dc3a9f53e302b4b0144cf2dfe809c05ea3b7a0cb427fc01de2d72e89"
+}

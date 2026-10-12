@@ -1,0 +1,69 @@
+{
+  "id": "scorer-invocation-timeout-is-enforced-only-inside-scorer-run",
+  "title": "Scorer invocation timeout is enforced only inside Scorer.run, via a re-entrant daemon thread",
+  "kind": "rule",
+  "answers": [
+    "how does a custom scorer time out during mlflow.genai.evaluate",
+    "why does a hanging scorer stall the whole evaluation",
+    "where is the @scorer timeout enforced",
+    "why does my scorer run in a MlflowScorer thread"
+  ],
+  "body": "Symptom: a custom scorer hangs (e.g. a wedged LLM judge call) and the whole evaluation or monitoring run stalls.\nRoot cause: a scorer is executed only through Scorer.run in mlflow/genai/scorers/base.py; without a bound on that call nothing limits one invocation.\nFix pattern: keep all timeout logic in Scorer.run. When a timeout is set, Scorer._run_with_timeout runs self.run in a daemon thread (name MlflowScorer-<name>) with the _in_scorer_timeout ContextVar set, so the nested run() skips the timeout branch. On overrun it raises MlflowTimeoutError, which the harness converts to a SCORER_ERROR feedback.\nConstraints: the worker must still execute through a Scorer.run frame, because telemetry walks the stack to attribute a scorer's callsite. Do not replace this with signal.alarm, since scorers run in harness worker threads where SIGALRM is unavailable. Do not add a second timeout layer for ensemble or session scorers; they already funnel through run().",
+  "applies": "Any change to Scorer.run, scorer execution, or the evaluation/monitoring harness that invokes scorers.",
+  "tags": [
+    "genai",
+    "scorers",
+    "timeout",
+    "evaluate"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.run",
+      "hash": "sha256:6de244862e8074780a169ac3",
+      "line": 763,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6de244862e8074780a169ac3"
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._run_with_timeout",
+      "hash": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "line": 828,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25720"
+  },
+  "created": "2026-10-11T08:42:55.252Z",
+  "verified": "2026-10-11T08:42:55.252Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-module-must-match-the-allow-list-exactly",
+    "validate-metric-name-and-kwargs-before-import-module-in-thir",
+    "reflected-third-party-scorer-attribute-must-be-a-scorer-subc",
+    "async-scorer-paths-must-carry-the-registered-scorer-version"
+  ],
+  "says": [
+    "Evaluation job hangs indefinitely when a custom judge metric gets stuck.",
+    "Prevent hanging model evaluation metrics from stalling the entire evaluation run.",
+    "Evaluation monitoring gets blocked forever by an unresponsive custom evaluation scoring call.",
+    "Report an execution error when an automated scoring judge exceeds its time limit.",
+    "Model assessment run does not terminate after a third-party evaluation scorer times out."
+  ],
+  "search": "Scorer invocation timeouts in mlflow/genai/scorers/base.py are enforced strictly inside Scorer.run using a re-entrant daemon thread. When configured, Scorer._run_with_timeout executes self.run on a MlflowScorer daemon thread with _in_scorer_timeout set, raising MlflowTimeoutError on overrun to produce SCORER_ERROR feedback. Execution must maintain a Scorer.run stack frame for telemetry, signal.alarm cannot be used due to worker threads lacking SIGALRM, and ensemble or session scorers must not add a second timeout layer.",
+  "saysFor": "s2:ff2388f3c9eb3ee19193798b73482f6aaf74d09d36bbb5cd0ff306f1f7a8af0e"
+}

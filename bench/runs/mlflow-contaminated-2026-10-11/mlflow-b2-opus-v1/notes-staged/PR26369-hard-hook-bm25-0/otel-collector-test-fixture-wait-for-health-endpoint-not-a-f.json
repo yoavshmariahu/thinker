@@ -1,0 +1,72 @@
+{
+  "id": "otel-collector-test-fixture-wait-for-health-endpoint-not-a-f",
+  "title": "OTel collector test fixture: wait for health endpoint, not a fixed sleep, and pick free ports",
+  "kind": "rule",
+  "answers": [
+    "OTel collector fixture flaky in tests, spans missing because collector not ready yet",
+    "tracing OTLP export test fails intermittently with port already in use",
+    "how does the otel_collector pytest fixture know the collector is ready",
+    "why does the collector test wait on a health check instead of sleeping"
+  ],
+  "body": "Symptom: OTLP/trace export tests against the Docker collector fail intermittently, with spans missing or the collector not yet accepting connections, or ports clashing between runs.\nRoot cause: tests/tracing/conftest.py:otel_collector used random.randint(20000, 30000) for the OTLP port and a fixed time.sleep(5) before yielding, with the config piped through bash echo into docker run stdin.\nFix pattern: take OTLP and health ports from find_free_port(), ensure they differ, enable the health_check extension, and poll http://127.0.0.1:<health_port>/ until it returns 200 within a deadline. On early process exit or timeout, raise with the captured collector log file contents.\nConstraints: the container-side health port (13133 in the health_check extension endpoint) must match the container port of the -p mapping. Docker pull retries stay in place. Applies only to the Docker-based otel_collector fixture.",
+  "applies": "Test fixtures in tests/tracing that start the OpenTelemetry collector container.",
+  "tags": [
+    "tracing",
+    "testing",
+    "otel",
+    "fixtures",
+    "flaky-tests"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_otlp.py",
+      "symbol": "test_export_to_otel_collector",
+      "hash": "sha256:29618d9c500fe0a95288e770",
+      "line": 116,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29618d9c500fe0a95288e770",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26038"
+  },
+  "created": "2026-10-11T10:25:07.666Z",
+  "verified": "2026-10-11T10:25:07.666Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-fixture-config-must-be-a-readable-temp-file-a",
+    "otel-collector-fixture-retry-only-the-docker-image-pull-on-t"
+  ],
+  "says": [
+    "Tracing export tests fail intermittently because spans are missing before collector readiness",
+    "Automated trace verification tests crash randomly due to network port collisions between runs",
+    "Trace tests fail when the collector drops initial traces during fixed startup delays",
+    "Ensure tracing tests poll collector health status instead of relying on fixed pauses"
+  ],
+  "search": "The Docker-based otel_collector fixture in tests/tracing/conftest.py must determine readiness by polling the health_check extension endpoint rather than using a fixed time.sleep. Distinct ports for OTLP and health checks must be allocated via find_free_port(), polling http://127.0.0.1:<health_port>/ until HTTP 200 is returned or raising with collector logs on timeout or exit. The container-side health port 13133 must match the port mapping, existing Docker pull retries must be retained, and the rule applies to test_export_to_otel_collector.",
+  "saysFor": "s2:f8e601b1feac1b780cbe27bee5d61010e6608fde89beabd8e3d7b7a63eaf1f6b"
+}

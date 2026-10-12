@@ -1,0 +1,59 @@
+{
+  "id": "on-behalf-of-user-resources-are-excluded-from-uc-model-versi",
+  "title": "on_behalf_of_user resources are excluded from UC model-version dependencies",
+  "kind": "rule",
+  "answers": [
+    "on behalf of user resource recorded as model dependency",
+    "why is my invoker resource missing from the registered model version dependencies",
+    "UC model version dependencies for user-authorized resources"
+  ],
+  "body": "Invariant: resources declared with on_behalf_of_user set are not recorded as model-version dependencies on CreateModelVersionRequest; this holds for every dependency type, including DATABRICKS_UC_MODEL_SERVICE.\nEnforced in mlflow/store/_unity_catalog/registry/rest_store.py:_fetch_langchain_dependency_from_model_resources, which each per-type branch of get_model_version_dependencies calls.\nIf a new resource type is wired without going through that helper, invoker-scoped resources leak into the dependency list. Tests in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py cover this with the invoker-resources fixture.",
+  "applies": "Proxy/legacy path dependency extraction for langchain model resources in the UC registry store.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "dependencies",
+    "invoker"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "_fetch_langchain_dependency_from_model_resources",
+      "hash": "sha256:6f69223ddede6e649bbbeb5b",
+      "line": 364,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6f69223ddede6e649bbbeb5b",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py",
+      "hash": "sha256:3886111540c95ca59b249296",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26140"
+  },
+  "created": "2026-10-11T10:27:22.870Z",
+  "verified": "2026-10-11T10:27:22.870Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "User-scoped resources should never appear in the registered model version dependency list.",
+    "Catalog model versions are mistakenly listing invoker-authorized services as required dependencies.",
+    "Prevent personal user-authorized resources from being saved as model version dependencies upon registration.",
+    "Invoker resources should not be included when registering a new catalog model version.",
+    "User-authenticated services are unexpectedly missing from the registered model dependencies tab."
+  ],
+  "search": "In Unity Catalog registry store model-version dependency extraction, resources declared with on_behalf_of_user are excluded from CreateModelVersionRequest dependencies across all dependency types, including DATABRICKS_UC_MODEL_SERVICE. This rule applies to proxy/legacy path dependency extraction for LangChain model resources and is enforced by having every per-type branch of get_model_version_dependencies call _fetch_langchain_dependency_from_model_resources in mlflow/store/_unity_catalog/registry/rest_store.py. Wiring any new resource type without that helper leaks invoker-scoped resources into the dependency list, which is tested using the invoker-resources fixture in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py.",
+  "saysFor": "s2:653fd7a3d7d8d58925c9b8c07bb329b06c3e5aab3dea1ba63b5dfd0794d78cc4"
+}

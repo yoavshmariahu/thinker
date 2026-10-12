@@ -1,0 +1,82 @@
+{
+  "id": "uc-model-load-and-register-must-both-gate-on-the-databricks",
+  "title": "UC model load and register must both gate on the Databricks SDK models artifact repo flag",
+  "kind": "rule",
+  "answers": [
+    "How do I make Unity Catalog model load and register use the Files API instead of vended tokens?",
+    "Why does load_model work but register_model still uses scoped credentials on Unity Catalog?",
+    "Where is MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC checked?"
+  ],
+  "body": "Invariant: UC model download (load) and UC model upload (register) must both check MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC at the top of their _get_artifact_repo, before any scoped-token fetch. The flag is read at call time and defaults to False.\nEnforced by: mlflow/store/artifact/unity_catalog_models_artifact_repo.py:UnityCatalogModelsArtifactRepository._get_artifact_repo (load, passes self.registry_uri) and mlflow/store/_unity_catalog/registry/rest_store.py:UcModelRegistryStore._get_artifact_repo (register, passes self.store_uri; reached from create_model_version).\nWhat breaks if skipped: gating only one path leaves that path on vended tokens, which Unity Catalog blocks. Flag-off must keep the scoped-credential behavior unchanged.\nConstraints: the URI passed as registry_uri/store_uri is what lets the workspace client resolve host and token; drop it and creds resolution falls back to default auth.",
+  "applies": "Any change to UC model-registry artifact download or upload routing in mlflow/store/artifact and mlflow/store/_unity_catalog/registry.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "artifacts",
+    "databricks-sdk"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/unity_catalog_models_artifact_repo.py",
+      "symbol": "UnityCatalogModelsArtifactRepository._get_artifact_repo",
+      "hash": "sha256:dcf01c1a77ee218b5e163c5c",
+      "line": 170,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dcf01c1a77ee218b5e163c5c",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "UcModelRegistryStore._get_artifact_repo",
+      "hash": "sha256:a8ee1ef8f21380efbaa7a560",
+      "line": 1120,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8ee1ef8f21380efbaa7a560",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC",
+      "hash": "sha256:c702dffb494a71467110dd92",
+      "line": 1172,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-11T10:29:38.375Z",
+  "verified": "2026-10-11T10:29:38.375Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-version-dependency-registration-must-not-emit-new-r",
+    "uc-model-load-and-register-must-switch-artifact-repo-togethe"
+  ],
+  "says": [
+    "Registering a new model version in Unity Catalog fails due to blocked cloud credentials.",
+    "Loading registered models works but saving new versions still gets rejected by the catalog.",
+    "Switch model catalog uploads and downloads to use direct file storage instead of tokens.",
+    "Catalog model registration fails authentication when short-lived storage tokens are disallowed by policy."
+  ],
+  "search": "Both Unity Catalog model download (load) and upload (register) paths must check the MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC environment variable at call time before fetching scoped tokens. This invariant is enforced in UnityCatalogModelsArtifactRepository._get_artifact_repo (passing self.registry_uri) and UcModelRegistryStore._get_artifact_repo (passing self.store_uri during create_model_version). If either path omits the check, it reverts to vended tokens blocked by Unity Catalog, while keeping the flag disabled preserves default scoped-credential behavior. Omitting registry_uri or store_uri causes workspace client credential resolution to fall back to default authentication.",
+  "saysFor": "s2:7b4f57e67ee3f8897128907ca4b538e25cdce04d5f74dada62c7d5e40e9a0111"
+}

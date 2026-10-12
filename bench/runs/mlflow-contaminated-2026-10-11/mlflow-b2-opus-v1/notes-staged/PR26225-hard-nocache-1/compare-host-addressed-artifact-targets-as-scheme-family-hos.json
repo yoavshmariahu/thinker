@@ -1,0 +1,72 @@
+{
+  "id": "compare-host-addressed-artifact-targets-as-scheme-family-hos",
+  "title": "Compare host-addressed artifact targets as (scheme family, hostname, effective port), never as raw URI strings",
+  "kind": "rule",
+  "answers": [
+    "why does http and https to the same host get treated as the same artifact server",
+    "how is the artifact root host compared to an experiment artifact location",
+    "portless hdfs or ftp artifact URI host match rules",
+    "backslash in artifact URI authority bypass"
+  ],
+  "body": "Invariant: host_policy.py:host_addressed_uri_targets reduces a URI to a set of (scheme family, lowercased hostname, effective port) targets, and the trust check intersects those sets with the trusted root's targets. Raw string or urlparse comparison must not be used for this.\nEnforced by: host_policy.py:host_addressed_uri_targets and host_policy.py:rejected_host_addressed_scheme (set intersection with _trusted_targets).\nWhat breaks if skipped: A portless https root would match http://host (both collapse to port None), an authority containing a backslash or whitespace is parsed differently by urlparse and by the HTTP client, and a portless hdfs URI with an unknown Hadoop-configured port could be trusted.\nConstraints: An omitted port maps to the scheme's well-known port (ftp 21, sftp 22, http 80, https 443, r2/b2/abfss 443); portless mlflow-artifacts stands for both 80 and 443; portless hdfs/viewfs only matches a portless root (fail closed). Authorities with backslash, whitespace or an invalid port are never trusted. mlflow-artifacts:///path has an empty netloc and resolves to the server itself, so it is not a target.",
+  "applies": "Any change to host equality, port normalization or scheme families in mlflow/store/artifact/host_policy.py.",
+  "tags": [
+    "security",
+    "artifacts",
+    "url-parsing",
+    "host-policy",
+    "ports"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "host_addressed_uri_targets",
+      "hash": "sha256:2a8af4a9356a6a528993f138",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2a8af4a9356a6a528993f138",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "rejected_host_addressed_scheme",
+      "hash": "sha256:545df968444a236f6a28994d",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:545df968444a236f6a28994d",
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-11T10:31:28.369Z",
+  "verified": "2026-10-11T10:31:28.369Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor"
+  ],
+  "says": [
+    "An unencrypted artifact location matched our secure artifact server URL unexpectedly.",
+    "Artifact storage locations with backslashes or spaces in the address are accepted.",
+    "Experiment runs cannot log artifacts to Hadoop clusters when ports are omitted.",
+    "Prevent untrusted storage locations from matching our trusted artifact server configuration.",
+    "Artifact repository trust checks should distinguish between secure and insecure protocol ports."
+  ],
+  "search": "Artifact URI targets in mlflow/store/artifact/host_policy.py:host_addressed_uri_targets must be reduced to sets of (scheme family, lowercased hostname, effective port) tuples for set intersection with trusted root targets, never using raw strings or urlparse results. Applies to changes in host equality, port normalization, or scheme families in host_policy.py. Omitted ports map to scheme defaults (ftp 21, sftp 22, http 80, https 443, r2/b2/abfss 443; mlflow-artifacts maps to 80 and 443; portless hdfs/viewfs only matches portless roots), authorities with whitespace, backslashes, or invalid ports are rejected, and mlflow-artifacts:///path with empty netloc resolves to the server itself.",
+  "saysFor": "s2:cd9f315de72dd737e4808c0c44280d1def5ea153314dc14ddf28137ac81fbcc0"
+}

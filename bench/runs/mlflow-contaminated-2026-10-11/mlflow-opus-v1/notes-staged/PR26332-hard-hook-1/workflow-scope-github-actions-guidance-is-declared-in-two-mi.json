@@ -1,0 +1,45 @@
+{
+  "id": "workflow-scope-github-actions-guidance-is-declared-in-two-mi",
+  "title": "Workflow-scope GitHub Actions guidance is declared in two mirrored path globs that must change together",
+  "kind": "rule",
+  "answers": [
+    "Where do I widen the GitHub Actions review guidance to cover composite actions?",
+    "Why does Copilot review and Claude not load the github-actions guidance for .github/actions files?",
+    "Which files control which paths load the GitHub Actions style rules?"
+  ],
+  "body": "The GitHub Actions guidance is loaded by two separate frontmatter path declarations that must be edited together: .claude/rules/github-actions.md (YAML key `paths`, a list) and .github/instructions/github-actions.instructions.md (key `applyTo`, a single comma-separated string).\nBoth currently cover .github/workflows/**/*.yml and .github/actions/**/*.yml; changing only one leaves Claude and Copilot reviewers with different scopes.\nThe two keys have different syntax, so copy the glob, not the frontmatter block.\nThe rule bodies are shared by scope only; widening the glob also makes workflow-only sections apply to composite actions, including the runs-on, defaults.run.shell and setup-* wrapper advice. Reviewers objected to this in PR #25540 and the PR merged with no per-section exemption, so check those sections before relying on them for composite actions.",
+  "applies": "Any change to the path scope of the GitHub Actions guidance in .claude/rules or .github/instructions.",
+  "tags": [
+    "github-actions",
+    "instructions",
+    "claude-rules",
+    "copilot-review",
+    "scope"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/github-actions.instructions.md",
+      "hash": "sha256:5400069ea2fe0db0bf8a4ba4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25540"
+  },
+  "created": "2026-10-11T08:51:22.942Z",
+  "verified": "2026-10-11T08:51:22.942Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The AI code reviewer is not applying our workflow rules to reusable actions.",
+    "Review bots provide inconsistent automated feedback because their guideline scopes do not match.",
+    "Extend our automated pipeline review guidelines to also check shared action components.",
+    "Automated reviewers are incorrectly flagging workflow-only setup advice on composite action pull requests."
+  ],
+  "search": "GitHub Actions review guidance path scopes are configured in two mirrored files: .claude/rules/github-actions.md using the paths list key and .github/instructions/github-actions.instructions.md using the applyTo string key. Both files currently cover .github/workflows/**/*.yml and .github/actions/**/*.yml, and both must be updated together using their respective syntax to keep Claude and Copilot reviewers synchronized. Widening path globs causes workflow-specific guidance—such as runs-on, defaults.run.shell, and setup-* wrapper advice—to apply to composite actions without per-section exemptions.",
+  "saysFor": "s2:b5b41342a0bb6cf4b5565ab88abb1dc5ec50c84f3ec7b97b4b03e73801313acb"
+}

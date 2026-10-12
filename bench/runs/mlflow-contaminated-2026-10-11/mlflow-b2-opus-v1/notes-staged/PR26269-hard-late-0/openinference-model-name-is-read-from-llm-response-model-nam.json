@@ -1,0 +1,67 @@
+{
+  "id": "openinference-model-name-is-read-from-llm-response-model-nam",
+  "title": "OpenInference model name is read from llm.response.model_name, then llm.model_name, then llm.request.model_name",
+  "kind": "rule",
+  "answers": [
+    "trace model badge missing when inputs and outputs are hidden for OpenInference spans",
+    "OpenInference span shows request alias instead of resolved model name",
+    "llm.request.model_name or llm.response.model_name not recognized in MLflow traces"
+  ],
+  "body": "Symptom: a trace from an OpenInference-instrumented LLM span shows no model, or the requested alias (e.g. 'jev-latest') instead of the resolved model, especially when inputs/outputs are redacted or hidden.\nRoot cause: mlflow/tracing/otel/translation/open_inference.py:OpenInferenceTranslator.MODEL_NAME_KEYS listed only llm.model_name and embedding.model_name, so spans that carry only the request/response attributes produced no model.\nFix pattern: keep MODEL_NAME_KEYS as an ordered list and add the newer keys in precedence order: llm.response.model_name, llm.model_name, llm.request.model_name, then embedding.model_name. The first non-empty value wins.\nConstraints: an explicit MLflow model attribute (SpanAttributeKey.MODEL, mlflow.llm.model) already set on the span stays authoritative and must not be overwritten (test_translate_model_name_from_inputs_outputs). Empty string and null values must fall through to the next key. Keep the response-before-request order; the request alias is only a fallback. Any docs table listing OpenInference model keys must be updated with the same list.\nTests: tests/tracing/otel/test_span_translation.py:test_translate_openinference_model_name covers raw and JSON-encoded values, precedence, and empty/null fallback; test_translate_openinference_structured_inputs_outputs covers redacted TypeSafe payloads with zero output tokens.",
+  "applies": "Server-side OpenInference span translation in translate_span_when_storing; applies to any new OpenInference model-name key, not to the MLflow-native model attribute.",
+  "tags": [
+    "tracing",
+    "openinference",
+    "otel",
+    "model-name",
+    "translation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/otel/translation/open_inference.py",
+      "symbol": "OpenInferenceTranslator.MODEL_NAME_KEYS",
+      "hash": "sha256:6c84052ea1208ceb29ff5e34",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/tracing/otel/test_span_translation.py",
+      "symbol": "test_translate_openinference_model_name",
+      "hash": "sha256:8612c2bd65bc0164ec0cb1c0",
+      "line": 705,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8612c2bd65bc0164ec0cb1c0",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26047"
+  },
+  "created": "2026-10-11T10:28:21.572Z",
+  "verified": "2026-10-11T10:28:21.572Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The trace view displays an alias instead of the resolved model name.",
+    "Model name badge is completely missing on trace spans with redacted inputs.",
+    "Show the actual response model name rather than the requested model tag in traces.",
+    "Why is the model name empty on tracing spans when outputs are hidden?",
+    "Trace details should display the resolved model even if input data is masked."
+  ],
+  "search": "In server-side OpenInference span translation in translate_span_when_storing, model names are extracted using MODEL_NAME_KEYS in priority order: llm.response.model_name, llm.model_name, llm.request.model_name, and embedding.model_name. The first non-empty value is used, falling through on empty strings or null values so request aliases serve only as a fallback. An existing explicit MLflow model attribute on the span takes precedence and must not be overwritten, nor does this rule apply to native model attributes. Defined in mlflow/tracing/otel/translation/open_inference.py and tested in tests/tracing/otel/test_span_translation.py across raw, JSON-encoded, and redacted payloads.",
+  "saysFor": "s2:f36e79b4edcf3a4472c0a1e50162a75760bf179a52d5752a4e76fda2462aefc8"
+}

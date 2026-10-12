@@ -1,0 +1,96 @@
+{
+  "id": "gemini-parallel-functionresponse-parts-must-share-one-user-t",
+  "title": "Gemini parallel functionResponse parts must share one user turn",
+  "kind": "rule",
+  "answers": [
+    "Gemini 400 error: number of function response parts is not equal to number of function call parts",
+    "parallel tool calls fail with Gemini through AI Gateway",
+    "Vertex AI parallel function calling returns 400 on tool results",
+    "OpenAI-format parallel tool_calls converted to Gemini functionResponse"
+  ],
+  "body": "Symptom: Chat through the AI Gateway's Gemini or Vertex AI provider fails with \"400: Please ensure that the number of function response parts is equal to the number of function call parts\" whenever the model made parallel tool calls.\nRoot cause: mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model appended a separate user turn with one functionResponse for every role==\"tool\" message, but Gemini needs all N responses to a model turn's N functionCall parts in one user turn.\nFix pattern: In the role==\"tool\" branch, append the functionResponse to the previous content entry when it is a user turn whose parts are all functionResponse; otherwise start a new user turn. Keep it in the single pass over messages.\nConstraints: Merge only into a user turn made entirely of functionResponse parts. Sequential rounds stay separate because a model turn sits between them; do not merge across that boundary. _VertexGeminiAdapter inherits chat_to_model, so the fix covers Vertex AI.",
+  "applies": "Any change to how OpenAI tool/tool_calls messages are converted into Gemini contents in the AI Gateway providers.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "vertex-ai",
+    "tool-calling",
+    "function-calling",
+    "parallel-tool-calls"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_function_calling_parallel_calls",
+      "hash": "sha256:ac0ed51643383ad730357d16",
+      "line": 921,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac0ed51643383ad730357d16",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_function_calling_sequential_calls_keep_separate_response_turns",
+      "hash": "sha256:193ac820b1f9624332f738a2",
+      "line": 988,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:193ac820b1f9624332f738a2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26001"
+  },
+  "created": "2026-10-11T10:29:17.871Z",
+  "verified": "2026-10-11T10:29:17.871Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on",
+    "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev",
+    "gemini-candidates-can-mix-text-and-functioncall-parts-in-any",
+    "gemini-tool-message-content-must-be-coerced-to-a-json-object"
+  ],
+  "says": [
+    "Parallel tool calls fail with a bad request error on Gemini models.",
+    "Vertex AI chat returns an error when submitting multiple tool results at once.",
+    "Simultaneous function calls fail with a message about mismatched response parts.",
+    "Allow Gemini chat to handle multiple tool outputs returned from parallel executions.",
+    "Submitting answers for concurrent tool requests causes an error in gateway chat."
+  ],
+  "search": "When converting OpenAI tool messages to Gemini contents in mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model, parallel tool responses must be grouped into a single user turn. In the role=='tool' branch, functionResponse is appended to the previous user turn only if all its parts are functionResponse, starting a new user turn otherwise. Responses must not be merged across sequential model turn boundaries. Applies to chat_to_model and inherited _VertexGeminiAdapter behavior in AI Gateway providers for both chat and streaming.",
+  "saysFor": "s2:f0764e85cff1036a4880a99184158e3931f7604543f9b87d50526917fd8204a0",
+  "lastUsed": "2026-10-11T18:24:59.294Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26270-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26269-hard-0",
+    "54b7e8e5-d007-4a1c-8b03-c514ae1cb4d2"
+  ]
+}

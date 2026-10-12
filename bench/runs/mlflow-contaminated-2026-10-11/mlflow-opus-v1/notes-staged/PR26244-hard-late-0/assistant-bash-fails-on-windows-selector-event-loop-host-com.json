@@ -1,0 +1,57 @@
+{
+  "id": "assistant-bash-fails-on-windows-selector-event-loop-host-com",
+  "title": "Assistant Bash fails on Windows selector event loop: host commands must not use asyncio subprocess APIs",
+  "kind": "rule",
+  "answers": [
+    "Assistant Bash tool says subprocesses are unsupported on Windows",
+    "NotImplementedError when Assistant runs a shell command under multiworker or reload server on Windows",
+    "Codex or Claude bash tool call fails on Windows with selector loop",
+    "asyncio create_subprocess_exec not supported Windows MLflow assistant"
+  ],
+  "body": "Symptom: On Windows, when MLflow runs with the selector event loop (multiworker or reload server), Assistant Bash tool calls fail instead of running the command.\nRoot cause: mlflow/assistant/providers/tool_executor.py:_execute_bash_on_host used asyncio.create_subprocess_shell / create_subprocess_exec, which the Windows selector loop does not implement.\nFix pattern: Keep the same argv/shell decision but run the command with subprocess.run inside asyncio.to_thread, passing shell=full_access, stdout/stderr=PIPE, cwd, env and timeout=120. Replace asyncio.TimeoutError handling with subprocess.TimeoutExpired.\nConstraints: Applies to host-side execution in _execute_bash_on_host only; sandboxed execution is a different path. Any new host subprocess call in this module should follow the same thread-plus-subprocess.run pattern rather than asyncio subprocess APIs.",
+  "applies": "Host-side Assistant Bash execution in mlflow/assistant on any event loop, especially Windows.",
+  "tags": [
+    "assistant",
+    "windows",
+    "subprocess",
+    "asyncio",
+    "tool-executor"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/tool_executor.py",
+      "symbol": "_execute_bash_on_host",
+      "hash": "sha256:45d8b0af3821a8c822d4f4a8",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:45d8b0af3821a8c822d4f4a8",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25687"
+  },
+  "created": "2026-10-11T08:42:59.625Z",
+  "verified": "2026-10-11T08:42:59.625Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "restricted-assistant-bash-must-run-argv-without-a-shell-only"
+  ],
+  "says": [
+    "Assistant fails to execute shell commands when running on Windows servers",
+    "Terminal actions in the assistant crash when the server runs in reload mode on Windows",
+    "Assistant reports that running command line tasks is unsupported on Windows multiworker instances",
+    "Allow the AI assistant to run host commands reliably on Windows systems"
+  ],
+  "search": "Host-side Assistant Bash command execution in mlflow/assistant/providers/tool_executor.py:_execute_bash_on_host must use subprocess.run inside asyncio.to_thread instead of asyncio subprocess APIs on Windows selector loops. Commands run with shell=full_access, stdout and stderr set to PIPE, cwd, env, and a 120-second timeout catching subprocess.TimeoutExpired. Applies exclusively to host-side execution in _execute_bash_on_host, leaving sandboxed execution paths unaffected. Any new host subprocess execution in this module must follow the thread-plus-subprocess.run pattern to prevent NotImplementedError on Windows multiworker or reload servers.",
+  "saysFor": "s2:b0542899d9fac97070f4661f22b826106960b0971a6fd13ec9abdaa301b19755"
+}

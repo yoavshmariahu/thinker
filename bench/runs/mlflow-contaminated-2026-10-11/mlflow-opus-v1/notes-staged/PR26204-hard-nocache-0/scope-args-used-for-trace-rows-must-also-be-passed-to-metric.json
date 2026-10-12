@@ -1,0 +1,84 @@
+{
+  "id": "scope-args-used-for-trace-rows-must-also-be-passed-to-metric",
+  "title": "Scope args used for trace rows must also be passed to metrics-backed hooks in TracesV3Logs",
+  "kind": "rule",
+  "answers": [
+    "Which scope parameters must be passed to count and assessment hooks on the traces page?",
+    "Traces page counts disagree with the visible trace list",
+    "Adding a new scope filter to the Traces table: what else must change?"
+  ],
+  "body": "Invariant: every scope parameter (runUuid, loggedModelId, timeRange) that TracesV3LogsImpl uses to filter visible trace rows must also be passed to useCountInfo and useAssessmentCountMetrics. Otherwise badges and assessment summaries count traces the table does not show.\nEnforced by: TracesV3Logs.tsx:TracesV3LogsImpl passes the same values into both hooks, and TracesV3Logs.test.tsx checks that loggedModelId reaches useCountInfo and useAssessmentCountMetrics on the logged-model view.\nWhat breaks if skipped: the row list is correctly scoped to one logged model while the count and categorical summaries silently aggregate across the experiment, as in the six-correct-traces case showing True 50%.\nConstraints: When loggedModelId is undefined (the experiment-wide view) no mlflow.modelId filter should be added, so the hooks must treat undefined as no scope.",
+  "applies": "Adding or changing any filter that narrows the trace list in the experiment Traces page.",
+  "tags": [
+    "mlflow-ui",
+    "traces",
+    "invariant",
+    "logged-model"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+      "symbol": "TracesV3LogsImpl",
+      "hash": "sha256:7642b73457b40b8de73cdd84",
+      "line": 150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7642b73457b40b8de73cdd84",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:a2ccf04fe55796a440bc60ad",
+      "line": 23,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2ccf04fe55796a440bc60ad",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:b339f6ee7246b1c39af5c5ba",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b339f6ee7246b1c39af5c5ba",
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25928"
+  },
+  "created": "2026-10-11T08:44:34.465Z",
+  "verified": "2026-10-11T08:44:34.465Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-traces-page-assessment-summaries-and-count-badg"
+  ],
+  "says": [
+    "Trace summary badges and counts disagree with the visible traces in the table.",
+    "Filtering the traces view by model still shows experiment-wide assessment count metrics.",
+    "Evaluation percentage summaries include traces hidden by the current time range filter.",
+    "Make header count metrics reflect the filtered list of model run traces.",
+    "Total count cards show more items than the filtered rows displayed on screen."
+  ],
+  "search": "All scope parameters including runUuid, loggedModelId, and timeRange used to filter trace rows in TracesV3LogsImpl must be passed to useCountInfo and useAssessmentCountMetrics. Failing to forward scope parameters causes badges and assessment summaries to aggregate across the entire experiment rather than matching the scoped trace table. When loggedModelId is undefined on the experiment-wide view, hooks must treat it as having no scope and omit the mlflow.modelId filter.",
+  "saysFor": "s2:3f3e27295d780e7b31a8d95358c2310b6cd3a480aa177d8bb94260d05fa8b5bc"
+}

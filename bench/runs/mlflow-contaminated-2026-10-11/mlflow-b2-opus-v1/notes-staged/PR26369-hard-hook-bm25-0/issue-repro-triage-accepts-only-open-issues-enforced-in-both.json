@@ -1,0 +1,60 @@
+{
+  "id": "issue-repro-triage-accepts-only-open-issues-enforced-in-both",
+  "title": "Issue repro triage accepts only open issues, enforced in both workflow and Python loader",
+  "kind": "rule",
+  "answers": [
+    "why does issue repro triage reject a closed issue",
+    "issue repro workflow fails for pull request number",
+    "where is the open-issue check for the repro triage",
+    "can I remove the python open issue guard in issue_repro_triage"
+  ],
+  "body": "Invariant: the repro triage only proceeds for an open issue, never a closed issue or a pull request.\nEnforced in the workflow step \"Fetch bounded issue context\" (.github/workflows/issue-repro-triage.yml, run block): `jq -e` predicate `.state == \"open\" and (has(\"pull_request\") | not)`, and on failure emits `::error::issue_number must identify an open issue; got <state> <type> #N`.\nEnforced again in dev/issue_repro_triage.py:_load_issue, which raises \"target must be an open issue\" on `pull_request` in the payload or a non-open state.\nBoth must stay: the workflow strips `pull_request` from issue.json, but direct CLI runs can pass a raw GitHub issue payload that still has it. Removing the Python guard lets direct invocations on closed issues or PRs through.\nKeep the workflow predicate identical to the Python check; `gh api --fail-with-body` must stay so non-2xx responses fail before validation.",
+  "applies": "Any change to the issue reproduction triage workflow or dev/issue_repro_triage.py that touches issue eligibility or the issue.json payload shape.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "issue-triage",
+    "dev-tooling"
+  ],
+  "deps": [
+    {
+      "path": "dev/issue_repro_triage.py",
+      "symbol": "_load_issue",
+      "hash": "sha256:5cc966e4e9ab249c28ddd400",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5cc966e4e9ab249c28ddd400",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/issue-repro-triage.yml",
+      "hash": "sha256:be4e46082758f94e1538a91f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26257"
+  },
+  "created": "2026-10-11T10:26:18.659Z",
+  "verified": "2026-10-11T10:26:18.659Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Issue reproduction triage fails when given a closed issue number.",
+    "Reproduction triage tool errors out when trying to run on pull requests.",
+    "Allow the issue reproduction assistant to inspect resolved issues and pull requests.",
+    "Bug triage automation reports an error that the target must be open.",
+    "Running triage verification against closed bug reports results in validation failure."
+  ],
+  "search": "Issue reproduction triage restricts targets to open issues and rejects pull requests, enforced in both .github/workflows/issue-repro-triage.yml and dev/issue_repro_triage.py:_load_issue. The workflow verifies state and pull_request in a jq predicate during context fetching, while the Python loader enforces the same check for direct CLI invocations. Both checks must remain to prevent direct CLI runs on raw payloads from bypassing validation, with gh api --fail-with-body ensuring non-2xx responses fail early. Applies to changes in dev/issue_repro_triage.py and issue-repro-triage.yml affecting issue eligibility or the issue.json payload shape.",
+  "saysFor": "s2:6e3981b5124d52daf0ef1ae44edaa7b6960e38bfde08b47e395516607f5c8805"
+}

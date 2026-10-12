@@ -1,0 +1,45 @@
+{
+  "id": "helm-probe-defaults-for-existing-probes-must-keep-the-previo",
+  "title": "Helm probe defaults for existing probes must keep the previous effective timing",
+  "kind": "rule",
+  "answers": [
+    "helm upgrade changes probe timing for existing deployments",
+    "why is timeoutSeconds set to 1 in the chart values",
+    "default probe values for MLflow Helm chart"
+  ],
+  "body": "Convention: default values for probes that already existed must equal the timing the chart previously rendered (or the Kubernetes default where none was set), so `helm upgrade` on an existing release leaves probe behaviour unchanged.\nWhere: charts/values.yaml probes.liveness and probes.readiness. Values such as timeoutSeconds: 1 and failureThreshold: 3 match the Kubernetes defaults, and initialDelaySeconds 15/5 and periodSeconds 20/10 match the old hardcoded values that were in charts/templates/deployment.yaml.\nWhy: a reviewer noted that defaulting timeoutSeconds to 10 would raise failure-detection latency for every existing deployment, and the author reverted it to 1 for that reason.\nConstraints: applies to probes that already had behaviour. A newly added probe with no prior behaviour (startup, timeoutSeconds: 10) may use a new default. Guidance to raise timeouts for slow health endpoints belongs in charts/README.md \"Health probes\" as advice, not as a changed default.",
+  "applies": "Changing defaults in charts/values.yaml for any probe field.",
+  "tags": [
+    "helm",
+    "charts",
+    "probes",
+    "defaults",
+    "upgrade"
+  ],
+  "deps": [
+    {
+      "path": "charts/values.yaml",
+      "hash": "sha256:e74d01e3d2917fabad4d6045",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25560"
+  },
+  "created": "2026-10-11T08:50:59.382Z",
+  "verified": "2026-10-11T08:50:59.382Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Upgrading the deployment release altered container health check timings and failure detection speed.",
+    "Keep existing liveness and readiness probe response timings identical across chart version updates.",
+    "Why did upgrading our release increase the latency before detecting unhealthy application pods?",
+    "Preserve legacy health check interval defaults so upgrades do not disrupt existing clusters."
+  ],
+  "search": "Default probe timing in charts/values.yaml for pre-existing probes (probes.liveness and probes.readiness) must match previously rendered values or Kubernetes defaults so helm upgrade leaves behavior unchanged. Raising timeoutSeconds increases failure-detection latency on existing releases, so advice for slow health endpoints belongs in charts/README.md under 'Health probes' rather than as a changed default. Newly added probes without prior behavior like startup may use new defaults, and constraints apply to changing defaults in charts/values.yaml for any probe field.",
+  "saysFor": "s2:8502f1bef7598a163539e8aa7f8edd552820ea4160e49e1e41eabea4e8439e05"
+}

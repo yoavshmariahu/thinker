@@ -1,0 +1,49 @@
+{
+  "id": "every-workflow-file-must-declare-a-top-level-concurrency-key",
+  "title": "Every workflow file must declare a top-level concurrency key (enforced by conftest policy)",
+  "kind": "rule",
+  "answers": [
+    "conftest fails with 'Workflow must declare concurrency explicitly'",
+    "add a new workflow without a concurrency block",
+    "why does the policy check require concurrency in every workflow",
+    "workflow policy check fails on missing concurrency"
+  ],
+  "body": "Invariant: every top-level workflow file (one that has `jobs`) must declare a top-level `concurrency` key.\nEnforced by .github/policy.rego:deny_workflow_without_concurrency, which denies when `input.jobs` is present and `input.concurrency` is absent. The message names the standard group and the per-run opt-out.\nWhat breaks if skipped: the conftest policy check fails for that workflow file.\nConstraints: the check tests presence only. Any concurrency block passes, including a no-op per-run group, so it does not prove that grouping was chosen. Composite actions (files with `runs` and no `jobs`) are skipped by the `input.jobs` guard, so do not expect this rule to cover them.",
+  "applies": "Top-level workflow files in .github/workflows/*.yml checked by conftest against .github/policy.rego.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "policy",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25611"
+  },
+  "created": "2026-10-11T08:50:04.369Z",
+  "verified": "2026-10-11T08:50:04.369Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-list-github-s-default-pull-request-activity-types-in",
+    "workflows-default-github-actions-cache-mode-to-none-grant-re"
+  ],
+  "says": [
+    "Pull request policy check fails because the new workflow is missing concurrency settings.",
+    "Continuous integration pipeline fails policy verification when concurrency is not declared.",
+    "New pull request workflow checks fail with an error about undeclared concurrency.",
+    "Prevent overlapping pipeline runs by enforcing concurrency rules across all workflow files.",
+    "A newly added build pipeline fails the compliance check on workflow run settings."
+  ],
+  "search": "Every top-level workflow file containing jobs must declare a top-level concurrency key, enforced by .github/policy.rego:deny_workflow_without_concurrency. The conftest policy check fails when input.jobs is present but input.concurrency is absent. The rule tests only for key presence and passes any concurrency block, including a per-run opt-out group. Composite actions defining runs without jobs are excluded by the input.jobs guard.",
+  "saysFor": "s2:a3657c03aa5f9f37f884b45a2cd6d154ae2737a72bec4e8d42b64790bce37794"
+}

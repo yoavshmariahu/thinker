@@ -1,0 +1,82 @@
+{
+  "id": "loggedmodel-to-proto-must-write-every-field-that-from-proto",
+  "title": "LoggedModel.to_proto must write every field that from_proto reads (status_message was dropped)",
+  "kind": "rule",
+  "answers": [
+    "logged model status message lost after proto round trip",
+    "FAILED logged model reason missing when fetched via REST or proto",
+    "LoggedModel to_proto drops a field",
+    "status_message empty after LoggedModel.from_proto"
+  ],
+  "body": "Symptom: A logged model that FAILED with a reason shows no failure message once it has gone through its proto form (status_message comes back empty).\nRoot cause: mlflow/entities/logged_model.py:LoggedModel.to_proto never set status_message on pb2.LoggedModelInfo, while LoggedModel.from_proto reads it.\nFix pattern: Set the missing field in to_proto alongside the other info fields (status_message=self.status_message), so the serializer and the parser stay symmetric.\nConstraints: When adding or changing any LoggedModel field, update both to_proto and from_proto. A proto round-trip test (to_proto then from_proto, assert equality) catches a field that is read but never written; see tests/entities/test_logged_model.py:test_logged_model_proto_round_trip_keeps_status_message.",
+  "applies": "Applies to changes to LoggedModel fields or its proto (de)serialization in mlflow/entities/logged_model.py.",
+  "tags": [
+    "tracking",
+    "logged-model",
+    "protobuf",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/logged_model.py",
+      "symbol": "LoggedModel.to_proto",
+      "hash": "sha256:412d2d8221ad647595b9e431",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:412d2d8221ad647595b9e431",
+      "fanout": {
+        "files": 82,
+        "sites": 427,
+        "refs": 434
+      }
+    },
+    {
+      "path": "mlflow/entities/logged_model.py",
+      "symbol": "LoggedModel.from_proto",
+      "hash": "sha256:b7fde3e4551ab8ab97c6c09f",
+      "line": 213,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b7fde3e4551ab8ab97c6c09f",
+      "fanout": {
+        "files": 80,
+        "sites": 339,
+        "refs": 354
+      }
+    },
+    {
+      "path": "tests/entities/test_logged_model.py",
+      "symbol": "test_logged_model_proto_round_trip_keeps_status_message",
+      "hash": "sha256:1577717bc3e111db20f3cd80",
+      "line": 4,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1577717bc3e111db20f3cd80",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26244"
+  },
+  "created": "2026-10-11T10:23:45.049Z",
+  "verified": "2026-10-11T10:23:45.049Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "A failed logged model shows an empty failure reason when viewed.",
+    "The error message is missing on models that have a failed status.",
+    "Show the failure reason when inspecting a logged model that failed.",
+    "Details pane for a failed model does not display the explanation message."
+  ],
+  "search": "LoggedModel.to_proto in mlflow/entities/logged_model.py must write every field read by LoggedModel.from_proto, including status_message on pb2.LoggedModelInfo. Omitting status_message in to_proto causes models in a FAILED state to lose their failure message upon proto deserialization. Any changes to LoggedModel fields require updating both serialization and deserialization symmetrically. Symmetric round-trip behavior is verified in tests/entities/test_logged_model.py:test_logged_model_proto_round_trip_keeps_status_message by asserting equality across to_proto and from_proto conversions.",
+  "saysFor": "s2:c26f5154e4baf6884586286fbd6c91fc5ae8c994b5dbb9fed551bb2cc762fbcf"
+}

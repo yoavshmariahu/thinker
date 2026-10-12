@@ -1,0 +1,56 @@
+{
+  "id": "changelog-script-must-skip-not-found-graphql-errors-for-issu",
+  "title": "Changelog script must skip NOT_FOUND GraphQL errors for issue references, not abort",
+  "kind": "rule",
+  "answers": [
+    "changelog generation aborts with GraphQL errors when a commit references an issue number",
+    "update_changelog.py fails on a release range that mentions an issue",
+    "why does the release changelog script crash on a non-PR number in a commit message",
+    "how to make the batched PR fetch tolerate issue references"
+  ],
+  "body": "Symptom: Generating the release changelog aborts with a \"GraphQL errors\" exception when a commit in the release range references an issue number (e.g. \"(#24763)\") instead of a PR, so no CHANGELOG section is produced.\nRoot cause: dev/update_changelog.py:_fetch_pr_chunk_graphql raised on the mere presence of an \"errors\" key in the batched GraphQL response. GitHub returns a NOT_FOUND error for each non-PR node while still returning every other PR in the same response.\nFix pattern: Split data[\"errors\"] by error type. Raise only on errors whose type is not NOT_FOUND; for NOT_FOUND, print a warning and continue. The missing node is then handled by the existing per-PR else branch, so no downstream change is needed.\nConstraints: Applies only to the batched PR fetch in this script. Other error types must still raise; do not swallow all errors. Keep the warning so skipped references remain visible in the run output.",
+  "applies": "dev/update_changelog.py, the GraphQL PR-chunk fetch used to build release changelogs.",
+  "tags": [
+    "changelog",
+    "graphql",
+    "release",
+    "dev-tooling",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "dev/update_changelog.py",
+      "symbol": "_fetch_pr_chunk_graphql",
+      "hash": "sha256:d8b67cec660599a1587da4d9",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d8b67cec660599a1587da4d9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25584"
+  },
+  "created": "2026-10-11T08:50:23.903Z",
+  "verified": "2026-10-11T08:50:23.903Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Release notes generation crashes when commit messages reference issues instead of pull requests.",
+    "The automated release notes tool fails to generate changelogs on commits referencing issue numbers.",
+    "Allow the changelog generator to ignore missing pull request lookups for referenced issue tickets.",
+    "Creating release documentation aborts with errors when encountering issue links in recent changes.",
+    "Warn and continue generating release changelogs when commit titles reference non-existent pull requests."
+  ],
+  "search": "In dev/update_changelog.py:_fetch_pr_chunk_graphql, batched GraphQL PR queries must skip NOT_FOUND errors caused by issue references rather than aborting. Previously, the function raised an exception on any errors key in the response, crashing release changelog generation when commits referenced issue numbers instead of PRs. The fetch routine must inspect data['errors'], log a warning and continue on NOT_FOUND, while raising on all other error types. Missing PR nodes are handled by the existing fallback branch without swallowing non-NOT_FOUND errors.",
+  "saysFor": "s2:4ee4e63e4d6361227ebff1dafbf7f718ea1d58b4760138fc2e8e8e7695c8e37d"
+}

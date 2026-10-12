@@ -1,0 +1,52 @@
+{
+  "id": "topologyspreadconstraints-labelselector-must-match-the-chart",
+  "title": "topologySpreadConstraints labelSelector must match the chart's rendered pod labels",
+  "kind": "rule",
+  "answers": [
+    "topology spread constraint not spreading pods across zones",
+    "all mlflow replicas land in the same availability zone",
+    "pods not distributed across AZs despite topologySpreadConstraints",
+    "which labels to use in topologySpreadConstraints labelSelector"
+  ],
+  "body": "Symptom: replicas of the MLflow deployment still land in one availability zone even though topologySpreadConstraints is set.\nRoot cause: the labelSelector in the values does not match the labels on the rendered pods, so the scheduler counts no matching pods for the spread. The chart's pods carry app.kubernetes.io/name and app.kubernetes.io/instance, which the reviewer's evidence shows.\nFix pattern: set the labelSelector.matchLabels in charts/values.yaml to those chart selector labels (app.kubernetes.io/name: mlflow and app.kubernetes.io/instance set to the release name). The commented example in values.yaml shows this form.\nConstraints: the selector must match labels the template actually renders on pods, including podLabels. The example uses a release name placeholder, so replace it per install.",
+  "applies": "Users or chart changes that configure topologySpreadConstraints for the MLflow Helm chart.",
+  "tags": [
+    "helm",
+    "kubernetes",
+    "scheduling",
+    "topology-spread"
+  ],
+  "deps": [
+    {
+      "path": "charts/values.yaml",
+      "hash": "sha256:e74d01e3d2917fabad4d6045",
+      "missing": false
+    },
+    {
+      "path": "charts/templates/deployment.yaml",
+      "hash": "sha256:fa682d80dea8282ec07959a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25778"
+  },
+  "created": "2026-10-11T08:47:40.997Z",
+  "verified": "2026-10-11T08:47:40.997Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "helm-values-list-typed-pod-spec-fields-default-to-not"
+  ],
+  "says": [
+    "Replicas in our deployment cluster are all scheduled into the same availability zone.",
+    "Server pods fail to spread evenly across availability zones despite zone spread configuration.",
+    "Why are all tracking server deployment instances running in a single cloud zone?",
+    "Distribute application server replicas evenly across zones by configuring the correct deployment labels."
+  ],
+  "search": "In the MLflow Helm chart, topologySpreadConstraints labelSelector must match the rendered pod labels to prevent replicas from landing in a single availability zone. The labelSelector.matchLabels in charts/values.yaml must be set to charts/templates/deployment.yaml selector labels (app.kubernetes.io/name: mlflow and app.kubernetes.io/instance set to the release name). Applies to users or chart changes configuring topologySpreadConstraints, requiring selectors to match actually rendered labels including podLabels.",
+  "saysFor": "s2:d7ccd3ee949045db0e2753f39e8e488f60460700d4bb4f616b611fbe62056502"
+}

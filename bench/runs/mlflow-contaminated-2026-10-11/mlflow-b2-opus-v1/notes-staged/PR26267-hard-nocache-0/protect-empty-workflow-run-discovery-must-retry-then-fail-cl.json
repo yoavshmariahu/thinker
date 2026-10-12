@@ -1,0 +1,56 @@
+{
+  "id": "protect-empty-workflow-run-discovery-must-retry-then-fail-cl",
+  "title": "Protect: empty workflow-run discovery must retry, then fail closed",
+  "kind": "rule",
+  "answers": [
+    "Protect passed before the MLflow tests finished",
+    "PR merged on DCO alone while workflow tests were still pending",
+    "why does Protect fail with 'No workflow runs found... Rerun this job'"
+  ],
+  "body": "Symptom: Protect reports success and lets a PR proceed on the DCO check alone while the workflow tests are still running, because workflow discovery returned no runs.\nRoot cause: .github/workflows/protect.js:module.exports treated one empty filtered result from github.rest.actions.listWorkflowRunsForRepo (head_sha = ref) as 'no Actions checks expected'.\nFix pattern: Re-run the same paginated listing and the same filters (protect.yml self-exclusion, event !== 'dynamic', IGNORED_WORKFLOWS) up to 3 times, sleeping 5000 ms between attempts and calling core.warning per empty attempt. If still empty, throw an Error asking for a job rerun. Leave latest-rerun dedup and failure detection unchanged.\nConstraints: An empty response does not prove that no checks are expected, so the code fails closed. A PR whose SHA genuinely has no expected workflow runs will also fail after the retries (about 10 s). The diff throws here, which differs from protect-js-expected-protect-failures-are-reported-with-core (core.setFailed); that conflict is flagged, not resolved.",
+  "applies": "Applies to the workflow-run discovery step in .github/workflows/protect.js; does not cover the check-run or status polling loop.",
+  "tags": [
+    "protect",
+    "github-actions",
+    "merge-gate",
+    "workflow-runs"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "IGNORED_WORKFLOWS",
+      "hash": "sha256:a31f258cb06605ac4abbe8f6",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a31f258cb06605ac4abbe8f6",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26118"
+  },
+  "created": "2026-10-11T10:27:45.241Z",
+  "verified": "2026-10-11T10:27:45.241Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-expected-protect-failures-are-reported-with-core",
+    "renaming-the-rerun-workflows-requires-updating-three-differe"
+  ],
+  "says": [
+    "Pull request protection passed and allowed merging while test workflows were still pending.",
+    "Merge gate reports success prematurely when automated test suites have not finished running.",
+    "Pull request check failed asking to rerun because no workflow runs were detected.",
+    "Prevent pull requests from merging when required validation checks fail to appear immediately."
+  ],
+  "search": "Workflow-run discovery in .github/workflows/protect.js must retry empty listing results up to three times with a 5000 ms sleep before failing closed. Applies to listWorkflowRunsForRepo filtering using protect.yml self-exclusion, event !== 'dynamic', and IGNORED_WORKFLOWS, throwing an Error if still empty after retries. Does not cover check-run polling, leaves dedup unchanged, and notes a conflict where it throws instead of calling core.setFailed.",
+  "saysFor": "s2:6b1c6a8372309e106fdde854fd520c7107d9feddd21a9017eefbac6cffcc0f7b"
+}

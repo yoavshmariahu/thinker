@@ -1,0 +1,130 @@
+{
+  "id": "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+  "title": "Vertex Claude request fields must live on the adapter, not the provider hook",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI Claude judge fails with anthropic_version Field required",
+    "mlflow.genai judge vertex_ai claude-* SCORER_ERROR with empty value",
+    "Claude on Vertex AI gateway request rejected missing anthropic_version",
+    "Why does _prepare_payload not run for Vertex Claude judges"
+  ],
+  "body": "Symptom: mlflow.genai judges using vertex_ai:/claude-* fail with \"anthropic_version: Field required\"; the scorer shows SCORER_ERROR with value=None while evaluate() still completes.\nRoot cause: mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider._prepare_payload was the only place adding anthropic_version and dropping model. It runs only from AnthropicProvider._chat/_chat_stream, but the judge path (mlflow/genai/judges/adapters/gateway_adapter.py) formats via adapter_class.chat_to_model and posts directly, skipping it.\nFix pattern: put the Vertex transformation in a classmethod on the adapter (_VertexAIClaudeAdapter(AnthropicAdapter)), override chat_to_model to call it after super(), and return that adapter from the adapter_class property on _VertexAIClaudeProvider. Keep _prepare_payload delegating to the same classmethod so the _chat path is unchanged.\nConstraints: Applies to any Vertex Claude request built through adapter_class. Bedrock does the same thing in chat_to_model (AmazonBedrockAnthropicAdapter), so Vertex should match that layer.",
+  "applies": "Any change to Claude-on-Vertex request formatting, or any new code path that builds a request from adapter_class instead of the provider.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "anthropic",
+    "judges",
+    "adapter"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeAdapter",
+      "hash": "sha256:8918d71922bcb70552b6dabc",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8918d71922bcb70552b6dabc",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "AnthropicAdapter",
+      "hash": "sha256:dfcba57182a7a5a4c8aae015",
+      "line": 172,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfcba57182a7a5a4c8aae015",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 22
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/adapters/gateway_adapter.py",
+      "symbol": "GatewayAdapter",
+      "hash": "sha256:0ea8c3c6e09cf35b973ce11f",
+      "line": 329,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0ea8c3c6e09cf35b973ce11f",
+      "fanout": {
+        "files": 12,
+        "sites": 25,
+        "refs": 80
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._prepare_payload",
+      "hash": "sha256:7659e5eb0cf5422302418023",
+      "line": 213,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7659e5eb0cf5422302418023",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "AnthropicProvider._chat",
+      "hash": "sha256:6ae0bde4a77be7a4ecea0aaa",
+      "line": 736,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6ae0bde4a77be7a4ecea0aaa",
+      "fanout": {
+        "files": 4,
+        "sites": 2,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25556"
+  },
+  "created": "2026-10-11T08:43:38.752Z",
+  "verified": "2026-10-11T08:43:38.752Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-raw-proxy-is-dispatched-through-vertexaiprovider-to-i",
+    "vertex-delegates-must-always-drop-client-auth-headers-before",
+    "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex",
+    "enable-tracing-must-be-passed-into-vertex-ai-delegates-or-pa"
+  ],
+  "says": [
+    "Model evaluations using Claude on Vertex AI as a judge fail with scorer errors.",
+    "The evaluation report shows empty scorer results even though the evaluation run completes.",
+    "Automated LLM judges fail because Vertex Claude requests miss required API version parameters.",
+    "Support using Claude endpoints on Vertex AI for automated model evaluation scoring."
+  ],
+  "search": "Claude-on-Vertex request formatting transformations must reside on _VertexAIClaudeAdapter rather than exclusively in _VertexAIClaudeProvider._prepare_payload. When mlflow.genai judges use vertex_ai:/claude-*, requests format via adapter_class.chat_to_model and bypass _prepare_payload, failing with anthropic_version Field required. The fix defines a classmethod on _VertexAIClaudeAdapter, overrides chat_to_model to invoke it, and has _prepare_payload delegate to the same adapter classmethod. Applies to any Claude request formatted through adapter_class, matching the architectural pattern used by AmazonBedrockAnthropicAdapter.",
+  "saysFor": "s2:fb0f351e40fdfa093033324d6365ae422bc051f127a465b93d6d3e216726696b"
+}

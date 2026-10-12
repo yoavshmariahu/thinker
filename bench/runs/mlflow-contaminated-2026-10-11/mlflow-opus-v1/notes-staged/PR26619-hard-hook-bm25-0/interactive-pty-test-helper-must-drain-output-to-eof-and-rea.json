@@ -1,0 +1,55 @@
+{
+  "id": "interactive-pty-test-helper-must-drain-output-to-eof-and-rea",
+  "title": "Interactive PTY test helper must drain output to EOF and reap the child before returning",
+  "kind": "rule",
+  "answers": [
+    "setup script test output is truncated or missing the final line",
+    "run_interactive returns before the last PTY output arrives",
+    "flaky setup.sh e2e test transcript missing 'Setup complete'",
+    "PTY child exit races with buffered terminal output in tests"
+  ],
+  "body": "Symptom: Interactive setup-script tests report a transcript cut short, e.g. the final 'Setup complete' line is missing, intermittently in CI.\nRoot cause: tests/agent/setup_sh_test_utils.py:run_interactive returned as soon as os.waitpid saw the child exit, while the PTY still held buffered final output that had not been read.\nFix pattern: Track child reaping and terminal EOF as separate flags. Read until EOF (empty read, or EIO on Linux PTYs) and return only when `reaped and eof` is true. Stop selecting the PTY fd once EOF is seen, since a closed descriptor cannot be waited on.\nConstraints: Other OSError codes from os.read must still be raised. Keep the overall deadline so a hung child still fails the test. Do not return on child exit alone.",
+  "applies": "Test helpers in tests/agent that drive interactive subprocesses through a pty; not for plain pipe-based subprocess calls.",
+  "tags": [
+    "testing",
+    "pty",
+    "flaky-test",
+    "setup-sh"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/setup_sh_test_utils.py",
+      "symbol": "run_interactive",
+      "hash": "sha256:6a7cf468d3e0de3fa916828b",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a7cf468d3e0de3fa916828b",
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25995"
+  },
+  "created": "2026-10-11T08:41:28.229Z",
+  "verified": "2026-10-11T08:41:28.229Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated setup script tests intermittently fail because the final completion message is missing.",
+    "Terminal installation test transcripts cut off before showing that setup finished successfully.",
+    "End to end installer tests are flaky and drop the last lines of console output.",
+    "Ensure interactive setup test logs capture all trailing output before the test finishes.",
+    "Command line setup checks report truncated output even though the process completed cleanly."
+  ],
+  "search": "The interactive PTY test helper run_interactive in tests/agent/setup_sh_test_utils.py must drain buffered terminal output to EOF and reap the child process before returning. Returning immediately upon os.waitpid child exit causes race conditions that drop final output lines like 'Setup complete' in CI transcripts. The helper must track child reaping and terminal EOF separately, reading until empty read or Linux EIO, stopping select on closed PTY descriptors, and maintaining an overall deadline. This rule applies to PTY-driven subprocess test helpers in tests/agent rather than pipe-based subprocesses, and other OSError codes from os.read must still be raised.",
+  "saysFor": "s2:22103b8eb61437634232c49f2777b191657a0faebe1604b6dcee2209b1c8899f"
+}

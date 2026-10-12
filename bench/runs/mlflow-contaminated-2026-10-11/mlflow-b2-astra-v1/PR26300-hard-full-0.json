@@ -1,0 +1,59 @@
+{
+  "session_id": "01a12c69-dd79-7bf3-9271-70a8c380ad6b",
+  "turns": 1,
+  "in_tokens": 251180,
+  "cached_tokens": 225408,
+  "out_tokens": 1208,
+  "wall_ms": 46375,
+  "result": "I’ll check the shared Gemini/Vertex request conversion, add tool-choice handling, and cover it with focused tests.\nBoth providers use the same Gemini adapter for regular and streaming requests, so one conversion change will cover all four paths. I’m applying the repository’s Python style skill and preserving the existing staged test changes.\nUpdated the shared Gemini adapter so Gemini and Vertex AI honor tool choice for regular and streaming requests:\n\n- `required` forces a tool call.\n- `none` disables tool calls.\n- A named function restricts calls to that function.\n- Omitted/automatic choices preserve defaults.\n- Requests without tools send no tool configuration.\n\nPreserved the existing staged regression tests. Focused tests could not run: Python 3.9 is incompatible, and Python 3.13 lacks pytest. No dependencies were installed; `git diff --check` passed.",
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "command_execution": 9,
+      "mcp_tool_call": 1,
+      "file_change": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "gemini-candidates-can-mix-text-and-functioncall-parts-in-any"
+    ],
+    "cache": {
+      "injected": [
+        "gemini-candidates-can-mix-text-and-functioncall-parts-in-any"
+      ],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 5,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26300-hard",
+  "rep": 0,
+  "area": "mlflow/gateway",
+  "id": "PR26300-hard-full-0",
+  "session": "01a12c69-dd79-7bf3-9271-70a8c380ad6b",
+  "cost": 0.543528,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py\nindex 566e14143..92b2481ee 100644\n--- a/mlflow/gateway/providers/gemini.py\n+++ b/mlflow/gateway/providers/gemini.py\n@@ -262,6 +262,19 @@ class GeminiAdapter(ProviderAdapter):\n \n             gemini_payload[\"tools\"] = [{\"functionDeclarations\": function_declarations}]\n \n+            match payload.get(\"tool_choice\"):\n+                case \"required\":\n+                    function_calling_config = {\"mode\": \"ANY\"}\n+                case \"none\":\n+                    function_calling_config = {\"mode\": \"NONE\"}\n+                case {\"type\": \"function\", \"function\": {\"name\": name}}:\n+                    function_calling_config = {\"mode\": \"ANY\", \"allowedFunctionNames\": [name]}\n+                case _:\n+                    function_calling_config = None\n+\n+            if function_calling_config is not None:\n+                gemini_payload[\"toolConfig\"] = {\"functionCallingConfig\": function_calling_config}\n+\n         return gemini_payload\n \n     @classmethod\ndiff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py\nindex d61c9ba8c..b5a3e4f45 100644\n--- a/tests/gateway/providers/test_gemini.py\n+++ b/tests/gateway/providers/test_gemini.py\n@@ -485,6 +485,74 @@ def chat_function_calling_payload(stream: bool = False):\n     return payload\n \n \n+@pytest.mark.parametrize(\"stream\", [False, True])\n+@pytest.mark.parametrize(\n+    (\"tool_choice\", \"expected_config\"),\n+    [\n+        (None, None),\n+        (\"auto\", None),\n+        (\"none\", {\"mode\": \"NONE\"}),\n+        (\"required\", {\"mode\": \"ANY\"}),\n+        (\n+            {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+            {\"mode\": \"ANY\", \"allowedFunctionNames\": [\"get_weather\"]},\n+        ),\n+    ],\n+)\n+@pytest.mark.asyncio\n+async def test_gemini_chat_tool_choice(tool_choice, expected_config, stream):\n+    provider = GeminiProvider(EndpointConfig(**chat_config()))\n+    payload = chat_function_calling_payload(stream=stream)\n+    payload[\"tool_choice\"] = tool_choice\n+    payload[\"tools\"].append({\n+        \"type\": \"function\",\n+        \"function\": {\n+            \"name\": \"get_forecast\",\n+            \"description\": \"Get a weather forecast.\",\n+            \"parameters\": {\"type\": \"object\", \"properties\": {}},\n+        },\n+    })\n+    response = (\n+        MockAsyncStreamingResponse(chat_stream_response())\n+        if stream\n+        else MockAsyncResponse(fake_chat_response())\n+    )\n+    mock_client = mock_http_client(response)\n+    with mock.patch(\"aiohttp.ClientSession\", return_value=mock_client):\n+        request = chat.RequestPayload(**payload)\n+        if stream:\n+            chunks = [chunk async for chunk in provider.chat_stream(request)]\n+            assert chunks\n+        else:\n+            await provider.chat(request)\n+\n+    mock_client.post.assert_called_once()\n+    sent_payload = mock_client.post.call_args.kwargs[\"json\"]\n+    assert len(sent_payload[\"tools\"][0][\"functionDeclarations\"]) == 2\n+    assert \"tool_choice\" not in sent_payload\n+    if expected_config is None:\n+        assert \"toolConfig\" not in sent_payload\n+    else:\n+        assert sent_payload[\"toolConfig\"] == {\"functionCallingConfig\": expected_config}\n+\n+\n+@pytest.mark.parametrize(\"tools\", [None, []])\n+@pytest.mark.parametrize(\n+    \"tool_choice\",\n+    [\"auto\", \"none\", \"required\", {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}],\n+)\n+def test_gemini_tool_choice_without_tools(tools, tool_choice):\n+    payload = {\n+        \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}],\n+        \"tools\": tools,\n+        \"tool_choice\": tool_choice,\n+    }\n+    config = EndpointConfig(**chat_config())\n+    result = GeminiAdapter.chat_to_model(payload, config)\n+    assert \"tools\" not in result\n+    assert \"toolConfig\" not in result\n+\n+\n @pytest.mark.asyncio\n async def test_gemini_chat_function_calling():\n     config = chat_config()\ndiff --git a/tests/gateway/providers/test_vertex_ai.py b/tests/gateway/providers/test_vertex_ai.py\nindex bc63f4626..59ab71176 100644\n--- a/tests/gateway/providers/test_vertex_ai.py\n+++ b/tests/gateway/providers/test_vertex_ai.py\n@@ -290,6 +290,36 @@ async def test_chat_tool_calling_preserves_thought_signature():\n     assert part[\"thoughtSignature\"] == \"opaque_thought_sig_token\"\n \n \n+@pytest.mark.parametrize(\"stream\", [False, True])\n+@pytest.mark.asyncio\n+async def test_chat_tool_choice(stream):\n+    provider = _make_provider()\n+    payload = _tool_calling_second_turn_payload()\n+    payload[\"messages\"] = payload[\"messages\"][:1]\n+    payload[\"stream\"] = stream\n+    payload[\"tool_choice\"] = {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}}\n+    response = _chat_response()\n+    mock_response = (\n+        MockAsyncStreamingResponse([f\"data: {json.dumps(response)}\\n\\n\".encode()])\n+        if stream\n+        else MockAsyncResponse(response)\n+    )\n+    mock_client = mock_http_client(mock_response)\n+    with mock.patch(\"aiohttp.ClientSession\", return_value=mock_client):\n+        request = chat.RequestPayload(**payload)\n+        if stream:\n+            chunks = [chunk async for chunk in provider.chat_stream(request)]\n+            assert chunks\n+        else:\n+            await provider.chat(request)\n+\n+    mock_client.post.assert_called_once()\n+    sent_payload = mock_client.post.call_args.kwargs[\"json\"]\n+    assert sent_payload[\"toolConfig\"] == {\n+        \"functionCallingConfig\": {\"mode\": \"ANY\", \"allowedFunctionNames\": [\"get_weather\"]}\n+    }\n+\n+\n @pytest.mark.asyncio\n async def test_chat_stream_tool_calling_omits_function_call_id():\n     provider = _make_provider()\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "way/providers/test_gemini.py::test_get_headers_uses_server_key_by_default\n0.01s setup    tests/gateway/providers/test_vertex_ai.py::test_anthropic_model_multi_region_location[us]\n\n(7 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                     | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ---------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/gateway/providers/test_gemini.py` | 1.35s    | 81    | 0.002s | 1.101s | 0.017s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m159 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 7.04s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 25772,
+  "costBasis": "list price from token classes"
+}

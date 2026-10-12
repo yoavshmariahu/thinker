@@ -1,0 +1,56 @@
+{
+  "id": "do-not-add-deprecated-aliases-to-trace-for-old-identifier-na",
+  "title": "Do not add deprecated aliases to Trace for old identifier names",
+  "kind": "rule",
+  "answers": [
+    "should I add request_id alias to Trace",
+    "backwards compatibility alias for old trace identifier",
+    "deprecated property on Trace entity",
+    "how to keep old trace field name working"
+  ],
+  "body": "Reviewer convention: when adding a property to the Trace entity in mlflow/entities/trace.py, do not add a deprecated alias for an older name (such as `request_id`, which older MLflow versions used before `trace_id`). The PR author first added a `request_id` property for defensive compatibility, then dropped it after review.\nWhy it matters: the Trace class exposes only `trace_id` as the primary identifier; extra aliases widen the public surface on a deprecated name.\nConstraints: This is a reviewer-stated preference from a single review thread, not a documented policy. It does not cover aliases that existing public APIs still require.",
+  "applies": "Public properties added to mlflow/entities/trace.py Trace; does not apply to TraceInfo's own existing fields.",
+  "tags": [
+    "tracing",
+    "entities",
+    "convention",
+    "review"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "Trace",
+      "hash": "sha256:1d1a4bca7b61de1e659cdd9f",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d1a4bca7b61de1e659cdd9f",
+      "fanout": {
+        "files": 233,
+        "sites": 151,
+        "refs": 1101
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26007"
+  },
+  "created": "2026-10-11T10:25:12.465Z",
+  "verified": "2026-10-11T10:25:12.465Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-trace-id-lives-on-trace-info-repr-and-accessors-must-r"
+  ],
+  "says": [
+    "Restore backward compatibility for legacy request identifiers on recent execution trace records.",
+    "Allow downstream automation to retrieve traces using former request identifiers alongside current IDs.",
+    "Pipelines expecting the old request identifier crash when inspecting recently generated trace items.",
+    "Support the previous request naming scheme on traces to prevent breaking external integrations."
+  ],
+  "search": "When adding public properties to the Trace entity in mlflow/entities/trace.py, do not add deprecated aliases such as request_id for older identifier names like trace_id. Based on a single review thread rather than documented policy, this avoids widening the public surface on deprecated names, and does not apply to TraceInfo's own existing fields or aliases still required by existing public APIs.",
+  "saysFor": "s2:1dff82fd68661128b24de5a9ddd4688f1bc8a8ef3ee8f6c7af38f8347c7e2a08"
+}

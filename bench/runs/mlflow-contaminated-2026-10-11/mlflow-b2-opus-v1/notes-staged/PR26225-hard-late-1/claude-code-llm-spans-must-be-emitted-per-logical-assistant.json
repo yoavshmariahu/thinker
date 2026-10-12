@@ -1,0 +1,71 @@
+{
+  "id": "claude-code-llm-spans-must-be-emitted-per-logical-assistant",
+  "title": "Claude Code LLM spans must be emitted per logical assistant message, not per JSONL entry",
+  "kind": "rule",
+  "answers": [
+    "Claude Code trace is missing token usage or cost for tool-call-only messages",
+    "Claude Code tracing shows no LLM span for thinking-only assistant turns",
+    "Split Claude Code assistant message undercounts tokens and cost in MLflow trace"
+  ],
+  "body": "Symptom: In MLflow traces of Claude Code sessions, assistant turns that only call tools or only contain thinking show no token usage or cost, and a message split across several transcript lines is undercounted.\nRoot cause: libs/typescript/integrations/claude-code/src/tracing.ts:createLlmAndToolSpans created the LLM span only when the entry had non-empty text and no tool_use, so tool-only and thinking-only entries produced no usage or cost.\nFix pattern: Build one logical message per message.id with getLogicalAssistantMessage (concatenate content, field-merge usage, keep the first known model), create one LLM span per message key via emittedLlmMessageKeys, and still emit one tool span per tool_use block from the original entry.\nConstraints: Coalesce only by message.id; entries without an id stay independent (keyed by transcript index). Do not sum usage fields, because Claude Code repeats the full per-message usage on split entries and summing double counts. Skip progress rows while coalescing but break on any other non-assistant entry such as user, so separate turns that reuse an id are not merged.",
+  "applies": "Claude Code transcript parsing in libs/typescript/integrations/claude-code; the Python tracer in mlflow/claude_code is not changed by this change.",
+  "tags": [
+    "claude-code",
+    "tracing",
+    "typescript",
+    "llm-span",
+    "token-usage"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "getLogicalAssistantMessage",
+      "hash": "sha256:04857a06613c49acdd35adc7",
+      "line": 186,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:04857a06613c49acdd35adc7",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "createLlmAndToolSpans",
+      "hash": "sha256:ec612201e7b0abdc001eecc8",
+      "line": 372,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f6d37862c597201ad2d8f22",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25931"
+  },
+  "created": "2026-10-11T10:25:41.591Z",
+  "verified": "2026-10-11T10:25:41.591Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "claude-code-llm-and-conversation-span-end-times-must-derive"
+  ],
+  "says": [
+    "Traces omit token usage and cost metrics when an assistant turn only calls tools.",
+    "Thinking steps without text output fail to show model spans or expenses in traces.",
+    "Split assistant responses undercount total token consumption and calculated cost in session traces.",
+    "Tool-only assistant turns should display model execution spans with recorded token counts.",
+    "Ensure multi-part assistant messages report complete token usage without double counting."
+  ],
+  "search": "In libs/typescript/integrations/claude-code/src/tracing.ts, LLM spans must be emitted per logical assistant message via getLogicalAssistantMessage and emittedLlmMessageKeys rather than per JSONL entry. This ensures tool-only and thinking-only entries generate LLM spans with accurate token usage and costs, while preserving tool spans per tool_use block. Coalescing merges usage fields by message.id without summing, skips progress rows, breaks on non-assistant entries like user, and leaves mlflow/claude_code unchanged.",
+  "saysFor": "s2:d9d884aba5e2fd51da68ff3053289c75d389cb7d00f3b0f6248f2d25f899c9e3"
+}

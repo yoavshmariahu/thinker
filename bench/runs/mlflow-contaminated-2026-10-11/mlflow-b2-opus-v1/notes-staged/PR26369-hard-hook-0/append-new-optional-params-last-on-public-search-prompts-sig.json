@@ -1,0 +1,83 @@
+{
+  "id": "append-new-optional-params-last-on-public-search-prompts-sig",
+  "title": "Append new optional params last on public search_prompts signatures",
+  "kind": "rule",
+  "answers": [
+    "add a parameter to mlflow.genai.search_prompts without breaking callers",
+    "new keyword argument on search_prompts positional call broke",
+    "where should a new optional arg go in MlflowClient.search_prompts signature"
+  ],
+  "body": "Symptom: after a new optional argument is added to a public prompt search function, existing positional calls behave differently or fail.\nRoot cause: positional binding in mlflow/tracking/client.py:MlflowClient.search_prompts, mlflow/tracking/_model_registry/fluent.py:search_prompts and mlflow/genai/prompts/__init__.py:search_prompts depends on parameter order.\nFix pattern: add the new optional parameter (order_by) as the last parameter of each signature, with a default of None, and document it in the docstring.\nConstraints: reviewer-requested for this PR (\"add this as the last parameter so we don't block positional calls\"). Does not apply to internal helpers where all callers use keywords.",
+  "applies": "Public search/list APIs in the prompt registry client and fluent layers.",
+  "tags": [
+    "prompt-registry",
+    "api-compatibility",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.search_prompts",
+      "hash": "sha256:789cb06a8951f5e99af60e52",
+      "line": 917,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:789cb06a8951f5e99af60e52",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:c075f2379053a7deb5d91623",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c075f2379053a7deb5d91623",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/genai/prompts/__init__.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:7a8dfd4d603f7cf482db27b7",
+      "line": 146,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7a8dfd4d603f7cf482db27b7",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25967"
+  },
+  "created": "2026-10-11T10:25:26.079Z",
+  "verified": "2026-10-11T10:25:26.079Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pagination-wrapper-must-forward-every-search-argument-on-eac",
+    "search-params-must-be-threaded-through-all-prompt-search-lay"
+  ],
+  "says": [
+    "Add sorting and ordering options to the prompt registry search feature.",
+    "Searching for prompts with positional arguments fails after upgrading the client library.",
+    "Existing scripts querying prompt templates break or return unexpected results without keyword arguments.",
+    "Support ordering prompt results without breaking existing automated search scripts."
+  ],
+  "search": "New optional parameters such as order_by must be added as the last parameter with a default of None across mlflow/tracking/client.py:MlflowClient.search_prompts, mlflow/tracking/_model_registry/fluent.py:search_prompts, and mlflow/genai/prompts/__init__.py:search_prompts. This preserves parameter order for callers using positional arguments and must be documented in docstrings. This rule applies to public prompt search and list APIs but does not apply to internal helpers where all callers use keywords.",
+  "saysFor": "s2:1fae1a7b54ddd9f0ddcb553a2d26f2240d9068e9fbaffa0dc5563ee014309e33"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "built-in-span-type-docs-table-must-list-every-spantype-const",
+  "title": "Built-in span type docs table must list every SpanType constant",
+  "kind": "rule",
+  "answers": [
+    "a new span type was added in code but is not shown in the tracing docs",
+    "which span types are documented for MLflow tracing",
+    "how do I add a new SpanType to the docs",
+    "span types missing from the span concepts page"
+  ],
+  "body": "Invariant: the built-in span type table in docs/docs/genai/concepts/span.mdx must list every constant defined on SpanType in mlflow/entities/span.py. The docs had drifted: WORKFLOW, TASK, GUARDRAIL and EVALUATOR existed in code but were absent from the table (PR #25736, issue #25666). Fix pattern: when adding or changing a SpanType constant, add or update the matching row in the same table, with its value in quotes and a one-line description. Enforcement: nothing in the diff or review shows a test or lint check for this parity, so it is manual. Skipping it leaves users unaware of valid span types.",
+  "applies": "Applies to any change that adds, renames or removes a SpanType constant in mlflow/entities/span.py; does not cover other span-related docs pages.",
+  "tags": [
+    "tracing",
+    "docs",
+    "span-types",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "SpanType",
+      "hash": "sha256:6412190e31eaf49c60b46955",
+      "line": 72,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6412190e31eaf49c60b46955",
+      "fanout": {
+        "files": 115,
+        "sites": 0,
+        "refs": 908
+      }
+    },
+    {
+      "path": "docs/docs/genai/concepts/span.mdx",
+      "hash": "sha256:aa9adec76e0ddb166296fe99",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25736"
+  },
+  "created": "2026-10-11T08:47:52.781Z",
+  "verified": "2026-10-11T08:47:52.781Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The span concepts documentation table does not list all supported tracing span types.",
+    "New execution span categories are missing from the built-in tracing reference guide.",
+    "Update the tracing documentation table with descriptions for newly supported span categories.",
+    "Several valid span types described in release updates are missing on the website.",
+    "Add documentation rows explaining each built-in span type in the generative AI guide."
+  ],
+  "search": "Built-in span documentation in docs/docs/genai/concepts/span.mdx must list every SpanType constant defined in mlflow/entities/span.py. When adding, renaming, or removing a SpanType constant, update the built-in span table with its quoted value and a one-line description. Because no automated test or lint check enforces this parity, documentation synchronization must be maintained manually.",
+  "saysFor": "s2:6c00d9f4b7407eabf14929ab6c99a23e2de77ff6b2f1ddde0603edecb56eb4e4"
+}

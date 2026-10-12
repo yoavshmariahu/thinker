@@ -1,0 +1,50 @@
+{
+  "session_id": "01a12a78-3aeb-7fe0-aa66-b319505d1a67",
+  "turns": 1,
+  "in_tokens": 192335,
+  "cached_tokens": 164480,
+  "out_tokens": 2479,
+  "wall_ms": 69663,
+  "result": "I’ll check the Anthropic request conversion and relevant tests, then update the shared adapter so Claude on Vertex gets the same fix. I’m using the repository’s Python style skill.\nClaude on Vertex inherits the shared Anthropic adapter, so one change covers both providers and streaming requests. The adapter now removes `parallel_tool_calls` for every value and adds `disable_parallel_tool_use: true` only when the value is `false` and the tool choice supports it. I’m adding regression coverage for those combinations.\nThe test files could not load because the supplied environment lacks `slowapi`; pytest also hit a sandbox restriction while checking child processes. I’ll leave dependencies unchanged and run a direct check of both adapters across the relevant tool-choice and parallel-call combinations.\nUpdated the shared Anthropic adapter, covering Claude on Vertex and streaming requests:\n\n- Always removes `parallel_tool_calls`.\n- When `false`, adds `disable_parallel_tool_use: true` to named, automatic, or required tool choices.\n- Leaves disabled or omitted tool choices unchanged.\n\nAdded regression coverage. All 80 direct adapter checks passed. The relevant pytest files were blocked by missing `slowapi`; no dependencies were installed.",
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "command_execution": 7,
+      "file_change": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta",
+      "vertex-claude-request-fields-must-live-on-the-adapter-not-th"
+    ],
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "hook-bm25",
+  "task": "PR26523-hard",
+  "rep": 0,
+  "area": "mlflow/gateway",
+  "id": "PR26523-hard-hook-bm25-0",
+  "session": "01a12a78-3aeb-7fe0-aa66-b319505d1a67",
+  "cost": 0.56698,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py\nindex e2918bfb1..54d483dc0 100644\n--- a/mlflow/gateway/providers/anthropic.py\n+++ b/mlflow/gateway/providers/anthropic.py\n@@ -288,6 +288,14 @@ class AnthropicAdapter(ProviderAdapter):\n                 case {\"type\": \"function\", \"function\": {\"name\": name}}:\n                     payload[\"tool_choice\"] = {\"type\": \"tool\", \"name\": name}\n \n+        parallel_tool_calls = payload.pop(\"parallel_tool_calls\", None)\n+        if parallel_tool_calls is False and payload.get(\"tool_choice\", {}).get(\"type\") in {\n+            \"auto\",\n+            \"any\",\n+            \"tool\",\n+        }:\n+            payload[\"tool_choice\"][\"disable_parallel_tool_use\"] = True\n+\n         # Transform response_format for Anthropic structured outputs\n         # Anthropic uses output_config.format with {\"type\": \"json_schema\", \"schema\": {...}}\n         if response_format := payload.pop(\"response_format\", None):\ndiff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py\nindex bcc88ec50..e9fbd5ca8 100644\n--- a/tests/cli/test_traces.py\n+++ b/tests/cli/test_traces.py\n@@ -158,6 +158,19 @@ def test_delete_command(runner):\n         assert \"Deleted 5 trace(s)\" in result.output\n \n \n+def test_delete_command_strips_spaces_in_trace_ids(runner):\n+    with mock.patch(\"mlflow.cli.traces.TracingClient\") as mock_client:\n+        mock_client.return_value.delete_traces.return_value = 2\n+        result = runner.invoke(\n+            commands,\n+            [\"delete\", \"--experiment-id\", \"1\", \"--trace-ids\", \"tr-1, tr-2\"],\n+        )\n+\n+    assert result.exit_code == 0\n+    _, kwargs = mock_client.return_value.delete_traces.call_args\n+    assert kwargs[\"trace_ids\"] == [\"tr-1\", \"tr-2\"]\n+\n+\n def test_field_validation_error(runner):\n     trace_location = TraceLocation(\n         type=TraceLocationType.MLFLOW_EXPERIMENT,\ndiff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py\nindex 24cd52cff..d099ff43b 100644\n--- a/tests/gateway/providers/test_anthropic.py\n+++ b/tests/gateway/providers/test_anthropic.py\n@@ -529,6 +529,7 @@ async def test_chat_function_calling():\n @pytest.mark.parametrize(\n     (\"openai_tool_choice\", \"anthropic_tool_choice\"),\n     [\n+        (None, None),\n         (\"none\", {\"type\": \"none\"}),\n         (\"auto\", {\"type\": \"auto\"}),\n         (\"required\", {\"type\": \"any\"}),\n@@ -538,8 +539,19 @@ async def test_chat_function_calling():\n         ),\n     ],\n )\n+@pytest.mark.parametrize(\n+    \"parallel_tool_calls\",\n+    [\n+        {},\n+        {\"parallel_tool_calls\": False},\n+        {\"parallel_tool_calls\": True},\n+        {\"parallel_tool_calls\": None},\n+    ],\n+)\n @pytest.mark.asyncio\n-async def test_chat_function_calling_with_tool_choice(openai_tool_choice, anthropic_tool_choice):\n+async def test_chat_function_calling_with_tool_choice(\n+    openai_tool_choice, anthropic_tool_choice, parallel_tool_calls\n+):\n     resp = chat_function_calling_response()\n     config = chat_config()\n     with (\n@@ -548,11 +560,21 @@ async def test_chat_function_calling_with_tool_choice(openai_tool_choice, anthro\n     ):\n         provider = AnthropicProvider(EndpointConfig(**config))\n         payload = chat_function_calling_payload()\n-        payload[\"tool_choice\"] = openai_tool_choice\n+        if openai_tool_choice is not None:\n+            payload[\"tool_choice\"] = openai_tool_choice\n+        payload.update(parallel_tool_calls)\n         await provider.chat(chat.RequestPayload(**payload))\n \n+        mock_post.assert_called_once()\n         call_kwargs = mock_post.call_args[1]\n-        assert call_kwargs[\"json\"][\"tool_choice\"] == anthropic_tool_choice\n+        expected = anthropic_tool_choice\n+        if parallel_tool_calls.get(\"parallel_tool_calls\") is False and openai_tool_choice not in (\n+            None,\n+            \"none\",\n+        ):\n+            expected = {**expected, \"disable_parallel_tool_use\": True}\n+        assert call_kwargs[\"json\"].get(\"tool_choice\") == expected\n+        assert \"parallel_tool_calls\" not in call_kwargs[\"json\"]\n \n \n def test_model_to_chat_content_normalization():\ndiff --git a/tests/gateway/providers/test_vertex_ai.py b/tests/gateway/providers/test_vertex_ai.py\nindex 630d60f30..39b626583 100644\n--- a/tests/gateway/providers/test_vertex_ai.py\n+++ b/tests/gateway/providers/test_vertex_ai.py\n@@ -670,6 +670,27 @@ async def test_claude_chat_stream_uses_stream_raw_predict_endpoint():\n     assert \"model\" not in call_kwargs[1][\"json\"]\n \n \n+@pytest.mark.parametrize(\"streaming\", [False, True])\n+def test_claude_adapter_disables_parallel_tool_use(streaming):\n+    provider = _make_claude_provider()\n+    payload = {\n+        \"messages\": [{\"role\": \"user\", \"content\": \"What's the weather?\"}],\n+        \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+        \"parallel_tool_calls\": False,\n+    }\n+    adapter = provider.adapter_class\n+    convert = adapter.chat_streaming_to_model if streaming else adapter.chat_to_model\n+\n+    formatted = convert(payload, provider.config)\n+\n+    assert \"parallel_tool_calls\" not in formatted\n+    assert formatted[\"tool_choice\"] == {\n+        \"type\": \"tool\",\n+        \"name\": \"get_weather\",\n+        \"disable_parallel_tool_use\": True,\n+    }\n+\n+\n def test_claude_adapter_applies_vertex_fields_without_provider_hooks():\n     \"\"\"Formatting through ``adapter_class`` alone must produce a Vertex-valid payload.\n \n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "n a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)\n    num_metric_entries = session.query(SqlMetric).count()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.87s setup    tests/gateway/providers/test_anthropic_adapter.py::test_chat_parallel_tool_calls[auto-False-expected_tool_choice0]\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\u001b[33m========================= \u001b[32m6 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 0.92s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 27855,
+  "costBasis": "list price from token classes"
+}

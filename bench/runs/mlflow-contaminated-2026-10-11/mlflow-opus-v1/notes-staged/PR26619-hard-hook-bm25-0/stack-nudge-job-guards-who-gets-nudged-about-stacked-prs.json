@@ -1,0 +1,51 @@
+{
+  "id": "stack-nudge-job-guards-who-gets-nudged-about-stacked-prs",
+  "title": "Stack Nudge job guards: who gets nudged about stacked PRs",
+  "kind": "rule",
+  "answers": [
+    "who gets the stacked PR nudge comment",
+    "why did the bot skip my native stack PR",
+    "stacked PR advice not showing for external contributor",
+    "where is the stacked PR advice now, advice.js or stack-nudge workflow"
+  ],
+  "body": "Invariant: the nudge job posts only when the PR author_association is MEMBER, OWNER or COLLABORATOR, the author is not type Bot, the body contains the phrase \"🥞 Stacked PR\", and the PR is not already a native stack (`!github.event.pull_request.stack`).\nEnforced in: .github/workflows/stack-nudge.yml:nudge (the job-level `if:` expression).\nWhat breaks if skipped: external contributors and bots get nudged, and PRs already on GitHub's native stacks get told to use native stacks.\nConstraint: the stacked-PR advice was removed from .github/workflows/advice.js. Add stacked-PR logic in stack-nudge.yml, not in advice.js.\nConstraint: the job-level `contains(body, '🥞 Stacked PR')` is case-sensitive. Any content matcher must not be stricter than this prefilter, or valid descriptions are silently skipped (a review comment asked for case-insensitive matching).",
+  "applies": "Changes to when or for whom the Stack Nudge workflow fires.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "stacked-prs",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/advice.js",
+      "hash": "sha256:a103c464595e35c679342dd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-11T08:46:46.144Z",
+  "verified": "2026-10-11T08:46:46.144Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The bot should not suggest stacked pull requests on pull requests already using native stacks.",
+    "Automated stack advice comments should not be sent to external community contributors.",
+    "Prevent automated bot accounts from receiving tips about stacked pull requests.",
+    "The stacked pull request comment did not post because the header had different casing.",
+    "Why did the stacked pull request recommendation skip my pull request?"
+  ],
+  "search": "In .github/workflows/stack-nudge.yml:nudge, the job-level if condition ensures the stacked PR advice job runs only for non-bot MEMBER, OWNER, or COLLABORATOR authors on PRs with '🥞 Stacked PR' in the body that are not already native stacks (!github.event.pull_request.stack). Stacked PR advice must be added in stack-nudge.yml rather than .github/workflows/advice.js. The contains(body, '🥞 Stacked PR') check is case-sensitive, and downstream content matchers must not be stricter than this prefilter.",
+  "saysFor": "s2:330ab488326bb94d29392ee77ce687a2b0d21900034bebbc37ffd9795849790e"
+}

@@ -1,0 +1,141 @@
+{
+  "id": "schema-merge-results-must-not-depend-on-which-side-holds-any",
+  "title": "Schema _merge results must not depend on which side holds AnyType",
+  "kind": "rule",
+  "answers": [
+    "does merge order matter when combining schema types with AnyType",
+    "why does infer_signature give different results depending on where None is in the list",
+    "how should required be combined when merging Property with AnyType",
+    "merging concrete and AnyType properties must be symmetric"
+  ],
+  "body": "Invariant: Property._merge, Array._merge and Map._merge in mlflow/types/schema.py must return the same result for (concrete, AnyType) and (AnyType, concrete). AnyType._merge is the reference behaviour for the left side.\nRequired semantics: Property._merge sets required = self.required and other.required, so an AnyType property that is optional makes the merged property optional in either order.\nIncompatible concrete types must still raise; AnyType must not absorb mismatched concrete dtypes.\nEnforced by: tests/types/test_schema.py:test_merge_with_anytype_is_order_independent (asserts both orders for scalar, Array, Map and nested values), test_merge_property_with_anytype_keeps_required_semantics (all four required combinations, both orders), and test_merge_incompatible_concrete_types_still_raises.\nBreaks if skipped: inferred signatures for the same data change with element order, causing spurious MlflowException or loss of input validation.",
+  "applies": "Any change to how schema types are merged in mlflow/types/schema.py, including new DataType-like or container types that carry an AnyType.",
+  "tags": [
+    "schema",
+    "merge",
+    "anytype",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Property._merge",
+      "hash": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "line": 262,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Array._merge",
+      "hash": "sha256:dfaeb7e77c436928902eef5a",
+      "line": 552,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfaeb7e77c436928902eef5a",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Map._merge",
+      "hash": "sha256:4bf2335686efb362d82263fd",
+      "line": 666,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4bf2335686efb362d82263fd",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "AnyType._merge",
+      "hash": "sha256:a60ac04c0bf1f935bc2a775d",
+      "line": 715,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a60ac04c0bf1f935bc2a775d",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_merge_property_with_anytype_keeps_required_semantics",
+      "hash": "sha256:1d0dd34d5ac3767d18946140",
+      "line": 1453,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d0dd34d5ac3767d18946140",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_merge_incompatible_concrete_types_still_raises",
+      "hash": "sha256:828781a00c524313d5c8f8d4",
+      "line": 1471,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:828781a00c524313d5c8f8d4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_merge_with_anytype_is_order_independent",
+      "hash": "sha256:95b14ae3a341c09867be205e",
+      "line": 1444,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:95b14ae3a341c09867be205e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26260"
+  },
+  "created": "2026-10-11T10:26:26.299Z",
+  "verified": "2026-10-11T10:26:26.299Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "schema-merge-must-accept-anytype-on-the-right-hand-side-so-i",
+    "nested-dataclass-schema-must-enumerate-fields-via-dataclasse"
+  ],
+  "says": [
+    "Inferred model input schemas change unexpectedly when reordering examples in the training dataset.",
+    "Model input fields alternate between optional and required depending on sample data row order.",
+    "Input validation schemas must produce identical requirements regardless of record sequence in logged samples.",
+    "Model signature generation produces spurious type errors when identical sample batches are reordered."
+  ],
+  "search": "Schema merging in mlflow/types/schema.py must produce symmetric results regardless of whether AnyType is on the left or right side. Property._merge, Array._merge, and Map._merge must return the same merged type for (concrete, AnyType) and (AnyType, concrete), using AnyType._merge as the reference behavior. Merged properties set required as the conjunction of both sides, making optional status symmetric, while incompatible concrete types must still raise rather than being absorbed by AnyType.",
+  "saysFor": "s2:8cd8ae81b4c2d0d0b18ca5e59b336b460f83ce5f72986a42c6f113be32d80446"
+}

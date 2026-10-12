@@ -1,0 +1,96 @@
+{
+  "id": "python-micro-version-pins-must-move-together-across-setup-py",
+  "title": "Python micro-version pins must move together across setup-python action, companion fixtures, and version assertions",
+  "kind": "rule",
+  "answers": [
+    "setup-python pinned Python version no longer matches the runner cache",
+    "model serving test environment recreation fails after bumping Python patch version",
+    "how do I bump the pinned Python 3.10 or 3.11 patch version in CI"
+  ],
+  "body": "Symptom: CI jobs select a Python patch version that the hosted runner cache does not have, or model-serving/virtualenv tests fail because a fixture still records the old Python version.\nRoot cause: the pinned micro version lives in several places: the per-OS selection block in .github/actions/setup-python/action.yml (python_version=...), the fixture files tests/resources/example_mlflow_1x_sklearn_model/{MLmodel,conda.yaml,python_env.yaml}, tests/resources/example_virtualenv_*/{conda.yaml,python_env.yaml,entrypoint.py}, and the inline YAML in tests/sklearn/test_sklearn_model_export.py:test_sklearn_compatible_with_mlflow_2_4_0.\nFix pattern: when a Python pin changes, update the setup-python selection block and every companion fixture and version assertion in the same change (the PR did this for 3.10.20->3.10.21 and 3.11.15->3.11.16), so the entrypoint.py sys.version_info asserts match the new pin.\nConstraints: the pins should match what the hosted runner caches provide (cited in the PR as the runner-images Readme manifests); bumping only the action or only the fixtures leaves tests asserting a version CI does not run. Follows the approach in #23684.",
+  "applies": "Applies to Python version pins in the composite setup-python action and the test fixtures that record them; not to project dependency pins in pyproject.toml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "python-version",
+    "test-fixtures"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "symbol": "python_version",
+      "hash": "sha256:8f43c314b87d41c39ee2ce84",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "tests/resources/example_virtualenv_project/python_env.yaml",
+      "hash": "sha256:89cda8f779bdfe3ea758f61f",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_virtualenv_conda_project/conda.yaml",
+      "hash": "sha256:eeb4114128eaaf234aacd4cb",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_virtualenv_project/entrypoint.py",
+      "hash": "sha256:baea807bc8778263280ca993",
+      "missing": false
+    },
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_sklearn_compatible_with_mlflow_2_4_0",
+      "hash": "sha256:a3ef977af9eed2cf4b0e2acb",
+      "line": 822,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:58c72c5eb02fc03fa0c3e131",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_sklearn_compatible_with_mlflow_2_4_0",
+      "hash": "sha256:a3ef977af9eed2cf4b0e2acb",
+      "line": 822,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:58c72c5eb02fc03fa0c3e131",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-11T08:45:04.732Z",
+  "verified": "2026-10-11T08:45:04.732Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "deserialization-guard-is-a-single-funnel-in-sklearn-loader-t"
+  ],
+  "says": [
+    "Continuous integration builds fail because the hosted runner cache lacks the requested Python release.",
+    "Model serving and virtual environment tests fail after updating the Python patch version.",
+    "Test assertions fail because example model environment fixtures still expect the previous Python version.",
+    "Ensure test fixtures and runner setup upgrade to the identical Python micro version simultaneously."
+  ],
+  "search": "Pinned Python micro versions in .github/actions/setup-python/action.yml:python_version must be updated in the same change as companion test fixtures and version assertions. Affected locations include fixtures in tests/resources/example_mlflow_1x_sklearn_model/, tests/resources/example_virtualenv_*/, and inline YAML assertions in tests/sklearn/test_sklearn_model_export.py:test_sklearn_compatible_with_mlflow_2_4_0. Version pins must align with hosted runner cache manifests, and the requirement applies to setup-python and test fixtures rather than project dependency pins in pyproject.toml.",
+  "saysFor": "s2:9061c6f3e05b37003887c7656684b5d9d7104e0866aea5413e0b1e8b0d3818f5"
+}

@@ -1,0 +1,54 @@
+{
+  "id": "copilot-setup-pre-commit-cache-misses-when-setup-python-down",
+  "title": "Copilot setup pre-commit cache misses when setup-python downloads a different micro version",
+  "kind": "rule",
+  "answers": [
+    "copilot agent setup is slow even though caches hit",
+    "pre-commit reinstalls hook environments despite cache restore",
+    "copilot session setup takes 40-50 seconds before work starts",
+    "setup-python interpreter mismatch with cached pre-commit env"
+  ],
+  "body": "Symptom: Copilot agent sessions spend roughly 40-50s in setup before work starts, and pre-commit reinstalls hook environments even though the cache restored.\nRoot cause: .github/workflows/copilot-setup-steps.yml setup-python step without pin-micro-version: false downloads a separate Python interpreter, while the cached pre-commit environments were built under the runner's preinstalled interpreter, so keys hit but environments are rebuilt.\nFix pattern: pass pin-micro-version: false to ./.github/actions/setup-python in the setup steps, matching lint.yml, so setup uses the same interpreter the caches were built with and skips the interpreter download.\nConstraints: the pin only matters where the cached environments were built under the preinstalled interpreter; the PR measured this in the Copilot setup file only and does not show whether other workflows have the same mismatch.",
+  "applies": "The setup-python step in the Copilot setup steps workflow; check lint.yml before changing it there.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "setup-python",
+    "pre-commit",
+    "copilot"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25542"
+  },
+  "created": "2026-10-11T08:51:15.965Z",
+  "verified": "2026-10-11T08:51:15.965Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-setup-cache-restores-must-mirror-lint-yml-keys-and-p"
+  ],
+  "says": [
+    "Agent sessions spend forty to fifty seconds in setup before work can start.",
+    "Automated coding sessions reinstall checking environments even when cache restores report a hit.",
+    "The coding assistant downloads a different language runtime version instead of using preinstalled tools.",
+    "Why does the assistant workspace rebuild hook environments despite finding a cached copy?",
+    "Reduce startup delay by preventing the coding agent from reinstalling already cached tools."
+  ],
+  "search": "In .github/workflows/copilot-setup-steps.yml, the setup-python step must set pin-micro-version: false to match .github/workflows/lint.yml and use the runner's preinstalled Python interpreter. Omitting this input downloads a separate Python interpreter that mismatches the cached pre-commit environments, forcing hooks to reinstall and delaying agent sessions by 40 to 50 seconds despite cache hits. This constraint applies to setup-python in the Copilot setup steps workflow where environments were built under the preinstalled interpreter.",
+  "saysFor": "s2:d21131280dd19a4c6a82f576316454a08ff73eb339177d2271cf578e817af81b"
+}

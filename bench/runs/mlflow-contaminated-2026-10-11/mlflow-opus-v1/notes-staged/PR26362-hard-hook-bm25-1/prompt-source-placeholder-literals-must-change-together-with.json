@@ -1,0 +1,97 @@
+{
+  "id": "prompt-source-placeholder-literals-must-change-together-with",
+  "title": "Prompt source placeholder literals must change together with the server allowlist",
+  "kind": "rule",
+  "answers": [
+    "change the dummy-source or prompt-template placeholder value",
+    "prompt registration returns 400 after changing the source string",
+    "where is the allowed prompt source defined",
+    "keep UI and server prompt source placeholder in sync"
+  ],
+  "body": "Mechanism: the server allowlist mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS is built from _CLIENT_PROMPT_SOURCE_PLACEHOLDER (\"dummy-source\") and _STORE_PROMPT_SOURCE_PLACEHOLDER (\"prompt-template\"). The Python senders import these names: MlflowClient.register_prompt in mlflow/tracking/client.py and AbstractStore.create_prompt_version in mlflow/store/model_registry/abstract_store.py.\nWhat breaks: editing a sender literal without the constant makes prompt registration return HTTP 400 with no compile-time signal.\nThe UI cannot import Python constants. mlflow/server/js/src/experiment-tracking/pages/prompts/api.ts:RegisteredPromptsApi keeps a hardcoded 'dummy-source' with a pointer comment, so it must be updated by hand alongside the allowlist.",
+  "applies": "Any change to the source value used when creating prompt versions from Python, the UI, or the server allowlist.",
+  "tags": [
+    "model-registry",
+    "prompts",
+    "constants",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/prompt/constants.py",
+      "symbol": "_PROMPT_SOURCE_PLACEHOLDERS",
+      "hash": "sha256:06f280c80f4dfdda26fb2acb",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.register_prompt",
+      "hash": "sha256:9aa9e34231c1c3b634c03275",
+      "line": 640,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9aa9e34231c1c3b634c03275",
+      "fanout": {
+        "files": 24,
+        "sites": 212,
+        "refs": 230
+      }
+    },
+    {
+      "path": "mlflow/store/model_registry/abstract_store.py",
+      "symbol": "AbstractStore.create_prompt_version",
+      "hash": "sha256:75ec9766b2f9f27821be179a",
+      "line": 751,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:75ec9766b2f9f27821be179a",
+      "fanout": {
+        "files": 7,
+        "sites": 20,
+        "refs": 22
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/prompts/api.ts",
+      "symbol": "RegisteredPromptsApi",
+      "hash": "sha256:72dcb22c81ecf2a3b430745b",
+      "line": 39,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:72dcb22c81ecf2a3b430745b",
+      "fanout": {
+        "files": 13,
+        "sites": 0,
+        "refs": 62
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-11T08:46:07.326Z",
+  "verified": "2026-10-11T08:46:07.326Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali"
+  ],
+  "says": [
+    "Creating a prompt version from the prompt engineering page fails with a bad request error.",
+    "Registering a new prompt through the client library gets rejected with an invalid source error.",
+    "Keep web interface prompt creation and server validation rules synchronized when modifying source placeholders.",
+    "Submitting the prompt registration modal returns an unexpected server error about allowed sources.",
+    "Ensure client prompt creation uses the same accepted dummy source values as the backend."
+  ],
+  "search": "The server allowlist mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS combines _CLIENT_PROMPT_SOURCE_PLACEHOLDER ('dummy-source') and _STORE_PROMPT_SOURCE_PLACEHOLDER ('prompt-template'). Python senders MlflowClient.register_prompt and AbstractStore.create_prompt_version import these constants, but mismatched sender literals trigger HTTP 400 errors during prompt registration. Because the web UI cannot import Python constants, RegisteredPromptsApi in mlflow/server/js/src/experiment-tracking/pages/prompts/api.ts maintains a hardcoded 'dummy-source' that must be manually updated alongside the allowlist.",
+  "saysFor": "s2:50d42eb95df60a0b52d88e789861204f24d2b3f4ba523ce74247d480ae8fc323"
+}

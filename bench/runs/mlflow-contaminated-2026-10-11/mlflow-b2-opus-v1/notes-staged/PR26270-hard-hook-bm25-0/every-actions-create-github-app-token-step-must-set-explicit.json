@@ -1,0 +1,46 @@
+{
+  "id": "every-actions-create-github-app-token-step-must-set-explicit",
+  "title": "Every actions/create-github-app-token step must set explicit owner and bare repository names",
+  "kind": "rule",
+  "answers": [
+    "actions/create-github-app-token step rejected by policy: owner or repositories missing",
+    "how do I scope a GitHub App token to a repository in MLflow workflows",
+    "why does conftest deny my create-github-app-token step without repositories",
+    "GitHub App installation token not restricted to specific repos"
+  ],
+  "body": "Invariant: every `actions/create-github-app-token` step must set a non-empty `with.owner` and `with.repositories`. Omitting either leaves the token unscoped, so the policy denies it.\nEnforced by: .github/policy.rego:deny_create_app_token_without_repository_scope. It loops over the keys {owner, repositories} and denies when `trim(value, \" \\t\\n\") == \"\"`, so blank and whitespace-only values also fail.\nValue format: `repositories` takes bare repository names, comma-separated (e.g. `mlflow` or `mlflow,internal`). It does not take `owner/repo`. `${{ github.repository }}` expands to `mlflow/mlflow` and matches no repository, so use literals.\nConstraints: the check only tests that the raw YAML value is non-empty. It does not verify that an expression resolves to a real repository at runtime.\nWhat breaks: a step that sets only `owner`, or only `repositories`, is still denied, since each key is checked separately.",
+  "applies": "Any workflow or composite action in this repository that mints a GitHub App token with actions/create-github-app-token. Current MLflow values are owner `mlflow` and repositories `mlflow`, or `mlflow,internal` for Nailaopus.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "conftest",
+    "github-app-token",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25866"
+  },
+  "created": "2026-10-11T10:31:43.245Z",
+  "verified": "2026-10-11T10:31:43.245Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pull request validation pipeline failed on security policy for generating access tokens.",
+    "Build check failed because the application token request did not specify allowed repositories.",
+    "Continuous integration fails compliance checks when minting unscoped application credentials.",
+    "Require workflow installation tokens to restrict access to explicitly named target projects."
+  ],
+  "search": "Policy enforcement in .github/policy.rego:deny_create_app_token_without_repository_scope requires every actions/create-github-app-token step to set non-empty with.owner and with.repositories. It applies to workflows and composite actions minting GitHub App tokens, where repositories must be comma-separated bare repository names such as mlflow or mlflow,internal rather than owner/repo or ${{ github.repository }}. The check tests only that raw YAML values are non-empty after trimming whitespace, denying steps if either key is missing or blank, without verifying runtime repository resolution.",
+  "saysFor": "s2:31ae14dce2e0ea3e4f01ec828a0b7e4e5b3d555804e5729bdcdf5e855db933f4"
+}

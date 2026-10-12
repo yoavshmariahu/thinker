@@ -1,0 +1,55 @@
+{
+  "id": "step-level-policy-rules-must-iterate-step-entries-input-not",
+  "title": "Step-level policy rules must iterate step_entries(input), not input.jobs",
+  "kind": "rule",
+  "answers": [
+    "composite action steps skip policy checks",
+    "policy misses steps inside a composite action",
+    "why does a step rule not fire for steps in parallel groups",
+    "how do I write a new step-level check in policy.rego"
+  ],
+  "body": "Symptom: a step-level policy violation (e.g. create-github-app-token without permissions, github-script without retries, ${{ }} in run) is not reported when the step lives in a composite action or a parallel group.\nRoot cause: .github/policy.rego step rules used `some job in input.jobs` + `job_steps(job)`, which only covers workflow job steps, so composite runs.steps and parallel children were never visited.\nFix pattern: iterate `some entry in step_entries(input)` then `step := entry.step`, and build messages from `entry.location` (positional, e.g. \"job 'build', step #2\") instead of job_id or step.name.\nConstraints: step_entries(input) is the single traversal for workflow steps, parallel children, and composite-action steps; do not add a new per-job loop. Job-level rules (e.g. job if, push branches) are not step rules and still walk input.jobs directly.",
+  "applies": "Any new or changed rule in .github/policy.rego that checks individual steps.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T08:45:18.914Z",
+  "verified": "2026-10-11T08:45:18.914Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "step-diagnostics-in-policy-rego-use-entry-location-not-job-i"
+  ],
+  "says": [
+    "Workflow policy checks fail to catch security violations inside composite actions.",
+    "Pipeline compliance rules are skipping validation on steps running in parallel groups.",
+    "Enforce action and script policy checks across all composite action steps.",
+    "Why did the workflow linter miss policy infractions inside composite action definitions?",
+    "Ensure automated workflow security policies inspect parallel job steps."
+  ],
+  "search": "Step-level policy rules in .github/policy.rego must iterate some entry in step_entries(input) and evaluate entry.step instead of traversing input.jobs and job_steps(job). Iterating step_entries(input) provides a single traversal that visits composite action steps (runs.steps) and parallel child steps, building diagnostic messages from entry.location. Rules must not introduce custom per-job loops, while job-level rules must continue walking input.jobs directly.",
+  "saysFor": "s2:2d00bfcbcc37420b83ad8fe993d850911dc1b6f74e448c1d40871a2f79ae311a"
+}

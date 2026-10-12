@@ -1,0 +1,54 @@
+{
+  "id": "test-shared-provider-strands-behavior-with-mlflow-use-defaul",
+  "title": "Test shared-provider Strands behavior with MLFLOW_USE_DEFAULT_TRACER_PROVIDER=false",
+  "kind": "howto",
+  "answers": [
+    "how to test strands autolog with a shared tracer provider",
+    "how to write a test for foreign OpenTelemetry spans in mlflow strands",
+    "simulate remote parent span in mlflow tracing test"
+  ],
+  "body": "In tests/strands/test_strands_tracing.py, set MLFLOW_USE_DEFAULT_TRACER_PROVIDER to \"false\" via monkeypatch.setenv before calling mlflow.strands.autolog(), so MLflow attaches to a shared provider rather than its default one.\nTo create a foreign span, build an otel_trace.SpanContext with is_remote=True and a SAMPLED TraceFlags, wrap it in NonRecordingSpan and set_span_in_context, then start a span from otel_trace.get_tracer(\"external\") with that context.\nAssert the outcome with get_traces() being empty, which shows the foreign span was ignored rather than registered.",
+  "applies": "Tests for Strands autologging that exercise shared OpenTelemetry provider behavior.",
+  "tags": [
+    "testing",
+    "strands",
+    "tracing",
+    "opentelemetry"
+  ],
+  "deps": [
+    {
+      "path": "tests/strands/test_strands_tracing.py",
+      "symbol": "test_strands_autolog_shared_provider_skips_foreign_span",
+      "hash": "sha256:1e9fe400a527e40aa62adbff",
+      "line": 332,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1e9fe400a527e40aa62adbff",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25807"
+  },
+  "created": "2026-10-11T08:41:58.487Z",
+  "verified": "2026-10-11T08:41:58.487Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Strands autologging should ignore foreign spans when connected to a shared tracing provider.",
+    "External tracing spans are showing up unexpectedly in recorded Strands execution traces.",
+    "Verify that shared telemetry providers skip remote external spans during Strands tracing.",
+    "Traces should remain empty when external non-recording spans run under shared tracer providers.",
+    "Prevent third-party telemetry spans from polluting recorded Strands trace sessions."
+  ],
+  "search": "In tests/strands/test_strands_tracing.py:test_strands_autolog_shared_provider_skips_foreign_span, test Strands autologging with a shared OpenTelemetry provider by setting MLFLOW_USE_DEFAULT_TRACER_PROVIDER to false. Simulate a foreign span using otel_trace.SpanContext with is_remote=True and SAMPLED TraceFlags wrapped in NonRecordingSpan, then start a span from external tracer context. Assert that get_traces() returns empty to verify that external foreign spans are ignored rather than registered by mlflow.strands.autolog().",
+  "saysFor": "s2:757bc084c5a548b01df677cadb643917d569c4f198ebbd5c3fb093d4464649af"
+}

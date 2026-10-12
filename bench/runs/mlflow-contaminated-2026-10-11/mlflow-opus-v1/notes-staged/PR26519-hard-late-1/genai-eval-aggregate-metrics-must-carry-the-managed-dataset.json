@@ -1,0 +1,64 @@
+{
+  "id": "genai-eval-aggregate-metrics-must-carry-the-managed-dataset",
+  "title": "GenAI eval aggregate metrics must carry the managed dataset for logged-model dataset_name/digest",
+  "kind": "rule",
+  "answers": [
+    "genai evaluate logged model metrics missing dataset name and digest",
+    "mlflow.genai.evaluate model_id metrics not linked to evaluation dataset",
+    "eval metric on logged model shows null dataset_name dataset_digest",
+    "why does model metric not record which dataset it was computed on"
+  ],
+  "body": "Symptom: When `mlflow.genai.evaluate(data=<managed EvaluationDataset>, model_id=...)` runs, the aggregate scorer metrics on the logged model (e.g. `<scorer>/mean`) show no dataset name or digest, unlike an explicit `mlflow.log_metrics(..., dataset=dataset)` call.\nRoot cause: mlflow/genai/evaluation/harness.py:run computed `aggregated_metrics` and called `mlflow.log_metrics(aggregated_metrics)` without any dataset, so the managed dataset never reached the metric logger.\nFix pattern: Accept the dataset as a parameter on the harness `run` and pass it into `mlflow.log_metrics(..., dataset=dataset)`. The caller in mlflow/genai/evaluation/base.py:_run_harness supplies it only when `is_managed_dataset` is true.\nConstraints: Keep the gating in `_run_harness`: pass `None` for plain list/DataFrame inputs so their metric logging behavior is unchanged. Any new code path that calls `harness.run` for a managed dataset must forward the dataset too, or the metrics silently lose the dataset link.",
+  "applies": "Applies to GenAI evaluation (mlflow/genai/evaluation) metric logging when a managed EvaluationDataset is passed together with model_id; not to non-GenAI evaluation.",
+  "tags": [
+    "genai",
+    "evaluation",
+    "metrics",
+    "dataset",
+    "logged-model"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/evaluation/harness.py",
+      "symbol": "run",
+      "hash": "sha256:c82a27a863d05ebbc9d2ab21",
+      "line": 662,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c82a27a863d05ebbc9d2ab21"
+    },
+    {
+      "path": "mlflow/genai/evaluation/base.py",
+      "symbol": "_run_harness",
+      "hash": "sha256:8b01f02e9f682bc7038bdece",
+      "line": 302,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b01f02e9f682bc7038bdece",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25927"
+  },
+  "created": "2026-10-11T08:44:32.635Z",
+  "verified": "2026-10-11T08:44:32.635Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Evaluation metrics logged on the model do not display the evaluation dataset name.",
+    "Aggregate evaluation scores on the registered model show null dataset digest information.",
+    "Link GenAI model evaluation metrics back to the managed dataset they were computed on.",
+    "The model metrics screen fails to record which evaluation dataset produced the scores."
+  ],
+  "search": "GenAI evaluation aggregate metrics must forward the managed EvaluationDataset to mlflow.log_metrics to link logged-model metrics with dataset_name and dataset_digest. In mlflow/genai/evaluation/harness.py:run, aggregated_metrics logging accepts dataset and forwards it to mlflow.log_metrics(..., dataset=dataset). The caller in mlflow/genai/evaluation/base.py:_run_harness passes dataset only when is_managed_dataset is true, passing None for plain list and DataFrame inputs. This applies to GenAI evaluation when evaluating a managed EvaluationDataset with model_id, but not to non-GenAI evaluation.",
+  "saysFor": "s2:77b3e67e36329894879fd4cd6e7f830f80207ffa861cba8dda027224302b98ba"
+}

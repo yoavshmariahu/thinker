@@ -1,0 +1,58 @@
+{
+  "id": "bounded-retry-for-pypi-release-date-fetch-in-remove-experime",
+  "title": "Bounded retry for PyPI release-date fetch in remove_experimental_decorators script",
+  "kind": "rule",
+  "answers": [
+    "CI fails intermittently when fetching MLflow release dates from PyPI",
+    "connection reset while the experimental decorator script downloads release metadata",
+    "how does get_mlflow_release_dates retry on transient network errors",
+    "PyPI 429 or 5xx causes the dev script to fail"
+  ],
+  "body": "Symptom: CI job intermittently fails with a connection reset while the experimental-decorator cleanup script fetches MLflow release metadata from PyPI.\nRoot cause: dev/remove_experimental_decorators.py:get_mlflow_release_dates made a single urlopen call with no timeout and no retry, so any transient network failure aborted the run.\nFix pattern: loop up to 3 attempts around urlopen(..., timeout=10). Retry on URLError/TimeoutError/ConnectionError and on HTTPError with code 429 or 5xx; re-raise other HTTPErrors immediately; re-raise on the last attempt; sleep 2**attempt between attempts. Parse JSON only after the loop so invalid JSON fails immediately.\nConstraints: HTTPError subclasses URLError, so the HTTPError handler must stay before the URLError handler or every HTTP error would be retried. Applies to this dev script's PyPI fetch; the retry policy is not a shared helper.",
+  "applies": "Only the PyPI metadata fetch in dev/remove_experimental_decorators.py; other network calls in dev/ are not covered by this change.",
+  "tags": [
+    "dev-scripts",
+    "retry",
+    "pypi",
+    "networking",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "dev/remove_experimental_decorators.py",
+      "symbol": "get_mlflow_release_dates",
+      "hash": "sha256:8b2af920dcb3ef34853ac7b1",
+      "line": 35,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b2af920dcb3ef34853ac7b1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26028"
+  },
+  "created": "2026-10-11T10:28:38.339Z",
+  "verified": "2026-10-11T10:28:38.339Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mock-module-level-urlopen-and-sleep-in-remove-experimental-d"
+  ],
+  "says": [
+    "Continuous integration fails intermittently during release metadata download from the package index.",
+    "Experimental decorator cleanup script crashes on network timeouts or transient connection resets.",
+    "Add automatic retries with exponential backoff when fetching package release dates.",
+    "Rate limiting errors from the package registry abort the developer cleanup workflow.",
+    "Prevent flaky build failures when external package registry requests experience temporary outages."
+  ],
+  "search": "The PyPI release-date fetch in the experimental decorator cleanup script implements a bounded 3-attempt retry loop with exponential backoff. In dev/remove_experimental_decorators.py:get_mlflow_release_dates, urlopen runs with a 10-second timeout, retrying on TimeoutError, ConnectionError, URLError, or HTTPError codes 429 and 5xx while re-raising other HTTP errors immediately. Because HTTPError subclasses URLError, the HTTP handler must precede the URL handler; this unshared retry policy applies strictly to the PyPI fetch in this script.",
+  "saysFor": "s2:0ac07f2e6c354c15d7ce5d9e6f826aaba50296b14a8be2a7dab2d8c82ddcddd3"
+}

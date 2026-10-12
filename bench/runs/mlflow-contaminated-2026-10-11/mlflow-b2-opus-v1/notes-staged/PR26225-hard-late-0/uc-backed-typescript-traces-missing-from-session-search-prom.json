@@ -1,0 +1,72 @@
+{
+  "id": "uc-backed-typescript-traces-missing-from-session-search-prom",
+  "title": "UC-backed TypeScript traces missing from session search: promote user/session to root-span attributes",
+  "kind": "rule",
+  "answers": [
+    "TypeScript traces exported to Unity Catalog don't show up in session search",
+    "UC traces missing session or user filter results",
+    "session.id and user.id missing on root span for Databricks UC traces from the JS SDK",
+    "why does session search skip my TypeScript UC traces"
+  ],
+  "body": "Symptom: Traces logged from the TypeScript SDK to a Unity Catalog table do not appear in session-based search results, even though the session and user were set.\nRoot cause: DatabricksUCTableSpanProcessor (libs/typescript/core/src/exporters/uc_table.ts) exported the root span with session and user only in TraceInfo.traceMetadata (TRACE_SESSION / TRACE_USER). UC session filtering reads the root-span attributes session.id and user.id, which were never set.\nFix pattern: Before updateTraceInfo and export, copy traceMetadata[TRACE_USER] and traceMetadata[TRACE_SESSION] into SpanAttributeKey.USER_ID and SpanAttributeKey.SESSION_ID on the MLflow span, via DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes. Skip null values.\nConstraints: Applies only to UC-table exports. The constants (SpanAttributeKey.SESSION_ID = 'session.id', USER_ID = 'user.id' in libs/typescript/core/src/core/constants.ts) must keep the same names as the Python SDK, per the PR description.",
+  "applies": "TypeScript SDK tracing exported through the Databricks UC table span processor; not the generic MLflow exporter.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "unity-catalog",
+    "session",
+    "spans"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes",
+      "hash": "sha256:ee919130f7e4e7dffdf2e43c",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee919130f7e4e7dffdf2e43c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/constants.ts",
+      "symbol": "SpanAttributeKey",
+      "hash": "sha256:8af7083fae630527b6890b8a",
+      "line": 69,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8af7083fae630527b6890b8a",
+      "fanout": {
+        "files": 26,
+        "sites": 0,
+        "refs": 107
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26209"
+  },
+  "created": "2026-10-11T10:26:44.330Z",
+  "verified": "2026-10-11T10:26:44.330Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "writing-attributes-to-an-already-ended-mlflow-span-requires",
+    "session-user-root-span-attributes-are-uc-only-the-generic-ml"
+  ],
+  "says": [
+    "Searching traces by session ID in Unity Catalog returns empty results for web applications.",
+    "Traces sent from our JavaScript service never appear when filtering by user in the catalog.",
+    "Session search in the trace explorer skips runs created with the frontend tracking client.",
+    "Ensure user and session filters correctly display recorded traces in catalog monitoring tables."
+  ],
+  "search": "In DatabricksUCTableSpanProcessor (libs/typescript/core/src/exporters/uc_table.ts), setUserSessionSpanAttributes must copy non-null TRACE_USER and TRACE_SESSION metadata into root-span attributes SpanAttributeKey.USER_ID ('user.id') and SpanAttributeKey.SESSION_ID ('session.id') prior to export. This ensures traces logged via the TypeScript SDK to Unity Catalog tables match session filtering, which inspects root-span attributes rather than TraceInfo.traceMetadata. The attribute names must match the Python SDK constants, and this fix applies exclusively to Databricks UC-table exports rather than generic MLflow exporters.",
+  "saysFor": "s2:a9c0072f07705d0cf1783af0608e6e248a531fb3d72d3612f40ac462eebebd4b"
+}

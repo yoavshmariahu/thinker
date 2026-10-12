@@ -1,0 +1,72 @@
+{
+  "id": "alias-count-is-aggregated-per-level-across-sibling-fragments",
+  "title": "Alias count is aggregated per level across sibling fragments; fragment-expanded selections count toward the total cap",
+  "kind": "rule",
+  "answers": [
+    "how are GraphQL aliases counted when split across fragments",
+    "why does MLFLOW_SERVER_GRAPHQL_MAX_ALIASES count sibling fragments together",
+    "GraphQL fragment cycle causes infinite loop in query scanner"
+  ],
+  "body": "Invariant: All aliases at one selection-set level, including those from sibling inline fragments and spreads, are summed into one per-level count before comparing to the alias limit (scan_query takes max over levels). Splitting aliases across fragments must not lower the count.\nEnforcement: mlflow/server/graphql/graphql_no_batching.py:_collect_fields_and_aliases returns total_aliases for the level; scan_query tracks max_aliases. Expanded fragment fields also increment total_selections and are checked against _MAX_SELECTIONS, so expansion cannot bypass the total cap.\nCycle guard: _collect_fields_and_aliases keeps a per-collection local_visited set seeded from the per-path visited_fragments frozenset; scan_query passes visited_fragments down the stack, and _MAX_DEPTH bounds recursion.\nDo not: propagate local_visited into child levels. A fragment reused at two depths (for example at the root and inside a field) would be skipped deeper, undercounting fields and aliases and weakening the limit.",
+  "applies": "Applies to changes to scan_query or _collect_fields_and_aliases in mlflow/server/graphql/graphql_no_batching.py.",
+  "tags": [
+    "graphql",
+    "query-cost",
+    "aliases",
+    "fragments",
+    "cycle-detection"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/graphql/graphql_no_batching.py",
+      "symbol": "_collect_fields_and_aliases",
+      "hash": "sha256:151947a078b978a1eb97f7fe",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:151947a078b978a1eb97f7fe",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/graphql/graphql_no_batching.py",
+      "symbol": "scan_query",
+      "hash": "sha256:9045cab83a14961fe6405902",
+      "line": 75,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9045cab83a14961fe6405902",
+      "fanout": {
+        "files": 2,
+        "sites": 15,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25665"
+  },
+  "created": "2026-10-11T08:49:09.390Z",
+  "verified": "2026-10-11T08:49:09.390Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "graphql-query-cost-limits-must-count-fields-and-aliases-insi",
+    "use-o-1-removal-when-draining-graphql-selection-lists-in-the"
+  ],
+  "says": [
+    "Query scanner hangs indefinitely when processing requests containing circular query fragments",
+    "Requests bypass maximum alias limits by splitting alias fields across multiple fragments",
+    "Large queries evade field selection caps through nested fragment expansion",
+    "Enforce query complexity limits so sibling fragments cannot circumvent maximum alias quotas",
+    "Prevent infinite recursion and resource exhaustion during complex API query validation"
+  ],
+  "search": "In mlflow/server/graphql/graphql_no_batching.py, scan_query and _collect_fields_and_aliases aggregate all aliases at each selection-set level across sibling inline fragments and spreads against the alias limit. Expanded fragment fields increment total_selections checked against _MAX_SELECTIONS, with recursion bounded by _MAX_DEPTH and a visited_fragments frozenset path to prevent cycles. The local_visited set must not be propagated into child levels, which would skip reused fragments and undercount fields and aliases.",
+  "saysFor": "s2:e3ecc057e422938b66043662178e5d8e3e1cdc2243f44c129d95f7833a3f3ca8"
+}

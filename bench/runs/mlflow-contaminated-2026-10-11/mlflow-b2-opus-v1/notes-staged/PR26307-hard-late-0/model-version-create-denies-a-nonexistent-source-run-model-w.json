@@ -1,0 +1,88 @@
+{
+  "id": "model-version-create-denies-a-nonexistent-source-run-model-w",
+  "title": "Model-version create denies a nonexistent source run/model with 403, not the store's 404",
+  "kind": "rule",
+  "answers": [
+    "creating a model version with a missing run id returns 404 and reveals which runs exist",
+    "why does model version create return Permission denied for an unknown source id",
+    "existence oracle on model registry source run id",
+    "nonexistent runId or modelId returns different error than forbidden"
+  ],
+  "body": "Invariant: in the model-version create source check, a nonexistent runId / run_id / modelId / model_id is denied with 403 \"Permission denied\", the same as an existing source the caller cannot read.\nEnforced by: mlflow/server/auth/__init__.py:_can_read_model_version_source, which catches MlflowException with error code RESOURCE_DOES_NOT_EXIST and returns False. Other MlflowExceptions are re-raised.\nWhat breaks if skipped: the store's 404 for a missing id differs from the 403 for an existing but unreadable id, so callers can probe which run and logged-model ids exist.\nConstraints: only RESOURCE_DOES_NOT_EXIST is swallowed. Do not add a broader except, because that would hide real store failures. The guard must wrap both the run and model permission lookups.\nApplies: source-read checks in validate_can_create_model_version and any other basic-auth check that resolves a caller-supplied run or model id before the handler does.",
+  "applies": "Basic-auth source-id permission checks for model version creation in mlflow/server/auth/__init__.py.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "model-registry",
+    "security",
+    "enumeration"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_can_read_model_version_source",
+      "hash": "sha256:4c6f7a309ecfe51d60883997",
+      "line": 1448,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4c6f7a309ecfe51d60883997",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:9eae272ce33b91870100198a",
+      "line": 1415,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9eae272ce33b91870100198a",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_create_model_version_nonexistent_source_id_is_denied",
+      "hash": "sha256:aba7517018d794f792ab0839",
+      "line": 1966,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:aba7517018d794f792ab0839",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25892"
+  },
+  "created": "2026-10-11T10:31:07.436Z",
+  "verified": "2026-10-11T10:31:07.436Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "createmodelversion-source-read-check-must-authorize-the-prot",
+    "gateway-authz-validators-must-read-resource-ids-from-the-par",
+    "gateway-list-routes-need-authentication-plus-a-per-item-use",
+    "nested-graphql-fields-over-protected-resources-must-be-liste"
+  ],
+  "says": [
+    "Creating a model version from an invalid run gives permission denied instead of not found.",
+    "Missing source runs return not found errors that reveal which runs actually exist to unauthorized users.",
+    "Registering a model version with an unknown source run should show a permission denied error.",
+    "The system leaks run existence when users register model versions from nonexistent experiment runs."
+  ],
+  "search": "In mlflow/server/auth/__init__.py:_can_read_model_version_source, nonexistent runId, run_id, modelId, or model_id sources are denied with 403 Permission denied instead of 404 to avoid existence oracles. The guard catches MlflowException with error code RESOURCE_DOES_NOT_EXIST and returns False, while other exceptions are re-raised. Applies to source-read permission checks in validate_can_create_model_version and basic-auth checks resolving caller-supplied run or model IDs before the handler.",
+  "saysFor": "s2:878ba5916e6efdceb45d5d4589de9952e6bba5aeb1acd710fd8fe1368cd849f3"
+}

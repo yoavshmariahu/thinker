@@ -1,0 +1,77 @@
+{
+  "id": "the-torch-2-10-gate-must-stay-in-sync-across-the-code-error",
+  "title": "The torch >= 2.10 gate must stay in sync across the code, error message, docs and test skips",
+  "kind": "rule",
+  "answers": [
+    "what torch version is needed to load pt2 models with pickle disabled",
+    "why does pt2 load ask me to upgrade torch to 2.10",
+    "change minimum torch version for pickle-free pt2 loading",
+    "pt2 torch version requirement docs"
+  ],
+  "body": "Invariant: the minimum torch version for pt2 validation (2.10) appears in several places that must change together.\n- mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free holds the Version(torch.__version__) < Version(\"2.10\") check and the 'Upgrade to `torch` >= 2.10' error text.\n- docs/docs/classic-ml/tracking/pickle-free-models/index.mdx states the requirement in the PT2 requirements box, a global-configuration note and the summary table.\n- tests/pytorch/test_pytorch_model_export.py has skipif markers at 2.10 and a test matching the message 'Upgrade to `torch` >= 2.10' that mocks torch.__version__ to 2.9.1.\nThe reason is that weights_only was bypassable before torch 2.6 (CVE-2025-32434) and had memory corruption before 2.10 (CVE-2026-24747). Changing the threshold in one place alone leaves the message, docs and tests wrong.",
+  "applies": "Any change to the torch version gate for pt2 loading under MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "docs",
+    "torch-version",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 811,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "docs/docs/classic-ml/tracking/pickle-free-models/index.mdx",
+      "hash": "sha256:169c4207a38e497991440dbe",
+      "missing": false
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_load_pt2_model_rejected_on_unverifiable_torch_when_pickle_deserialization_disallowed",
+      "hash": "sha256:5f38de06e773b2ff363fea18",
+      "line": 1323,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f38de06e773b2ff363fea18",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T08:46:42.646Z",
+  "verified": "2026-10-11T08:46:42.646Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pt2-pytorch-models-must-be-validated-before-torch-export-loa",
+    "pt2-validation-must-not-mutate-torch-s-process-wide-safe-glo"
+  ],
+  "says": [
+    "Loading an exported PyTorch model prompts to upgrade PyTorch when pickle is disabled.",
+    "Documentation and error prompts show conflicting minimum PyTorch versions for secure loading.",
+    "Require newer PyTorch releases to prevent memory corruption vulnerabilities during model loading.",
+    "Make the minimum supported PyTorch version consistent across security guides and warnings."
+  ],
+  "search": "The minimum torch version (2.10) for pt2 pickle validation under MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false must stay synchronized across code, error messages, docs, and test skips. The gate is checked in mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free, documented in docs/docs/classic-ml/tracking/pickle-free-models/index.mdx, and tested with skipif markers in tests/pytorch/test_pytorch_model_export.py. The 2.10 threshold avoids weights_only bypasses before torch 2.6 (CVE-2025-32434) and memory corruption before 2.10 (CVE-2026-24747).",
+  "saysFor": "s2:a9110c0083f4516cb0869e87f5ed48a9b9640a195fd66b3cfd80da8c1379e0f2"
+}

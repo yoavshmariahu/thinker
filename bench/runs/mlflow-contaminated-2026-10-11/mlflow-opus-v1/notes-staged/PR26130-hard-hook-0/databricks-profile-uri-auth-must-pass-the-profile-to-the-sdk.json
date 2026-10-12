@@ -1,0 +1,82 @@
+{
+  "id": "databricks-profile-uri-auth-must-pass-the-profile-to-the-sdk",
+  "title": "Databricks profile URI auth must pass the profile to the SDK Config, not only the host",
+  "kind": "rule",
+  "answers": [
+    "Codex tracing with databricks://<profile> uses the wrong Databricks account",
+    "databricks:// profile ignores my CLI profile when several profiles share one workspace",
+    "MLflow Databricks auth picks the wrong token for my profile",
+    "databricks auth token called with --host instead of --profile"
+  ],
+  "body": "Symptom: With tracking URI `databricks://<profile>`, requests authenticate as a different Databricks CLI identity when several CLI profiles target the same workspace host.\nRoot cause: libs/typescript/core/src/auth/index.ts:createDatabricksAuth built the SDK `Config` with `host: options.host`, so the SDK resolved credentials by host (`databricks auth token --host`) instead of by the selected profile.\nFix pattern: Pass the host already resolved from the profile (`host`) into `Config`, and keep `profile` set in the same Config so the SDK runs `databricks auth token --profile <name>`.\nConstraints: Applies to any code that builds a Databricks SDK Config from a profile URI. Do not drop the `profile` field or substitute host-only config. Regression coverage uses a fake CLI binary in libs/typescript/core/tests/core/auth.test.ts that asserts the `auth token --profile` call and rejects `--host`.",
+  "applies": "Databricks auth resolution in @mlflow/core (createAuthProvider) and any integration that relies on it.",
+  "tags": [
+    "databricks",
+    "auth",
+    "typescript",
+    "profile"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/auth/index.ts",
+      "symbol": "createDatabricksAuth",
+      "hash": "sha256:e55654cf0343f67fd343279d",
+      "line": 217,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e55654cf0343f67fd343279d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "host",
+      "hash": "sha256:a9f5325504d3a6c869d35f70",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:44d6a24531fa813f91d1fc56",
+      "fanout": {
+        "files": 69,
+        "sites": 1,
+        "refs": 228
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "profile",
+      "hash": "sha256:34e67b0cc74a18b8baa27306",
+      "line": 167,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cd18adbdce8ad8f98fe4c46",
+      "fanout": {
+        "files": 37,
+        "sites": 1,
+        "refs": 86
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T08:42:07.619Z",
+  "verified": "2026-10-11T08:42:07.619Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Tracking with a named workspace profile logs in under the wrong user identity.",
+    "Requests authenticate with the wrong credentials when multiple profiles share a workspace.",
+    "Logging to a workspace should strictly respect the chosen connection profile.",
+    "Connecting with a configured profile erroneously uses another account on that host."
+  ],
+  "search": "Databricks auth configuration in libs/typescript/core/src/auth/index.ts:createDatabricksAuth must retain the profile property alongside host in SDK Config. Omitting profile causes the SDK to invoke databricks auth token --host instead of --profile, selecting the wrong CLI identity when multiple profiles target the same workspace. Tested via fake CLI assertions in libs/typescript/core/tests/core/auth.test.ts.",
+  "saysFor": "s2:0cc92a66045ca4db2cf5b41960a9f4364736cbfa3d56309e2cf2b797938e717d"
+}

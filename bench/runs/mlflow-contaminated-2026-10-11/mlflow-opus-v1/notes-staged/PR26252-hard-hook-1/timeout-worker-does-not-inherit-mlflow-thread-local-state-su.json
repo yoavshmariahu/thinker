@@ -1,0 +1,58 @@
+{
+  "id": "timeout-worker-does-not-inherit-mlflow-thread-local-state-su",
+  "title": "Timeout worker does not inherit MLflow thread-local state such as the active run (open review concern)",
+  "kind": "rule",
+  "answers": [
+    "why does log_metric inside a scorer create a separate run",
+    "why does a scorer see no active run when timeout is set",
+    "scorer timeout loses mlflow.start_run context",
+    "is the active run visible inside a scorer with a timeout"
+  ],
+  "body": "Symptom: a scorer with a timeout runs under mlflow.start_run() but sees no active run, and mlflow.log_metric() inside it may create a separate run. The same scorer with timeout=None works.\nRoot cause: Scorer._run_with_timeout uses copy_context(), which copies only ContextVar values. MLflow's active run and active model are stored in ThreadLocalVariable, which the copied context does not carry into the daemon worker thread.\nFix pattern: a review comment asks to copy the relevant ThreadLocalVariable values into the worker explicitly. The diff as shown does not do this, so treat it as an open gap.\nConstraints: any change that moves scorer execution into another thread must preserve active run and active model. Check this with a scorer that calls log_metric under an active run.",
+  "applies": "Changes to how scorers are dispatched to threads, or to ThreadLocalVariable-based MLflow state used during evaluation.",
+  "tags": [
+    "genai",
+    "scorers",
+    "timeout",
+    "threading",
+    "active-run"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._run_with_timeout",
+      "hash": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "line": 828,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25720"
+  },
+  "created": "2026-10-11T08:42:55.843Z",
+  "verified": "2026-10-11T08:42:55.843Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-invocation-timeout-is-enforced-only-inside-scorer-run",
+    "legacy-serialized-scorers-must-reload-with-timeout-0-not-the"
+  ],
+  "says": [
+    "Evaluation metrics with a timeout create unwanted separate experiment runs when recording metrics.",
+    "Setting an evaluation timeout causes the evaluator to lose track of the active experiment run.",
+    "Metrics logged during timed evaluation end up in a different experiment run instead of current.",
+    "Ensure timed evaluation tasks preserve the current active experiment run when recording evaluation results."
+  ],
+  "search": "Scorer execution with a timeout fails to inherit MLflow thread-local state, causing workers to lose the active run and active model. In mlflow/genai/scorers/base.py:Scorer._run_with_timeout, copy_context() copies only ContextVar values rather than ThreadLocalVariable state into the daemon worker thread. This causes scorers with timeouts to see no active run and potentially create a separate run when calling mlflow.log_metric(). Applies to scorer thread dispatching and evaluation state changes, leaving explicit copying of ThreadLocalVariable values as an open review gap.",
+  "saysFor": "s2:b9a488f31a662725448456c7e1bc6ed9385d594629f754c203fc9959b3b2357f"
+}

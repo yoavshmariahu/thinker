@@ -1,0 +1,48 @@
+{
+  "id": "concurrency-policy-guidance-must-not-suggest-a-github-ref-gr",
+  "title": "Concurrency policy guidance must not suggest a github.ref group; the opt-out is a per-run run_id group",
+  "kind": "rule",
+  "answers": [
+    "workflow run cancelled by another run of a different event",
+    "why does conftest tell me to add concurrency to my workflow",
+    "what concurrency group should I use in a workflow that must not be cancelled",
+    "release-note workflow cancelled by a later event"
+  ],
+  "body": "Symptom: a workflow run is cancelled or superseded by a run from another event (e.g. a later issue_comment or workflow_run) that shares its concurrency group.\nRoot cause: .github/policy.rego:deny_workflow_without_concurrency used to recommend the group '${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}', which is unsafe for pull_request_target, issue_comment, issues and workflow_run. The guidance contributed to the release-note.yml cancellation bug fixed in #25624.\nFix pattern: when the policy message or a workflow needs an opt-out from grouping, show the complete block `concurrency: {group: ${{ github.run_id }}, cancel-in-progress: false}`; do not offer the github.ref group as the standard.\nConstraints: a per-run unique group only stops concurrency-based cancellation and serialization. It does not promise that a run completes, since runs can still queue for runner capacity or be cancelled for other reasons; scope the wording to 'allow each run to proceed independently' (the reviewed wording).",
+  "applies": "The deny message text in .github/policy.rego and any guidance about concurrency groups for workflows in .github/workflows/*.yml.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "policy",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25625"
+  },
+  "created": "2026-10-11T08:49:43.593Z",
+  "verified": "2026-10-11T08:49:43.593Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-list-github-s-default-pull-request-activity-types-in",
+    "workflows-default-github-actions-cache-mode-to-none-grant-re"
+  ],
+  "says": [
+    "Release notes were not generated after someone commented on the release pull request.",
+    "The automated release notes task was cancelled unexpectedly before finishing its publication step.",
+    "Ensure release note generation runs independently without being aborted by newer comment activity.",
+    "The pipeline policy check suggests a concurrency setting that cancels runs across events."
+  ],
+  "search": "Workflow concurrency policy guidance in .github/policy.rego must recommend a per-run group: ${{ github.run_id }} with cancel-in-progress: false instead of a github.ref-based group. The rule deny_workflow_without_concurrency previously suggested '${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}', which caused workflow runs such as release-note.yml to be cancelled by subsequent pull_request_target, issue_comment, issues, or workflow_run events. Policy text must scope wording to allow each run to proceed independently, as unique run_id groups stop only concurrency cancellation and serialization without guaranteeing run completion against runner queueing or other cancellations.",
+  "saysFor": "s2:e44aa4df8e5bfe2cf09061f2469f4b39a3b411ab31b909c05bf4e9e9d27b1aec"
+}

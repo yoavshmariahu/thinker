@@ -1,0 +1,87 @@
+{
+  "id": "vertex-delegates-always-drop-the-client-s-auth-headers-befor",
+  "title": "Vertex delegates always drop the client's auth headers before merging the GCP token",
+  "kind": "rule",
+  "answers": [
+    "Claude Code or Codex client gets 401 or duplicate Authorization header error on Vertex AI gateway",
+    "Gateway Vertex AI requests fail when called from claude-cli user agent",
+    "Vertex AI MaaS model ignores GCP token when client sends its own key"
+  ],
+  "body": "Invariant: _VertexAIClaudeProvider._get_headers and _VertexAIMaaSProvider._get_headers run _drop_client_auth_headers(headers) before calling super()._get_headers. This drops the client's authorization and x-api-key regardless of user agent.\nEnforced at: mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider._get_headers and _VertexAIMaaSProvider._get_headers, using mlflow/gateway/providers/base.py:_drop_client_auth_headers.\nWhat breaks if skipped: AnthropicProvider keeps a credential agent's own auth header (the carve-out from #25129). The Claude delegate then sends two Authorization headers, which Google rejects. The MaaS delegate's OpenAI-compatible header logic swaps out the GCP bearer token for the client's, which Vertex cannot accept.\nConstraints: This applies only to the Vertex delegates. Other providers keep the credential-agent carve-out.",
+  "applies": "Any change to header construction for Vertex AI delegates in mlflow/gateway/providers/vertex_ai.py.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "auth",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._get_headers",
+      "hash": "sha256:2e52c56e62618efe794dba47",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2e52c56e62618efe794dba47",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._get_headers",
+      "hash": "sha256:6670ef378d93bcc4ab12fd9a",
+      "line": 312,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6670ef378d93bcc4ab12fd9a",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "_drop_client_auth_headers",
+      "hash": "sha256:513b52d4af8168f2b04cbaf5",
+      "line": 78,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:513b52d4af8168f2b04cbaf5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T10:32:46.665Z",
+  "verified": "2026-10-11T10:32:46.665Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t",
+    "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla",
+    "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+    "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p"
+  ],
+  "says": [
+    "Claude Code client receives an unauthorized error when connecting through the Vertex gateway.",
+    "Vertex AI requests fail with duplicate authorization errors when called from developer tools.",
+    "Google Cloud models reject requests sent from terminal coding assistants with custom keys.",
+    "Models on Vertex AI should ignore client API keys and use cloud credentials.",
+    "Command line clients get authentication failures when accessing Vertex models through gateway."
+  ],
+  "search": "In mlflow/gateway/providers/vertex_ai.py, _VertexAIClaudeProvider._get_headers and _VertexAIMaaSProvider._get_headers must call _drop_client_auth_headers(headers) from mlflow/gateway/providers/base.py before calling super()._get_headers. This drops client authorization and x-api-key headers regardless of user agent, preventing duplicate Authorization headers for Claude or swapping out the GCP bearer token for MaaS. This invariant applies only to Vertex delegates, whereas other providers keep the credential-agent carve-out.",
+  "saysFor": "s2:eba629f3ce0225b0b74a8529db6fe533e80139efd632ab8baa5c551c86ded8b0"
+}

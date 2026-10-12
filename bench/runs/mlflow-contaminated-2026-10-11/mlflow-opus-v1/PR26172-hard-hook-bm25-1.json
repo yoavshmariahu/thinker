@@ -1,0 +1,63 @@
+{
+  "id": "PR26172-hard-hook-bm25-1",
+  "task": "PR26172-hard",
+  "area": "mlflow/genai",
+  "arm": "hook-bm25",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "2a8a8363-8302-437b-b7ad-bf72293d76cf",
+  "turns": 16,
+  "wall_ms": 73714,
+  "api_ms": 50035,
+  "cost": 0.2939624,
+  "in_tokens": 306298,
+  "out_tokens": 5297,
+  "tools": {
+    "calls": 15,
+    "byTool": {
+      "Bash": 13,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 12,
+    "callsBeforeFirstEdit": 10,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [
+      "run-the-function-signature-check-locally-with-base-revision",
+      "public-genai-fluent-apis-backed-by-oss-only-routes-need-data"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "_complex_signature\n0.11s teardown tests/genai/scorers/test_scorer_utils.py::test_parse_tool_call_expectations_returns_none_for_empty[None]\n0.11s teardown tests/genai/scorers/test_scorer_utils.py::test_function_with_import_error_at_runtime\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                       | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ------------------------------------------ | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/genai/scorers/test_scorer_utils.py` | 6.00s    | 45    | 0.104s | 0.947s | 0.133s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m45 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 6.07s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "Scorers whose signatures contain parentheses can now be loaded back. For example, `def keyword_scorer(outputs, keywords=(\"foo\", \"bar\")) -> bool` now loads with its default intact. The relevant tests pass (103 across the two test files); I couldn't run the ruff format/lint check because ruff isn't installed in this environment.\n\n**Cause:** when loading, `recreate_function` in `mlflow/genai/scorers/scorer_utils.py` got the parameter list with the regex `\\((.*?)\\)`, which stops at the first `)`. Any tuple default, call default, nested annotation, or string containing `)` cut the signature short and gave the \"invalid syntax\" error.\n\n**Fix:** a new helper, `_parse_signature_params`, replaces the regex. It:\n- wraps the stored signature in a dummy function, `def _f<signature>:\\n    pass`, and parses it with `ast.parse`. This only parses; nothing is executed.\n- checks that the result is exactly one plain function whose body is just `pass`. Malformed input, or extra code slipped in after the signature, raises the same `Invalid signature format` error as before.\n- rebuilds the parameters from the parsed tree with `ast.unparse`, so defaults, annotations, `*`, `*args` and `**kwargs` are all kept. The return annotation is left out, as before.\n\nThe rest of `recreate_function` hasn't changed. I also removed the `import re`, which nothing else used.\n\n**Tests added:**\n- `tests/genai/scorers/test_scorer_utils.py`:\n  - a parametrized test for tuple defaults, call defaults, a string default containing `)`, nested annotations with a return annotation, and keyword-only parameters. It also checks that the return annotation is dropped.\n  - a test that malformed signatures and signatures with extra code appended are rejected.\n- `tests/genai/scorers/test_serialization.py`: a save-and-load test for the exact case reported (`outputs` plus a `keywords` default that is a tuple of two strings).\n\nOne small difference: rebuilt signatures are now written out in a standard format (e.g. `( a , b )` becomes `a, b`). This only affects the source text that gets rebuilt, not how the function behaves.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/genai/scorers/scorer_utils.py b/mlflow/genai/scorers/scorer_utils.py\nindex d303fe44d..b393ac6da 100644\n--- a/mlflow/genai/scorers/scorer_utils.py\n+++ b/mlflow/genai/scorers/scorer_utils.py\n@@ -4,7 +4,6 @@ import ast\n import inspect\n import json\n import logging\n-import re\n from textwrap import dedent\n from typing import TYPE_CHECKING, Any, Callable\n \n@@ -126,6 +125,34 @@ def extract_function_body(func: Callable[..., Any]) -> tuple[str, int]:\n     return extractor.function_body, extractor.indent_unit\n \n \n+def _parse_signature_params(signature: str) -> str:\n+    \"\"\"\n+    Extract the parameter list from a signature string such as\n+    ``\"(outputs, keywords=('a', 'b')) -> bool\"``, dropping the return annotation.\n+\n+    The signature is parsed with ``ast`` (never executed), so parentheses inside default\n+    values or annotations are handled correctly.\n+    \"\"\"\n+    invalid = MlflowException(\n+        f\"Invalid signature format: '{signature}'\", error_code=INVALID_PARAMETER_VALUE\n+    )\n+    if not signature or not signature.strip().startswith(\"(\"):\n+        raise invalid\n+    try:\n+        module = ast.parse(f\"def _f{signature.strip()}:\\n    pass\\n\")\n+    except SyntaxError as e:\n+        raise invalid from e\n+    if (\n+        len(module.body) != 1\n+        or not isinstance(func_def := module.body[0], ast.FunctionDef)\n+        or func_def.decorator_list\n+        or len(func_def.body) != 1\n+        or not isinstance(func_def.body[0], ast.Pass)\n+    ):\n+        raise invalid\n+    return ast.unparse(func_def.args)\n+\n+\n def recreate_function(source: str, signature: str, func_name: str) -> Callable[..., Any]:\n     \"\"\"\n     Recreate a function from its source code, signature, and name.\n@@ -140,14 +167,7 @@ def recreate_function(source: str, signature: str, func_name: str) -> Callable[.\n     \"\"\"\n     import mlflow\n \n-    # Parse the signature to build the function definition\n-    sig_match = re.match(r\"\\((.*?)\\)\", signature)\n-    if not sig_match:\n-        raise MlflowException(\n-            f\"Invalid signature format: '{signature}'\", error_code=INVALID_PARAMETER_VALUE\n-        )\n-\n-    params_str = sig_match.group(1).strip()\n+    params_str = _parse_signature_params(signature)\n \n     # Build the function definition with future annotations to defer type hint evaluation\n     func_def = \"from __future__ import annotations\\n\"\ndiff --git a/tests/genai/scorers/test_scorer_utils.py b/tests/genai/scorers/test_scorer_utils.py\nindex 24c9f4c0d..7aa6a43f1 100644\n--- a/tests/genai/scorers/test_scorer_utils.py\n+++ b/tests/genai/scorers/test_scorer_utils.py\n@@ -202,6 +202,41 @@ return f\"{prefix}: {len(data)} items\" + (suffix or \"\")\"\"\"\n     assert recreated([1, 2], \"Count\", \"!\") == \"Count: 2 items!\"\n \n \n+@pytest.mark.parametrize(\n+    (\"signature\", \"args\", \"expected\"),\n+    [\n+        (\"(outputs, keywords=('a', 'b'))\", (\"xa\",), (\"xa\", (\"a\", \"b\"))),\n+        (\"(outputs, keywords=tuple(['a']))\", (\"x\",), (\"x\", (\"a\",))),\n+        (\"(outputs, keywords='a)b')\", (\"x\",), (\"x\", \"a)b\")),\n+        (\n+            \"(outputs: dict[str, tuple[int, int]], keywords=(1, (2, 3))) -> bool\",\n+            (1,),\n+            (1, (1, (2, 3))),\n+        ),\n+        (\"(outputs, *, keywords=('a',)) -> tuple[str, str]\", (\"x\",), (\"x\", (\"a\",))),\n+    ],\n+)\n+def test_signature_with_parentheses(signature, args, expected):\n+    recreated = recreate_function(\"return (outputs, keywords)\", signature, \"my_scorer\")\n+\n+    assert recreated(*args) == expected\n+    assert \"return\" not in recreated.__annotations__\n+\n+\n+@pytest.mark.parametrize(\n+    \"signature\",\n+    [\n+        \"x, y\",\n+        \"(x, y\",\n+        \"(x):\\n    import os\\ndef g()\",\n+        \"(x) -> int: pass\\nimport os\\ndef g()\",\n+    ],\n+)\n+def test_invalid_signature_format(signature):\n+    with pytest.raises(MlflowException, match=\"Invalid signature format\"):\n+        recreate_function(\"return 1\", signature, \"bad\")\n+\n+\n def test_empty_signature_string():\n     from mlflow.exceptions import MlflowException\n \ndiff --git a/tests/genai/scorers/test_serialization.py b/tests/genai/scorers/test_serialization.py\nindex 40f08676d..b5e0bfb85 100644\n--- a/tests/genai/scorers/test_serialization.py\n+++ b/tests/genai/scorers/test_serialization.py\n@@ -102,6 +102,19 @@ def test_simple_scorer_round_trip():\n     assert deserialized(outputs=\"wrong\") is False\n \n \n+def test_scorer_with_parenthesized_default_round_trip():\n+    @scorer\n+    def keyword_scorer(outputs, keywords=(\"foo\", \"bar\")) -> bool:\n+        return all(k in outputs for k in keywords)\n+\n+    serialized = keyword_scorer.model_dump()\n+    deserialized = Scorer.model_validate(serialized)\n+\n+    assert deserialized(outputs=\"foo and bar\") is True\n+    assert deserialized(outputs=\"only foo\") is False\n+    assert deserialized(outputs=\"baz\", keywords=(\"baz\",)) is True\n+\n+\n def test_custom_name_and_aggregations_round_trip():\n     @scorer(name=\"length_check\", aggregations=[\"mean\", \"max\"])\n     def my_scorer(inputs, outputs):\ndiff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\nindex 005e38139..b2ac0206d 100644\n--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\n+++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\n@@ -861,6 +861,26 @@ def test_create_experiments(store: SqlAlchemyStore):\n         store.create_experiment(name=\"x\" * (MAX_EXPERIMENT_NAME_LENGTH + 1))\n \n \n+@pytest.mark.parametrize(\"name\", [\" \", \"\\t\\n\", \"\\u2003\"])\n+def test_experiment_name_cannot_be_whitespace(store: SqlAlchemyStore, name):\n+    with pytest.raises(\n+        MlflowException,\n+        match=\"Invalid experiment name\",\n+        check=lambda e: e.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE),\n+    ):\n+        store.create_experiment(name)\n+    assert len(store.search_experiments()) == 1\n+\n+    experiment_id = store.create_experiment(\" valid name \")\n+    with pytest.raises(\n+        MlflowException,\n+        match=\"Invalid experiment name\",\n+        check=lambda e: e.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE),\n+    ):\n+        store.rename_experiment(experiment_id, name)\n+    assert store.get_experiment(experiment_id).name == \" valid name \"\n+\n+\n def test_create_experiment_with_tags_works_correctly(store: SqlAlchemyStore, workspaces_enabled):\n     artifact_location = None if workspaces_enabled else \"some location\"\n     experiment_id = store.create_experiment(\ndiff --git a/tests/utils/test_validation.py b/tests/utils/test_validation.py\nindex 33eb1f0e7..0226a7f7b 100644\n--- a/tests/utils/test_validation.py\n+++ b/tests/utils/test_validation.py\n@@ -359,12 +359,14 @@ def test_validate_experiment_artifact_location_bad(location):\n         _validate_experiment_artifact_location(location)\n \n \n-@pytest.mark.parametrize(\"experiment_name\", [\"validstring\", b\"test byte string\".decode(\"utf-8\")])\n+@pytest.mark.parametrize(\n+    \"experiment_name\", [\"validstring\", \" valid name \", b\"test byte string\".decode(\"utf-8\")]\n+)\n def test_validate_experiment_name_good(experiment_name):\n     _validate_experiment_name(experiment_name)\n \n \n-@pytest.mark.parametrize(\"experiment_name\", [\"\", 12, 12.7, None, {}, []])\n+@pytest.mark.parametrize(\"experiment_name\", [\"\", \" \", \"\\t\\n\", \"\\u2003\", 12, 12.7, None, {}, []])\n def test_validate_experiment_name_bad(experiment_name):\n     with pytest.raises(MlflowException, match=\"Invalid experiment name\"):\n         _validate_experiment_name(experiment_name)\n",
+  "distill": null,
+  "cache_read_tokens": 290032,
+  "cache_write_tokens": 16238,
+  "fresh_in_tokens": 28,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

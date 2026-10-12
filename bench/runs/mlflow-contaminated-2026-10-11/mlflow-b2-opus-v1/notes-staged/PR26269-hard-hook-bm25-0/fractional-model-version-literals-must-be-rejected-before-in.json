@@ -1,0 +1,75 @@
+{
+  "id": "fractional-model-version-literals-must-be-rejected-before-in",
+  "title": "Fractional model-version literals must be rejected before int() coercion",
+  "kind": "rule",
+  "answers": [
+    "version_number = 1.5 returns the wrong model version",
+    "fractional version number in model version search is silently truncated",
+    "why does searching model versions with a decimal version return version 1",
+    "model version filter accepts float literal"
+  ],
+  "body": "Symptom: A model-version search with a fractional version_number (e.g. version_number = 1.5) returns a different version instead of an error.\nRoot cause: The filter parser returns a Python float for unquoted decimal literals, and int(1.5) silently yields 1. mlflow/store/model_registry/sqlalchemy_store.py:_get_search_model_versions_filter_clauses coerced the value with int() without checking the type first.\nFix pattern: Check isinstance(value, float) and raise INVALID_PARAMETER_VALUE before the int(value) coercion. Quoted strings such as version_number='2' still go through int() and succeed.\nConstraints: The guard is in the SQL store only. mlflow/utils/search_utils.py:SearchModelVersionUtils._does_model_version_match_clauses (FileStore path) still calls int() and can truncate, so backends may disagree. Reviewers flagged this as unresolved; do not assume parity across stores.",
+  "applies": "Model-version search filter parsing in the SQLAlchemy model-registry store. Does not cover the run or MCP search paths.",
+  "tags": [
+    "model-registry",
+    "search",
+    "filter",
+    "version_number",
+    "float",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/model_registry/sqlalchemy_store.py",
+      "symbol": "_get_search_model_versions_filter_clauses",
+      "hash": "sha256:9907ec9ccfc049483bb2fd09",
+      "line": 665,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9907ec9ccfc049483bb2fd09",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchModelVersionUtils._does_model_version_match_clauses",
+      "hash": "sha256:b73c5916d2f542338fd86b2f",
+      "line": 1471,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b73c5916d2f542338fd86b2f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-11T10:24:37.433Z",
+  "verified": "2026-10-11T10:24:37.433Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fractional-numeric-filter-values-must-be-compared-exactly-ne",
+    "numeric-search-filters-fail-on-postgresql-psycopg-v3-because",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg"
+  ],
+  "says": [
+    "Searching model versions with a decimal number returns the wrong model version.",
+    "Filtering model versions by a fractional number should display an invalid input error.",
+    "The model registry search box returns version one when searching for version one point five.",
+    "Decimal values entered in the model version filter are silently rounded down.",
+    "Reject fractional numbers entered into the model version search bar instead of returning results."
+  ],
+  "search": "Model-version search filter parsing in the SQLAlchemy model-registry store must reject float literals before integer coercion. In mlflow/store/model_registry/sqlalchemy_store.py:_get_search_model_versions_filter_clauses, unquoted decimal floats must raise INVALID_PARAMETER_VALUE via isinstance(value, float) before int(value) silently truncates them. Quoted integer strings like version_number='2' still pass through int() and succeed. This guard applies only to the SQLAlchemy store and excludes run or MCP search paths, while mlflow/utils/search_utils.py:SearchModelVersionUtils._does_model_version_match_clauses in FileStore still truncates.",
+  "saysFor": "s2:a9270bdc878c4aecc68e9673f3b15fbfc3b65854adb0e9d9c0aa36cec8928fc1"
+}

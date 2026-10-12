@@ -1,0 +1,54 @@
+{
+  "id": "step-diagnostics-in-policy-rego-use-entry-location-not-job-i",
+  "title": "Step diagnostics in policy.rego use entry.location, not job id or step name",
+  "kind": "rule",
+  "answers": [
+    "policy error message says wrong job or step for unnamed step",
+    "how do policy messages identify a step",
+    "which location format do policy denials use"
+  ],
+  "body": "Symptom: a policy denial names a job but not which step, or prints an empty step name for unnamed steps.\nRoot cause: messages formerly used job_id and step.name, which are missing for unnamed steps and do not identify parallel children.\nFix pattern: step_entries(inp) attaches a `location` string such as \"job 'X', step #N\" or \"job 'X', step #N, parallel step #M\"; messages format it with %s, e.g. \"actions/github-script at %s must have 'retries' set\".\nConstraints: keep the \"at %s\" phrasing consistent across step rules so the output is uniform; the composite-action branch of step_entries is the source of its location format, so reuse entry.location rather than building one per rule.",
+  "applies": "Writing or editing deny messages for step-level rules in .github/policy.rego.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego",
+    "diagnostics"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T08:45:18.974Z",
+  "verified": "2026-10-11T08:45:18.974Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "step-level-policy-rules-must-iterate-step-entries-input-not"
+  ],
+  "says": [
+    "Workflow policy error messages do not indicate which step caused the failure.",
+    "The pipeline policy check displays a blank step name when steps are unnamed.",
+    "Policy violation warnings should clearly identify the exact job and step number.",
+    "Policy failure reports do not specify which parallel step failed the validation check.",
+    "Make workflow compliance error messages consistently show the exact location of failing steps."
+  ],
+  "search": "Step-level denial messages in .github/policy.rego must use entry.location from step_entries(inp) rather than job_id or step.name. Formatting messages with %s and entry.location (such as \"job 'X', step #N\") correctly identifies parallel children and unnamed steps that lack a step name. Rules must reuse entry.location and consistently use the \"at %s\" phrasing to keep step diagnostics uniform.",
+  "saysFor": "s2:9cf30e9b721c107a38c7afad0b4766bc2269e72f00e67b7de4069d5dced52531"
+}

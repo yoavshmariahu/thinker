@@ -1,0 +1,59 @@
+{
+  "id": "logged-model-search-order-by-must-end-with-a-unique-model-id",
+  "title": "Logged model search order_by must end with a unique model_id tiebreaker",
+  "kind": "rule",
+  "answers": [
+    "logged model search results change between pages when sort values tie",
+    "why does search_logged_models need a stable sort order for pagination",
+    "model_id tiebreaker logged models order by"
+  ],
+  "body": "Invariant: _apply_order_by_search_logged_models makes the ORDER BY total so each page token resolves to a unique position. It appends creation_timestamp_ms desc when the caller did not sort by creation time, then appends model_id asc as the final key unless the caller already ordered by model_id (has_model_id guard).\nEnforced in: mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models.\nWhat breaks if skipped: When user-provided sort keys tie, the database may return tied rows in different orders across queries, so paginated results repeat or skip models.\nConstraints: Do not append model_id a second time when the caller sorts by model_id; the has_model_id check prevents a duplicate ORDER BY clause. Any new ordering branch in this method must keep these tiebreakers at the end.",
+  "applies": "Any change to sort handling in SqlAlchemyStore logged model search (search_logged_models and its order_by helper).",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "pagination",
+    "ordering",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3591,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-11T10:25:37.720Z",
+  "verified": "2026-10-11T10:25:37.720Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "metric-ordered-logged-model-search-must-keep-one-metric-row",
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg"
+  ],
+  "says": [
+    "The same logged model appears on multiple pages when sorting by a column.",
+    "Some models are missing when paging through sorted experiment model results.",
+    "Make logged model list pagination stable when items share identical sort values.",
+    "Next page in the models view skips entries when sorting by timestamp."
+  ],
+  "search": "Sorting logged models in SqlAlchemyStore._apply_order_by_search_logged_models must enforce a deterministic ORDER BY ending with creation_timestamp_ms desc and model_id asc tiebreakers. This total ordering ensures pagination tokens resolve to unique positions and prevents tied rows from repeating or skipping across pages. The has_model_id guard ensures model_id is not appended a second time if already requested by the caller. Any new ordering branch in _apply_order_by_search_logged_models must preserve these trailing tiebreakers.",
+  "saysFor": "s2:cba13d08d8e19fd4096bf8d413b06a60f22bc93db2b2f65203c1a5a1459f1b12"
+}

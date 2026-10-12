@@ -1,0 +1,55 @@
+{
+  "id": "strands-token-usage-test-assertions-must-compare-only-core-u",
+  "title": "Strands token-usage test assertions must compare only core usage keys",
+  "kind": "rule",
+  "answers": [
+    "strands autolog test fails on newer strands version with extra cache token keys in usage",
+    "CHAT_USAGE assertion mismatch with cache_read_input_tokens in strands tests",
+    "cross-version tests failing for strands token usage dict",
+    "trace token_usage has unexpected cache keys in strands autologging"
+  ],
+  "body": "Symptom: strands autologging tests fail on strands 1.54.0 with a token-usage dict that has extra cache keys (cache_read_input_tokens, cache_creation_input_tokens), even though the token counts are correct.\nRoot cause: tests/strands/test_strands_tracing.py asserted exact 3-key dicts against CHAT_USAGE and trace token_usage; MLflow's gen_ai translation copies cache-token attributes into usage whenever strands emits them.\nFix pattern: wrap usage values in the _core_token_usage helper and compare only input_tokens/output_tokens/total_tokens, so assertions pass whether or not optional cache keys are present.\nConstraints: Keep the helper filtering by key presence (include a key only if it exists) rather than indexing every key, so a missing core key produces a normal equality mismatch, not a KeyError. Apply only to the strands cross-version tests, which run against min 1.7.1 through latest. Do not loosen the token count values themselves.",
+  "applies": "Assertions on usage/token counts in tests/strands/ that must hold across the whole supported strands version range.",
+  "tags": [
+    "tracing",
+    "strands",
+    "testing",
+    "cross-version"
+  ],
+  "deps": [
+    {
+      "path": "tests/strands/test_strands_tracing.py",
+      "symbol": "_core_token_usage",
+      "hash": "sha256:1f57d1ee507278999f53447a",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1f57d1ee507278999f53447a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25685"
+  },
+  "created": "2026-10-11T08:42:58.278Z",
+  "verified": "2026-10-11T08:42:58.278Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Strands autologging test suite fails on newer library versions due to extra cache token fields.",
+    "Cross-version compatibility tests fail when validating token usage metrics with cache attributes.",
+    "Token count assertions should ignore optional cache keys when testing newer Strands releases.",
+    "Unexpected cache token metadata causes automated trace verification tests to fail.",
+    "Allow token usage verification to succeed across both older and newer Strands versions."
+  ],
+  "search": "Token usage assertions in tests/strands/test_strands_tracing.py must wrap usage dicts in the _core_token_usage helper and compare only input_tokens, output_tokens, and total_tokens. This accommodates strands 1.54.0 and newer, where extra cache keys like cache_read_input_tokens and cache_creation_input_tokens are copied into CHAT_USAGE and trace token_usage. The helper must filter by key presence rather than direct indexing so missing core keys produce equality mismatches instead of KeyErrors, applying across the supported range (min 1.7.1 to latest) without loosening token count values.",
+  "saysFor": "s2:c2bc2600012411b824442d26783fccbb51fda4a883832dbf3fd6fbd1ad93be01"
+}

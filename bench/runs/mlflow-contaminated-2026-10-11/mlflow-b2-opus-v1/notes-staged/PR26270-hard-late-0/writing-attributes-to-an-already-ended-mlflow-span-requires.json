@@ -1,0 +1,57 @@
+{
+  "id": "writing-attributes-to-an-already-ended-mlflow-span-requires",
+  "title": "Writing attributes to an already-ended MLflow span requires toggling allowMutatingEndedSpan and restoring it",
+  "kind": "rule",
+  "answers": [
+    "setAttribute on an ended span fails in the TypeScript tracing SDK",
+    "how to add attributes to a span after it ended in MLflow JS",
+    "allowMutatingEndedSpan why and how to use it",
+    "modifying root span in exporter before export"
+  ],
+  "body": "Invariant: The span processor modifies MLflow spans in onEnd, after they have ended. To do that, it sets mlflowSpan.allowMutatingEndedSpan = true for the duration of the write and restores the previous value in a finally block.\nEnforced at: libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes.\nWhat breaks if skipped: Ended spans are guarded by this flag, so writes made without it do not reach the exported span. Leaving the flag set to true would also permanently allow mutations on that span, which is why the helper restores the saved value.\nWhen a helper must write attributes during export, copy this try/finally pattern rather than setting the flag without restoring it. Look up the span through InMemoryTraceManager.getInstance().getSpan(traceId, spanId) first and warn-and-return if it is missing.",
+  "applies": "Any code in the TypeScript SDK that mutates a span after end(), especially in span processors before export.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "spans",
+    "exporter"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes",
+      "hash": "sha256:ee919130f7e4e7dffdf2e43c",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee919130f7e4e7dffdf2e43c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26209"
+  },
+  "created": "2026-10-11T10:26:44.481Z",
+  "verified": "2026-10-11T10:26:44.481Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-backed-typescript-traces-missing-from-session-search-prom",
+    "session-user-root-span-attributes-are-uc-only-the-generic-ml"
+  ],
+  "says": [
+    "User session attributes added when a trace finishes are missing from the exported data.",
+    "Custom tags set right before trace export do not show up in the table.",
+    "Trace spans exported to the monitoring table are missing metadata attached during final processing.",
+    "Completed traces fail to record session details updated during export."
+  ],
+  "search": "Modifying MLflow spans after end() in the TypeScript SDK requires setting mlflowSpan.allowMutatingEndedSpan to true and restoring the previous value in a finally block. This pattern is enforced in libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes for mutating spans in onEnd during export. Writes made without toggling the flag fail to reach the exported span, while failing to restore it permanently permits unwanted mutations. Helpers mutating spans during export must look up the span via InMemoryTraceManager.getInstance().getSpan(traceId, spanId) and warn-and-return if missing.",
+  "saysFor": "s2:7c0d8ee113847a0e7c9c24ce45fa0ba029dfc85f9b745139e08d845ebee62c77"
+}

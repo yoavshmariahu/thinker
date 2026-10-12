@@ -1,0 +1,84 @@
+{
+  "id": "only-response-filters-self-authorize-a-route-ownership-grant",
+  "title": "Only response filters self-authorize a route; ownership grants never do",
+  "kind": "rule",
+  "answers": [
+    "route reachable without authorization because it has an ownership grant",
+    "fail-closed backstop ignores after-request handlers",
+    "which after-request handlers count as authorization in basic-auth"
+  ],
+  "body": "Invariant: a route is authorized by a before-request validator, or by a response filter listed in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS (filter_* and redact_* functions). set_can_manage_* after-request grants only record ownership after a write and must not exempt the route.\nEnforced at mlflow/server/auth/__init__.py:_authorized_outside_before_request, which checks membership in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS for both AFTER_REQUEST_HANDLERS and WORKSPACE_PARAMETERIZED_AFTER_REQUEST_HANDLERS.\nCoverage test: tests/server/auth/test_authorization_coverage.py:test_every_ownership_grant_route_has_a_before_request_validator fails when a route with a set_can_manage_* grant has no validator.\nBreaks if skipped: a write route that only grants MANAGE afterward runs with no check, and the grant hides the gap from the backstop.\nApplies: Any new route with an after-request ownership grant, and any new response filter (it must be added to the frozenset or its route fails closed).",
+  "applies": "Auth fail-closed logic in mlflow/server/auth/__init__.py for every route with an AFTER_REQUEST_PATH_HANDLERS entry.",
+  "tags": [
+    "auth",
+    "fail-closed",
+    "basic-auth",
+    "authorization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_authorized_outside_before_request",
+      "hash": "sha256:855a6e60cbc400b3b719dc10",
+      "line": 3645,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:855a6e60cbc400b3b719dc10",
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS",
+      "hash": "sha256:9a4beefa32f822287e0e4e7c",
+      "line": 4451,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_every_ownership_grant_route_has_a_before_request_validator",
+      "hash": "sha256:122b401a346a87070621f8c2",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:122b401a346a87070621f8c2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-11T08:45:26.525Z",
+  "verified": "2026-10-11T08:45:26.525Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+    "gateway-secret-creation-must-require-the-workspace-create-gr",
+    "nested-graphql-fields-that-return-per-model-resources-must-b",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo"
+  ],
+  "says": [
+    "Unauthorized users can submit write requests if ownership is assigned after saving",
+    "API endpoints with permission grant actions bypass initial access control verification",
+    "New data filtering endpoints are blocked by access denied errors unexpectedly",
+    "Ensure write operations require upfront permission checks rather than relying on ownership assignments"
+  ],
+  "search": "In mlflow/server/auth/__init__.py, routes must be authorized by a before-request validator or by a response filter registered in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS. Enforced in _authorized_outside_before_request for AFTER_REQUEST_HANDLERS and WORKSPACE_PARAMETERIZED_AFTER_REQUEST_HANDLERS, with test coverage in tests/server/auth/test_authorization_coverage.py. After-request ownership grants (set_can_manage_*) only record ownership post-write and must never exempt routes from authorization; unvalidated write routes fail the backstop, and unregistered filter_* or redact_* handlers fail closed.",
+  "saysFor": "s2:9c91b998ac9564180121dbd222df9424bb6fd24b5492de75e23b3d1a75e1c167"
+}

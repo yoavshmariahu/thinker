@@ -1,0 +1,79 @@
+{
+  "id": "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py",
+  "title": "Logged-model store tests go in test_sqlalchemy_store_runs.py and must cover repeated keys",
+  "kind": "rule",
+  "answers": [
+    "where should logged model tag store tests be added",
+    "test placement for logged model store methods in sqlalchemy_store",
+    "do sqlalchemy store tests run against Postgres and MySQL in CI",
+    "add a test for duplicate tag keys in logged models"
+  ],
+  "body": "Convention: Store tests for logged models (create, get, tags) live in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py, next to the existing logged-model tests, not in test_sqlalchemy_store_core.py.\nThe sqlalchemy_store test suite is run in CI against SQLite, PostgreSQL, MySQL and MSSQL, so a dialect-specific upsert bug only shows up there.\nFor tag upserts, the test must include a repeated-key case in one call (expects the last value), because that is the case that fails on PostgreSQL ON CONFLICT.\nThe test test_set_logged_model_tags_bulk_upsert covers clean insert, overwrite, empty list, a batch above the batch_size=100 boundary, and a repeated key.\nDo not leave trailing blank lines at end of file; ruff format flags them.",
+  "applies": "New or changed tests for SqlAlchemyStore logged model methods and their tag upserts.",
+  "tags": [
+    "tests",
+    "sqlalchemy",
+    "logged-model",
+    "ci",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_set_logged_model_tags_bulk_upsert",
+      "hash": "sha256:923d6e11d3b919ec0e260b03",
+      "line": 4405,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:923d6e11d3b919ec0e260b03",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2752,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_core.py",
+      "hash": "sha256:eba1ffaa251887eda51ae64d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-11T08:46:22.573Z",
+  "verified": "2026-10-11T08:46:22.573Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be",
+    "logged-model-search-order-must-end-with-a-stable-model-id-ti",
+    "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va",
+    "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca"
+  ],
+  "says": [
+    "Saving tags on a logged model fails when the same tag name is repeated.",
+    "Updating metadata tags crashes when providing duplicate keys in a single bulk request.",
+    "Tagging a logged model with duplicate keys triggers database errors on Postgres backends.",
+    "Ensure batch tag updates apply the latest value when duplicate tag keys are submitted."
+  ],
+  "search": "Logged model store tests for `SqlAlchemyStore` belong in `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py` rather than `test_sqlalchemy_store_core.py`. Tag upsert tests (`SqlAlchemyStore.set_logged_model_tags`) must include a duplicate-key case expecting the last value to catch dialect-specific PostgreSQL `ON CONFLICT` errors during CI runs across SQLite, PostgreSQL, MySQL, and MSSQL. `test_set_logged_model_tags_bulk_upsert` covers insert, overwrite, empty lists, batches over 100 items, and repeated keys without trailing blank lines.",
+  "saysFor": "s2:f32d469f3769ab3f0da9cf51a2cb3d21faec8f001b31539dcdd2b99b63aeda8a"
+}

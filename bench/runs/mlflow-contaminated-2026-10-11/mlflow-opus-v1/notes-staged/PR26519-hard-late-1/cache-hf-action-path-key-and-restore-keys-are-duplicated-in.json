@@ -1,0 +1,53 @@
+{
+  "id": "cache-hf-action-path-key-and-restore-keys-are-duplicated-in",
+  "title": "cache-hf action: path, key and restore-keys are duplicated in the restore and save steps",
+  "kind": "rule",
+  "answers": [
+    "change the hf datasets cache key in cache-hf",
+    "restore-only cache reads a different key than the saver writes",
+    "update cache path for hugging face cache action",
+    "why does cache-hf have two cache steps"
+  ],
+  "body": "The composite action .github/actions/cache-hf/action.yml defines `path`, `key` and `restore-keys` twice: once in the `actions/cache/restore` step gated by `if: inputs.restore-only == 'true'`, and once in the `actions/cache` step gated by `if: inputs.restore-only != 'true'`.\nAny change to the path glob, the key prefix, the hashFiles source (tests/data/test_huggingface_dataset_and_source.py) or the restore-keys must be applied to both steps. Otherwise restore-only consumers look for a different key than the save-enabled job writes, and they silently miss the cache.\nThe pinned action revision (55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0) also appears in both steps and must be bumped together.\nConstraints: The two `if:` conditions must stay mutually exclusive so that exactly one cache step runs per job.",
+  "applies": "Edits to .github/actions/cache-hf/action.yml only.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "cache",
+    "huggingface",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/cache-hf/action.yml",
+      "hash": "sha256:adb499f90da20ab3de358763",
+      "missing": false
+    },
+    {
+      "path": "tests/data/test_huggingface_dataset_and_source.py",
+      "hash": "sha256:0e766f54901103d22d727bf6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25787"
+  },
+  "created": "2026-10-11T08:47:32.141Z",
+  "verified": "2026-10-11T08:47:32.141Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cache-hf-keys-have-one-write-job-each-restore-only-consumers"
+  ],
+  "says": [
+    "Continuous integration jobs are redownloading cached datasets instead of restoring them.",
+    "Pull request test runs take too long because dataset caching is silently missed.",
+    "Update the dataset cache storage path and key settings across all pipeline steps.",
+    "Read-only test pipelines fail to find the dataset cache saved by previous builds."
+  ],
+  "search": "In .github/actions/cache-hf/action.yml, path, key, restore-keys, and the pinned action revision are duplicated between the restore-only and save cache steps. Any update to the path glob, key prefix, hashFiles source (tests/data/test_huggingface_dataset_and_source.py), restore-keys, or pinned action revision must be applied to both steps. Failing to synchronize both steps causes restore-only consumers to search for mismatched keys and silently miss the cache. The two steps must maintain mutually exclusive if conditions based on inputs.restore-only so exactly one runs per job.",
+  "saysFor": "s2:e1e184b3f31c8ed9cbbe2ca6a2a2739e2757eafcdb71eda200a641ecdfaeed30"
+}

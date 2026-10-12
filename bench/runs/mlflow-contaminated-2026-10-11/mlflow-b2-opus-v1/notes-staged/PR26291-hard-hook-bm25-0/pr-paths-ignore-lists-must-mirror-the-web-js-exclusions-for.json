@@ -1,0 +1,87 @@
+{
+  "id": "pr-paths-ignore-lists-must-mirror-the-web-js-exclusions-for",
+  "title": "PR paths-ignore lists must mirror the web JS exclusions for TypeScript SDK paths",
+  "kind": "rule",
+  "answers": [
+    "Why does a TypeScript SDK-only PR start MLflow tests, tracing and R CI?",
+    "Why do changes to only libs/typescript or copilot workflow files trigger unrelated CI jobs?",
+    "How do I stop Copilot workflow-only PRs from running build-wheel, master or examples?",
+    "Which pull_request paths-ignore entries must I add when a new sub-project's CI should be skipped?"
+  ],
+  "body": "Symptom: A PR that only changes the TypeScript SDK (libs/typescript) or only Copilot workflow files (.github/workflows/copilot-*.yml) starts unrelated CI jobs such as MLflow tests, cross-version tests, tracing, examples, fs2db, build-wheel and R, which wastes CI time.\nRoot cause: The pull_request `paths-ignore` lists in .github/workflows/master.yml, tracing.yml, examples.yml, cross-version-tests.yml, fs2db.yml, build-wheel.yml and r.yml only excluded the web JS paths (mlflow/server/js/**, .github/workflows/js.yml), not libs/typescript/** or .github/workflows/typescript.yml. The copilot-*.yml pattern was likewise absent from these lists.\nFix pattern: Add `libs/typescript/**` and `.github/workflows/typescript.yml` directly after the `.github/workflows/js.yml` entry in every PR-triggered paths-ignore list. Add `.github/workflows/copilot-*.yml` directly before `.github/workflows/docs.yml` in the eight lists (build-wheel, cross-version-tests, examples, fs2db, master, r, tracing, typescript), keeping existing ignore rules intact.\nConstraints: Only the pull_request paths-ignore lists change; push, schedule and workflow_dispatch triggers stay as they were. Mixed TypeScript and Python PRs still run these workflows, because paths-ignore only skips a run when every changed file matches. The TypeScript SDK workflow and the always-on lint workflows keep running for TypeScript changes.\nApplies: pull_request path filters in MLflow GitHub Actions workflows when a sub-project's CI or Copilot workflow-only changes should be skipped. Does not apply to push or scheduled triggers.",
+  "applies": "pull_request path filters in MLflow GitHub Actions workflows when a sub-project's CI or Copilot workflow-only changes should be skipped; not push or scheduled triggers.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "paths-ignore",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:b4cbc606274abac24bf05d23",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/tracing.yml",
+      "hash": "sha256:8721390445eca47e932074dd",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/examples.yml",
+      "hash": "sha256:8cb5981070df53de08c718f7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/cross-version-tests.yml",
+      "hash": "sha256:ba1d823950853fc144581b5d",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/fs2db.yml",
+      "hash": "sha256:382b3bafae0b73dd3a8fbfe8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:2ac595703c0b735c07657ec2",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/r.yml",
+      "hash": "sha256:df57b3cd95bda2ab4151e80f",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/typescript.yml",
+      "hash": "sha256:68503418a2bf8f405f527739",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25836"
+  },
+  "created": "2026-10-11T10:26:29.042Z",
+  "verified": "2026-10-11T10:32:30.374Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-11T10:32:30.387Z",
+      "reason": "extended by a new session",
+      "prevBody": "Symptom: A PR that only changes the TypeScript SDK (libs/typescript) starts unrelated CI jobs such as MLflow tests, cross-version tests, tracing, examples, fs2db, build-wheel and R, which wastes CI time.\nRoot cause: The pull_request `paths-ignore` lists in .github/workflows/master.yml, tracing.yml, examples.yml, cross-version-tests.yml, fs2db.yml, build-wheel.yml and r.yml only excluded the web JS paths (mlflow/server/js/**, .github/workflows/js.yml), not libs/typescript/** or .github/workflows/typescript.yml.\nFix pattern: Add `libs/typescript/**` and `.github/workflows/typescript.yml` directly after the `.github/workflows/js.yml` entry in every PR-triggered paths-ignore list, so each one mirrors the web JS exclusions.\nConstraints: Only the pull_request paths-ignore lists change; push, schedule and workflow_dispatch triggers stay as they were. Mixed TypeScript and Python PRs still run these workflows, because paths-ignore only skips a run when every changed file matches. The TypeScript SDK workflow and the always-on lint workflows keep running."
+    }
+  ],
+  "says": [
+    "Pull requests touching only TypeScript client files waste time running unrelated test pipelines.",
+    "Stop automated Python and R builds from triggering on Copilot workflow updates.",
+    "Editing only TypeScript packages should skip cross-version testing and wheel builds.",
+    "Make pull request validation ignore changes made purely to assistant automation files."
+  ],
+  "search": "Workflows triggered by pull_request must exclude libs/typescript/**, .github/workflows/typescript.yml, and .github/workflows/copilot-*.yml in their paths-ignore lists to mirror web JS exclusions. Add libs/typescript/** and .github/workflows/typescript.yml directly after .github/workflows/js.yml, and add .github/workflows/copilot-*.yml directly before .github/workflows/docs.yml across master.yml, tracing.yml, examples.yml, cross-version-tests.yml, fs2db.yml, build-wheel.yml, r.yml, and typescript.yml. This applies strictly to pull_request path filters when skipping sub-project or Copilot CI, leaving push, schedule, and workflow_dispatch triggers unchanged.",
+  "saysFor": "s2:7b988912350212efdcbac86f4af317ffa26c59810720892f9bc75368a2472af8"
+}

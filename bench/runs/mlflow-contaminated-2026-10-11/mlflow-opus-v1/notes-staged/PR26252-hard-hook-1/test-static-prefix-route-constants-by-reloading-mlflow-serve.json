@@ -1,0 +1,81 @@
+{
+  "id": "test-static-prefix-route-constants-by-reloading-mlflow-serve",
+  "title": "Test static-prefix route constants by reloading mlflow.server.auth.routes and restoring it",
+  "kind": "howto",
+  "answers": [
+    "how to test routes under --static-prefix in auth tests",
+    "reload routes module with STATIC_PREFIX_ENV_VAR set",
+    "test UI route keys built at import time with a prefix"
+  ],
+  "body": "Route keys in mlflow/server/auth/routes.py are built at import time from STATIC_PREFIX_ENV_VAR, so a test that needs a prefix must reload the module rather than reuse the module-level map.\nPattern in tests/server/auth/test_fail_closed_flag.py: monkeypatch.setenv(STATIC_PREFIX_ENV_VAR, '/custom-prefix'), then importlib.reload(importlib.import_module('mlflow.server.auth.routes')).\nRestore in a finally block: monkeypatch.delenv(...) followed by importlib.reload(routes), so later tests see the unprefixed constants.\nHOME and SERVER_VERSION stay bare; only the ajax-derived UI_TELEMETRY carries the prefix.",
+  "applies": "Auth tests that depend on static-prefix-dependent route constants.",
+  "tags": [
+    "auth",
+    "testing",
+    "static-prefix",
+    "reload"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/routes.py",
+      "symbol": "UI_TELEMETRY",
+      "hash": "sha256:deea80ca2b61465bcc766de6",
+      "line": 101,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/routes.py",
+      "symbol": "HOME",
+      "hash": "sha256:f81efb3efb875659fa5c57e7",
+      "line": 3,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 2,
+        "refs": 40
+      }
+    },
+    {
+      "path": "mlflow/server/auth/routes.py",
+      "symbol": "SERVER_VERSION",
+      "hash": "sha256:5c4996d182a7b1024c9b8974",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "hash": "sha256:1744fcf37313b0d8a8eef3a9",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25672"
+  },
+  "created": "2026-10-11T08:48:52.991Z",
+  "verified": "2026-10-11T08:48:52.991Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "plain-flask-ui-routes-need-an-explicit-authenticated-only-va"
+  ],
+  "says": [
+    "Dashboard telemetry requests fail when the server runs under a custom URL prefix.",
+    "Allow the authenticated web interface to work properly behind a custom prefix.",
+    "Web console telemetry calls return not found errors behind a reverse proxy subpath."
+  ],
+  "search": "Testing static-prefix route constants in auth tests requires reloading mlflow.server.auth.routes after setting STATIC_PREFIX_ENV_VAR and restoring it in a finally block. Because route keys are built at import time from STATIC_PREFIX_ENV_VAR, tests cannot reuse the module-level map. Only ajax-derived UI_TELEMETRY carries the prefix, while HOME and SERVER_VERSION stay bare.",
+  "saysFor": "s2:2205bd806a42240270f057de026c3e087158fc74913a8c0fc009ade5d9d140c1"
+}

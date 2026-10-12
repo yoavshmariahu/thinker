@@ -1,0 +1,66 @@
+{
+  "id": "new-gateway-routes-must-be-added-to-the-auth-validator-looku",
+  "title": "New gateway routes must be added to the auth validator-lookup and gateway-disabled tests",
+  "kind": "rule",
+  "answers": [
+    "what tests do I update when I add a new gateway route?",
+    "why does my new gateway endpoint fail the static prefix validator test?",
+    "how do I verify a gateway route returns 501 when the gateway is disabled?"
+  ],
+  "body": "Convention: gateway routes are listed in tests/server/auth/test_auth.py:test_find_fastapi_validator_handles_static_prefix, both without and with STATIC_PREFIX_ENV_VAR set, so the lookup via _find_fastapi_validator is verified for each route.\nThe disabled-gateway behavior is asserted in tests/server/test_gateway_disable.py:test_gateway_endpoints_return_501_when_disabled, which this PR extended with a GET call to the new route.\nSkipping these leaves a route registered but unverified by the lookup test, or returning a non-501 status when disabled, without any test failing.",
+  "applies": "Adding routes under gateway_router in mlflow/server/gateway_api.py.",
+  "tags": [
+    "gateway",
+    "tests",
+    "auth"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_find_fastapi_validator_handles_static_prefix",
+      "hash": "sha256:266bc6643fd9134b47adb9a4",
+      "line": 358,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:266bc6643fd9134b47adb9a4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/test_gateway_disable.py",
+      "symbol": "test_gateway_endpoints_return_501_when_disabled",
+      "hash": "sha256:5902b4f056bf3fadac45f676",
+      "line": 9,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5902b4f056bf3fadac45f676",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-11T10:30:10.282Z",
+  "verified": "2026-10-11T10:30:10.282Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Calling a new gateway endpoint returns an active response instead of being disabled.",
+    "Gateway endpoint authentication lookup fails when the server runs behind a static URL prefix.",
+    "Ensure newly created gateway endpoints are properly disabled when turning off the gateway.",
+    "Verify authentication validator routing for all newly added gateway endpoints under custom prefixes."
+  ],
+  "search": "Adding routes under gateway_router in mlflow/server/gateway_api.py requires listing them in test_find_fastapi_validator_handles_static_prefix in tests/server/auth/test_auth.py and test_gateway_endpoints_return_501_when_disabled in tests/server/test_gateway_disable.py. The auth test verifies route lookup via _find_fastapi_validator both with and without STATIC_PREFIX_ENV_VAR set. The disabled test verifies that a GET call to the endpoint returns a 501 status when the gateway is disabled. Skipping these updates leaves routes untested for prefix validator lookup or returning non-501 statuses when disabled without test failures.",
+  "saysFor": "s2:5b254ea0c7749b9bfc4d1856d9d44171f28cbc6d858f1bf51861fdf7b2c6fd7f"
+}

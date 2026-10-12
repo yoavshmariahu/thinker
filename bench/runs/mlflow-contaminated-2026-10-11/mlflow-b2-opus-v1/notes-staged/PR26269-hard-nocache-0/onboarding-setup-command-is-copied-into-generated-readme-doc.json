@@ -1,0 +1,74 @@
+{
+  "id": "onboarding-setup-command-is-copied-into-generated-readme-doc",
+  "title": "Onboarding setup command is copied into generated README, docs and i18n files that must be regenerated together",
+  "kind": "rule",
+  "answers": [
+    "why does the README setup command differ from the docs or the UI card",
+    "how do I change the agent setup command text shown in onboarding",
+    "skinny README out of sync with README.md after editing the tracing quickstart",
+    "translation key missing after changing the agent action card description"
+  ],
+  "body": "Invariant: the one-line setup command and its companion copy appear in several places that must change together. The sources are README.md, docs/docs/genai/tracing/quickstart/index.mdx, docs/docs/genai/eval-monitor/regression-testing.mdx, and the AGENT_SETUP_COMMAND constant plus FormattedMessage copy in AgentActionCard.tsx.\nlibs/skinny/README_SKINNY.md is generated from README.md, so edit README.md and regenerate rather than hand-editing the skinny copy.\nmlflow/server/js/src/lang/default/en.json is regenerated: each FormattedMessage defaultMessage/description change produces a new hashed id and removes the old one. Regenerate it; do not hand-edit ids.\nSkipping one location leaves the README, docs, and UI card showing different commands or stale translation keys.",
+  "applies": "Any change to the MLflow onboarding/agent-setup command text or its description copy in README, docs, or the OSS UI.",
+  "tags": [
+    "docs",
+    "onboarding",
+    "i18n",
+    "generated-files",
+    "readme"
+  ],
+  "deps": [
+    {
+      "path": "libs/skinny/README_SKINNY.md",
+      "hash": "sha256:57d224be449ef5c669447ad2",
+      "missing": false
+    },
+    {
+      "path": "README.md",
+      "hash": "sha256:e9b30b8aee35e78fb87bdbbf",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:7fb107f6e2aa3e0e811059c7",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-11T10:25:28.204Z",
+  "verified": "2026-10-11T10:25:28.204Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "the-hosted-mlflow-setup-wizard-connects-and-launches-an-agen",
+    "verify-the-hosted-wizard-installer-url-is-live-before-mergin"
+  ],
+  "says": [
+    "The setup command shown in the onboarding card does not match the documentation.",
+    "Update the agent setup command displayed on the onboarding screen.",
+    "The installation command in the getting started guide differs from the main project instructions.",
+    "Onboarding card description shows an invalid translation key after updating the text.",
+    "Keep the quickstart setup command consistent across the user interface and docs."
+  ],
+  "search": "When updating the onboarding agent-setup command or companion copy, README.md, docs/docs/genai/tracing/quickstart/index.mdx, docs/docs/genai/eval-monitor/regression-testing.mdx, and AgentActionCard.tsx must be updated together. libs/skinny/README_SKINNY.md must be regenerated from README.md rather than hand-edited. mlflow/server/js/src/lang/default/en.json must be regenerated because changes to FormattedMessage defaultMessage or description generate new hashed IDs, which must not be edited by hand. Omitting any location leaves docs, READMEs, and the AgentActionCard UI card out of sync or produces stale translation keys.",
+  "saysFor": "s2:ad23be17e1c0348fe95043e09ee1558ba0fa564d5152d99e78794b2cbd52f86d"
+}

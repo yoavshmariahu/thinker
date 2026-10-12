@@ -1,0 +1,70 @@
+{
+  "id": "protect-js-check-log-order-is-the-key-order-of-state-so-new",
+  "title": "protect.js: check log order is the key order of STATE, so new statuses must be added to STATE in priority position",
+  "kind": "rule",
+  "answers": [
+    "why does the Protect check log list failures before successes",
+    "how do I change the order Protect prints check statuses in",
+    "I added a new status to protect.js, why does it show at the top of the check list"
+  ],
+  "body": "Invariant: the order in which Protect logs checks is the key order of the STATE object. STATUS_ORDER = Object.values(STATE), and checks are sorted by STATUS_ORDER.indexOf(status) just before the console print loop.\nEnforcement: .github/workflows/protect.js:module.exports (const STATE, const STATUS_ORDER, and the checks.sort call placed after the rate-limit log and before the checks.forEach print).\nWhat breaks: reordering STATE keys silently changes the printed priority (current order is failure, pending, success, skipped). A status string that is not a key of STATE gets indexOf -1, which sorts ahead of every known status, so it appears above failures.\nFix pattern for a new status: add it to STATE at the position where it should be prioritised, rather than only emitting the string from a push site.",
+  "applies": "Changes to the STATE constant or to how checks are ordered in .github/workflows/protect.js; does not cover the failure-detection logic.",
+  "tags": [
+    "protect",
+    "github-actions",
+    "logging",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 22,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATUS_ORDER",
+      "hash": "sha256:f01a31b0e29bdb972fab234d",
+      "line": 28,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01a31b0e29bdb972fab234d",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-11T10:29:04.975Z",
+  "verified": "2026-10-11T10:29:04.975Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-expected-protect-failures-are-reported-with-core",
+    "protect-js-every-workflow-run-attempt-link-must-carry-pr-num"
+  ],
+  "says": [
+    "The pull request protection log should show failed checks before pending and successful ones.",
+    "A newly created check status appears unexpectedly at the top of the summary log.",
+    "Change the sorting priority of status categories printed in the merge protection log.",
+    "Why are build check outcomes ordered with failures first in the protection report?"
+  ],
+  "search": "Check logging order in .github/workflows/protect.js is determined by the key order of STATE via STATUS_ORDER. Applies to changes to STATE or check sorting, where unlisted status strings evaluate to index -1 and sort above failures. New statuses must be defined in STATE at their desired priority position rather than emitted ad hoc.",
+  "saysFor": "s2:39216ef8acbc75d958710394e6bec6d94c7278f232fd605ed1367ab8a45d52d5"
+}

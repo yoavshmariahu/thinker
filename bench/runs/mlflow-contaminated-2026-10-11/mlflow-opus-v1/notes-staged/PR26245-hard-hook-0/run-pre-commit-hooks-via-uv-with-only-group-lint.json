@@ -1,0 +1,46 @@
+{
+  "id": "run-pre-commit-hooks-via-uv-with-only-group-lint",
+  "title": "Run pre-commit hooks via uv with --only-group lint",
+  "kind": "howto",
+  "answers": [
+    "how do I run pre-commit hooks in this repo",
+    "uv run pre-commit fails or syncs too much, how to run lint hooks",
+    "how to install pre-commit hooks for MLflow development",
+    "run ruff and typos checks on a single file before committing"
+  ],
+  "body": "Run pre-commit through the lint dependency group, not the full dev environment:\n  uv run --only-group lint pre-commit run --files path/to/file.py\n  uv run --only-group lint pre-commit run --all-files\n  uv run --only-group lint pre-commit run ruff --all-files\nInstall hooks with: uv run --only-group lint pre-commit install --install-hooks\nThe --only-group lint flag stops uv from syncing the whole dev environment just to run the hooks.\nThe hooks (Ruff, typos checker, and others) run automatically on commit once installed.",
+  "applies": "Local developer and agent workflows for running or installing this repo's pre-commit hooks.",
+  "tags": [
+    "pre-commit",
+    "uv",
+    "lint",
+    "tooling"
+  ],
+  "deps": [
+    {
+      "path": "CLAUDE.md",
+      "hash": "sha256:7b9d9d0396af49c527925d94",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25603"
+  },
+  "created": "2026-10-11T08:50:01.973Z",
+  "verified": "2026-10-11T08:50:01.973Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Git commit hooks take too long because the tool syncs the entire development environment.",
+    "Run code formatting and spell checks on a single modified file before committing changes.",
+    "Install automated git commit checks for style rules and typos without downloading full dependencies.",
+    "Check all project files for lint and spelling errors using only necessary linting tools.",
+    "Commit validation fails or hangs trying to install unrelated development packages for pre-commit checks."
+  ],
+  "search": "Running and installing pre-commit hooks via uv run --only-group lint to avoid syncing the full development environment. Developers and agents run pre-commit against specific files, all files, or individual hooks like ruff, and install hooks with uv run --only-group lint pre-commit install --install-hooks. Documented in CLAUDE.md, ensuring Ruff, typos checker, and other hooks run automatically on commit.",
+  "saysFor": "s2:d4fa25719028741ee9042d5bc4ad065ed695640048d5529e6991040def836ae8"
+}

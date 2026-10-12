@@ -1,0 +1,101 @@
+{
+  "id": "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca",
+  "title": "_RUN_DELETE_CASCADE_MODELS must mirror SqlRun's ORM delete cascade relationships",
+  "kind": "rule",
+  "answers": [
+    "I added a new table referencing runs, what do I change for hard delete",
+    "new child table not removed when gc deletes a run",
+    "which tables are deleted when a run is hard deleted",
+    "keep hard delete in sync with run relationships"
+  ],
+  "body": "Invariant: The explicit child-model tuple _RUN_DELETE_CASCADE_MODELS (SqlMetric, SqlLatestMetric, SqlParam, SqlTag) must equal the set of SqlRun relationships configured with a 'delete' cascade. The bulk path in _hard_delete_run does not get ORM cascades, so any model left out is orphaned when a run is hard-deleted.\nEnforcement: mlflow/store/tracking/sqlalchemy_store.py:_hard_delete_run iterates the tuple; tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py:test_run_delete_cascade_models_match_orm_relationships compares the tuple to sqlalchemy.inspect(SqlRun).relationships filtered by 'delete' in cascade.\nWhat breaks if skipped: A new run-scoped table added with a cascade relationship but missing from the tuple leaves rows behind after mlflow gc, and the ratchet test fails only if it is run.\nConstraints: When adding or removing a cascade on SqlRun, update the tuple in the same change. Fix the tuple rather than editing the test to match a drifted tuple. Relationships without a delete cascade are not in the tuple.\nApplies: Any change to SqlRun relationships, run-scoped ORM models, or _hard_delete_run.",
+  "applies": "Any change to SqlRun relationships, run-scoped ORM models, or _hard_delete_run.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "gc",
+    "invariant",
+    "orm-cascade"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_RUN_DELETE_CASCADE_MODELS",
+      "hash": "sha256:361f1dd660872d789ab0f610",
+      "line": 276,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._hard_delete_run",
+      "hash": "sha256:a6066a6ed5f112d7f81a5f37",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6066a6ed5f112d7f81a5f37",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_run_delete_cascade_models_match_orm_relationships",
+      "hash": "sha256:4e549950012fa51490de7295",
+      "line": 363,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e549950012fa51490de7295",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_hard_delete_run",
+      "hash": "sha256:a6066a6ed5f112d7f81a5f37",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6066a6ed5f112d7f81a5f37",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25773"
+  },
+  "created": "2026-10-11T08:47:49.173Z",
+  "verified": "2026-10-11T08:47:49.173Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex",
+    "logged-model-search-order-must-end-with-a-stable-model-id-ti",
+    "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py",
+    "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va"
+  ],
+  "says": [
+    "Garbage collection leaves orphaned child records in the database after hard deleting experiment runs.",
+    "Deleting runs permanently does not remove records from newly added run-related database tables.",
+    "Ensure the cleanup tool removes all associated metrics, parameters, and tags during run deletion.",
+    "Prevent orphaned database records when purging deleted experiment runs through the garbage collection command.",
+    "Cascade delete all dependent child records whenever an experiment run is permanently erased."
+  ],
+  "search": "Mirroring SqlRun ORM delete cascade relationships in the _RUN_DELETE_CASCADE_MODELS tuple for bulk hard deletes. The explicit tuple (SqlMetric, SqlLatestMetric, SqlParam, SqlTag) in mlflow/store/tracking/sqlalchemy_store.py is iterated by _hard_delete_run because bulk deletion bypasses ORM cascades, preventing orphaned rows during mlflow gc. Enforced by tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py:test_run_delete_cascade_models_match_orm_relationships; changes to SqlRun cascade relationships require updating the tuple directly rather than modifying the test.",
+  "saysFor": "s2:c9a328f3782fc84c26f70f5a459010a82bacaff0c598cbe4476968d1dd1bc008"
+}

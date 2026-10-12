@@ -1,0 +1,173 @@
+{
+  "id": "async-scorer-paths-must-carry-the-registered-scorer-version",
+  "title": "Async scorer paths must carry the registered scorer version beside the serialized scorer",
+  "kind": "rule",
+  "answers": [
+    "assessment from a UI-triggered or online scorer run has no scorer version",
+    "registered scorer version missing from evaluation job results",
+    "scorerVersion metadata lost when scoring runs in background job",
+    "async evaluate or session scorer assessments lack provenance"
+  ],
+  "body": "Symptom: assessments from a registered scorer run in the background (UI-triggered evaluation, online trace or session scoring) lack mlflow.assessment.scorerVersion, while the same scorer run inline records it.\nRoot cause: mlflow/genai/scorers/base.py:Scorer._scorer_version is a PrivateAttr, so it is not in model_dump() or the serialized JSON. mlflow/genai/evaluation/job.py:invoke_genai_evaluate_job and mlflow/genai/scorers/job.py:invoke_scorer_job rebuild scorers from that JSON alone.\nFix pattern: pass the registered version as its own field next to the serialized payload (scorer_versions list, scorer_version param, OnlineScorer.scorer_version). Resolve the canonical stored scorer server-side, then call Scorer._set_registration_metadata(..., scorer_version=...) before evaluation.\nConstraints: scorer_versions must match serialized_scorers in length; a mismatch raises invalid_parameter_value and the run ends FAILED. A None version means the scorer is unregistered and is left untouched. Hydration on the sampler path is in mlflow/genai/scorers/online/sampler.py:OnlineSessionSampler, so new background entry points need the same restore.\nApplies: any new job, queue or serialized hand-off that reconstructs a Scorer from JSON and then evaluates it.",
+  "applies": "Background or serialized scorer execution paths in mlflow/genai/evaluation and mlflow/genai/scorers; inline harness execution already holds the version on the object.",
+  "tags": [
+    "scorers",
+    "assessments",
+    "jobs",
+    "provenance",
+    "online-scoring"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer",
+      "hash": "sha256:656238ec1090fc178a3aa71b",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:656238ec1090fc178a3aa71b",
+      "fanout": {
+        "files": 93,
+        "sites": 5,
+        "refs": 511
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/job.py",
+      "symbol": "invoke_genai_evaluate_job",
+      "hash": "sha256:bf0d4f21482efab8e97f5e44",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bf0d4f21482efab8e97f5e44",
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/job.py",
+      "symbol": "invoke_scorer_job",
+      "hash": "sha256:3ca50051fb034d5408f13485",
+      "line": 142,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca50051fb034d5408f13485",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/online/entities.py",
+      "symbol": "OnlineScorer",
+      "hash": "sha256:3e8b74d23d9589d5c2e1430c",
+      "line": 39,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3e8b74d23d9589d5c2e1430c",
+      "fanout": {
+        "files": 12,
+        "sites": 14,
+        "refs": 41
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer",
+      "hash": "sha256:656238ec1090fc178a3aa71b",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:656238ec1090fc178a3aa71b",
+      "fanout": {
+        "files": 93,
+        "sites": 5,
+        "refs": 511
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "model_dump",
+      "hash": "sha256:dfe7e48186c1758d380e68a0",
+      "line": 406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfe7e48186c1758d380e68a0",
+      "fanout": {
+        "files": 94,
+        "sites": 258,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "scorer_version",
+      "hash": "sha256:1e3e14c533ad96a2bd0eec29",
+      "line": 368,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1e3e14c533ad96a2bd0eec29",
+      "fanout": {
+        "files": 36,
+        "sites": 1,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/online/sampler.py",
+      "symbol": "scorer_version",
+      "hash": "sha256:d2bce59300c1e967f092eb18",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 36,
+        "sites": 1,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "model_dump",
+      "hash": "sha256:dfe7e48186c1758d380e68a0",
+      "line": 406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfe7e48186c1758d380e68a0"
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._set_registration_metadata",
+      "hash": "sha256:1225e611dd2caa6264593005",
+      "line": 382,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1225e611dd2caa6264593005"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25570"
+  },
+  "created": "2026-10-11T08:50:51.137Z",
+  "verified": "2026-10-11T08:50:51.137Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-serialized-scorers-must-reload-with-timeout-0-not-the",
+    "scorer-invocation-timeout-is-enforced-only-inside-scorer-run"
+  ],
+  "says": [
+    "Evaluation runs started from the web interface do not display the registered scorer version.",
+    "Assessments generated by online trace scoring are missing the version of the evaluator used.",
+    "Show the registered evaluator version on assessment records when evaluations run in the background.",
+    "Session scoring results in the dashboard lack version provenance for our registered scorers.",
+    "Track which version of a registered scorer produced each background evaluation assessment."
+  ],
+  "search": "Registered scorer versions must be passed alongside serialized scorers and restored before evaluation in background or asynchronous execution paths. Because Scorer._scorer_version is a PrivateAttr omitted during serialization, invoke_genai_evaluate_job, invoke_scorer_job, and OnlineSessionSampler must restore it via Scorer._set_registration_metadata using scorer_versions, scorer_version, or OnlineScorer.scorer_version. A length mismatch between scorer_versions and serialized_scorers raises invalid_parameter_value and marks the run FAILED, while unregistered scorers with None versions are left untouched. This rule applies to any job, queue, or serialized hand-off in mlflow/genai/evaluation and mlflow/genai/scorers that reconstructs a Scorer from JSON, whereas inline harness execution already holds the version.",
+  "saysFor": "s2:68109965a22160ae244b8fde4e7c0043775fa45dee1ec6e1e0dc532cedf59c65"
+}

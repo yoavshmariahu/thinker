@@ -1,0 +1,59 @@
+{
+  "id": "trace-explorer-v2-user-visible-strings-must-go-through-react",
+  "title": "Trace explorer v2 user-visible strings must go through react-intl and the en.json catalog",
+  "kind": "rule",
+  "answers": [
+    "hardcoded English text in the trace explorer span links tab",
+    "trace explorer labels not translated or localized",
+    "how do I add a new string to the v2 trace explorer UI",
+    "why are my new trace explorer strings missing from en.json"
+  ],
+  "body": "Convention: user-facing text in the redesigned (v2) trace explorer is rendered through react-intl, not as bare JSX text. Sibling tabs wrap labels in FormattedMessage; copy-tooltip strings use intl.formatMessage.\nWhere: mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerLinksTab.tsx:SpanLinkEntry (the labels, buttons, and See more/See less toggle), with siblings ModelTraceExplorerAttributesTab and ModelTraceExplorerEventsTab as the reference pattern.\nEach new defaultMessage/description pair must appear as a hashed key in mlflow/server/js/src/lang/default/en.json. Regenerate it with yarn i18n; do not hand-edit the hashes.\nWhat breaks if skipped: the string is not extracted, so it is not localized and yarn i18n:check fails on a stale catalog.",
+  "applies": "Any new or changed visible text in mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2, including span link UI.",
+  "tags": [
+    "i18n",
+    "tracing",
+    "frontend",
+    "trace-explorer"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerLinksTab.tsx",
+      "symbol": "SpanLinkEntry",
+      "hash": "sha256:034d635458330b64f71e63b6",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:034d635458330b64f71e63b6",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:8ef7fb523a1fe42462728e43",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25580"
+  },
+  "created": "2026-10-11T08:50:34.652Z",
+  "verified": "2026-10-11T08:50:34.652Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Buttons and labels in the trace explorer link tab remain in English when localized.",
+    "Text and tooltips in the redesigned trace details side panel are not being translated.",
+    "Translate all buttons, toggles, and tooltips inside the trace explorer span links panel.",
+    "The expanded trace view displays unlocalized English text for the see more button toggle."
+  ],
+  "search": "User-facing text in the redesigned trace explorer must be rendered via react-intl rather than bare JSX text. In mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerLinksTab.tsx:SpanLinkEntry, labels, buttons, and toggles use FormattedMessage and intl.formatMessage following the pattern of sibling attributes and events tabs. New defaultMessage and description pairs must be added as hashed keys in mlflow/server/js/src/lang/default/en.json using yarn i18n without hand-editing. Applies to visible text in model-trace-explorer/v2, where omitting extraction causes yarn i18n:check failures on stale catalogs.",
+  "saysFor": "s2:fb40d5c6ef47cf147ef15d860aa9502c4e369a6bc4b03a8074f7971cb321a133"
+}

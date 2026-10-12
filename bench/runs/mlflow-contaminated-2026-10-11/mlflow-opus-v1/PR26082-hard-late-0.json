@@ -1,0 +1,60 @@
+{
+  "id": "PR26082-hard-late-0",
+  "task": "PR26082-hard",
+  "area": "mlflow/genai",
+  "arm": "late",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "6bb0ba3c-b982-4a35-aa7b-4a6033fa3f1a",
+  "turns": 7,
+  "wall_ms": 28593,
+  "api_ms": 18074,
+  "cost": 0.15211499999999997,
+  "in_tokens": 119518,
+  "out_tokens": 1685,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 5,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 5,
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "=====\n::group::per-file durations (sorted)\n\n| Rank | File                                     | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ---------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/genai/discovery/test_pipeline.py` | 2.69s    | 70    | 0.002s | 0.905s | 0.038s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6112309248)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=53025, name='python3.12', status='running', started='03:04:32')\n\u001b[33m======================== \u001b[32m70 passed\u001b[0m, \u001b[33m\u001b[1m2 warnings\u001b[0m\u001b[33m in 2.77s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "result": "I fixed issue discovery so a malformed deduplication group from the model is skipped instead of crashing the run or merging the wrong issues. The 24 dedup tests and the full `tests/genai/discovery/test_pipeline.py` file (70 tests) all pass.\n\n**The change** (in `_dedup_issues`, `mlflow/genai/discovery/pipeline.py`): each proposed group is now checked before it changes anything. A group is skipped, with a debug-level log entry, if it:\n- has fewer than two references,\n- repeats a reference (e.g. `[0, 0]` or `[0, 1, 1]`),\n- or has a reference that is negative or past the end of the candidate list.\n\n**Why:**\n- **Out-of-range references** caused the index error that stopped the whole run.\n- **Negative references** worked as Python's count-from-the-end indexing, so they merged the wrong issues without any error.\n- **Repeated references** could pass the old \"at least two\" check while pointing at only one issue, so an issue's name and description got overwritten with nothing actually merged.\n\nA bad group is skipped in full, never partly applied, because its name and description were written for its whole set of references. Its candidate issues stay available for other valid groups.\n\nValid groups work as before: overlapping groups still merge transitively, and merged issues keep their combined supporting examples, highest severity and combined categories.\n\n**Tests:** the staged tests in `tests/genai/discovery/test_pipeline.py` already covered this, so I didn't add any. They include:\n- each kind of malformed group on its own, checking the issues come back unchanged;\n- invalid and valid groups together, with the invalid group placed both first and last;\n- an invalid group that tries to overwrite a valid merge's description.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/genai/discovery/pipeline.py b/mlflow/genai/discovery/pipeline.py\nindex f8cf1194c..819a251e4 100644\n--- a/mlflow/genai/discovery/pipeline.py\n+++ b/mlflow/genai/discovery/pipeline.py\n@@ -394,7 +394,18 @@ def _dedup_issues(\n \n     group_by_root: dict[int, _DedupGroup] = {}\n     for group in result.groups:\n-        if len(group.indices) < 2:\n+        # Skip malformed groups entirely rather than partially applying them, since the\n+        # LLM-generated name/description was written for the full (invalid) set of indices.\n+        if (\n+            len(group.indices) < 2\n+            or len(set(group.indices)) != len(group.indices)\n+            or any(idx < 0 or idx >= len(issues) for idx in group.indices)\n+        ):\n+            _logger.debug(\n+                \"Skipping invalid dedup group with indices %s (num issues: %d)\",\n+                group.indices,\n+                len(issues),\n+            )\n             continue\n         root = min(group.indices)\n         group_by_root[root] = group\ndiff --git a/tests/genai/discovery/test_pipeline.py b/tests/genai/discovery/test_pipeline.py\nindex bc78a49bd..ef20f2d9f 100644\n--- a/tests/genai/discovery/test_pipeline.py\n+++ b/tests/genai/discovery/test_pipeline.py\n@@ -1246,6 +1246,73 @@ def test_dedup_issues_dissimilar_issues_not_merged():\n     assert len(result) == 2\n \n \n+@pytest.mark.parametrize(\n+    \"indices\",\n+    [[], [0], [0, 3], [0, -1], [-4, 0], [0, 0], [0, 1, 1]],\n+    ids=[\"empty\", \"singleton\", \"out-of-range\", \"negative\", \"below-range\", \"self-merge\", \"repeated\"],\n+)\n+def test_dedup_issues_invalid_group_preserves_issues(indices):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(3)]\n+    original = [issue.model_dump() for issue in issues]\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response([indices]),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert [issue.model_dump() for issue in result] == original\n+    mock_call.assert_called_once()\n+\n+\n+@pytest.mark.parametrize(\"invalid_indices\", [[0, 1, 4], [0, 1, -1], [0, 1, 1]])\n+@pytest.mark.parametrize(\"invalid_first\", [True, False])\n+def test_dedup_issues_skips_invalid_group_and_merges_valid_group(invalid_indices, invalid_first):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(4)]\n+    original = [issue.model_dump() for issue in issues]\n+    groups = [invalid_indices, [2, 3]] if invalid_first else [[2, 3], invalid_indices]\n+    names = (\n+        [\"Issue: Invalid\", \"Issue: Valid\"] if invalid_first else [\"Issue: Valid\", \"Issue: Invalid\"]\n+    )\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response(groups, names=names),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert len(result) == 3\n+    assert [issue.model_dump() for issue in result[:2]] == original[:2]\n+    assert result[2].name == \"Issue: Valid\"\n+    assert result[2].description == \"Merged description\"\n+    assert result[2].root_cause == \"Merged root cause\"\n+    assert set(result[2].example_indices) == {2, 3}\n+    mock_call.assert_called_once()\n+\n+\n+@pytest.mark.parametrize(\"invalid_first\", [True, False], ids=[\"invalid-first\", \"invalid-last\"])\n+def test_dedup_issues_invalid_group_cannot_overwrite_valid_merge(invalid_first):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(3)]\n+    untouched = issues[2].model_dump()\n+    groups = [[0, 2, 3], [0, 1]] if invalid_first else [[0, 1], [0, 2, 3]]\n+    names = (\n+        [\"Issue: Invalid\", \"Issue: Valid\"] if invalid_first else [\"Issue: Valid\", \"Issue: Invalid\"]\n+    )\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response(\n+            groups, names=names, descriptions=names, root_causes=names\n+        ),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert len(result) == 2\n+    assert set(result[0].example_indices) == {0, 1}\n+    assert result[0].name == \"Issue: Valid\"\n+    assert result[0].description == \"Issue: Valid\"\n+    assert result[0].root_cause == \"Issue: Valid\"\n+    assert result[1].model_dump() == untouched\n+    mock_call.assert_called_once()\n+\n+\n def test_dedup_issues_merges_example_indices_deduped():\n     issue1 = create_identified_issue(example_indices=[0, 1])\n     issue2 = create_identified_issue(example_indices=[1, 2])\n",
+  "distill": null,
+  "cache_read_tokens": 107395,
+  "cache_write_tokens": 12111,
+  "fresh_in_tokens": 12,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

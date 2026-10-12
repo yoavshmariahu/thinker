@@ -1,0 +1,50 @@
+{
+  "session_id": "01a12aa6-0239-7c50-b38e-7476b1aadcaf",
+  "turns": 1,
+  "in_tokens": 995837,
+  "cached_tokens": 921216,
+  "out_tokens": 4177,
+  "wall_ms": 307505,
+  "result": "I’ll check how the reserved `latest` alias resolves versions, fix the stage-ordering issue, and add a regression test. I’ll use the repository’s Python style skill.\nThe SQL registry returns the first per-stage result instead of the highest version. Two staged regression tests already cover this bug; I’ll preserve them and add coverage for archived versions and numeric ordering. The legacy file store has the same issue, so I’ll fix its selection too.\nThe existing regressions reproduced the bug with workspaces both enabled and disabled. The fix now selects the highest numeric version, including archived versions. I’ve also added a direct check that `@latest` and `/latest` agree; the focused alias and prompt tests are running.\nThe original regressions now pass. My new URI comparison exposed a test detail: the store returns an integer version while the path resolver returns a string. I’ve corrected the assertion to compare them numerically and am rerunning it. The prompt check also hit an error that I’m investigating.\nAll 22 registry alias tests passed, including workspace coverage. The prompt test was blocked by an inherited OTLP tracing setting, and pytest’s summary hook hit a sandbox restriction. I’m rerunning the focused checks with those unrelated environment issues avoided.\nFixed `@latest` in the SQL and legacy file registries to select the highest numeric version across all stages, including Archived, matching `/latest`.\n\nAdded regression coverage for stage combinations, numeric ordering, case-insensitive aliases, and workspace modes. Preserved the existing staged tests.\n\nValidation: 23 focused tests passed, including prompt alias behavior. No dependencies installed or full suite run.",
+  "tools": {
+    "calls": 23,
+    "byTool": {
+      "command_execution": 20,
+      "file_change": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "invalidate-prompt-cache-after-the-registry-mutation-succeeds",
+      "prompt-cache-entries-must-be-scoped-by-registry-uri-and-acti"
+    ],
+    "callsBeforeFirstEdit": 5,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 5,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "hook-bm25",
+  "task": "PR26291-hard",
+  "rep": 0,
+  "area": "mlflow/store",
+  "id": "PR26291-hard-hook-bm25-0",
+  "session": "01a12aa6-0239-7c50-b38e-7476b1aadcaf",
+  "cost": 1.876276,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/store/model_registry/file_store.py b/mlflow/store/model_registry/file_store.py\nindex 54693b5ad..2a618ebaa 100644\n--- a/mlflow/store/model_registry/file_store.py\n+++ b/mlflow/store/model_registry/file_store.py\n@@ -1070,7 +1070,7 @@ class FileStore(AbstractStore):\n             A single :py:class:`mlflow.entities.model_registry.ModelVersion` object.\n         \"\"\"\n         if alias.lower() == _REGISTERED_MODEL_ALIAS_LATEST:\n-            latest_version = next(v for v in self.get_latest_versions(name) if v is not None)\n+            latest_version = max(self.get_latest_versions(name), key=lambda mv: int(mv.version))\n             return self.get_model_version(name, latest_version.version)\n \n         alias_path = self._get_registered_model_alias_path(name, alias)\ndiff --git a/mlflow/store/model_registry/sqlalchemy_store.py b/mlflow/store/model_registry/sqlalchemy_store.py\nindex 32577cd9e..971bc649b 100644\n--- a/mlflow/store/model_registry/sqlalchemy_store.py\n+++ b/mlflow/store/model_registry/sqlalchemy_store.py\n@@ -1572,7 +1572,7 @@ class SqlAlchemyStore(AbstractStore):\n \n         if alias.lower() == _REGISTERED_MODEL_ALIAS_LATEST:\n             if versions := self.get_latest_versions(name):\n-                return versions[0]\n+                return max(versions, key=lambda mv: int(mv.version))\n             else:\n                 raise MlflowException(\n                     f\"Latest version not found for model {name}.\", RESOURCE_DOES_NOT_EXIST\ndiff --git a/tests/store/model_registry/test_sqlalchemy_store.py b/tests/store/model_registry/test_sqlalchemy_store.py\nindex a687802eb..decf6e292 100644\n--- a/tests/store/model_registry/test_sqlalchemy_store.py\n+++ b/tests/store/model_registry/test_sqlalchemy_store.py\n@@ -28,6 +28,7 @@ from mlflow.protos.databricks_pb2 import (\n     RESOURCE_DOES_NOT_EXIST,\n     ErrorCode,\n )\n+from mlflow.store.artifact.utils.models import get_model_name_and_version\n from mlflow.store.model_registry.dbmodels.models import (\n     SqlModelVersion,\n     SqlModelVersionTag,\n@@ -1941,6 +1942,51 @@ def test_get_model_version_by_alias(store):\n     assert mv.aliases == [\"test_alias\"]\n \n \n+@pytest.mark.parametrize(\"stage\", [\"None\", \"Staging\", \"Production\", \"Archived\"])\n+@pytest.mark.parametrize(\"alias\", [\"latest\", \"LATEST\"])\n+def test_get_model_version_by_alias_latest_across_stages(store, stage, alias):\n+    model_name = \"LatestAcrossStages\"\n+    store.create_registered_model(model_name)\n+    for _ in range(10):\n+        store.create_model_version(model_name, \"path/to/source\", uuid.uuid4().hex)\n+    store.transition_model_version_stage(model_name, \"9\", \"Production\", False)\n+    store.transition_model_version_stage(model_name, \"10\", stage, False)\n+\n+    mv = store.get_model_version_by_alias(model_name, alias)\n+\n+    assert int(mv.version) == 10\n+    _, path_version = get_model_name_and_version(store, f\"models:/{model_name}/latest\")\n+    assert int(mv.version) == int(path_version)\n+\n+\n+def test_get_model_version_by_alias_latest_picks_highest_version(store):\n+    model_name = \"GetModelVersionByAliasLatest_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(4):\n+        store.create_model_version(model_name, \"path/to/source\", uuid.uuid4().hex)\n+    # `get_latest_versions` returns the latest version of each stage, keyed by the\n+    # stage of the lowest version that reached it, so the highest version is neither\n+    # the first nor the last element here.\n+    store.transition_model_version_stage(model_name, \"1\", \"Archived\", False)\n+    store.transition_model_version_stage(model_name, \"2\", \"Production\", False)\n+    store.transition_model_version_stage(model_name, \"3\", \"Staging\", False)\n+    store.transition_model_version_stage(model_name, \"4\", \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 4\n+\n+\n+def test_get_model_version_by_alias_latest_after_promoting_older_version(store):\n+    model_name = \"GetModelVersionByAliasLatestPromoteOlder_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(3):\n+        store.create_model_version(model_name, \"path/to/source\", uuid.uuid4().hex)\n+    store.transition_model_version_stage(model_name, \"1\", \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 3\n+\n+\n @pytest.mark.parametrize(\"version\", [2, \"2\"])\n def test_delete_model_version_deletes_alias(store, version):\n     model_name = \"DeleteModelVersionDeletesAlias_TestMod\"\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "/test_sqlalchemy_store.py::test_search_registered_models[workspace-disabled]\n1.76s call     tests/store/model_registry/test_sqlalchemy_store.py::test_search_registered_model_order_by[workspace-disabled]\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                  | Duration | Tests | Min    | Max     | Avg    |\n| ---- | ----------------------------------------------------- | -------- | ----- | ------ | ------- | ------ |\n| 1    | `tests/store/model_registry/test_sqlalchemy_store.py` | 88.83s   | 222   | 0.023s | 15.149s | 0.400s |\n\n::endgroup::\n\n\u001b[33m================== \u001b[32m222 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 93.13s (0:01:33)\u001b[0m\u001b[33m ===================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 2,
+    "touched": 2,
+    "missing": []
+  },
+  "fresh_in_tokens": 74621,
+  "costBasis": "list price from token classes"
+}

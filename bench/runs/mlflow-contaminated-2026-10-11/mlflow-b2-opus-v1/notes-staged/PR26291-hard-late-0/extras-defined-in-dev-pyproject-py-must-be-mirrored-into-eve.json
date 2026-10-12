@@ -1,0 +1,73 @@
+{
+  "id": "extras-defined-in-dev-pyproject-py-must-be-mirrored-into-eve",
+  "title": "Extras defined in dev/pyproject.py must be mirrored into every generated pyproject and uv.lock",
+  "kind": "rule",
+  "answers": [
+    "db extra missing psycopg driver in published wheel",
+    "add a dependency to an optional extra in MLflow",
+    "pyproject.toml extras out of sync with generator",
+    "postgresql URL ModuleNotFoundError No module named psycopg"
+  ],
+  "body": "Invariant: package extras such as `db` are authored in dev/pyproject.py (`build`), which generates the root pyproject.toml, pyproject.release.toml and libs/skinny/pyproject.toml.\nEnforced by: dev/pyproject.py:build writes the extras dict; the generated files and uv.lock must be regenerated and committed together.\nWhat breaks if skipped: editing only a generated pyproject.toml (or only the lockfile) leaves the built wheel's extra unchanged. PR #26271 shows that the `db` extra kept shipping only psycopg2-binary, while the psycopg entry in uv.lock came from the dev-only `db-test` group.\nFix pattern: add the dependency in dev/pyproject.py, then rerun the generator and confirm it produces no further diff. Then run `uv lock` so the lockfile matches, and check that `uv lock --check` passes.\nConstraints: do not hand-edit the generated pyproject files as the source of truth. Dev-only groups in uv.lock do not feed the published extras. Keep psycopg2-binary alongside psycopg[binary] when older SQLAlchemy versions or explicit psycopg2 URLs still need it.",
+  "applies": "Any change to optional-dependency extras or dependency lists of the mlflow package in this repository.",
+  "tags": [
+    "packaging",
+    "extras",
+    "pyproject",
+    "uv-lock",
+    "psycopg",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "dev/pyproject.py",
+      "symbol": "build",
+      "hash": "sha256:55755259d69fd1ad33e1efcf",
+      "line": 241,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55755259d69fd1ad33e1efcf",
+      "fanout": {
+        "files": 105,
+        "sites": 14,
+        "refs": 241
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "pyproject.release.toml",
+      "hash": "sha256:facc7de50f65ab42568258f1",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:e64bc1d17c956d700538a236",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26271"
+  },
+  "created": "2026-10-11T10:23:41.164Z",
+  "verified": "2026-10-11T10:23:41.164Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pyproject-tool-mlflow-release-version-is-a-branch-marker-for"
+  ],
+  "says": [
+    "Connecting to PostgreSQL fails with a missing module error after installing database extras.",
+    "Installing the database optional package bundle still misses the postgres driver dependency.",
+    "Published package releases omit optional database connectors despite appearing in dependency lockfiles.",
+    "Ensure the optional database install option bundles both legacy and modern postgres drivers."
+  ],
+  "search": "Optional dependency extras such as db must be authored in dev/pyproject.py:build, which generates the root pyproject.toml, pyproject.release.toml, and libs/skinny/pyproject.toml. Editing generated files directly leaves published wheels out of sync, as seen when psycopg was present only in the dev-only db-test lockfile group while published wheels shipped only psycopg2-binary. Dependency changes require updating dev/pyproject.py, running the generator, and executing uv lock so that uv lock --check passes. Dev-only groups in uv.lock do not feed published extras, and psycopg2-binary must remain alongside psycopg[binary] when older SQLAlchemy versions or explicit psycopg2 URLs need it.",
+  "saysFor": "s2:503f6e94a79917f0f675bd3107426ba5c09bb8be14a6761d4284533fa5257a49"
+}

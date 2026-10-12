@@ -1,0 +1,60 @@
+{
+  "id": "copilot-code-review-environment-is-set-up-in-copilot-code-re",
+  "title": "Copilot code review environment is set up in copilot-code-review.yml",
+  "kind": "map",
+  "answers": [
+    "where is the Copilot code review setup environment configured",
+    "which toolchains does the Copilot code reviewer have installed",
+    "how does Copilot code review run builds or tests in this repo",
+    "where do I change the Python or Node setup for the Copilot reviewer"
+  ],
+  "body": "Copilot code review's setup environment is the `copilot-code-review` job in `.github/workflows/copilot-code-review.yml`, not a repo script.\nThe job runs a credential-free checkout (`persist-credentials: false`), then `./.github/actions/setup-python` with `pin-micro-version: false`, then `./.github/actions/setup-node`.\nTriggers, job name, permissions (`contents: read`), cache policy and timeout live in the same file; keep them when editing the steps.\n`.github/instructions/code-review.instructions.md` (\"Verify When It's Cheap\") points reviewers at this workflow file as the source of truth for what is installed.",
+  "applies": "Changes to the Copilot code review toolchain or to the verification guidance the reviewer reads in this repo.",
+  "tags": [
+    "ci",
+    "copilot",
+    "code-review",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-code-review.yml",
+      "hash": "sha256:3fc07478c35c027cda7112e8",
+      "missing": false
+    },
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:c98e5b5d94be6c9b687188cd",
+      "missing": false
+    },
+    {
+      "path": ".github/actions/setup-node/action.yml",
+      "hash": "sha256:6e26f4ebbede18efa2fa78eb",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:f7bdd41ad61e04825158fbd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26110"
+  },
+  "created": "2026-10-11T10:27:36.494Z",
+  "verified": "2026-10-11T10:27:36.494Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated pull request review fails because required Python or Node versions are missing.",
+    "Update the automated code review environment to install new language dependencies for verification.",
+    "The automated code reviewer cannot run build checks due to missing runtime setup.",
+    "Add new runtime toolchains so the automated pull request reviewer can run tests."
+  ],
+  "search": "Copilot code review setup environment is configured in the copilot-code-review job of .github/workflows/copilot-code-review.yml rather than a repo script. The job runs a checkout with persist-credentials: false, then ./.github/actions/setup-python with pin-micro-version: false, then ./.github/actions/setup-node. Edits to steps must preserve triggers, job name, contents: read permissions, cache policy, and timeout in that file. .github/instructions/code-review.instructions.md points reviewers to this workflow as the source of truth for installed toolchains.",
+  "saysFor": "s2:39e20eb35894ddf57ed0bd64002392e7b3c99f21a43655a667ca192daab5c71f"
+}

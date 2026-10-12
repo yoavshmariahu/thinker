@@ -1,0 +1,59 @@
+{
+  "id": "tracking-uri-in-mlflow-artifacts-scheme-error-must-be-redact",
+  "title": "Tracking URI in mlflow-artifacts scheme error must be redacted of credentials before logging",
+  "kind": "rule",
+  "answers": [
+    "tracing exporter logs database password in cleartext when server runs with --serve-artifacts",
+    "mlflow-artifacts tracking URI must be a valid http or https URI error leaks credentials",
+    "postgresql password appears in MLflow server warning log",
+    "redact userinfo from tracking URI in error message"
+  ],
+  "body": "Symptom: With `--serve-artifacts` and a credentialed backend store URI (e.g. `postgresql://user:password@host/db`), the tracing exporter logs a WARNING that contains the database password in cleartext.\nRoot cause: mlflow/store/artifact/mlflow_artifacts_repo.py:_validate_uri_scheme interpolated the full `parsed_uri.geturl()` (userinfo and query included) into the MlflowException message. The server's global tracking URI is its backend store URI, so the message carried that credential.\nFix pattern: Build the message from a redacted copy: drop userinfo (`netloc.rpartition(\"@\")`) and clear params, query, and fragment via `_replace(...)`, then format that copy. Any new error or log that prints a tracking/store URI should go through the same kind of redaction rather than printing the raw URI.\nConstraints: Applies to URIs that fail the http/https scheme check. Dropping the whole query also removes non-secret options such as `sslmode`, which is accepted. Only this error path was changed; other places that format store URIs are not covered by this fix.",
+  "applies": "Any change to mlflow-artifacts URI resolution or to error/log messages that embed tracking or backend store URIs in mlflow/store/artifact/.",
+  "tags": [
+    "security",
+    "tracking",
+    "artifacts",
+    "logging",
+    "credentials"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/mlflow_artifacts_repo.py",
+      "symbol": "_validate_uri_scheme",
+      "hash": "sha256:c5c00f209d0b6fbd5c80f4c8",
+      "line": 57,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5c00f209d0b6fbd5c80f4c8",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25874"
+  },
+  "created": "2026-10-11T08:45:48.509Z",
+  "verified": "2026-10-11T08:45:48.509Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Database credentials appear in server logs when artifact serving fails.",
+    "Redact database passwords from error logs when artifact storage validation fails.",
+    "The server warning log exposes cleartext database credentials during artifact resolution.",
+    "Hide sensitive connection credentials in artifact server warning messages."
+  ],
+  "search": "Error messages in mlflow/store/artifact/mlflow_artifacts_repo.py:_validate_uri_scheme must format tracking URIs from a redacted copy with userinfo dropped and params, query, and fragment cleared via _replace. This prevents leaking database credentials in cleartext warning logs when running with --serve-artifacts and a backend store URI failing the http or https scheme check. Applies to changes in mlflow/store/artifact/ embedding tracking or backend store URIs; dropping query parameters removes options like sslmode, while other store URI formatting paths remain uncovered.",
+  "saysFor": "s2:2fb18a9824b8d2d4913719f8f6c2043794c76539f29e9473b2eeaefda745b26b",
+  "lastUsed": "2026-10-11T10:55:39.440Z",
+  "servedIn": [
+    "d2f6070b-c80b-40fb-b2be-0d3395236bc7"
+  ]
+}

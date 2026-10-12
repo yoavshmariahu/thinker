@@ -1,0 +1,50 @@
+{
+  "id": "workflow-concurrency-groups-are-keyed-by-workflow-event-name",
+  "title": "Workflow concurrency groups are keyed by workflow, event name and ref",
+  "kind": "rule",
+  "answers": [
+    "How do I add concurrency to a GitHub Actions workflow in this repo?",
+    "Why do scheduled or manual runs not cancel PR runs in the same workflow?",
+    "Which concurrency group key do workflows in .github/workflows use?",
+    "How do I stop superseded PR CI runs without cancelling release runs?"
+  ],
+  "body": "Convention: every `concurrency` block added to .github/workflows uses `group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}`.\nWhere: top-level `concurrency:` in .github/workflows/helm.yml and .github/workflows/update-model-catalog.yml.\nWhy it matters: `github.event_name` in the key keeps a schedule or workflow_dispatch run from sharing a group with a pull_request run on the same ref, so a PR push cannot cancel a publish run.\nCancellation: `cancel-in-progress` is `true` in helm.yml, and in update-model-catalog.yml it is `${{ github.event_name == 'pull_request' }}` (see the workflow-concurrency note for that file).\nConstraints: the PR gives no reviewer rationale for the event_name key; it is inferred from the diff. Check the triggers of a workflow before copying `cancel-in-progress: true`, because a workflow with push or schedule triggers that writes state should not be made unconditionally cancellable.",
+  "applies": "Any new or edited top-level `concurrency:` block in .github/workflows/*.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25594"
+  },
+  "created": "2026-10-11T08:50:14.952Z",
+  "verified": "2026-10-11T08:50:14.952Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pushing code to a pull request cancelled an active release run on that branch.",
+    "Stop superseded pull request check runs from continuing after new commits are pushed.",
+    "Scheduled pipeline runs should never share queue limits with review builds or manual triggers.",
+    "Ensure manual deployment jobs do not abort when developers push updates to review branches."
+  ],
+  "search": "Top-level concurrency blocks across .github/workflows/*.yml must define group using the key ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}. Including github.event_name isolates pull_request runs from schedule or workflow_dispatch runs on the same ref, preventing PR pushes from cancelling publish runs. While helm.yml sets cancel-in-progress to true, workflows with push or schedule triggers writing state must avoid unconditional cancellation, as seen in update-model-catalog.yml.",
+  "saysFor": "s2:54cae5add4831c186e3a855047bfbd8522309d21c50b69af51b37007dc9048b0"
+}

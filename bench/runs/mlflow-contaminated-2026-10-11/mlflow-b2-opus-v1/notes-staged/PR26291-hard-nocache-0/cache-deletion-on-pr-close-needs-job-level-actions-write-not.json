@@ -1,0 +1,46 @@
+{
+  "id": "cache-deletion-on-pr-close-needs-job-level-actions-write-not",
+  "title": "Cache deletion on PR close needs job-level actions: write, not top-level",
+  "kind": "rule",
+  "answers": [
+    "Why does the PR close workflow fail to delete caches without actions write?",
+    "Where do I grant actions write permission for deleting Actions caches?",
+    "How are closed pull request caches cleaned up in CI?",
+    "Why is cache denial kept at the workflow top level?"
+  ],
+  "body": "Symptom: Caches for a closed or merged PR are not removed, or the cleanup job is denied access when it tries to delete them.\nRoot cause: .github/workflows/pr-closed.yml sets a restrictive top-level permissions block that denies the actions scope, so only the delete-caches job should widen it.\nFix pattern: Keep top-level cache access denied and add `permissions: actions: write` only on the job that calls `gh cache delete` (job delete-caches).\nConstraints: Other jobs in the same workflow (the cancel job) must not gain actions write. Applies to this workflow file; the job's `needs: cancel` ordering is also part of the design.",
+  "applies": "Edits to the PR Closed workflow permissions or adding new jobs that touch Actions caches.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "permissions",
+    "caches"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-closed.yml",
+      "hash": "sha256:960834be4cab5553f2fc50f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25871"
+  },
+  "created": "2026-10-11T10:31:24.276Z",
+  "verified": "2026-10-11T10:31:24.276Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Build caches for closed pull requests are not being removed after merging.",
+    "The cache cleanup job fails with permission denied when closing a pull request.",
+    "Old workflow caches keep accumulating instead of getting deleted when pull requests close.",
+    "Grant write access specifically to the cache deletion step without granting workflow-wide permissions.",
+    "Automated cache purge on pull request closure needs authorization to delete GitHub caches."
+  ],
+  "search": "In .github/workflows/pr-closed.yml, deleting Actions caches upon closing a PR requires adding permissions: actions: write specifically to the delete-caches job that runs gh cache delete, while keeping actions scope denied at the workflow top level. Other jobs like the cancel job must not gain actions write, and the delete-caches job must maintain its needs: cancel ordering. This applies to editing permissions or adding jobs that interact with Actions caches in the PR closed workflow.",
+  "saysFor": "s2:c59fb7ca88378a8fbfe2e2b2d92849a7d1bcce116b857734216f514665bb2aa2"
+}

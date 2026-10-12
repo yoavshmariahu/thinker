@@ -1,0 +1,46 @@
+{
+  "id": "team-review-concurrency-must-queue-runs-in-one-repo-wide-gro",
+  "title": "team-review concurrency must queue runs in one repo-wide group",
+  "kind": "rule",
+  "answers": [
+    "team-review workflow cancelled queued run when label applied twice",
+    "why does team-review keep only one pending run",
+    "concurrency group for team-review workflow",
+    "duplicate labels cancel the bot's reviewer assignment run"
+  ],
+  "body": "Symptom: when the team-review label is applied twice quickly, one of the bot's review-assignment runs is dropped and the PR never gets its second run's result.\nRoot cause: .github/workflows/team-review.yml:concurrency kept only one pending run per group, so queued runs were cancelled.\nFix pattern: keep `cancel-in-progress: false` and add `queue: max` under the same concurrency block so pending runs are queued rather than dropped.\nConstraints: keep the group repo-wide (`${{ github.workflow }}`), not per-PR, because every run rewrites the shared stats issue (#19428). Per-PR groups would let runs race on that issue. Changing the group key or the queue setting changes this guarantee.",
+  "applies": "Editing or adding concurrency settings in .github/workflows/team-review.yml.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "team-review",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/team-review.yml",
+      "hash": "sha256:675507b1da84bfc822a6ad7f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26281"
+  },
+  "created": "2026-10-11T10:26:16.866Z",
+  "verified": "2026-10-11T10:26:16.866Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Rapidly applying the team review label drops reviewer assignment without processing the request.",
+    "Reviewer assignment bot fails to assign reviewers when labels are added in rapid succession.",
+    "Queue automated review runs so duplicate label triggers do not cancel pending assignments.",
+    "Why was automated reviewer assignment skipped on my pull request after re-labeling?",
+    "Prevent multiple team review label events from dropping automated review requests."
+  ],
+  "search": "Concurrency configuration in .github/workflows/team-review.yml must keep cancel-in-progress: false and add queue: max within a single repository-wide concurrency group. When the team-review label was applied twice quickly, keeping only one pending run per group cancelled queued runs and dropped review-assignment results. The concurrency group key must remain repository-wide (${{ github.workflow }}) rather than per-PR because every run rewrites shared statistics tracking issue #19428, which would race under per-PR groups.",
+  "saysFor": "s2:d824c2f5dbaa81a964b177b0b9a1f576a14b8400c254587f379eac51b7a31899"
+}

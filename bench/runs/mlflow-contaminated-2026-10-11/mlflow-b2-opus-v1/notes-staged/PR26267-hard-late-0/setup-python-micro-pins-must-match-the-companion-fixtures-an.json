@@ -1,0 +1,70 @@
+{
+  "id": "setup-python-micro-pins-must-match-the-companion-fixtures-an",
+  "title": "setup-python micro pins must match the companion fixtures and version assertions",
+  "kind": "rule",
+  "answers": [
+    "Python version assertion fails in virtualenv or model tests after bumping setup-python pin",
+    "how do I change the pinned Python 3.10 or 3.11 micro version in CI",
+    "model environment recreation uses wrong Python micro version",
+    "which test resources must change when the setup-python Python version is bumped"
+  ],
+  "body": "Symptom: after a Python micro-version bump, virtualenv/conda model tests fail on the version check or the recreated environment reports the old Python version.\nRoot cause: .github/actions/setup-python/action.yml (version-selection block under PIN_MICRO_VERSION, per-RUNNER_OS branches) is the source of the pinned micro version, but the same literal is copied into tests/resources/example_virtualenv_project/python_env.yaml, tests/resources/example_virtualenv_no_python_env/python_env.yaml, tests/resources/example_virtualenv_conda_project/conda.yaml, tests/resources/example_mlflow_1x_sklearn_model/MLmodel, conda.yaml and python_env.yaml, the entrypoint.py asserts (sys.version_info check), and the inline MLmodel/python_env strings in tests/sklearn/test_sklearn_model_export.py:test_sklearn_compatible_with_mlflow_2_4_0.\nFix pattern: change the action.yml branch for the OS, then update every fixture and assertion copy of that literal in the same commit. Quote style in python_env.yaml varies (some quoted, some not), so keep each file's existing style.\nConstraints: pick versions that the hosted runner image caches, since the pin is meant to avoid downloads; the Linux pins were aligned while macOS 3.11 stayed on a cached 3.11.9. Pins with pin-micro-version: false (e.g. the Copilot code-review job) are not affected.",
+  "applies": "Any bump of Python micro versions in setup-python or of the fixture files that mirror them.",
+  "tags": [
+    "ci",
+    "setup-python",
+    "python-version",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:c98e5b5d94be6c9b687188cd",
+      "missing": false
+    },
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_sklearn_compatible_with_mlflow_2_4_0",
+      "hash": "sha256:a3ef977af9eed2cf4b0e2acb",
+      "line": 830,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:58c72c5eb02fc03fa0c3e131",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/resources/example_virtualenv_project/python_env.yaml",
+      "hash": "sha256:89cda8f779bdfe3ea758f61f",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_virtualenv_project/entrypoint.py",
+      "hash": "sha256:baea807bc8778263280ca993",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-11T10:30:41.754Z",
+  "verified": "2026-10-11T10:30:41.754Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration build fails on Python version checks when testing model environments.",
+    "Recreated model virtual environments report an outdated Python runtime version in tests.",
+    "Update test project fixtures when upgrading Python patch versions in build workflows.",
+    "Model packaging tests fail because the environment Python version does not match.",
+    "Automated test runs fail asserting the expected Python version in virtual environments."
+  ],
+  "search": "When updating pinned Python micro versions in .github/actions/setup-python/action.yml under PIN_MICRO_VERSION, the identical version literal must be updated across all companion test fixtures and assertions in the same commit. Affected files include example project environment configs (python_env.yaml, conda.yaml, MLmodel), entrypoint.py sys.version_info assertions, and inline strings in tests/sklearn/test_sklearn_model_export.py:test_sklearn_compatible_with_mlflow_2_4_0. Pinned versions should match cached runner images to avoid downloads, preserving existing quote styles in YAML, while workflows with pin-micro-version set to false remain unaffected.",
+  "saysFor": "s2:4945b4b03e1e972e57eb8c1b43f8c5e4727ca1f2dccebbab054436b9e8d4631c"
+}

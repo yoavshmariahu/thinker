@@ -1,0 +1,53 @@
+{
+  "id": "workflow-concurrency-block-placement-and-the-per-run-placeho",
+  "title": "Workflow concurrency block placement and the per-run placeholder opt-out",
+  "kind": "rule",
+  "answers": [
+    "where to put the concurrency block in a workflow",
+    "what concurrency placeholder to use when no grouping is needed",
+    "run_id concurrency group opt-out",
+    "add concurrency to a workflow file"
+  ],
+  "body": "Convention: the top-level `concurrency:` block sits after the `on:` trigger block and before `defaults:`, `env:` or `permissions:`. All 29 blocks added by this change follow that order.\nPlaceholder: when a workflow has no grouping decision yet, use `group: ${{ github.run_id }}` with `cancel-in-progress: false`. Each run gets its own group, so this stops concurrency-based cancellation and serialization between runs.\nConstraints: this placeholder only satisfies the presence check in deny_workflow_without_concurrency. The PR states that meaningful grouping is a follow-up, so choosing a real group is a separate decision and should not be inferred from the placeholder.",
+  "applies": "Adding or editing top-level workflow files in .github/workflows/*.yml; not composite action.yml files.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "workflow-layout"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/flaky-test-detector.yml",
+      "hash": "sha256:613db574b06454599cf14c9d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25611"
+  },
+  "created": "2026-10-11T08:50:04.418Z",
+  "verified": "2026-10-11T08:50:04.418Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-list-github-s-default-pull-request-activity-types-in",
+    "workflows-default-github-actions-cache-mode-to-none-grant-re"
+  ],
+  "says": [
+    "Workflow checks fail because a continuous integration file is missing the required concurrency setting",
+    "Where to place the concurrency configuration block in automated workflow files",
+    "Prevent concurrent workflow runs from canceling each other when grouping is not yet decided",
+    "Add a temporary concurrency placeholder to satisfy repository policy without delaying independent runs",
+    "New automated build pipelines require a concurrency definition to pass compliance checks"
+  ],
+  "search": "Top-level workflow files in `.github/workflows/*.yml` must place the `concurrency:` block after the `on:` trigger block and before `defaults:`, `env:`, or `permissions:`. When no grouping decision has been made, use placeholder `group: ${{ github.run_id }}` with `cancel-in-progress: false` to stop cancellation and serialization between runs. This placeholder only satisfies `deny_workflow_without_concurrency` in `.github/policy.rego`, applies strictly to top-level workflows rather than composite `action.yml` files, and does not define meaningful grouping.",
+  "saysFor": "s2:e071336dc8c18ad90428001a7bf0f5c3e71156417faa6a8e67a8b0d2ce1d1704"
+}

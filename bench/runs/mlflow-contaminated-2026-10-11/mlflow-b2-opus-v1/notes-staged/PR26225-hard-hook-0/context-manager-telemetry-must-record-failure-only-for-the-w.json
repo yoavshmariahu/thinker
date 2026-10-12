@@ -1,0 +1,68 @@
+{
+  "id": "context-manager-telemetry-must-record-failure-only-for-the-w",
+  "title": "Context-manager telemetry must record failure only for the wrapped step, not the caller's body",
+  "kind": "rule",
+  "answers": [
+    "env_pack failure counted when my own code raised inside the with block",
+    "telemetry misattributes caller errors to a packing step",
+    "how to record success and failure for a generator-based context manager",
+    "why does env_pack record success before yield"
+  ],
+  "body": "Invariant: a telemetry event around a @contextmanager must classify failure only for errors raised while the wrapped step runs, before the yield.\nEnforced in mlflow/utils/env_pack.py:pack_env_for_databricks_model_serving: it calls _record_event(success=True) before yielding and sets packed=True; the except branch records success=False only when packed is False, then re-raises.\nWhat breaks if skipped: an exception raised in the caller's with-body after the yield is recorded as a failure of the sub-step, which distorts the success rate.\nConstraints: call sites should not add is_telemetry_enabled guards, since _record_event already no-ops when telemetry is disabled at client init. Reviewers deferred the case where telemetry is disabled after init as a separate change.",
+  "applies": "Context managers or generators in mlflow that emit usage events around a step whose body is caller-controlled.",
+  "tags": [
+    "telemetry",
+    "context-manager",
+    "error-attribution"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/env_pack.py",
+      "symbol": "pack_env_for_databricks_model_serving",
+      "hash": "sha256:991b513c663926e1e506d3fd",
+      "line": 117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:991b513c663926e1e506d3fd",
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 23
+      }
+    },
+    {
+      "path": "mlflow/telemetry/track.py",
+      "symbol": "_record_event",
+      "hash": "sha256:7f76c174443bb48dc4b7b6e1",
+      "line": 80,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7f76c174443bb48dc4b7b6e1",
+      "fanout": {
+        "files": 32,
+        "sites": 32,
+        "refs": 72
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-11T10:30:30.432Z",
+  "verified": "2026-10-11T10:30:30.432Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Environment packaging success metrics show false failures when user evaluation scripts crash.",
+    "Model serving package metrics incorrectly report errors caused by my own code.",
+    "Do not count user workflow exceptions as environment preparation failures in telemetry.",
+    "The model serving packaging tool reports failures even though packaging completed successfully.",
+    "Telemetry dashboards show inflated packaging failure rates caused by downstream user errors."
+  ],
+  "search": "Telemetry events around generator context managers must record failure only for errors occurring during the wrapped step before the yield, preventing caller body exceptions from distorting step failure rates. Applied in mlflow/utils/env_pack.py:pack_env_for_databricks_model_serving, which calls mlflow/telemetry/track.py:_record_event(success=True) and sets packed=True prior to yield, only logging failure if packed is False. Guidance applies to context managers or generators with caller-controlled bodies; callers should not add is_telemetry_enabled guards as _record_event no-ops when telemetry is disabled at initialization.",
+  "saysFor": "s2:f6c56640af170226d10be958efd85e0c11ba8da23cedda33b4e14472509fe8ac"
+}

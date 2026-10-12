@@ -1,0 +1,68 @@
+{
+  "id": "third-party-scorer-metric-name-must-be-an-identifier-and-mus",
+  "title": "Third-party scorer metric_name must be an identifier and must not appear in kwargs",
+  "kind": "rule",
+  "answers": [
+    "third-party scorer metric_name with dots fails to load",
+    "kwargs must not contain metric_name error when restoring scorer",
+    "why are RAGAS or DeepEval metric names validated as identifiers",
+    "stored scorer rejected because metric_name is in kwargs"
+  ],
+  "body": "Symptom: a stored RAGAS, DeepEval, TruLens or Phoenix scorer whose metric_name contains dots or other non-identifier text, or whose kwargs carry metric_name, fails to load with \"must be a plain identifier\" or \"kwargs must not contain 'metric_name'\".\nRoot cause: mlflow/genai/scorers/base.py:Scorer.model_validate. RagasScorer and DeepEvalScorer splice unknown metric names into import paths (ragas.metrics.collections.<metric_name>, deepeval.metrics.<metric_name>Metric). Concrete subclasses pin metric_name as a ClassVar and inherit the wrapper __init__, so a kwargs metric_name reached the constructor unchecked.\nFix pattern: check metric_name with str.isidentifier() and reject any kwargs containing 'metric_name' before importlib.import_module is called. The top-level third_party_scorer_data.metric_name is the only trusted source.\nConstraints: do not relax these checks to allow dotted names or kwargs overrides; the deserializer injects the validated metric_name only when the class has no ClassVar.",
+  "applies": "Deserialization of third-party scorer payloads in mlflow/genai/scorers/base.py; applies to every wrapper class that resolves metric names dynamically.",
+  "tags": [
+    "security",
+    "genai-scorers",
+    "serialization",
+    "metric-name"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 482,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 118,
+        "refs": 144
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T10:30:36.459Z",
+  "verified": "2026-10-11T10:30:36.459Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-module-allow-list-is-matched-exactly-neve",
+    "third-party-scorer-checks-must-run-before-import-and-before"
+  ],
+  "says": [
+    "Saved third-party evaluation scorers fail to load when the metric name contains dots.",
+    "Restoring an external evaluator fails with an error requiring a plain identifier name.",
+    "Stored evaluation metrics cannot be loaded if the metric name is duplicated in parameters.",
+    "Evaluation experiment fails to restore custom metrics with dotted naming formats.",
+    "External evaluation metrics reject extra configuration parameters that repeat the metric name."
+  ],
+  "search": "Deserialization of third-party scorers in Scorer.model_validate must verify metric_name with str.isidentifier() and reject any kwargs containing 'metric_name' before calling importlib.import_module. Dynamic metric names are spliced into import paths in RagasScorer and DeepEvalScorer, and concrete subclasses pin metric_name as a ClassVar, so kwargs metric names must not reach the constructor. Applies to mlflow/genai/scorers/base.py and forbids relaxing checks to allow dotted names or kwargs overrides.",
+  "saysFor": "s2:8676d3e6ae2df9856181a79c22a55b7a01d942ed2f96def6b242f888e9fc7a01",
+  "stale": {
+    "since": "2026-10-11T18:17:54.871Z",
+    "changed": [
+      {
+        "path": "mlflow/genai/scorers/base.py",
+        "symbol": "Scorer.model_validate",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "id": "metrics-filter-lists-in-usecountinfo-and-useassessmentcountm",
+  "title": "Metrics filter lists in useCountInfo and useAssessmentCountMetrics must stay in sync",
+  "kind": "rule",
+  "answers": [
+    "why do session counts and assessment counts disagree on the same page",
+    "where to add a new filter for trace metrics queries",
+    "how are runUuid and loggedModelId filters built for metrics"
+  ],
+  "body": "Invariant: useCountInfo.ts:useCountInfo and useAssessmentCountMetrics.ts:useAssessmentCountMetrics each build their own metrics `filters` array with the same logic: push createTraceMetadataFilter('mlflow.sourceRun', runUuid) when runUuid is set, then push createTraceMetadataFilter('mlflow.modelId', loggedModelId) when loggedModelId is set, and return undefined when empty.\nWhat breaks: if one hook gets a new scope or changes order/format and the other does not, session counts and assessment counts on the same page will be computed over different trace sets.\nEnforcement: the two hook unit tests assert the exact filters array (including order: sourceRun before modelId) in useCountInfo.test.ts and useAssessmentCountMetrics.test.ts.\nConstraints: The metrics endpoint uses the metrics DSL from createTraceMetadataFilter; this is separate from the SQL-style request_metadata filter used for trace search, so do not copy filter strings between those two paths.",
+  "applies": "Any change to scoping filters for Traces V3 metrics requests in experiment-page/components/traces-v3/hooks.",
+  "tags": [
+    "traces",
+    "metrics",
+    "filters",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:a2ccf04fe55796a440bc60ad",
+      "line": 23,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2ccf04fe55796a440bc60ad",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:b339f6ee7246b1c39af5c5ba",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b339f6ee7246b1c39af5c5ba",
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.test.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:1ebb3837f409ae5179dbaf02",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.test.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:a654da64a4adf689d409a4a2",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25928"
+  },
+  "created": "2026-10-11T10:30:07.836Z",
+  "verified": "2026-10-11T10:30:07.836Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-trace-pages-metrics-hooks-must-receive-the-same"
+  ],
+  "says": [
+    "Total trace counts and assessment totals show inconsistent numbers on the same page.",
+    "Session summary numbers disagree with the assessment metrics displayed on the dashboard.",
+    "Align session counts with evaluation assessment totals on the experiment traces screen.",
+    "Overview badges show different trace totals than the assessment charts below them."
+  ],
+  "search": "Traces V3 metrics scoping filters in useCountInfo and useAssessmentCountMetrics must construct identical filter arrays using createTraceMetadataFilter for mlflow.sourceRun and mlflow.modelId in that exact order. Discrepancies in scope or ordering cause session count badges and assessment count metrics on the same page to query different trace sets. The metrics DSL filter format must not be mixed with the SQL-style request_metadata strings used in trace row searches. Filter array structure and order are strictly verified by unit tests in useCountInfo.test.ts and useAssessmentCountMetrics.test.ts.",
+  "saysFor": "s2:183deffd3703ee86e1da70458043767059d2c35f994f5471287647703fbba824"
+}

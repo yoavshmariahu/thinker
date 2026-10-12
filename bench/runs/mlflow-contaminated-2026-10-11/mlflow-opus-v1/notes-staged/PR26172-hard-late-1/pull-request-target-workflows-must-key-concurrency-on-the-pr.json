@@ -1,0 +1,56 @@
+{
+  "id": "pull-request-target-workflows-must-key-concurrency-on-the-pr",
+  "title": "pull_request_target workflows must key concurrency on the PR number, not run_id",
+  "kind": "rule",
+  "answers": [
+    "same bot workflow runs 4 or 5 times for one pull request",
+    "duplicate pull_request_target workflow runs per PR",
+    "why does the PR labeling or size check run again and again",
+    "how to dedupe GitHub Actions runs for a pull request"
+  ],
+  "body": "Symptom: The same pull request triggers the same bot workflow four to five times, each run repeating the same work.\nRoot cause: Workflows in .github/workflows/ used `group: ${{ github.run_id }}`, a unique key per run, so no runs ever coalesce. Under pull_request_target, github.ref resolves to the default branch, so a ref-based key would not identify the PR either.\nFix pattern: Set the workflow-level `concurrency` block to `group: ${{ github.workflow }}-${{ github.event.pull_request.number }}` with `cancel-in-progress: false`. GitHub then keeps at most one running and one pending run per PR and drops the rest of the queue.\nConstraints: Apply only where every event type in the workflow's trigger list runs the same logic. Keep the run-scoped key for workflows whose events do different things, as autoformat-label-notify.yml and copilot-review.yml do.",
+  "applies": "Workflow-level concurrency blocks in .github/workflows/*.yml that trigger on pull_request_target and only need PR-level deduplication.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "pull-request-target"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/approval.yml",
+      "hash": "sha256:6e2b36e9fe16d316e1281fa8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/pr-size.yml",
+      "hash": "sha256:4af3d2e02bb48891fbe786be",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/route-ready-issue-pr.yml",
+      "hash": "sha256:4a7c3a381362bab1fa10769e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25614"
+  },
+  "created": "2026-10-11T08:50:05.553Z",
+  "verified": "2026-10-11T08:50:05.553Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated bots and check workflows run four or five times repeatedly on one pull request.",
+    "Pull request size calculations and labeling triggers duplicate multiple times for the same change.",
+    "The approval and issue routing bots repeat identical work every time the branch is updated.",
+    "Stop duplicate bot runs on pull requests so only pending checks execute without redundant queueing.",
+    "Coalesce repeated automated checks so a pull request does not execute multiple identical runs concurrently."
+  ],
+  "search": "Workflows triggered by pull_request_target that perform PR-level deduplication must set the workflow-level concurrency group to ${{ github.workflow }}-${{ github.event.pull_request.number }} with cancel-in-progress set to false. This prevents repeated runs by keeping at most one running and one pending run per PR, replacing run-scoped keys in .github/workflows/approval.yml, .github/workflows/pr-size.yml, and .github/workflows/route-ready-issue-pr.yml. This pattern applies only when every event type in the trigger list executes identical logic, while workflows with event-specific logic like autoformat-label-notify.yml and copilot-review.yml must keep run-scoped keys.",
+  "saysFor": "s2:e68bb17dab2c84c954758beabd771d737942cd058f0f244d3e858f1fc75b2b85"
+}

@@ -1,0 +1,100 @@
+{
+  "id": "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+  "title": "Prompt model-version sources must be a placeholder or a validated remote URI",
+  "kind": "rule",
+  "answers": [
+    "prompt registration accepts a local path as the model version source",
+    "register prompt with a relative or drive-letter source then get-artifact serves server files",
+    "schemeless source bypasses path validation for prompt model versions",
+    "CreateModelVersion prompt source path traversal bypass"
+  ],
+  "body": "Symptom: a prompt registered with a local-looking source (e.g. \"mlflow\", \"etc\", \"C:/Windows\") is accepted, and get-artifact for that model version then serves files from the server's local filesystem.\nRoot cause: mlflow/server/handlers.py:_create_model_version prompt branch blocked only file:// and leading \"/\", and ran the traversal check only when urlparse found a scheme. Schemeless values reached LocalArtifactRepository unvalidated.\nFix pattern: route every prompt source through mlflow/server/handlers.py:_validate_prompt_source. Classify with get_uri_scheme (not urlparse, so drive letters count as local). Non-file schemes get the traversal check. Schemeless sources pass only on an exact match with mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS.\nConstraints: matching is exact, with no case folding, trailing-slash stripping or percent-decoding. Which remote schemes are allowed is a separate, pre-existing question that also applies to non-prompt versions, so it is not restricted here.",
+  "applies": "Any change to source validation for prompt-tagged CreateModelVersion requests or to the prompt placeholder allowlist.",
+  "tags": [
+    "security",
+    "model-registry",
+    "prompts",
+    "path-validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_prompt_source",
+      "hash": "sha256:e092d21a3ae47de49e608dd5",
+      "line": 3145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e092d21a3ae47de49e608dd5",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_create_model_version",
+      "hash": "sha256:3ec511672bbc3baea09f2901",
+      "line": 3215,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ec511672bbc3baea09f2901",
+      "fanout": {
+        "files": 7,
+        "sites": 46,
+        "refs": 64
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "get_uri_scheme",
+      "hash": "sha256:8f0b4cfbd208fe9751a66186",
+      "line": 276,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f0b4cfbd208fe9751a66186",
+      "fanout": {
+        "files": 11,
+        "sites": 14,
+        "refs": 26
+      }
+    },
+    {
+      "path": "mlflow/prompt/constants.py",
+      "symbol": "_PROMPT_SOURCE_PLACEHOLDERS",
+      "hash": "sha256:06f280c80f4dfdda26fb2acb",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-11T08:46:06.848Z",
+  "verified": "2026-10-11T08:46:06.848Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "artifact-uris-that-make-the-server-connect-to-a-named-host-m",
+    "prompt-source-placeholder-literals-must-change-together-with",
+    "prompt-branch-selection-must-use-the-effective-is-prompt-tag",
+    "workspace-default-artifact-root-must-be-a-uri-or-an-absolute"
+  ],
+  "says": [
+    "Users can read sensitive server files by registering prompts with relative or local system paths.",
+    "Downloading artifacts for a registered prompt exposes files from the underlying host file system.",
+    "Reject prompt versions that specify local drive letters or relative file paths as their source.",
+    "Only permit approved placeholder keywords or validated remote addresses when registering new prompt templates.",
+    "The model registry allows path traversal attacks through schemeless prompt source locations."
+  ],
+  "search": "Prompt sources in CreateModelVersion must be validated through mlflow/server/handlers.py:_validate_prompt_source to prevent path traversal and arbitrary local server file disclosure via get-artifact. Source URIs are classified using mlflow/utils/uri.py:get_uri_scheme rather than urlparse, ensuring drive letters count as local. Schemeless sources must match mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS exactly without case folding, trailing slash stripping, or percent decoding, while non-file schemes undergo traversal validation.",
+  "saysFor": "s2:07f934309c5ce8a069e9cffd8f888bb55cd4537d26825e947dcc94923830ea39"
+}

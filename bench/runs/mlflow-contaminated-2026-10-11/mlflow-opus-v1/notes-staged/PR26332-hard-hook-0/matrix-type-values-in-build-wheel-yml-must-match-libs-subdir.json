@@ -1,0 +1,51 @@
+{
+  "id": "matrix-type-values-in-build-wheel-yml-must-match-libs-subdir",
+  "title": "MATRIX_TYPE values in build-wheel.yml must match libs/ subdirectory names",
+  "kind": "rule",
+  "answers": [
+    "Why does the GitHub install check install the wrong package or the root project?",
+    "How do I add a new package to the wheel installation matrix?",
+    "What does the dev matrix type map to in the build-wheel install step?"
+  ],
+  "body": "In .github/workflows/build-wheel.yml the install URL fragment is built directly from the matrix value: FRAGMENT=\"#subdirectory=libs/${MATRIX_TYPE}\".\nSo any MATRIX_TYPE other than \"dev\" must be the exact directory name under libs/ (currently skinny and tracing). The \"dev\" value is special-cased to the repository root with an empty fragment.\nAdding a new matrix leg therefore requires either a matching libs/<name> directory or an explicit branch in the if/else. Otherwise the URL points at a non-existent subdirectory and the install fails.",
+  "applies": "Applies when editing the build-wheel.yml matrix or the GitHub installation test step.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "build-wheel",
+    "matrix",
+    "subdirectory"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "symbol": "FRAGMENT",
+      "hash": "sha256:b76cb08c21dded1e73c3433f",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25810"
+  },
+  "created": "2026-10-11T08:47:17.463Z",
+  "verified": "2026-10-11T08:47:17.463Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Package installation tests fail during automated builds when testing a new subpackage.",
+    "Automated wheel verification installs the main repository root instead of the subpackage.",
+    "Add automated installation testing for a newly created package in build pipelines."
+  ],
+  "search": "Package installation URLs in .github/workflows/build-wheel.yml construct the fragment directly from MATRIX_TYPE using libs/${MATRIX_TYPE}. Non-dev matrix entries must match directory names under libs/ (skinny or tracing), while dev targets the repository root with an empty fragment. Adding a new matrix entry requires a matching libs/ directory or an explicit conditional branch to avoid invalid install URLs.",
+  "saysFor": "s2:2d3678a2054f927409fbeab7aeb63c993271eedc15521d8f61270af7162f7407"
+}

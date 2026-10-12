@@ -1,0 +1,50 @@
+{
+  "id": "workspace-support-error-guidance-must-name-the-configured-ml",
+  "title": "Workspace-support error guidance must name the configured MLflow URI, not the tracking URI",
+  "kind": "rule",
+  "answers": [
+    "error message says check the tracking URI but I use a model registry URI",
+    "workspace undetermined error wording for registry REST store",
+    "store-neutral error text for MLflow URI misconfiguration"
+  ],
+  "body": "Invariant: the message in WorkspaceRestStoreMixin._WORKSPACE_SUPPORT_UNDETERMINED_ERROR (and the _WITH_WORKSPACE variant) tells users to verify 'the configured MLflow URI', including any path prefix.\nWhy: the mixin is shared by the tracking REST store and the model-registry REST store, and the registry store may use a registry URI that differs from the tracking URI. Naming the tracking URI would point users at the wrong configuration.\nWhat breaks if skipped: a registry-only misconfiguration is reported with guidance that inspects the wrong setting.",
+  "applies": "Error strings in the shared workspace store mixin; applies to any store that mixes it in.",
+  "tags": [
+    "workspace",
+    "error-messages",
+    "model-registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/workspace_rest_store_mixin.py",
+      "symbol": "WorkspaceRestStoreMixin._WORKSPACE_SUPPORT_UNDETERMINED_ERROR",
+      "hash": "sha256:7beab51399791174b9a7891c",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25979"
+  },
+  "created": "2026-10-11T10:29:54.327Z",
+  "verified": "2026-10-11T10:29:54.327Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The model registry error message asks me to verify the tracking server address instead.",
+    "Workspace connection failure guidance should mention the configured address rather than the tracking server.",
+    "Connecting to the model registry shows troubleshooting advice for the wrong server setting.",
+    "Prompt users to check their configured endpoint including path prefix during workspace errors."
+  ],
+  "search": "Error strings in WorkspaceRestStoreMixin._WORKSPACE_SUPPORT_UNDETERMINED_ERROR and its _WITH_WORKSPACE variant must instruct users to verify 'the configured MLflow URI', including any path prefix, rather than the tracking URI. This applies to any store using the shared workspace mixin, because the model-registry REST store may use a registry URI distinct from the tracking URI. Skipping this causes registry-only misconfigurations to report guidance directing users to inspect the wrong setting.",
+  "saysFor": "s2:4c7bd704c63738a9ccb89be0df7bf54ca6d52b0c1a07b0f718f571e5e9320b03"
+}

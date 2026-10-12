@@ -1,0 +1,55 @@
+{
+  "id": "typesafe-judges-are-direct-typesafe-models-not-gateway-endpo",
+  "title": "TypeSafe judges are direct typesafe:/ models, not gateway endpoints",
+  "kind": "rule",
+  "answers": [
+    "can I use a TypeSafe gateway endpoint as a judge model",
+    "make_judge gateway TypeSafe model not working",
+    "which feedback types does TypeSafe support for judges",
+    "TypeSafe judge bool or Literal only"
+  ],
+  "body": "Invariant: make_judge() treats TypeSafe models only as direct `typesafe:/<model>` URIs; `gateway:/...` must not be used for TypeSafe judges, and TypeSafe gateway passthrough endpoints are not judge models or judge-selector options.\nInvariant: feedback_value_type must be `bool` or a finite `Literal[...]`. Literal values must be JSON string/number/boolean scalars with distinct string forms, 1 to 255 values.\nConstraints: TypeSafe Noul/Choice questions have no abstention, so a bool judge cannot separate 'unknown' from False; add an explicit value such as \"unknown\" to a Literal. Score outputs, {{ trace }}, inference_params, base_url, extra_headers, and multi-question judges are unsupported. Gateway-backed TypeSafe judge execution is deferred to a follow-up.",
+  "applies": "Changes to make_judge TypeSafe support or to TypeSafe documentation and gateway docs.",
+  "tags": [
+    "evaluation",
+    "judges",
+    "typesafe",
+    "gateway",
+    "make_judge"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx",
+      "hash": "sha256:ed1348b9d680cc9585d21b89",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx",
+      "hash": "sha256:71aae0a1c069c90112cd9379",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-11T10:27:23.976Z",
+  "verified": "2026-10-11T10:27:23.976Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Selecting an AI gateway endpoint when creating an evaluation judge fails for TypeSafe models.",
+    "Support routing custom judge evaluations through the centralized model gateway endpoints.",
+    "Boolean evaluation judges cannot distinguish between a false result and an uncertain answer.",
+    "Numeric score outputs are rejected when configuring custom automated evaluation judges."
+  ],
+  "search": "make_judge() requires TypeSafe models to be configured exclusively via direct typesafe:/<model> URIs rather than gateway:/ endpoints or gateway passthrough options. Supported feedback_value_type options are strictly limited to bool or a finite Literal of 1 to 255 distinct scalar values. Because TypeSafe questions provide no abstention mechanism, boolean judges cannot separate false from unknown, requiring an explicit choice value instead. Unsupported features include gateway-backed execution, numeric score outputs, multi-question judges, inference_params, base_url, extra_headers, and trace variable substitutions.",
+  "saysFor": "s2:49d0a6a2c89472fde1c873df4844deed6dbac576104d717b62b420faf92b254a",
+  "lastUsed": "2026-10-11T19:01:55.753Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26442-hard-0"
+  ]
+}

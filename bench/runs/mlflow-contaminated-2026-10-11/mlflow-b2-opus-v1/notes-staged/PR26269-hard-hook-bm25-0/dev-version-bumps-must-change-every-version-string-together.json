@@ -1,0 +1,90 @@
+{
+  "id": "dev-version-bumps-must-change-every-version-string-together",
+  "title": "Dev version bumps must change every version string together; Helm appVersion tracks the last released version",
+  "kind": "rule",
+  "answers": [
+    "how do I bump the MLflow dev version after a release",
+    "which files hold the MLflow version number",
+    "why is the Helm chart appVersion one patch behind the package version",
+    "where is the version duplicated across Python, Java, R, UI and docs"
+  ],
+  "body": "Invariant: the package version is repeated in several files that must move together: mlflow/version.py:VERSION, pyproject.toml and pyproject.release.toml [project] version, libs/skinny and libs/tracing pyproject.toml, mlflow/server/js/src/common/constants.tsx:Version, docs/src/constants.ts:Version, the Java poms (SNAPSHOT form), and mlflow/R/mlflow/DESCRIPTION Version.\nThe Python/UI/docs strings use the dev form (X.Y.Z.dev0), Java and R use their own forms (X.Y.Z-SNAPSHOT, X.Y.Z), and Helm charts/Chart.yaml appVersion is set to the last released version (X.Y.Z) rather than the next dev version.\nThe pyproject.release.toml dependencies pin mlflow-skinny and mlflow-tracing to the exact same dev version, so changing one package version without the others breaks the release install.\nWhat breaks if skipped: a partial bump leaves the UI or docs reporting the old version or makes the release wheels depend on a mismatched skinny/tracing version.\nFix pattern: update all listed locations in one change to the next dev version, and set Chart.yaml appVersion to the version just released. The PR description refers to tests/dev/test_update_mlflow_versions.py, which suggests a repo script covers this; verify it before hand-editing.\nConstraints: the uv.lock change in this PR touched only the editable mlflow package entry; other locked packages were not changed. The release marker in [tool.mlflow-release] is covered by a separate note and is not a per-patch field.",
+  "applies": "Version bumps on the main development line and release-branch bumps of this repository; not runtime version checks or feature code that reads the version.",
+  "tags": [
+    "release",
+    "versioning",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/version.py",
+      "symbol": "VERSION",
+      "hash": "sha256:849e29800ed9e15383789b67",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 112
+      }
+    },
+    {
+      "path": "pyproject.release.toml",
+      "hash": "sha256:facc7de50f65ab42568258f1",
+      "missing": false
+    },
+    {
+      "path": "charts/Chart.yaml",
+      "hash": "sha256:83a65619da333952733b8bc6",
+      "missing": false
+    },
+    {
+      "path": "docs/src/constants.ts",
+      "symbol": "Version",
+      "hash": "sha256:b46eefb50441cc3ade53c385",
+      "line": 1,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:966434502f243f493ee67fbe",
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 85
+      }
+    },
+    {
+      "path": "tests/dev/test_update_mlflow_versions.py",
+      "symbol": "test_update_mlflow_versions",
+      "hash": "sha256:4fb3edbe3c1d622e22c57655",
+      "line": 125,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4fb3edbe3c1d622e22c57655",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25952"
+  },
+  "created": "2026-10-11T10:29:52.493Z",
+  "verified": "2026-10-11T10:29:52.493Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The web user interface displays an outdated version number after a new release.",
+    "Documentation pages show the previous version instead of the newly released version.",
+    "Package installation fails due to mismatched dependency versions across companion libraries.",
+    "Helm deployments launch with the incorrect application release version specified in the chart.",
+    "Synchronize all displayed version numbers across the application console, documentation, and packages."
+  ],
+  "search": "Development version bumps must synchronize all package and documentation version strings together while setting the Helm chart appVersion to the last released version. The version string moves across mlflow/version.py:VERSION, pyproject.toml, pyproject.release.toml, libs/skinny, libs/tracing, mlflow/server/js/src/common/constants.tsx:Version, docs/src/constants.ts:Version, Java pom.xml files (SNAPSHOT format), and mlflow/R/mlflow/DESCRIPTION, while charts/Chart.yaml tracks the released version. A partial bump leaves the UI and docs showing stale versions or breaks release wheels with mismatched dependencies; the guidance applies to main development and release branch bumps, not runtime version checks.",
+  "saysFor": "s2:a5fd4a88690ce87e4b298d0f7cc25655614aa02e1b7d2c73528b71d30e6436dd"
+}

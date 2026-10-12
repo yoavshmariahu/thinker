@@ -1,0 +1,72 @@
+{
+  "id": "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the",
+  "title": "Vertex MaaS proxy must send the Vertex bearer token, not the client's authorization header",
+  "kind": "rule",
+  "answers": [
+    "client authorization header leaks to Vertex MaaS proxy request",
+    "Vertex AI MaaS proxy authentication fails with the caller's token",
+    "why does the gateway proxy use the Vertex access token instead of the client bearer"
+  ],
+  "body": "Invariant: The MaaS raw proxy builds its outgoing headers via self._get_headers(headers), so the Vertex AI access token is the Authorization sent upstream.\nEnforced by: mlflow/gateway/providers/vertex_ai.py:_VertexAIMaaSProvider._proxy.\nWhat breaks if skipped: a client's own authorization header would be forwarded alongside or instead of the Vertex bearer token, so upstream auth to Vertex fails or leaks the caller's credential.\nThe test checks that the session carries \"Authorization\" with the Vertex token and no lowercase \"authorization\" key, and that x-request-id still passes through.",
+  "applies": "Any change to header handling in the Vertex MaaS raw proxy path.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "auth",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._proxy",
+      "hash": "sha256:ea2edb4b8b493684478f2269",
+      "line": 327,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea2edb4b8b493684478f2269",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_maas_proxy_posts_to_openapi_endpoint",
+      "hash": "sha256:9e8bddaabb84eb2d96a13fac",
+      "line": 1017,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9e8bddaabb84eb2d96a13fac",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-11T10:32:32.475Z",
+  "verified": "2026-10-11T10:32:32.475Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+    "vertex-ai-claude-passthrough-must-filter-client-anthropic-be",
+    "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the"
+  ],
+  "says": [
+    "Client credentials are leaking to the upstream provider during model proxy requests.",
+    "Model proxy calls fail authentication because caller bearer token is forwarded upstream.",
+    "Ensure the raw proxy endpoint uses cloud access tokens instead of user tokens.",
+    "Incoming request tracking IDs should be preserved when proxying to cloud models.",
+    "Gateway proxy to Vertex AI fails because client authorization is passed upstream."
+  ],
+  "search": "In mlflow/gateway/providers/vertex_ai.py:_VertexAIMaaSProvider._proxy, the MaaS raw proxy must build outgoing headers with self._get_headers(headers) so the Vertex AI access token is sent upstream. Omitting this forwards the client's authorization header alongside or instead of the Vertex bearer token, failing upstream authentication or leaking caller credentials. The test tests/gateway/providers/test_vertex_ai.py:test_maas_proxy_posts_to_openapi_endpoint asserts an Authorization header with the Vertex token, no lowercase authorization header, and preserved x-request-id.",
+  "saysFor": "s2:43cb065a614c2b1d20365570d353f3f52052b57b4c344ec5c64930230ed68941"
+}

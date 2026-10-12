@@ -1,0 +1,97 @@
+{
+  "id": "span-get-must-stay-an-unresolved-attribute-hint-via-getattr",
+  "title": "Span.get must stay an unresolved attribute: hint via __getattr__, never a real get method",
+  "kind": "rule",
+  "answers": [
+    "why does span.get raise AttributeError instead of returning a value",
+    "hasattr(span, 'get') returns True on my span, how do I stop it",
+    "how should I add a dict-style hint for a span attribute that users try to call",
+    "agent tried span.get('name') and got a bare AttributeError"
+  ],
+  "body": "Symptom: A user or coding agent calls span.get(\"name\") (dict habit) and sees a bare \"'Span' object has no attribute 'get'\", or a library probes hasattr(span, \"get\") to test for a mapping.\nRoot cause: mlflow/entities/span.py:Span.__getattr__ is the hook that raises the guiding AttributeError only for name == \"get\"; other names get a generic AttributeError.\nFix pattern: Keep `get` unresolvable and steer through __getattr__. Do not add a real `get` method, because hasattr(span, \"get\") becomes True, getattr returns a bound method, and callable(span.get) is True while the message claims the attribute is missing.\nConstraints: Applies to all span classes in mlflow/entities/span.py (LiveSpan, immutable Span, LazySpan, NoOpSpan). Subscript misuse is a separate hint in Span.__getitem__ and raises TypeError, not AttributeError.\nTests: tests/entities/test_span.py:test_span_get_raises_helpful_attribute_error asserts hasattr(...) is False and the message for attribute and call access on each class.",
+  "applies": "Any span class or span-like wrapper in mlflow/entities/span.py; not for other entities that legitimately implement get.",
+  "tags": [
+    "tracing",
+    "span",
+    "api-design",
+    "attribute-error"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getattr__",
+      "hash": "sha256:26a87c32a60f91143b87ed27",
+      "line": 333,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:26a87c32a60f91143b87ed27",
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_get_raises_helpful_attribute_error",
+      "hash": "sha256:ffc5e84847a2700b7bec012d",
+      "line": 1540,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffc5e84847a2700b7bec012d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "get",
+      "hash": "sha256:e15c3525f04a2978d5666119",
+      "line": 1554,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e15c3525f04a2978d5666119"
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getitem__",
+      "hash": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "line": 308,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26165"
+  },
+  "created": "2026-10-11T10:27:10.054Z",
+  "verified": "2026-10-11T10:27:10.054Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss",
+    "span-classes-that-define-getitem-must-also-set-iter-none",
+    "span-getitem-hint-lookup-must-not-evaluate-attribute-getters"
+  ],
+  "says": [
+    "Fetching a trace property using dictionary syntax gives an unhelpful error without guidance.",
+    "Show a helpful guidance message when developers try calling dictionary getter methods on traces.",
+    "Third-party libraries mistakenly detect trace objects as key-value dictionaries and fail during property access.",
+    "Provide clear guidance for trace attribute lookup without falsely pretending to be a mapping.",
+    "Coding assistants get stuck when querying trace attributes because the error lacks corrective suggestions."
+  ],
+  "search": "Span classes in `mlflow/entities/span.py` must keep `get` unresolvable as a real method and instead raise an explanatory `AttributeError` via `__getattr__`. Implementing an actual `get` method would cause `hasattr(span, 'get')` to return True and expose a bound method, misleading tools probing for mapping interfaces. Applies to `Span`, `LiveSpan`, `LazySpan`, and `NoOpSpan`, while subscript misuse is handled separately in `Span.__getitem__` with a `TypeError`. Behavior is verified by `tests/entities/test_span.py:test_span_get_raises_helpful_attribute_error` asserting `hasattr` remains False and guiding messages appear on access.",
+  "saysFor": "s2:60ec3150c35fa1d19944a2d45b844c77a7d1f96dab46e4a1743f4807f6635959"
+}

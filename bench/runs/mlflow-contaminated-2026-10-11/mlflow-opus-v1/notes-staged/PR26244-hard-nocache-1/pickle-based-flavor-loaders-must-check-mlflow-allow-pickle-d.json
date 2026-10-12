@@ -1,0 +1,70 @@
+{
+  "id": "pickle-based-flavor-loaders-must-check-mlflow-allow-pickle-d",
+  "title": "Pickle-based flavor loaders must check MLFLOW_ALLOW_PICKLE_DESERIALIZATION before unpickling",
+  "kind": "rule",
+  "answers": [
+    "SHAP explainer loads pickle even when pickle deserialization is disabled",
+    "how does MLflow block unsafe pickle loading for shap models",
+    "MLFLOW_ALLOW_PICKLE_DESERIALIZATION not respected by mlflow.shap load_explainer",
+    "why does pyfunc.load_model for a shap explainer need the pickle guard"
+  ],
+  "body": "Symptom: Loading a SHAP explainer saved in pickle format succeeds with MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, while other flavors refuse (security advisory GHSA-hc9r-hv64-9g82).\nRoot cause: mlflow/shap/__init__.py:_load_explainer unpickled the explainer with no guard; the check existed only in other flavors' loaders.\nFix pattern: At the top of the pickle-reading loader, before any unpickle call, raise MlflowException with the workaround message when MLFLOW_ALLOW_PICKLE_DESERIALIZATION.get() is false and neither is_in_databricks_runtime() nor is_in_databricks_model_serving_environment() holds. The block was copied from the statsmodels flavor.\nConstraints: Keep the guard in each flavor's loader; it is not centralized. Both mlflow.shap.load_explainer and pyfunc.load_model reach _load_explainer, so one guard there covers both paths. Any new flavor that unpickles must get the same guard.",
+  "applies": "Any flavor loader or code path that calls pickle/cloudpickle/joblib-style deserialization in mlflow/ (sklearn, statsmodels, pytorch, tensorflow, pmdarima, langchain, dspy, pyfunc, model evaluation, shap).",
+  "tags": [
+    "security",
+    "pickle",
+    "models",
+    "shap",
+    "flavors"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "_load_explainer",
+      "hash": "sha256:710550e8b41b598fed0463d3",
+      "line": 641,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:710550e8b41b598fed0463d3",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_ALLOW_PICKLE_DESERIALIZATION",
+      "hash": "sha256:a1a88ace161af55fa8cb8859",
+      "line": 1775,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 0,
+        "refs": 68
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25566"
+  },
+  "created": "2026-10-11T08:50:46.598Z",
+  "verified": "2026-10-11T08:50:46.598Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-a-flavor-s-own-pickle-guard-by-saving-without-delegatin"
+  ],
+  "says": [
+    "Loading a model explanation still runs even when unsafe pickle loading is turned off.",
+    "Block model evaluation explainers from unpickling data when untrusted deserialization is disabled.",
+    "Security scans show explanation models bypass our environment setting against pickle deserialization.",
+    "Make explanation artifacts follow the same unsafe object loading restrictions as other models.",
+    "Prevent loading serialized explainers unless running inside approved managed runtime environments."
+  ],
+  "search": "Flavor loaders performing pickle, cloudpickle, or joblib deserialization must raise MlflowException when MLFLOW_ALLOW_PICKLE_DESERIALIZATION.get() is false, unless is_in_databricks_runtime() or is_in_databricks_model_serving_environment() is true. In mlflow/shap/__init__.py:_load_explainer, this guard protects both mlflow.shap.load_explainer and pyfunc.load_model against unsafe unpickling per security advisory GHSA-hc9r-hv64-9g82. The guard is not centralized and must be placed individually at the top of each flavor loader, copied from statsmodels, across flavors like sklearn, pytorch, tensorflow, langchain, and dspy.",
+  "saysFor": "s2:2a3d35396ffa8c21a025883a75a6d4a1e50c153a1a9fd365a53428307685fec7"
+}

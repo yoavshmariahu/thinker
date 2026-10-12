@@ -1,0 +1,54 @@
+{
+  "id": "test-databricks-guardrails-across-both-tracking-uri-forms-an",
+  "title": "Test Databricks guardrails across both tracking URI forms and assert no client init",
+  "kind": "rule",
+  "answers": [
+    "how to test databricks tracking uri guardrail",
+    "write test for databricks_api_disabled decorator",
+    "test that fluent API rejects databricks uri without calling client"
+  ],
+  "body": "Convention: Guardrail tests for mlflow.genai fluent functions are parametrized over the function (with its args and kwargs) and over tracking URIs \"databricks\" and \"databricks://profile\".\nEach case patches mlflow.tracking.get_tracking_uri to return the Databricks URI and patches the client class __init__ (e.g. f\"{_BASE}.__init__\").\nAssertions: pytest.raises(MlflowException, match=f\"{fn.__name__} is not supported in Databricks environments\"), error_code == \"INVALID_PARAMETER_VALUE\", the alternative text appears in str(exc), and the patched client __init__ is not called.\nPlace these in tests/genai/review_queues/test_review_queues_sdk.py alongside the existing SDK tests.",
+  "applies": "Tests for any function decorated with databricks_api_disabled in mlflow/genai; not for tests of the non-Databricks path.",
+  "tags": [
+    "testing",
+    "databricks",
+    "tracking-uri",
+    "genai",
+    "review-queues"
+  ],
+  "deps": [
+    {
+      "path": "tests/genai/review_queues/test_review_queues_sdk.py",
+      "symbol": "test_databricks_tracking_uri_rejected",
+      "hash": "sha256:404b669fda475c03667d116e",
+      "line": 196,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:404b669fda475c03667d116e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25879"
+  },
+  "created": "2026-10-11T08:45:43.376Z",
+  "verified": "2026-10-11T08:45:43.376Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Review queue operations should immediately reject Databricks tracking connections before initializing any client.",
+    "Review queue commands fail to block Databricks tracking profiles with proper unsupported environment messages.",
+    "Ensure generative AI review queues reject both default and profiled Databricks tracking servers.",
+    "Review queue actions should display clear alternative guidance when run against Databricks environments."
+  ],
+  "search": "Guardrail tests for mlflow.genai functions decorated with databricks_api_disabled must test both databricks and databricks://profile tracking URI formats. In tests/genai/review_queues/test_review_queues_sdk.py, patch mlflow.tracking.get_tracking_uri and client initialization, asserting that the client is never initialized. Tests assert an INVALID_PARAMETER_VALUE MlflowException stating the function is not supported in Databricks environments alongside helpful alternative guidance text.",
+  "saysFor": "s2:0294785774b4f21da642410b17fed8a6607270f7f31e61d23c67f748c087d331"
+}

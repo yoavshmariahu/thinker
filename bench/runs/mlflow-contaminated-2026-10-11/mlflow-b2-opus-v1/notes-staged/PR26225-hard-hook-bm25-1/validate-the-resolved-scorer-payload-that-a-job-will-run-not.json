@@ -1,0 +1,87 @@
+{
+  "id": "validate-the-resolved-scorer-payload-that-a-job-will-run-not",
+  "title": "Validate the resolved scorer payload that a job will run, not only the caller's inline payload",
+  "kind": "rule",
+  "answers": [
+    "stored scorer bypasses payload validation on invoke",
+    "genai evaluate runs a registered scorer version that was never checked",
+    "scorer registered before a security check still runs from the store"
+  ],
+  "body": "Invariant: Scorer payload checks must run on the final serialized scorer that a job or reconstruction will use, after any server-side lookup of a registered scorer and before run or job creation.\nEnforced in: mlflow/server/handlers.py:_invoke_genai_evaluate_handler (loop over serialized_scorers after registered versions are substituted, before the run is created) and mlflow/server/handlers.py:_invoke_scorer_handler (re-validates after tracking_store.get_scorer replaces serialized_scorer).\nWhat breaks if skipped: Rows written before a check existed, or caller-chosen scorer_name/scorer_version, reach Scorer.model_validate and the job while the inline payload was the only thing validated.\nConstraints: Validating only the request body misses stored rows. Keep the validation ahead of create_run and submit_job so a rejected request leaves no run and no job.",
+  "applies": "Any handler that resolves a registered scorer or scorer version by name before deserializing or running it.",
+  "tags": [
+    "security",
+    "scorer",
+    "handlers",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5646,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7565,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25890"
+  },
+  "created": "2026-10-11T10:31:26.605Z",
+  "verified": "2026-10-11T10:31:26.605Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor",
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+    "prompt-code-path-is-selected-only-by-an-effective-is-prompt",
+    "protobuf-request-parsers-must-reject-bodies-that-spell-one-f"
+  ],
+  "says": [
+    "Evaluation jobs run an invalid registered scorer that bypasses safety checks on execution.",
+    "Failed evaluation runs still appear in the experiment dashboard when scorer validation fails.",
+    "Reject invalid saved evaluators before launching background jobs to avoid creating empty experiment runs.",
+    "Ensure model evaluation validates stored scorer versions retrieved from the registry before running.",
+    "Older registered evaluators bypass security checks when invoked through the generative evaluation feature."
+  ],
+  "search": "Handlers that resolve registered scorers or scorer versions by name must validate the final serialized scorer payload using _validate_serialized_scorer_payload after server-side lookup and before run or job creation. This is enforced in mlflow/server/handlers.py in _invoke_genai_evaluate_handler across substituted serialized_scorers and in _invoke_scorer_handler after tracking_store.get_scorer replaces serialized_scorer. Validating only caller request bodies allows legacy or unvalidated stored rows to reach Scorer.model_validate. Validation must precede create_run and submit_job so rejected requests produce no orphaned runs or jobs.",
+  "saysFor": "s2:a8460a698651bcfbb223ec547284b9fe9c9814e904efff909a01fa28133e4414"
+}

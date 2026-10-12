@@ -1,0 +1,83 @@
+{
+  "id": "mlflowspanhandler-open-spans-and-pending-spans-are-guarded-b",
+  "title": "MlflowSpanHandler open_spans and _pending_spans are guarded by self.lock at every access",
+  "kind": "rule",
+  "answers": [
+    "race condition in LlamaIndex span handler pending spans",
+    "why is self.lock needed around pending spans in the llama_index tracer",
+    "concurrent LlamaIndex events lose or mis-parent spans"
+  ],
+  "body": "Invariant: every read or write of MlflowSpanHandler._pending_spans and open_spans happens under `with self.lock`, including the event lookup in get_span_for_event, the parent lookup in new_span, insertion in prepare_to_exit_span, and removal in resolve_pending_stream_span.\nWhat breaks if skipped: LlamaIndex can dispatch span events from several threads, so an unlocked insert or pop can race with a parent lookup and yield a missing or wrong parent span.\nThe lock is the same one used for the parent lookup, so new locking should reuse it rather than add another.",
+  "applies": "Any new code in mlflow/llama_index/tracer.py that touches the open or pending span maps.",
+  "tags": [
+    "llama_index",
+    "tracing",
+    "concurrency",
+    "locking"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "MlflowSpanHandler.get_span_for_event",
+      "hash": "sha256:eddd9fda9774007ce09711ce",
+      "line": 200,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eddd9fda9774007ce09711ce",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "MlflowSpanHandler.resolve_pending_stream_span",
+      "hash": "sha256:405cb660aa532b1e3196c10c",
+      "line": 326,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:405cb660aa532b1e3196c10c",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "MlflowSpanHandler.prepare_to_exit_span",
+      "hash": "sha256:96fa3f142118deb5b1a229e4",
+      "line": 252,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:96fa3f142118deb5b1a229e4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26293"
+  },
+  "created": "2026-10-11T10:23:48.471Z",
+  "verified": "2026-10-11T10:23:48.471Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "llamaindex-deferred-streaming-response-loses-mlflow-parent-c"
+  ],
+  "says": [
+    "Concurrent requests cause trace steps to be missing or assigned to wrong parents.",
+    "Parallel execution creates scrambled trace trees where sub-tasks appear under unrelated calls.",
+    "Some operations randomly vanish from the trace viewer when multiple threads run simultaneously.",
+    "Fix race conditions that corrupt span relationships during simultaneous background tasks."
+  ],
+  "search": "In mlflow/llama_index/tracer.py, every read and write of MlflowSpanHandler._pending_spans and open_spans must be synchronized under self.lock. This locking covers get_span_for_event, new_span, prepare_to_exit_span, and resolve_pending_stream_span to prevent multi-threaded event dispatch from racing and mis-parenting or dropping spans. New locking code must reuse self.lock rather than creating a separate lock.",
+  "saysFor": "s2:e9c87d9c50783fb48e95fedf2c77e1ebe8d3ae5725813eb790e277f6bf91526e"
+}

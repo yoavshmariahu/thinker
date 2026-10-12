@@ -1,0 +1,57 @@
+{
+  "id": "artifacts-example-test-retry-only-the-docker-compose-pull-st",
+  "title": "Artifacts example test: retry only the docker compose pull step",
+  "kind": "rule",
+  "answers": [
+    "flaky CI when Docker Hub authentication times out pulling postgres",
+    "retry transient docker pull failures in the mlflow artifacts test",
+    "docker hub rate limit or timeout breaks the artifacts example integration test",
+    "how to retry docker compose pull without retrying application failures"
+  ],
+  "body": "Symptom: The artifacts example integration test fails intermittently when Docker Hub's auth endpoint times out while pulling an image such as postgres, even though the example code itself is fine.\nRoot cause: tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example ran no pull retry, so the transient registry error failed the whole test.\nFix pattern: Run `docker compose pull --ignore-buildable` in a loop of 3 attempts before `./build.sh` and `docker compose run`, sleeping attempt*5 seconds between tries (5s, then 10s), and exit 1 after the third failure.\nConstraints: Only the pull is retried; build and application (`docker compose run ... python example.py`) failures are not retried. Keep the loop before the build and run, and keep `set -e` so non-pull failures stop immediately.",
+  "applies": "Only the shell script in test_mlflow_artifacts_example; does not apply to other Docker-based tests unless they copy this pattern.",
+  "tags": [
+    "testing",
+    "docker",
+    "ci",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "test_mlflow_artifacts_example",
+      "hash": "sha256:d030592902a606b59629b020",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e8d65e452d935a5cb0d39bd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25910"
+  },
+  "created": "2026-10-11T10:30:23.659Z",
+  "verified": "2026-10-11T10:30:23.659Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "artifacts-example-test-docker-cleanup-must-run-from-an-exit"
+  ],
+  "says": [
+    "The artifact example test fails intermittently because image downloads time out.",
+    "Transient registry connection timeouts keep breaking our continuous integration test runs.",
+    "Please retry fetching container images when running the artifact sample pipeline.",
+    "Retry registry downloads on network glitches without masking actual application test failures.",
+    "Automated artifact test builds fail randomly due to registry authentication timeouts."
+  ],
+  "search": "In tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example, transient Docker Hub authentication timeouts are handled by retrying only the docker compose pull step before building and running. The script executes docker compose pull --ignore-buildable in a loop of three attempts before ./build.sh and docker compose run, sleeping attempt*5 seconds (5s, then 10s) between attempts and exiting 1 after the third failure. Under set -e, only image pulls are retried, while build and application failures from docker compose run stop immediately without retry.",
+  "saysFor": "s2:ded3960ef32ea57131845cd9c5e80a2c9eafa790aabb922ea77a85a0137b9989"
+}

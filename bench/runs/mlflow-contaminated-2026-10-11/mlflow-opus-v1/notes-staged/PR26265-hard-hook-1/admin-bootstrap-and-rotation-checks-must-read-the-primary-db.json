@@ -1,0 +1,88 @@
+{
+  "id": "admin-bootstrap-and-rotation-checks-must-read-the-primary-db",
+  "title": "Admin bootstrap and rotation checks must read the primary DB, not the read replica",
+  "kind": "rule",
+  "answers": [
+    "basic-auth server fails to start with needs a password error after removing admin password",
+    "read replica lag makes admin user appear missing",
+    "has_user returns false on replica after restart",
+    "basic auth startup with read_database_uri fails"
+  ],
+  "body": "Symptom: With a read replica configured, restarting a basic-auth server after the bootstrap password was removed can fail with \"needs a password to create the admin user\" even though the admin exists.\nRoot cause: has_user and authenticate_user in mlflow/server/auth/sqlalchemy_store.py ran with ManagedSessionMaker(read_only=True), so the existence and legacy-password checks could hit a lagging replica.\nFix pattern: Add a keyword-only use_primary flag to has_user and authenticate_user, and pass use_primary=True from the bootstrap and rotation path in mlflow/server/auth/__init__.py:create_admin_user. Request-path reads keep the replica.\nConstraints: Only startup bootstrap and rotation reads need the primary; the default stays read-only. Any new startup check that reads admin state should pass use_primary=True.",
+  "applies": "Auth store reads during bootstrap and rotation when read_database_uri is configured.",
+  "tags": [
+    "auth",
+    "database",
+    "read-replica",
+    "startup"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/sqlalchemy_store.py",
+      "symbol": "has_user",
+      "hash": "sha256:7e583902fa7e4258c01e12f9",
+      "line": 177,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7e583902fa7e4258c01e12f9",
+      "fanout": {
+        "files": 4,
+        "sites": 9,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/server/auth/sqlalchemy_store.py",
+      "symbol": "authenticate_user",
+      "hash": "sha256:19a6f612c2397933cb6e260d",
+      "line": 138,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19a6f612c2397933cb6e260d",
+      "fanout": {
+        "files": 5,
+        "sites": 21,
+        "refs": 66
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "create_admin_user",
+      "hash": "sha256:e356fc5b1031886efcb7f218",
+      "line": 4639,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e356fc5b1031886efcb7f218",
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25751"
+  },
+  "created": "2026-10-11T08:42:52.397Z",
+  "verified": "2026-10-11T08:42:52.397Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-basic-auth-admin-password-password1234-must-never-boo",
+    "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare",
+    "invoke-routes-must-be-authorized-with-validate-can-update-ex",
+    "basic-auth-password-policy-must-be-enforced-in-the-store-s-u"
+  ],
+  "says": [
+    "Server fails to start claiming admin needs a password even though admin exists",
+    "Basic auth server crashes on restart after removing the initial setup password",
+    "Administrator account appears missing during startup when using a database read replica",
+    "Server startup fails with administrator creation prompt after database password rotation",
+    "Prevent database replication lag from breaking user authentication checks at server launch"
+  ],
+  "search": "Startup bootstrap and password rotation checks in mlflow/server/auth/__init__.py:create_admin_user must read from the primary database instead of a read replica. Functions has_user and authenticate_user in mlflow/server/auth/sqlalchemy_store.py accept use_primary=True to bypass ManagedSessionMaker(read_only=True) when read_database_uri is configured. Request-path reads keep the read replica default, and only startup bootstrap or rotation checks pass use_primary=True.",
+  "saysFor": "s2:fb428f3b4f7fed4849b4bf7b4925427b414ec54b15f2c3a62775f38453fa9895"
+}

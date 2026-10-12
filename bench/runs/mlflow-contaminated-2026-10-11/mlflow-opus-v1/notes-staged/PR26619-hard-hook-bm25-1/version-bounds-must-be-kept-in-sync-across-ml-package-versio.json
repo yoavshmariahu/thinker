@@ -1,0 +1,79 @@
+{
+  "id": "version-bounds-must-be-kept-in-sync-across-ml-package-versio",
+  "title": "Version bounds must be kept in sync across ml-package-versions.yml, ml_package_versions.py and the langchain extra pins",
+  "kind": "rule",
+  "answers": [
+    "langchain upper bound in pyproject extras must match ml-package-versions",
+    "where do I update the tested maximum version of an ML package",
+    "which files change when bumping ml package versions",
+    "langchain extra pin out of sync with the test matrix"
+  ],
+  "body": "Symptom: The langchain extra installs a different langchain than the one the integration is tested against, or the Python ML version table disagrees with the YAML.\nRoot cause: The same tested min/max is recorded in mlflow/ml-package-versions.yml (flavor models/autologging blocks) and mirrored in mlflow/ml_package_versions.py. The langchain upper bound is also duplicated as `langchain>=1.0.0,<=X` in pyproject.toml, pyproject.release.toml and libs/skinny/pyproject.toml (extras `langchain`).\nFix pattern: Update these together in one change: the yml min/max, the matching entry in ml_package_versions.py, and, for langchain, the `<=` pin in all three pyproject files. The PR regenerated them with dev/update_requirements.py and dev/pyproject.py rather than hand-editing a single file.\nConstraints: Prefer regenerating via the dev scripts over hand edits. Keep the pins identical across the three pyproject files. Note that the PR also held some maxima (openai, ag2) with comments explaining that the next major version breaks the tests. Keep such comments when editing those blocks.",
+  "applies": "Release-time updates of tested ML package versions in mlflow/ and the pyproject extras.",
+  "tags": [
+    "ml-package-versions",
+    "release",
+    "pyproject",
+    "langchain"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/ml-package-versions.yml",
+      "hash": "sha256:8b989fa833bd913db89cebfe",
+      "missing": false
+    },
+    {
+      "path": "mlflow/ml_package_versions.py",
+      "hash": "sha256:78cbd37273d40e0d9931bf52",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "pyproject.release.toml",
+      "hash": "sha256:c8ca6ca0855996ff7b85dec9",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:9648968a65ac7bb2f0e26d96",
+      "missing": false
+    },
+    {
+      "path": "dev/update_requirements.py",
+      "hash": "sha256:ed13155819e636652f76fd0c",
+      "missing": false
+    },
+    {
+      "path": "dev/pyproject.py",
+      "hash": "sha256:0e8a7a3fad4f9b2cb5d9f2f3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25553"
+  },
+  "created": "2026-10-11T08:43:41.003Z",
+  "verified": "2026-10-11T08:43:41.003Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dev-version-strings-must-be-bumped-together-across-python-ui",
+    "build-time-guard-lives-in-setup-py-never-in-the-generated-py",
+    "directly-imported-dependencies-must-be-declared-in-requireme"
+  ],
+  "says": [
+    "Installing the optional integration extra installs a different library version than tested.",
+    "Supported machine learning package version documentation disagrees with the installed dependency bounds.",
+    "Keep tested package version limits synchronized across all release and installation configuration files.",
+    "Update upper dependency bounds for optional integration packages using automated release generation scripts."
+  ],
+  "search": "Tested ML package version bounds must be kept synchronized across mlflow/ml-package-versions.yml, mlflow/ml_package_versions.py, and the langchain extra pins in pyproject.toml, pyproject.release.toml, and libs/skinny/pyproject.toml. When updating tested min and max versions, changes should be regenerated using dev/update_requirements.py and dev/pyproject.py rather than hand-edited. The `<=` pin for the langchain extra must remain identical across all three pyproject files. Existing comments holding version maxima for packages like openai and ag2 must be preserved when tests break on newer major releases.",
+  "saysFor": "s2:c38c7435c86ea51f99336fed59c85bdbf6a0a7b9d83733acb2be5eade64b271c"
+}

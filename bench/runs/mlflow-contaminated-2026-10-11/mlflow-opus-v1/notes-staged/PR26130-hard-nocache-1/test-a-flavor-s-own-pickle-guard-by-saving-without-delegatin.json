@@ -1,0 +1,84 @@
+{
+  "id": "test-a-flavor-s-own-pickle-guard-by-saving-without-delegatin",
+  "title": "Test a flavor's own pickle guard by saving without delegating to the wrapped flavor",
+  "kind": "rule",
+  "answers": [
+    "test for pickle guard passes even when the check is removed",
+    "how to test shap explainer load guard",
+    "save explainer with serialize_model_using_mlflow False in test",
+    "fixture delegates to sklearn so guard test is meaningless"
+  ],
+  "body": "Symptom: A test for a flavor's pickle guard keeps passing after the guard is deleted.\nRoot cause: tests/shap/test_log.py fixture shap_model is sklearn-backed, so loads enter the sklearn loader and hit its existing guard before mlflow/shap/__init__.py:_load_explainer runs.\nFix pattern: Save with mlflow.shap.save_explainer(..., serialize_model_using_mlflow=False) so the load goes straight to _load_explainer. Set MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false via monkeypatch and assert pytest.raises(MlflowException, match='MLFLOW_ALLOW_PICKLE_DESERIALIZATION'). Parametrize over mlflow.shap.load_explainer and pyfunc.load_model.\nConstraints: Confirm the test fails when the guard is removed. This only holds when the wrapped model would otherwise be loaded by another flavor's loader; it does not apply to explainers that are not sklearn-backed.",
+  "applies": "Tests in tests/shap/ and similar flavor tests that exercise a guard in a loader which another flavor can shadow.",
+  "tags": [
+    "testing",
+    "shap",
+    "pickle",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "tests/shap/test_log.py",
+      "symbol": "test_load_disallows_pickle_deserialization",
+      "hash": "sha256:8b90bce6d3666dfa0f98d32b",
+      "line": 518,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b90bce6d3666dfa0f98d32b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "save_explainer",
+      "hash": "sha256:9fa595261aae79e4e113c1e6",
+      "line": 383,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9fa595261aae79e4e113c1e6",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "_load_explainer",
+      "hash": "sha256:710550e8b41b598fed0463d3",
+      "line": 641,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:710550e8b41b598fed0463d3",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25566"
+  },
+  "created": "2026-10-11T08:50:46.965Z",
+  "verified": "2026-10-11T08:50:46.965Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pickle-based-flavor-loaders-must-check-mlflow-allow-pickle-d"
+  ],
+  "says": [
+    "Explainer model loading tests pass even when pickle deserialization protection is completely removed.",
+    "Security checks for loading model explainers are masked by underlying framework loaders during testing.",
+    "Ensure explainer security tests directly verify their own pickle deserialization protection.",
+    "Tests for explainer deserialization guards give false confidence because underlying models shadow them."
+  ],
+  "search": "When testing a model flavor's pickle guard such as mlflow/shap/__init__.py:_load_explainer, save the explainer using mlflow.shap.save_explainer with serialize_model_using_mlflow=False. This prevents sklearn-backed fixtures from delegating to sklearn's loader and masking the flavor's own loader check in tests/shap/test_log.py:test_load_disallows_pickle_deserialization. Tests must set MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, parametrize over mlflow.shap.load_explainer and pyfunc.load_model, and confirm failures when the guard is removed.",
+  "saysFor": "s2:bed64cfe9a1fc12dbc3ae5dae9d13fed10b39323838ea4aa9f15dc2c2d5f25e9"
+}

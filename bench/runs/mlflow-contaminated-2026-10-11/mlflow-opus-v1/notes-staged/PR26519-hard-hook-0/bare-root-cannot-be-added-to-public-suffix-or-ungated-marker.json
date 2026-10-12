@@ -1,0 +1,121 @@
+{
+  "id": "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker",
+  "title": "Bare-root '/' cannot be added to public suffix or ungated marker tables",
+  "kind": "rule",
+  "answers": [
+    "why can't I add / to the public routes list",
+    "route matching makes /api/2.0/ public",
+    "fail-closed exemption for the root path matches too much",
+    "_PUBLIC_ROUTE_SUFFIXES or _KNOWN_UNGATED_ROUTE_MARKERS matches every path"
+  ],
+  "body": "Invariant: the root path '/' must not be added to _PUBLIC_ROUTE_SUFFIXES or to _KNOWN_UNGATED_ROUTE_MARKERS in mlflow/server/auth/__init__.py.\nEnforced by: _matches_route_suffix, where stripping the suffix from '/api/2.0/' leaves exactly an API-version prefix, so the suffix would match it; and the 'marker in path' branch, where a marker of '/' matches every path.\nBreaks if skipped: API paths such as /api/2.0/... become public or ungated under the fail-closed net, bypassing authorization.\nFix pattern: map bare paths through the route-to-validator map instead, applying _add_static_prefix at the call site so the exact key is matched.\nApplies: any edit to the public-suffix or ungated-marker tables in mlflow/server/auth/__init__.py.",
+  "applies": "Changes to _PUBLIC_ROUTE_SUFFIXES, _KNOWN_UNGATED_ROUTE_MARKERS or the fail-closed route matching in basic-auth.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "fail-closed",
+    "route-matching"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_matches_route_suffix",
+      "hash": "sha256:9bc109a0f85bd6e300133703",
+      "line": 3627,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bc109a0f85bd6e300133703",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_PUBLIC_ROUTE_SUFFIXES",
+      "hash": "sha256:4e05bbc32379ed8bf9eed679",
+      "line": 3586,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_KNOWN_UNGATED_ROUTE_MARKERS",
+      "hash": "sha256:ab0a540f81818f9bbb531499",
+      "line": 3599,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_PUBLIC_ROUTE_SUFFIXES",
+      "hash": "sha256:4e05bbc32379ed8bf9eed679",
+      "line": 3586,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_KNOWN_UNGATED_ROUTE_MARKERS",
+      "hash": "sha256:ab0a540f81818f9bbb531499",
+      "line": 3599,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_matches_route_suffix",
+      "hash": "sha256:9bc109a0f85bd6e300133703",
+      "line": 3627,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bc109a0f85bd6e300133703",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25672"
+  },
+  "created": "2026-10-11T08:48:52.538Z",
+  "verified": "2026-10-11T08:48:52.538Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+    "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j",
+    "nested-graphql-fields-that-return-per-model-resources-must-b",
+    "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ"
+  ],
+  "says": [
+    "Making the root web page public accidentally exposes all protected backend programming interfaces.",
+    "Unauthenticated users can access private server endpoints after making the landing route public.",
+    "User authentication is completely bypassed across all routes when opening the root path.",
+    "Keep the home address publicly accessible without disabling login requirements on internal endpoints."
+  ],
+  "search": "The bare-root path '/' must not be added to _PUBLIC_ROUTE_SUFFIXES or _KNOWN_UNGATED_ROUTE_MARKERS in basic-auth route matching. Because _matches_route_suffix matches any path ending in an API-version prefix and the marker check matches every path, adding '/' makes protected routes like /api/2.0/ publicly accessible. Bare paths must instead be registered in the route-to-validator map with _add_static_prefix applied at the call site for exact key matching. This invariant applies to all modifications of public-suffix and ungated-marker tables in mlflow/server/auth/__init__.py.",
+  "saysFor": "s2:fa997eb887e2b247a88f972c94c1348a7d6a1f02421dfd2058f3f48c80e16cbb"
+}

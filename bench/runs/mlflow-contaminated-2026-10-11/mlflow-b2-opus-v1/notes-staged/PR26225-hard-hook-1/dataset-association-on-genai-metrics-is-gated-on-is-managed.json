@@ -1,0 +1,65 @@
+{
+  "id": "dataset-association-on-genai-metrics-is-gated-on-is-managed",
+  "title": "Dataset association on GenAI metrics is gated on is_managed_dataset in _run_harness",
+  "kind": "rule",
+  "answers": [
+    "which datasets get linked to genai evaluation metrics",
+    "should I pass any dataset object to genai evaluate harness",
+    "dataset_name only set for managed datasets in genai evaluate"
+  ],
+  "body": "Invariant: In _run_harness, the dataset handed to the harness is `mlflow_dataset if is_managed_dataset else None`. Only managed evaluation datasets are recorded on logged-model aggregate metrics.\nEnforced at: mlflow/genai/evaluation/base.py:_run_harness (the harness.run call site).\nWhat breaks if skipped: passing a raw list/DataFrame (or an unmanaged object without a name/digest) into log_metrics can attach an invalid or misleading dataset reference to metrics, and changes behavior for users who never supplied a managed dataset.\nWhen editing this path, keep the is_managed_dataset check in place rather than always forwarding the dataset.",
+  "applies": "Changes to how _run_harness forwards dataset info into harness.run and metric logging.",
+  "tags": [
+    "evaluation",
+    "genai",
+    "managed-dataset",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/evaluation/base.py",
+      "symbol": "_run_harness",
+      "hash": "sha256:8b01f02e9f682bc7038bdece",
+      "line": 302,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b01f02e9f682bc7038bdece",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/harness.py",
+      "symbol": "run",
+      "hash": "sha256:c82a27a863d05ebbc9d2ab21",
+      "line": 662,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c82a27a863d05ebbc9d2ab21"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25927"
+  },
+  "created": "2026-10-11T10:30:05.104Z",
+  "verified": "2026-10-11T10:30:05.104Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-evaluate-aggregate-logged-model-metrics-must-carry-the"
+  ],
+  "says": [
+    "Evaluation metrics show incorrect dataset tags when evaluating models on raw data.",
+    "Only attach dataset information to evaluation metrics when using official managed datasets.",
+    "Model aggregate metrics display misleading dataset references after running evaluation without datasets.",
+    "Prevent unmanaged data tables or lists from being tagged on evaluation metrics.",
+    "Evaluation metrics should leave dataset references empty when unmanaged data is evaluated."
+  ],
+  "search": "In mlflow/genai/evaluation/base.py:_run_harness, dataset association on GenAI evaluation metrics is restricted to managed datasets via mlflow_dataset if is_managed_dataset else None. When invoking harness.run, only managed evaluation datasets are recorded on logged-model aggregate metrics. Forwarding raw lists, DataFrames, or unmanaged objects lacking a name or digest into log_metrics attaches misleading dataset references and changes behavior for users without managed datasets. When editing this path, the is_managed_dataset check must be kept rather than unconditionally forwarding the dataset.",
+  "saysFor": "s2:af9433aee60f3d772a7b469c7793e5d2686a35a90126dcc50ddc8741014a2df2"
+}

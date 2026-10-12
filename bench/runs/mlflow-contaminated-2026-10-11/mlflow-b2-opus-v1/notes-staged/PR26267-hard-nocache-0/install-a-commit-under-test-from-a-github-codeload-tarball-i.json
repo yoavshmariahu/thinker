@@ -1,0 +1,46 @@
+{
+  "id": "install-a-commit-under-test-from-a-github-codeload-tarball-i",
+  "title": "Install a commit under test from a GitHub codeload tarball instead of a git+ URL",
+  "kind": "howto",
+  "answers": [
+    "install mlflow from a GitHub commit in CI without fetching full git history",
+    "uv git+ requirement is slow in the installation check",
+    "pin a GitHub archive tarball URL for uv --with at a commit SHA",
+    "build-wheel installation test timing out or flaking on git backend"
+  ],
+  "body": "- Build the URL as https://github.com/${REPO}/archive/${REF}.tar.gz, with REF set to the exact commit (`git rev-parse HEAD`), not a branch name.\n- Append `#subdirectory=libs/<name>` for a sub-package. The root project gets no fragment. In build-wheel.yml the fragment comes from MATRIX_TYPE: \"dev\" means root, any other value becomes `libs/${MATRIX_TYPE}`, so matrix values must match libs/ directory names.\n- Reason: uv fetches full repository history for `git+` requirements. The PR reports 33-43s with git+ versus 19-30s with the tarball, and git+ was more exposed to transient Git backend failures.\n- Keep the 3-attempt retry loop and wrap each attempt in `timeout -k 10 120`. The 120s bound matches the observed runtime; the old 240s only delayed retries.\n- Applies to the GitHub-hosted wheel install check. The tarball is a snapshot of one commit, so it is not a moving-branch install.",
+  "applies": "Install checks in GitHub Actions that need to install an unreleased MLflow commit or subpackage with uv; not for installs that need a published release from PyPI.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "uv",
+    "build-wheel",
+    "install-test"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:2ac595703c0b735c07657ec2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25810"
+  },
+  "created": "2026-10-11T10:32:56.252Z",
+  "verified": "2026-10-11T10:32:56.252Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Package installation step in continuous integration runs too slowly during pull request validation.",
+    "Wheel verification builds frequently time out while downloading repository snapshots for testing.",
+    "Speed up automated test pipeline checks that install unreleased commits.",
+    "Build validation job fails intermittently due to transient repository download timeouts."
+  ],
+  "search": "GitHub Actions wheel install checks in .github/workflows/build-wheel.yml install unreleased MLflow commits or subpackages using GitHub codeload archive tarball URLs rather than git+ URLs. The URL format is https://github.com/${REPO}/archive/${REF}.tar.gz using git rev-parse HEAD for REF, with #subdirectory=libs/<name> appended according to MATRIX_TYPE matching libs/ directory names. This avoids uv fetching full git history, mitigating slow runs and Git backend failures while retaining a three-attempt retry loop bounded by timeout -k 10 120. Applies only to unreleased commit checks in GitHub Actions, not moving-branch installs or published PyPI releases.",
+  "saysFor": "s2:0a0bd0dd274ab19322c3acdbec4ed89d81d851dbfa26e9ad23f5b142a2971067"
+}

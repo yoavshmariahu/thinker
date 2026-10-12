@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12a58-a541-7673-ae88-4ddedf2d0edb",
+  "turns": 1,
+  "in_tokens": 216993,
+  "cached_tokens": 188160,
+  "out_tokens": 1171,
+  "wall_ms": 50998,
+  "result": "I’ll locate where prompt versions add internal tags, copy the caller’s dictionary before that happens, and add a regression test. I’ll use the repository’s Python style skill for the change.\nThe mutation happens in the `PromptVersion` constructor: it adds internal tags directly to any nonempty dictionary it receives. I’ll copy that dictionary first and test that reusing it preserves both versions’ templates and keeps the first version’s model configuration out of the second.\nUpdated `PromptVersion` to copy caller-provided tags before adding internal entries, preventing mutations and leakage between versions.\n\nAdded regression coverage for text/chat templates and empty/custom tags, including model configuration isolation.\n\nAll 56 tests in `tests/entities/test_prompt.py` passed; pytest then hit a sandbox permission error in its summary hook. No dependencies installed.",
+  "tools": {
+    "calls": 12,
+    "byTool": {
+      "command_execution": 10,
+      "file_change": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 7,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 2,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": null,
+  "arm": "nocache",
+  "task": "PR26245-hard",
+  "rep": 0,
+  "area": "mlflow/entities",
+  "id": "PR26245-hard-nocache-0",
+  "session": "01a12a58-a541-7673-ae88-4ddedf2d0edb",
+  "cost": 0.53504,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/entities/model_registry/prompt_version.py b/mlflow/entities/model_registry/prompt_version.py\nindex f52f00eca..ebbe7e5f0 100644\n--- a/mlflow/entities/model_registry/prompt_version.py\n+++ b/mlflow/entities/model_registry/prompt_version.py\n@@ -210,8 +210,8 @@ class PromptVersion(_ModelRegistryEntity):\n         self._version: str = str(version)  # Store as string internally\n         self._creation_time: int = creation_timestamp or 0\n \n-        # Initialize tags first\n-        tags = tags or {}\n+        # Copy caller-provided tags before adding internal tags.\n+        tags = tags.copy() if tags is not None else {}\n \n         # Determine prompt type and set it\n         if isinstance(template, list) and len(template) > 0:\ndiff --git a/tests/entities/test_prompt.py b/tests/entities/test_prompt.py\nindex be4d9f925..58c2ee766 100644\n--- a/tests/entities/test_prompt.py\n+++ b/tests/entities/test_prompt.py\n@@ -28,6 +28,29 @@ def test_prompt_initialization():\n     assert prompt._tags[PROMPT_TEXT_TAG_KEY] == \"Hello, {{name}}!\"\n \n \n+@pytest.mark.parametrize(\"tags\", [{}, {\"author\": \"alice\"}])\n+@pytest.mark.parametrize(\"template\", [\"Hello {{name}}\", [{\"role\": \"user\", \"content\": \"{{name}}\"}]])\n+def test_prompt_initialization_does_not_mutate_tags(tags, template):\n+    original_tags = tags.copy()\n+    first = PromptVersion(\n+        name=\"my_prompt\",\n+        version=1,\n+        template=template,\n+        tags=tags,\n+        model_config={\"temperature\": 0.7},\n+    )\n+    assert tags == original_tags\n+\n+    second = PromptVersion(name=\"my_prompt\", version=2, template=\"Hi!\", tags=tags)\n+    assert tags == original_tags\n+    assert first.tags == original_tags\n+    assert second.tags == original_tags\n+    assert first.template == template\n+    assert second.template == \"Hi!\"\n+    assert first.model_config == {\"temperature\": 0.7}\n+    assert second.model_config is None\n+\n+\n @pytest.mark.parametrize(\n     (\"template\", \"expected\"),\n     [\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "oad`` loader strategy is deprecated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)\n    num_metric_entries = session.query(SqlMetric).count()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.81s setup    tests/entities/test_prompt.py::test_prompt_initialization\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\u001b[33m======================== \u001b[32m53 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 0.95s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 28833,
+  "costBasis": "list price from token classes"
+}

@@ -1,0 +1,132 @@
+{
+  "id": "ts-integrations-keep-a-local-getcurrentuser-copy-to-respect",
+  "title": "TS integrations keep a local getCurrentUser copy to respect older @mlflow/core floors",
+  "kind": "rule",
+  "answers": [
+    "where should the getCurrentUser helper live in integrations",
+    "can an integration import a new export from @mlflow/core",
+    "why is getCurrentUser duplicated across integration packages",
+    "adding a helper to a TypeScript integration package"
+  ],
+  "body": "Each TS integration package (codex, openclaw, opencode, qwen-code) defines its own private getCurrentUser() rather than importing one from @mlflow/core. The inline comment reads \"Keep local: integrations are independent packages and must support older @mlflow/core floors.\"\nThe claude-code package keeps its copy in src/_internal.ts:getCurrentUser, which its tracing.ts and liveTracing.ts import.\nReviewers flagged that importing a helper newer than the declared @mlflow/core floor (^0.4.0 for several packages, ^0.2.0 for openclaw) makes the export undefined when an existing lockfile resolves an older compatible core, which then throws at runtime. scripts/check-min-mlflow-deps.sh guards this failure mode.\nWhen adding a helper, either keep it local like these files or raise the core dependency floor to the first release that exports it, and verify with the min-deps check.",
+  "applies": "TypeScript integration packages under libs/typescript/integrations that depend on @mlflow/core.",
+  "tags": [
+    "typescript",
+    "integrations",
+    "mlflow-core",
+    "dependency-floor",
+    "min-deps"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/openclaw/src/service.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 39,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/opencode/src/index.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 53,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/qwen-code/src/tracing.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 47,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/_internal.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:bb234798fbf9dee04e217a86",
+      "line": 21,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bb234798fbf9dee04e217a86",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/liveTracing.ts",
+      "hash": "sha256:4ef4ccc3ff00b608f2896022",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/scripts/check-min-mlflow-deps.sh",
+      "hash": "sha256:3f7f0c29d77fde2a5d7cc3aa",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "ts",
+      "hash": "sha256:2ddf28b86a02e2ed96f9c46f",
+      "line": 365,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ddf28b86a02e2ed96f9c46f"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-11T10:23:59.664Z",
+  "verified": "2026-10-11T10:23:59.664Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-user-metadata-must-fall-back-from-user-to-username-on"
+  ],
+  "says": [
+    "The coding assistant integration crashes during startup when installed alongside older client libraries.",
+    "User identity lookup crashes the plugin when project lockfiles use older shared packages.",
+    "Ensure editor extensions support projects locked to older tracking library versions without failing.",
+    "Tracing fails on initialization because the current user detection method is missing."
+  ],
+  "search": "TypeScript integration packages under libs/typescript/integrations (such as codex, openclaw, opencode, qwen-code, and claude-code) must define private local copies of helpers like getCurrentUser() instead of importing them from @mlflow/core to respect older core dependency floors (^0.4.0, or ^0.2.0 for openclaw). Importing helpers newer than the declared core floor causes undefined runtime exceptions when lockfiles resolve older compatible core releases. When adding helpers, developers must either duplicate them locally or increase the minimum @mlflow/core dependency floor, verifying compatibility using scripts/check-min-mlflow-deps.sh.",
+  "saysFor": "s2:4a37ee8427b294c2d97e2b507232aa617562aeab3279976d7429c410b0a088d1"
+}

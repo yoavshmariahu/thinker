@@ -1,0 +1,92 @@
+{
+  "id": "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on",
+  "title": "Gemini thoughtSignature must be a sibling of functionCall on the Part, not nested inside it",
+  "kind": "rule",
+  "answers": [
+    "Gemini rejects my multi-turn tool call request with a thought signature error",
+    "AI Gateway drops the Gemini thought signature on function calls",
+    "thoughtSignature missing from Gemini tool call responses through the gateway",
+    "how should thoughtSignature be placed in Gemini functionCall parts"
+  ],
+  "body": "Symptom: Multi-turn Gemini tool calling through the AI Gateway fails because Gemini rejects the request, or the thought signature is silently missing from tool call responses.\nRoot cause: mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model wrote thoughtSignature inside the functionCall dict, and GeminiAdapter._convert_function_call_to_openai_choice only read it from functionCall, so the Part-level signature was never seen.\nFix pattern: Build the Part as {\"functionCall\": fc} first, then set part[\"thoughtSignature\"] on that Part. On the read side, check the Part-level keys (thoughtSignature, thought_signature) first and fall back to the nested functionCall keys for older responses.\nConstraints: Gemini 3.x documents the signature at the Part level. The nested fallback on read exists only for older responses, so do not drop it. The request side must not nest the signature.",
+  "applies": "Any change to Gemini (or Gemini-shaped) message conversion in the AI Gateway providers, both request building and response parsing.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "thought-signature",
+    "function-calling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter._convert_function_call_to_openai_choice",
+      "hash": "sha256:fca45739f1840d76dbaa5af1",
+      "line": 267,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fca45739f1840d76dbaa5af1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_function_call_thought_signature_response",
+      "hash": "sha256:face09322fda0643becbd447",
+      "line": 1164,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:face09322fda0643becbd447",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25865"
+  },
+  "created": "2026-10-11T10:25:50.491Z",
+  "verified": "2026-10-11T10:25:50.491Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev",
+    "gemini-candidates-can-mix-text-and-functioncall-parts-in-any",
+    "gemini-parallel-functionresponse-parts-must-share-one-user-t",
+    "gemini-tool-message-content-must-be-coerced-to-a-json-object"
+  ],
+  "says": [
+    "Gemini rejects multi-turn chat requests after performing a tool call.",
+    "Thought signatures are missing from Gemini function call responses in the gateway.",
+    "Multi-turn conversations using Gemini tools fail with a thought signature error.",
+    "Ensure model thought signatures persist across successive tool calling turns.",
+    "Follow-up conversation turns fail when sending back Gemini tool results."
+  ],
+  "search": "In mlflow/gateway/providers/gemini.py, thoughtSignature must be placed on the Part as a sibling to functionCall rather than nested inside it. GeminiAdapter.chat_to_model must construct part['thoughtSignature'] at the Part level, and the request side must not nest the signature. On the read side, GeminiAdapter._convert_function_call_to_openai_choice checks Part-level keys thoughtSignature and thought_signature first, retaining a fallback to nested functionCall keys for older responses. Applies to Gemini and Gemini-shaped request building and response parsing in AI Gateway providers.",
+  "saysFor": "s2:8d31a0b7ca76846c94797e9e4905c4ee517b9333717036a2b3051f2326c0f969",
+  "lastUsed": "2026-10-11T19:21:09.759Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26300-hard-0"
+  ]
+}

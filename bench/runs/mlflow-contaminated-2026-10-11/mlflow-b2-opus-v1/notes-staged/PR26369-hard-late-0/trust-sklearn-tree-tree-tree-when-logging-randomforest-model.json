@@ -1,0 +1,54 @@
+{
+  "id": "trust-sklearn-tree-tree-tree-when-logging-randomforest-model",
+  "title": "Trust sklearn.tree._tree.Tree when logging RandomForest models in skops format",
+  "kind": "rule",
+  "answers": [
+    "skops load fails with untrusted type sklearn.tree._tree.Tree",
+    "RandomForestClassifier model logging fails in default serialization format",
+    "sklearn model round-trip error with skops trusted types",
+    "how do I log a random forest model with skops_trusted_types"
+  ],
+  "body": "Symptom: Logging or loading a RandomForestClassifier in the default skops format fails, reporting that sklearn.tree._tree.Tree is an untrusted type.\nRoot cause: tests/uc_oss/test_uc_oss_integration.py:test_integration calls the sklearn log_model path without declaring the tree types. Tree objects inside a fitted forest are not on skops' default trusted list, so the round-trip is rejected.\nFix pattern: Pass skops_trusted_types=[\"sklearn.tree._tree.Tree\"] to the log call. Only list types that have been reviewed. Do not disable the trust check.\nConstraints: Applies to skops-format sklearn tree ensembles. Other model types may need different trusted types, so check the load error for the exact type name before adding it.",
+  "applies": "Sklearn tree-based models saved or loaded through the default skops format, in tests and user code that log them.",
+  "tags": [
+    "sklearn",
+    "skops",
+    "serialization",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "tests/uc_oss/test_uc_oss_integration.py",
+      "symbol": "test_integration",
+      "hash": "sha256:a1b8841f26ca6a992e1854df",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1b8841f26ca6a992e1854df",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 49
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26124"
+  },
+  "created": "2026-10-11T10:24:40.957Z",
+  "verified": "2026-10-11T10:24:40.957Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Saving our random forest model fails with an untrusted type security error.",
+    "Allow saved tree models to load without being blocked as untrusted.",
+    "Loading logged forest models gets rejected by the default format safety verification.",
+    "Why does loading our saved random forest report an unapproved data type?"
+  ],
+  "search": "When logging or loading scikit-learn tree ensembles such as RandomForestClassifier in the default skops serialization format, pass skops_trusted_types=[\"sklearn.tree._tree.Tree\"] to the log call so tree objects pass round-trip validation. Only reviewed types should be listed without disabling trust checks, and other model types must specify their own exact type names. This rule applies to tests and user code logging tree-based models, such as tests/uc_oss/test_uc_oss_integration.py:test_integration.",
+  "saysFor": "s2:67e5b0954d2f7266c7df9b135d1c319e1684513fece0cadc030aa047f366757d"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "payload-only-eligibility-guards-belong-in-the-job-level-if-o",
+  "title": "Payload-only eligibility guards belong in the job-level `if:` of community-label.yml",
+  "kind": "rule",
+  "answers": [
+    "community-label workflow runs for bot or internal PRs",
+    "skip labeling for members, collaborators, and bots before runner starts",
+    "why does the community label job still allocate a runner for ineligible PRs",
+    "where to add a new exclusion for the community labeling action"
+  ],
+  "body": "Invariant: in `.github/workflows/community-label.yml`, `jobs.label-community.if` holds the cheap event-payload checks: repo is `mlflow/mlflow`, `github.event.pull_request.user.type` is not `Bot`, and `author_association` is not in MEMBER/COLLABORATOR/OWNER.\nWhy: a job whose `if:` is false never gets a runner, so ineligible PRs cost nothing. A shell `exit 0` runs only after runner allocation.\nDo not move these checks back into the `run:` script, and do not re-add `AUTHOR_TYPE`/`ASSOCIATION` env vars just to repeat them there.\nThe script keeps only checks that need API calls: the `gh api users/$AUTHOR` profile and commit-email Databricks affiliation checks, then labeling.\nAny new exclusion that uses only the event payload should go in the `if:` expression, written as a `>-` folded scalar with `&&` joins.\nApplies to: changes to community-label.yml or similar labeling workflows in this repo.",
+  "applies": "Scope: the community-label workflow's job gating; the rule covers payload-only checks, not API-dependent ones.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "ci",
+    "community-label",
+    "runner-cost"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/community-label.yml",
+      "hash": "sha256:9d19a490ddc75153d19ff8c1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25901"
+  },
+  "created": "2026-10-11T10:30:43.544Z",
+  "verified": "2026-10-11T10:30:43.544Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The community contributor label is mistakenly applied to internal team pull requests",
+    "Pull requests created by automated bots trigger the community contributor labeling workflow",
+    "Wasted automation runner minutes executing community labeling jobs for project team members",
+    "Prevent community labeling actions from allocating runners on ineligible internal pull requests"
+  ],
+  "search": "In .github/workflows/community-label.yml, event payload eligibility checks must be declared in jobs.label-community.if rather than inside the run script. The job-level if condition verifies the repo is mlflow/mlflow, the pull request author is not a Bot, and author_association excludes MEMBER, COLLABORATOR, and OWNER, preventing runner allocation costs for ineligible PRs. Only API-dependent checks like gh api user profile lookups and commit-email Databricks affiliation remain in the script, while any new payload exclusions must be added to the job if using folded scalars with && joins.",
+  "saysFor": "s2:74cc9926f0bd31e0c75da9853b4a1b10d6dcb0d85b7ded963d1e9fea098c3dd0"
+}

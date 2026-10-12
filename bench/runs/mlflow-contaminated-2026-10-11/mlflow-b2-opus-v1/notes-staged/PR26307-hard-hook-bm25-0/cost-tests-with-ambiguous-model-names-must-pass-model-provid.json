@@ -1,0 +1,70 @@
+{
+  "id": "cost-tests-with-ambiguous-model-names-must-pass-model-provid",
+  "title": "Cost tests with ambiguous model names must pass model_provider explicitly",
+  "kind": "rule",
+  "answers": [
+    "cost test picks the wrong provider's price",
+    "how to pin pricing in a test for a model name shared by several providers",
+    "test for 1hr cache creation pricing flaky across catalogs",
+    "calculate_cost_by_model_and_token_usage test provider ambiguity"
+  ],
+  "body": "Symptom: a pricing test asserts a cost for a model name, but the price comes from another provider's catalog that happens to use a similar or identical model name.\nRoot cause: when no model_provider is passed, the lookup scans all bundled provider catalogs (see mlflow/utils/providers.py:_list_provider_names), so the matched entry depends on which catalog is found first.\nFix pattern: pass model_provider explicitly in each call that the test compares, e.g. model_provider=\"anthropic\" in tests/tracing/utils/test_utils.py:test_builtin_cost_prices_1hr_cache_creation_higher, for both the baseline and the 1-hour variant so they use the same catalog.\nConstraints: apply this in tests that assert specific prices or relative price differences. Tests that only check a cost is not None do not need it.",
+  "applies": "Tests of builtin cost calculation that depend on a specific provider's pricing.",
+  "tags": [
+    "tracing",
+    "cost",
+    "tests",
+    "providers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/providers.py",
+      "symbol": "_list_provider_names",
+      "hash": "sha256:dde3885ccd7b1aef67c473c5",
+      "line": 234,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dde3885ccd7b1aef67c473c5",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_utils.py",
+      "symbol": "test_builtin_cost_prices_1hr_cache_creation_higher",
+      "hash": "sha256:e1ead0b07f4add2eede95909",
+      "line": 868,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e1ead0b07f4add2eede95909",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26154"
+  },
+  "created": "2026-10-11T10:27:08.751Z",
+  "verified": "2026-10-11T10:27:08.751Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "provider-free-model-cost-lookup-must-iterate-catalog-provide"
+  ],
+  "says": [
+    "Model pricing tests fail because token costs are checked against the wrong provider catalog.",
+    "Automated cost calculation tests report incorrect price amounts for models shared across providers.",
+    "Cost verification tests for cache creation fail due to ambiguous provider rate cards.",
+    "Ensure pricing tests explicitly select the target provider when comparing model token costs."
+  ],
+  "search": "Builtin cost calculation tests that assert specific prices or relative price differences must pass model_provider explicitly when model names are ambiguous. Without an explicit provider, catalog lookup scans all bundled providers via mlflow/utils/providers.py:_list_provider_names and picks whichever catalog matches first. In tests/tracing/utils/test_utils.py:test_builtin_cost_prices_1hr_cache_creation_higher, both baseline and 1-hour cache variants must pass model_provider='anthropic' to ensure identical catalogs are compared. Tests asserting only that cost is not None do not require an explicit provider.",
+  "saysFor": "s2:0adf6f4683dd2114798e24eead4fac74908610f7b08c442a8d2f0245ed99949b"
+}

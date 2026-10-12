@@ -1,0 +1,45 @@
+{
+  "id": "catalog-release-sync-must-delete-stale-json-assets-after-upl",
+  "title": "Catalog release sync must delete stale JSON assets after upload",
+  "kind": "rule",
+  "answers": [
+    "deleted model catalog file still downloadable from release",
+    "stale model catalog asset remains on model-catalog/latest",
+    "how does publish_model_catalog.sh keep release assets in sync",
+    "removing a catalog JSON on master does not remove the release asset"
+  ],
+  "body": "Symptom: after a catalog JSON file is removed on master, the old asset is still downloadable from the `model-catalog/latest` release.\nRoot cause: dev/publish_model_catalog.sh only uploaded files that exist in `$CATALOG_DIR` with `gh release upload --clobber`, and never removed release assets whose source file was gone.\nFix pattern: keep the upload first, then list release assets with `gh release view --json assets` and call `gh release delete-asset` for each `*.json` asset with no matching file in `$CATALOG_DIR`.\nConstraints: deletion runs only after a successful upload, so a failed upload cannot remove valid assets. Only `*.json` names are candidates; non-JSON assets are left untouched.",
+  "applies": "Changes to dev/publish_model_catalog.sh or to how catalog JSON files are added, renamed or removed in mlflow/utils/model_catalog.",
+  "tags": [
+    "model-catalog",
+    "release-assets",
+    "shell",
+    "github-cli"
+  ],
+  "deps": [
+    {
+      "path": "dev/publish_model_catalog.sh",
+      "hash": "sha256:f7eb03a44714649940b8b7aa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25689"
+  },
+  "created": "2026-10-11T08:48:33.795Z",
+  "verified": "2026-10-11T08:48:33.795Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Deleted model catalog definitions are still available for download from the latest release page.",
+    "The public model catalog release contains outdated files that were already removed from source control.",
+    "Automatically remove decommissioned model catalog downloads whenever publishing a new release version.",
+    "Customers can still download deprecated model catalog entries from the release downloads section."
+  ],
+  "search": "When syncing model catalog releases in dev/publish_model_catalog.sh, stale JSON assets must be deleted from model-catalog/latest after uploading current files. Previously, the script ran gh release upload --clobber for files in $CATALOG_DIR without removing release assets whose source files were deleted. The release sync must list assets via gh release view --json assets and run gh release delete-asset for each *.json asset missing from $CATALOG_DIR. Asset deletion must run only after a successful upload and must strictly target *.json files while leaving non-JSON assets untouched.",
+  "saysFor": "s2:0b294ce92cc87f9bd0218a969c4f0444f1ab2f3915a7f793e6c21c50df95879c"
+}

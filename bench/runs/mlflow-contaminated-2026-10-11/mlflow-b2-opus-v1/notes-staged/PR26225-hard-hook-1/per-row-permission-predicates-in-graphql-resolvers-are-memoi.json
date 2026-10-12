@@ -1,0 +1,73 @@
+{
+  "id": "per-row-permission-predicates-in-graphql-resolvers-are-memoi",
+  "title": "Per-row permission predicates in GraphQL resolvers are memoized per request on flask g",
+  "kind": "rule",
+  "answers": [
+    "mlflowSearchRuns slow with many runs because of auth queries",
+    "N+1 grants query in GraphQL authorization",
+    "how to cache permission lookups across nested GraphQL resolutions",
+    "runs table latency caused by modelVersions permission checks"
+  ],
+  "body": "Symptom: listing runs in the UI (up to 100 per page) gets slower once nested model-version filtering is on, because each run triggers its own user lookup and grants query.\nRoot cause: a nested field is resolved once per parent row, and building a read predicate such as _rm_or_prompt_read_predicate costs a user lookup plus a SQL grants query each time.\nFix pattern: memoize the predicate for the current request in GraphQLAuthorizationMiddleware._model_version_read_predicate, storing it in the flask `g` context keyed by username (g.setdefault(\"_graphql_model_version_read_predicates\", {})), and reuse it for every resolution in that request.\nConstraints: the cache lives only for one request, so grant changes made during a request are not expected to be seen; do not share it across requests. Reuse the same cached helper for top-level and nested paths so they agree.\nApplies: any resolver or filter that runs once per row in a list query inside the auth GraphQL middleware.",
+  "applies": "Permission helpers invoked per row of a GraphQL list result in mlflow/server/auth/__init__.py.",
+  "tags": [
+    "auth",
+    "performance",
+    "graphql",
+    "flask"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._model_version_read_predicate",
+      "hash": "sha256:ebe3709771f7d058714fee16",
+      "line": 5274,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ebe3709771f7d058714fee16",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_rm_or_prompt_read_predicate",
+      "hash": "sha256:cac5dee3a86cf72667a080bb",
+      "line": 1881,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cac5dee3a86cf72667a080bb",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-11T10:30:40.517Z",
+  "verified": "2026-10-11T10:30:40.517Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-version-read-checks-must-be-prompt-aware-and-judge-the",
+    "gateway-authz-validators-must-read-resource-ids-from-the-par",
+    "gateway-list-routes-need-authentication-plus-a-per-item-use",
+    "nested-graphql-fields-over-protected-resources-must-be-liste"
+  ],
+  "says": [
+    "The runs table loads very slowly when filtering runs by nested model versions.",
+    "Viewing one hundred runs per page takes too long to display authorization results.",
+    "Speed up the experiments runs list when checking permissions for registered model versions.",
+    "Make the runs overview table responsive when displaying rows with model version checks."
+  ],
+  "search": "To prevent N+1 authorization queries when listing runs in GraphQL, memoize per-row model-version read predicates on flask g for the duration of a single request. GraphQLAuthorizationMiddleware._model_version_read_predicate stores the predicate keyed by username in g.setdefault('_graphql_model_version_read_predicates', {}) and reuses it across resolutions in mlflow/server/auth/__init__.py. The cache must not be shared across requests, grant changes made during a request are not seen, and top-level and nested paths must reuse the same helper.",
+  "saysFor": "s2:85570dcc92c51672609d444bfd8a4ac028f1b367488303380c44b7f2970609e3"
+}

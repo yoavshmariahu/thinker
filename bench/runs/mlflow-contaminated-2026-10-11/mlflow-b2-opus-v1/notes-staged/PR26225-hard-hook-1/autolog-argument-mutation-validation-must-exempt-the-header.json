@@ -1,0 +1,54 @@
+{
+  "id": "autolog-argument-mutation-validation-must-exempt-the-header",
+  "title": "Autolog argument-mutation validation must exempt the header kwargs a wrapper injects",
+  "kind": "rule",
+  "answers": [
+    "autologging flags the user's extra_headers or http_headers as changed",
+    "Mistral Groq Anthropic autolog argument validation warning on headers",
+    "how to allow autolog to add headers to a provider SDK call"
+  ],
+  "body": "Root cause: mlflow/utils/autologging_utils/safety.py keeps a list of ValidationExemptArgument entries that lets specific patched kwargs differ from the user's input. Header injection changes the value, so the check does not match unless the kwarg is listed.\nFix pattern: Add a ValidationExemptArgument(module, method, predicate, None, kwarg_name) entry to that list. The predicate should accept None or a Mapping, because the injected value can differ from what the user passed. Current entries cover anthropic `extra_headers`, mistral `complete`/`complete_async` `http_headers`, and groq `create` `extra_headers`.\nConstraints: Only list kwargs the wrapper itself rewrites. Keep the predicate narrow enough to still reject wrong types. Add an entry in the same change as the injection code, or the autolog validation will not match what the wrapper does.",
+  "applies": "Adding or changing autologging wrappers that modify a user-supplied keyword argument before calling the SDK.",
+  "tags": [
+    "autologging",
+    "validation",
+    "safety",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/autologging_utils/safety.py",
+      "symbol": "ValidationExemptArgument",
+      "hash": "sha256:d274f690be94e7e54823b2c7",
+      "line": 863,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d274f690be94e7e54823b2c7",
+      "fanout": {
+        "files": 2,
+        "sites": 15,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26177"
+  },
+  "created": "2026-10-11T10:27:02.788Z",
+  "verified": "2026-10-11T10:27:02.788Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automatic tracking triggers false argument validation warnings when sending custom headers to models.",
+    "Users see unexpected parameter change warnings during automatic logging of language model calls.",
+    "Model tracking falsely warns that request headers were modified during provider calls.",
+    "Stop warning users about header alterations when automatic logging is enabled for models.",
+    "Language model requests display spurious argument validation warnings in the tracking logs."
+  ],
+  "search": "Autolog argument-mutation validation in mlflow/utils/autologging_utils/safety.py requires adding a ValidationExemptArgument entry for wrapper-injected header kwargs to allow them to differ from user inputs. The entry uses ValidationExemptArgument(module, method, predicate, None, kwarg_name) where the predicate accepts None or a Mapping to reject wrong types while accommodating injected values. This applies when modifying autologging wrappers for Anthropic extra_headers, Mistral complete or complete_async http_headers, and Groq create extra_headers.",
+  "saysFor": "s2:b3bff7b90eb313d8e046854a4b73b6944f15fc709e183561cc3fd53f0aed5124"
+}

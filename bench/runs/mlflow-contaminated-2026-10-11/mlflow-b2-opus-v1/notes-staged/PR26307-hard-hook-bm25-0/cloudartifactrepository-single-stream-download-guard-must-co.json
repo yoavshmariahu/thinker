@@ -1,0 +1,79 @@
+{
+  "id": "cloudartifactrepository-single-stream-download-guard-must-co",
+  "title": "Cloud single-stream download guard matches the SDK repo by class name",
+  "kind": "rule",
+  "answers": [
+    "UC model download fails with presigned URL error",
+    "parallel multipart download breaks for SDK-backed model artifacts",
+    "download of model file uses presigned uri instead of Files API",
+    "why does CloudArtifactRepository._download_file special-case a class"
+  ],
+  "body": "Symptom: Downloading a model file from UC through the SDK path fails or fetches a presigned URL that the Files API path does not support.\nRoot cause: mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file chooses between _download_from_cloud and parallelized presigned downloads; it forces the single-stream branch when type(self).__name__ == \"DatabricksSDKModelsArtifactRepository\".\nFix pattern: Keep the SDK repo on the single-stream _download_from_cloud path. The guard compares the class name string, so renaming the class silently disables it.\nConstraints: Any new SDK-only repo that cannot use presigned URIs needs the same guard, or a cleaner class-level flag. Changing the class name requires updating this string in the same change.",
+  "applies": "Download dispatch in CloudArtifactRepository and subclasses that do not return presigned URIs.",
+  "tags": [
+    "artifacts",
+    "download",
+    "unity-catalog",
+    "databricks-sdk"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/cloud_artifact_repo.py",
+      "symbol": "CloudArtifactRepository._download_file",
+      "hash": "sha256:77526a542c9c1a30e58a2e8d",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:77526a542c9c1a30e58a2e8d",
+      "fanout": {
+        "files": 15,
+        "sites": 31,
+        "refs": 43
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository._download_from_cloud",
+      "hash": "sha256:a6439be64be8fad420a4d1e8",
+      "line": 105,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6439be64be8fad420a4d1e8",
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25986"
+  },
+  "created": "2026-10-11T10:29:38.826Z",
+  "verified": "2026-10-11T10:30:03.576Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bare-workspaceclient-fails-on-serverless-seg-executors-build",
+    "sdk-models-repo-workspace-client-must-resolve-host-and-token"
+  ],
+  "history": [
+    {
+      "at": "2026-10-11T10:30:03.587Z",
+      "reason": "merged from new session",
+      "prevBody": "Invariant: CloudArtifactRepository._download_file must use the single-stream _download_from_cloud path for DatabricksSDKModelsArtifactRepository. That repo can only download through the Databricks SDK, not via the presigned URL used by _parallelized_download_from_cloud.\nEnforced by: mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file, which checks the class name string 'DatabricksSDKModelsArtifactRepository' alongside the file-size and fuse/UC-volume checks.\nWhat breaks if skipped: the parallel path requests presigned URIs the SDK repo cannot serve, so large model file downloads fail.\nConstraints: the guard compares the class name as a string, so renaming the class silently disables it. Update the string if the class moves or is renamed. Chunk size for the single-stream path comes from MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE, not a hardcoded constant."
+    }
+  ],
+  "says": [
+    "Downloading a model from Unity Catalog fails with a presigned URL error.",
+    "Model artifact downloads in Databricks break when trying parallel multipart transfers.",
+    "Unity Catalog model file downloads should use the Files API instead of presigned links.",
+    "Downloading large models from the catalog fails because presigned URLs are unsupported.",
+    "Allow single-stream model downloads for catalog artifacts that cannot generate presigned links."
+  ],
+  "search": "In mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file, single-stream download via _download_from_cloud is forced for DatabricksSDKModelsArtifactRepository by matching the class name string. This applies to download dispatch for cloud repositories and subclasses where Files API model artifact downloads fail if routed to parallel presigned URL downloads. Renaming DatabricksSDKModelsArtifactRepository silently disables the guard, and any new SDK-only repository unable to use presigned URIs requires an identical guard or a class-level flag.",
+  "saysFor": "s2:85d7c1fa3d2fc9d54f95548900e6fb0db8174cccb3f765bf96889a1bfc9be55f"
+}

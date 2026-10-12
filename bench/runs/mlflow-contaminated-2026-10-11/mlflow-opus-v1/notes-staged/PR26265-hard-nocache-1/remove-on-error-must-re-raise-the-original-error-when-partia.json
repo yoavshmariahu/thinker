@@ -1,0 +1,55 @@
+{
+  "id": "remove-on-error-must-re-raise-the-original-error-when-partia",
+  "title": "remove_on_error must re-raise the original error when partial-download cleanup fails",
+  "kind": "rule",
+  "answers": [
+    "artifact download shows PermissionError instead of the real download failure",
+    "partial file cleanup error hides the root cause of a failed download",
+    "why does download_artifacts report Permission denied on the destination file",
+    "remove_on_error swallows the original exception when os.remove fails"
+  ],
+  "body": "Symptom: A failed artifact download reports a cleanup error (e.g. Permission denied on the partial file) instead of the real failure, such as chunks exhausting retries.\nRoot cause: mlflow/utils/file_utils.py:remove_on_error ran os.remove / shutil.rmtree unguarded in its except block, so a cleanup exception replaced the original and the trailing bare raise never ran.\nFix pattern: Wrap the cleanup call in its own try/except Exception, log the cleanup failure as a warning, and let the original exception propagate with a bare raise (same object, traceback intact).\nConstraints: Cleanup inside an except block must never be allowed to raise over the caller's error. Applies to all callers of remove_on_error (multipart/cloud/databricks artifact downloads, _create_virtualenv).",
+  "applies": "Any change to remove_on_error or to cleanup code run inside an except block that re-raises.",
+  "tags": [
+    "artifacts",
+    "error-handling",
+    "file-utils"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/file_utils.py",
+      "symbol": "remove_on_error",
+      "hash": "sha256:b878f6598dd5f8d0d49f9529",
+      "line": 794,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b878f6598dd5f8d0d49f9529",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25626"
+  },
+  "created": "2026-10-11T08:49:37.922Z",
+  "verified": "2026-10-11T08:49:37.922Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "remove-on-error-log-lines-must-reflect-the-actual-cleanup-ou"
+  ],
+  "says": [
+    "Artifact download failure screen shows permission denied instead of the network error.",
+    "Failed downloads mask the root cause with temporary file deletion errors.",
+    "Show why the model download failed rather than reporting cleanup permission issues.",
+    "Download error popup displays cleanup failure instead of retry exhaustion."
+  ],
+  "search": "Cleanup handlers in mlflow/utils/file_utils.py:remove_on_error must wrap cleanup calls like os.remove and shutil.rmtree in try/except Exception to log cleanup failures as warnings and re-raise the original exception. Cleanup exceptions must never mask the caller's failure, such as retry exhaustion in multipart, cloud, or Databricks artifact downloads, or _create_virtualenv. Applies to changes to remove_on_error or any cleanup routine executing within an except block that re-raises.",
+  "saysFor": "s2:19ca6fa8f457923c2107fff77af0b6131e0aebccd74490602d4ddfda1756e9ea"
+}

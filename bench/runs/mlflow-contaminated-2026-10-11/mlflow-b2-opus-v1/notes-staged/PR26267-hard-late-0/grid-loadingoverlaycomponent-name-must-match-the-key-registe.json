@@ -1,0 +1,71 @@
+{
+  "id": "grid-loadingoverlaycomponent-name-must-match-the-key-registe",
+  "title": "Grid loadingOverlayComponent name must match the key registered in getFrameworkComponents",
+  "kind": "rule",
+  "answers": [
+    "runs table loading overlay not rendering",
+    "ag-grid loadingOverlayComponent not found",
+    "where is the runs table loading spinner registered",
+    "how to change the runs table loading overlay"
+  ],
+  "body": "Invariant: The ag-grid prop `loadingOverlayComponent` on the runs table is a string key that must match a key in the object returned by getFrameworkComponents() in experimentPage.column-utils.tsx.\nEnforced at: ExperimentViewRunsTable.tsx:ExperimentViewRunsTable passes loadingOverlayComponent=\"loadingOverlayComponent\" together with components={getFrameworkComponents()}.\nWhat breaks if skipped: renaming one side without the other leaves the grid without a registered overlay, so the loading spinner stops appearing. The enzyme test reads getFrameworkComponents().loadingOverlayComponent directly, so it fails if the key is removed.\nConstraints: Renaming the key requires updating both the table prop and the test; passing overlay-specific params is not required and the grid params are supplied by ag-grid itself.",
+  "applies": "Changes to the runs table grid configuration or its framework component registry.",
+  "tags": [
+    "ag-grid",
+    "experiment-tracking",
+    "registry",
+    "loading-overlay"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx",
+      "symbol": "getFrameworkComponents",
+      "hash": "sha256:6e3cd5b90040bb258fb20a84",
+      "line": 87,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6e3cd5b90040bb258fb20a84",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/runs/ExperimentViewRunsTable.tsx",
+      "symbol": "ExperimentViewRunsTable",
+      "hash": "sha256:d8b4295dabe88b5bb2777122",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d8b4295dabe88b5bb2777122",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26102"
+  },
+  "created": "2026-10-11T10:24:51.222Z",
+  "verified": "2026-10-11T10:24:51.222Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "runs-table-loading-spinner-must-not-spread-ag-grid-overlay-p"
+  ],
+  "says": [
+    "The loading spinner disappeared from the experiment runs table while fetching data.",
+    "No loading indicator appears on the experiment page when the runs list refreshes.",
+    "Restore the loading progress overlay on the tracking runs grid during data fetch.",
+    "The experiment runs view shows a blank grid instead of a loading animation.",
+    "Show a loading placeholder while the experiment run comparison table is updating."
+  ],
+  "search": "The loadingOverlayComponent string key configured on ExperimentViewRunsTable.tsx must match the component key in getFrameworkComponents() from experimentPage.column-utils.tsx. A mismatch leaves the runs table grid without a registered loading overlay and causes enzyme tests targeting getFrameworkComponents().loadingOverlayComponent to fail. Any key rename requires updating both the runs table prop and the test.",
+  "saysFor": "s2:d69bb9e65a8151ae22bfa4e17e415b5a49b1de3c73e98398ac7c4de92e735f54"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "automated-issue-triage-workflows-must-only-act-on-label-less",
+  "title": "Automated issue-triage workflows must only act on label-less issues",
+  "kind": "rule",
+  "answers": [
+    "workflow adds labels to issues that already have labels",
+    "triage bot overwrote maintainer labels on an issue",
+    "how do I make an issue automation only run on new unlabeled issues",
+    "label automation on issue opened event guard"
+  ],
+  "body": "Invariant: a workflow that auto-labels issues must run only when the issue has no labels yet, so it never overrides labels a maintainer or issue form already set.\nEnforced by: .github/workflows/triage.yml:jobs.label.if, which checks `github.event.issue.labels[0] == null` alongside the `github.repository == 'mlflow/mlflow'` repo guard.\nTrigger is `issues: types: [opened]` only, so later edits or relabels do not re-run it.\nIf the guard is dropped or moved, the job re-labels issues that were already triaged and can add labels that conflict with the maintainer's choice.\nThe job also has `concurrency` keyed on the issue number, so repeated events for one issue do not race.",
+  "applies": "Any new GitHub Actions workflow in this repo that edits labels or other metadata on issues.",
+  "tags": [
+    "github-actions",
+    "issues",
+    "triage",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/triage.yml",
+      "hash": "sha256:d4e625a0d77ab1a86d9138da",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26296"
+  },
+  "created": "2026-10-11T10:26:10.468Z",
+  "verified": "2026-10-11T10:26:10.468Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated triage bot is overwriting labels manually assigned by project maintainers.",
+    "Prevent the issue categorization workflow from tagging tickets that already have labels.",
+    "Automated triage should only apply tags to newly opened, completely unlabeled issues.",
+    "The issue triage bot replaced our custom tags when an issue was updated.",
+    "Stop the automated triage system from modifying labels on previously categorized tickets."
+  ],
+  "search": "Automated issue-triage workflows that apply labels must run only on newly opened issues that have no existing labels to prevent overwriting maintainer selections. In .github/workflows/triage.yml:jobs.label.if, this is enforced by checking github.event.issue.labels[0] == null alongside the github.repository == 'mlflow/mlflow' guard. The workflow triggers strictly on issues: types: [opened] and uses concurrency keyed on the issue number to prevent races.",
+  "saysFor": "s2:0e34e5211579b556bebb25b35eeae006d2eade0d45bfbbf6a5aa8f497a531857"
+}

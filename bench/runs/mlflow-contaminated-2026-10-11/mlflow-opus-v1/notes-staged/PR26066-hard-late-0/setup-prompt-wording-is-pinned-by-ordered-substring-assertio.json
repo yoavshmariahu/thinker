@@ -1,0 +1,63 @@
+{
+  "id": "setup-prompt-wording-is-pinned-by-ordered-substring-assertio",
+  "title": "Setup prompt wording is pinned by ordered substring assertions in the test",
+  "kind": "rule",
+  "answers": [
+    "how to change the mlflow agent setup prompt text",
+    "why does test_setup_sh_unit fail after rewording a checklist step",
+    "which test checks the agent tracing instructions"
+  ],
+  "body": "The agent prompt is plain text emitted by printf in build_agent_prompt in mlflow/agent/setup/setup.sh. Each output line is one quoted argument, and \"\" marks blank separator lines.\ntests/agent/test_setup_sh_unit.py:test_build_agent_prompt_requires_repo_summary_and_realistic_trace_input asserts that the \"## N.\" headers appear in ascending index order and that specific phrases are present, such as \"mlflow.note.content\", \"Prefer MLflow autologging\", and \"mlflow.update_current_trace(session_id=...)\".\nIt also asserts that retired phrases are absent (\"Trace URL opens\", \"exercise one traced operation\"), so reintroducing old lines fails the test.\nWhen you reword a step, update the matching assertion in the same change and keep the asserted casing and punctuation. The test runs the backend=remote branch only, so the databricks branch of build_agent_prompt is not covered by it.",
+  "applies": "Changes to prompt text in build_agent_prompt; not for other setup.sh functions.",
+  "tags": [
+    "agent-setup",
+    "prompt",
+    "tests",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/agent/setup/setup.sh",
+      "hash": "sha256:3471fa4c4aac193488bdc977",
+      "missing": false
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_build_agent_prompt_requires_repo_summary_and_realistic_trace_input",
+      "hash": "sha256:60291136085b4616f8836b72",
+      "line": 101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fc40c7229402cf6005101a41",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25547"
+  },
+  "created": "2026-10-11T08:51:17.810Z",
+  "verified": "2026-10-11T08:51:17.810Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "setup-prompt-checklist-steps-must-stay-in-dependency-order",
+    "shell-setup-tests-must-stub-commands-and-pass-fixtures-witho",
+    "warehouse-menu-ordering-lives-in-json-warehouse-rows-running"
+  ],
+  "says": [
+    "Update the setup prompt instructions to tell the coding agent to prefer automatic logging.",
+    "Reword the setup assistant guidance for attaching session identifiers to active traces.",
+    "Remove retired instructions about opening the trace web link from agent setup prompts.",
+    "The onboarding agent prompt still mentions exercising one traced operation during setup.",
+    "Modify the setup instructions explaining how to add documentation notes to an experiment."
+  ],
+  "search": "Prompt text in mlflow/agent/setup/setup.sh:build_agent_prompt is emitted via printf and verified by substring assertions in tests/agent/test_setup_sh_unit.py:test_build_agent_prompt_requires_repo_summary_and_realistic_trace_input. The test asserts ascending header order, verifies required phrases like 'mlflow.note.content', 'Prefer MLflow autologging', and 'mlflow.update_current_trace(session_id=...)', and rejects retired phrases such as 'Trace URL opens' and 'exercise one traced operation'. Rewording a step requires updating the test's exact casing and punctuation assertions in the same change. The test exercises only the backend=remote branch, leaving the databricks branch of build_agent_prompt uncovered.",
+  "saysFor": "s2:c3a720e67e6e1221bbe94044ce127a5eaf0331a9594dc2fd40ce4d8c8dac6f27"
+}

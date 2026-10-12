@@ -1,0 +1,69 @@
+{
+  "id": "bare-postgresql-urls-must-be-pinned-to-psycopg2-before-engin",
+  "title": "Bare postgresql:// URLs must be pinned to psycopg2 before engine creation",
+  "kind": "rule",
+  "answers": [
+    "MLflow server fails with ModuleNotFoundError no module named psycopg after upgrading SQLAlchemy to 2.1",
+    "postgresql backend store URI stopped working with SQLAlchemy 2.1",
+    "which psycopg driver does MLflow use for a postgresql:// tracking URI"
+  ],
+  "body": "Symptom: After SQLAlchemy 2.1 is installed, an MLflow server or store started with a bare postgresql:// backend or tracking URI fails at engine creation with \"ModuleNotFoundError: No module named 'psycopg'\".\nRoot cause: SQLAlchemy 2.1 maps the bare postgresql:// scheme to the psycopg3 driver, while the db extra shipped only psycopg2-binary, and the URI was passed through unchanged to sqlalchemy.create_engine in mlflow/store/db/utils.py:create_sqlalchemy_engine.\nFix pattern: Normalize a bare postgresql:// URL to postgresql+psycopg2:// before create_engine is called, and install both psycopg2-binary and psycopg[binary] in the db extra so either driver resolves.\nConstraints: Only the bare scheme is rewritten; an explicit postgresql+psycopg:// or postgresql+psycopg2:// URI must pass through unchanged. Tests asserting the URL handed to create_engine (tests/store/db/test_utils.py:test_non_mysql_no_ssl_params and the tracking and model-registry get_store tests) must expect the normalized form.",
+  "applies": "Any code path in MLflow that builds a SQLAlchemy engine from a user-supplied PostgreSQL URI; does not apply to SQLite or MySQL URLs.",
+  "tags": [
+    "database",
+    "postgresql",
+    "sqlalchemy",
+    "psycopg",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/db/utils.py",
+      "symbol": "create_sqlalchemy_engine",
+      "hash": "sha256:61718c221861416239b6ced5",
+      "line": 383,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:61718c221861416239b6ced5",
+      "fanout": {
+        "files": 2,
+        "sites": 9,
+        "refs": 12
+      }
+    },
+    {
+      "path": "tests/store/db/test_utils.py",
+      "symbol": "test_non_mysql_no_ssl_params",
+      "hash": "sha256:c7c06509a0b231086ef4fddf",
+      "line": 156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c7c06509a0b231086ef4fddf",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26239"
+  },
+  "created": "2026-10-11T10:26:40.536Z",
+  "verified": "2026-10-11T10:26:40.536Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The tracking server fails to start when configured with a standard PostgreSQL database address.",
+    "Connecting the tracking server to an existing PostgreSQL database crashes with a missing driver error.",
+    "Upgrading database libraries breaks server startup when using a standard Postgres tracking URI.",
+    "Allow the tracking server to connect to Postgres backends without requiring special driver prefixes.",
+    "Model registry server crashes on boot when pointed to a basic PostgreSQL database URL."
+  ],
+  "search": "In mlflow/store/db/utils.py:create_sqlalchemy_engine, bare postgresql:// URLs must be normalized to postgresql+psycopg2:// before create_engine is called. This prevents SQLAlchemy 2.1 from mapping bare postgresql:// to the psycopg3 driver and failing with ModuleNotFoundError when only psycopg2-binary is present. Explicit postgresql+psycopg:// or postgresql+psycopg2:// URIs remain untouched, and the rule applies to any MLflow SQLAlchemy engine built from PostgreSQL URIs, excluding SQLite and MySQL.",
+  "saysFor": "s2:1b2b4e603f9a7928d2ba488617b1a577bf6ca0ef86e6cfceb9ab6f7d5cf2f832"
+}

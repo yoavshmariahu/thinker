@@ -1,0 +1,52 @@
+{
+  "id": "omit-docstrings-that-only-restate-a-private-helper-s-name",
+  "title": "Omit docstrings that only restate a private helper's name",
+  "kind": "rule",
+  "answers": [
+    "should I add a docstring to a small private helper",
+    "docstring restating function name review comment",
+    "does the repo want docstrings on private functions in scorer_utils"
+  ],
+  "body": "Convention: a reviewer flagged a docstring that only restated the helper name as conflicting with the repository's Python guidance to omit redundant docstrings.\nWhere: mlflow/genai/scorers/scorer_utils.py:_extract_params_from_signature was kept without a docstring; the descriptive name carries the meaning.\nFix pattern: For small private helpers, rely on a descriptive name and skip the docstring; add one only when it says something the name and code do not (e.g. non-obvious constraints).\nConstraints: Public functions with real contracts, such as recreate_function, keep their docstrings describing arguments and behaviour.",
+  "applies": "Private helpers in mlflow/genai/scorers/scorer_utils.py and similar modules; reviewer-enforced, not a lint rule.",
+  "tags": [
+    "convention",
+    "docstrings",
+    "review"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "_extract_params_from_signature",
+      "hash": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "line": 130,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26172"
+  },
+  "created": "2026-10-11T10:24:14.203Z",
+  "verified": "2026-10-11T10:24:14.203Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-signature-with-parentheses-in-defaults-fails-to-reloa"
+  ],
+  "says": [
+    "Pull request code reviews flag unnecessary comments that merely repeat internal function names.",
+    "Reviewers ask to remove redundant documentation from private helpers during code review."
+  ],
+  "search": "Small private helpers such as _extract_params_from_signature in mlflow/genai/scorers/scorer_utils.py should omit docstrings that only restate the function name. Descriptive function names carry the meaning, so docstrings should only be added when they convey non-obvious constraints not evident from the name and code. Public functions with formal contracts, such as recreate_function, must retain docstrings describing arguments and behavior. This convention is reviewer-enforced in scorer_utils.py and similar modules rather than checked by a lint rule.",
+  "saysFor": "s2:61fcfe1fc132493230f5e62f76b2b0bc1dfd0dba9ffa132e2e0f5320d9889051"
+}

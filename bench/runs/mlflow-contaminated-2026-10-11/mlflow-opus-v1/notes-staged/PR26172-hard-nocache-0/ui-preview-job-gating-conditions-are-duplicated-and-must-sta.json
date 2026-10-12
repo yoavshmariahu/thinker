@@ -1,0 +1,44 @@
+{
+  "id": "ui-preview-job-gating-conditions-are-duplicated-and-must-sta",
+  "title": "UI Preview: job gating conditions are duplicated and must stay in sync",
+  "kind": "rule",
+  "answers": [
+    "add a new condition to the UI preview workflow",
+    "which jobs run for a ui-preview label event",
+    "labeled event triggers preview build for wrong label"
+  ],
+  "body": "Invariant: The eligibility guard for the UI preview is written twice in .github/workflows/ui-preview.yml, once on the notify job and once on the build job's `if`. Any new gate (the labeled-event check `github.event.action != 'labeled' || github.event.label.name == 'ui-preview'`, the author_association check, the closed-action exclusion) must be added to both jobs.\nWhy: Adding a gate to only one job lets the other job still run for events the first job rejects, e.g. a labeled event for a different label starting a build.\nEnforced at: .github/workflows/ui-preview.yml jobs notify and build, `if:` expressions.\nAlso keep the concurrency group expression consistent with these gates (see the concurrency group rule for this file).",
+  "applies": "Applies to edits of the jobs in .github/workflows/ui-preview.yml.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "ui-preview",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25673"
+  },
+  "created": "2026-10-11T08:48:44.443Z",
+  "verified": "2026-10-11T08:48:44.443Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Adding a different label to a pull request mistakenly triggered a preview deployment.",
+    "Preview builds should only trigger when adding the specific preview tag to pull requests.",
+    "Restricting preview access by user role must apply to both notifications and builds.",
+    "Closing a pull request should prevent any preview jobs from starting."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, eligibility gating conditions must be duplicated identically across the if expressions of both notify and build jobs. Applies to edits of workflow jobs, ensuring any new gate—such as the labeled-event check, author_association check, or closed-action exclusion—is added to both jobs. This prevents mismatched execution where one job runs for events rejected by the other, and the concurrency group expression must also stay consistent with these gates.",
+  "saysFor": "s2:27740ebec5aa70a375337f338b087a7488d83372e8ffd28f0c29be58707f466f"
+}

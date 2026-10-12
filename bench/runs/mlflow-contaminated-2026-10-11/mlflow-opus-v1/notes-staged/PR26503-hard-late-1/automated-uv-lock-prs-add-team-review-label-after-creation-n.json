@@ -1,0 +1,58 @@
+{
+  "id": "automated-uv-lock-prs-add-team-review-label-after-creation-n",
+  "title": "Automated uv.lock PRs: add team-review label after creation, not at creation",
+  "kind": "rule",
+  "answers": [
+    "Why does the uv.lock update PR get the team-review label only after a delay?",
+    "Automated uv lock PR triggers duplicate Protect runs or cancelled jobs",
+    "Where is the team-review label added for the uv lock bot PR?",
+    "Can I pass --label team-review to gh pr create in the uv workflow?"
+  ],
+  "body": "Invariant: the automated uv.lock PR is created without `team-review`, then labeled in a separate step after `sleep 5`.\nEnforced in .github/workflows/uv.yml (the create-or-update shell block): `gh pr create` without `--label`, then `sleep 5`, then `gh pr edit \"$PR_URL\" --add-label team-review`.\nWhy: creating and labeling back-to-back made Protect (.github/workflows/protect.yml, unchanged) start duplicate runs that cancelled each other. Separating the events reduces that race.\nThe delay is a mitigation, not a guarantee; scheduling delays can still cause cancellation.\nKeep `gh pr merge \"$PR_URL\" --auto --squash` after the labeling step so auto-merge is still enabled.\nDo not move the label back into `gh pr create --label` or drop the sleep without re-checking the duplicate-run incident.",
+  "applies": "Only the uv.lock update automation in .github/workflows/uv.yml; existing-PR updates and protect.yml are not covered by this rule.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "uv",
+    "protect",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/uv.yml",
+      "symbol": "PR_URL",
+      "hash": "sha256:6bd4b3d419ac267ba93e11a4",
+      "line": 98,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": ".github/workflows/protect.yml",
+      "hash": "sha256:a574c660ab6ed38c5067e12c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25930"
+  },
+  "created": "2026-10-11T08:41:36.150Z",
+  "verified": "2026-10-11T08:41:36.150Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated dependency update pull requests trigger duplicate test pipelines that cancel each other.",
+    "Prevent conflicting checks when team review tags are added to dependency update requests.",
+    "Dependency lock pull requests fail auto-merge because validation workflows keep getting cancelled.",
+    "Automated pull requests should delay requesting team review until initial checks launch cleanly."
+  ],
+  "search": "Automated uv.lock pull requests must be created without the team-review label, applying the label only after a five-second sleep. Enforced in .github/workflows/uv.yml to prevent creating and labeling back-to-back from triggering duplicate Protect runs in .github/workflows/protect.yml that cancel each other. The auto-squash merge command gh pr merge --auto --squash must remain after the labeling step to ensure auto-merge stays active. Applies only to uv.lock update automation in .github/workflows/uv.yml, while existing PR updates and protect.yml are not covered.",
+  "saysFor": "s2:6c55681071de532ea67672626fab80fec7731fcb21c76bd557341c2403125e11"
+}

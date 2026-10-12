@@ -1,0 +1,60 @@
+{
+  "id": "PR26503-hard-hook-1",
+  "task": "PR26503-hard",
+  "area": "mlflow/utils",
+  "arm": "hook",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "f4006248-7850-4aa5-bdd7-08374814dc70",
+  "turns": 5,
+  "wall_ms": 20875,
+  "api_ms": 13368,
+  "cost": 0.061151,
+  "in_tokens": 66292,
+  "out_tokens": 1243,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "callsBeforeFirstEdit": 2,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "tests/cli/test_scorers.py::test_list_scorers_json_output\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_with_description_short_flag\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_with_env_var\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_basic\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                        | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/cli/test_scorers.py` | 1.55s    | 42    | 0.002s | 0.692s | 0.037s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m62 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 2.11s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "Empty CLI tables now print their header row and the dashed separator line instead of coming out blank. The relevant tests pass: `tests/utils/test_string_utils.py` and `tests/cli/test_scorers.py`, 62 in total.\n\n**The cause:** the shared table function (`_create_table` in `mlflow/utils/string_utils.py`) worked out column widths by pairing each column of data with its header. With no rows there were no columns to pair, so no widths were produced. That made both the header row and the separator come out as empty strings.\n\n**The fix:** widths are now calculated once per header. Each width is still the largest of three values: the longest cell in that column, the header length plus 2, and the minimum width. With no rows the \"longest cell\" counts as 0, so the width comes from the header label and the usual minimum-width and padding rules. That makes the header identical to the one a populated table would show. Tables with rows produce exactly the same output as before.\n\n**Tests:** the test changes were already staged in your working tree, and they now pass:\n- `tests/utils/test_string_utils.py` gains a test that an empty table keeps its headers and separator.\n- `tests/cli/test_scorers.py` now expects the scorers list for an empty experiment to show its header and separator, instead of empty output.\n\nOne behaviour change to be aware of: if a row ever had fewer cells than there are headers, the old code silently dropped the extra columns, and the new code raises an `IndexError`. Rows and headers should always be the same length, so this shouldn't happen.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/utils/string_utils.py b/mlflow/utils/string_utils.py\nindex f253795fa..6d3747951 100644\n--- a/mlflow/utils/string_utils.py\n+++ b/mlflow/utils/string_utils.py\n@@ -54,8 +54,12 @@ def _create_table(\n     d     e     f\n     \"\"\"\n     column_widths = [\n-        max(len(max(col, key=len)), len(header) + 2, min_column_width)\n-        for col, header in zip(zip(*rows), headers)\n+        max(\n+            max((len(row[i]) for row in rows), default=0),\n+            len(header) + 2,\n+            min_column_width,\n+        )\n+        for i, header in enumerate(headers)\n     ]\n     aligned_rows = [\n         column_sep.join(header.ljust(width) for header, width in zip(headers, column_widths)),\ndiff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py\nindex 5c1b301a5..a4656e7eb 100644\n--- a/tests/cli/test_scorers.py\n+++ b/tests/cli/test_scorers.py\n@@ -146,7 +146,7 @@ def test_list_scorers_json_output(\n @pytest.mark.parametrize(\n     (\"output_format\", \"expected_output\"),\n     [\n-        (\"table\", \"\"),\n+        (\"table\", \"Scorer Name    Description  \\n-------------  -------------\\n\"),\n         (\"json\", {\"scorers\": []}),\n     ],\n )\n@@ -164,8 +164,7 @@ def test_list_scorers_empty_experiment(\n         output_json = json.loads(result.output)\n         assert output_json == expected_output\n     else:\n-        # Empty table produces minimal output\n-        assert result.output.strip() == expected_output\n+        assert result.output == expected_output\n \n \n def test_list_scorers_with_experiment_id_env_var(\ndiff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py\nindex 20c7ac3c6..ca9ba61db 100644\n--- a/tests/utils/test_string_utils.py\n+++ b/tests/utils/test_string_utils.py\n@@ -1,6 +1,7 @@\n import pytest\n \n from mlflow.utils.string_utils import (\n+    _create_table,\n     format_table_cell_value,\n     is_string_type,\n     mslex_quote,\n@@ -9,6 +10,13 @@ from mlflow.utils.string_utils import (\n )\n \n \n+def test_create_table_empty_rows_keeps_headers():\n+    assert _create_table([], [\"Name\", \"ID\"]).splitlines() == [\n+        \"Name    ID  \",\n+        \"------  ----\",\n+    ]\n+\n+\n @pytest.mark.parametrize(\n     ((\"original\", \"prefix\", \"expected\")),\n     [(\"smoketest\", \"smoke\", \"test\"), (\"\", \"test\", \"\"), (\"\", \"\", \"\"), (\"test\", \"\", \"test\")],\n",
+  "distill": null,
+  "cache_read_tokens": 63335,
+  "cache_write_tokens": 2949,
+  "fresh_in_tokens": 8,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "bedrock-streaming-exception-frames-must-raise-httpexception",
+  "title": "Bedrock streaming exception frames must raise HTTPException with a mapped status",
+  "kind": "rule",
+  "answers": [
+    "Bedrock stream throttling shows as 502 in client error chunk",
+    "gateway SSE error for Bedrock ThrottlingException has wrong status",
+    "Bedrock stream mid-response error status code",
+    "modelTimeoutException on Claude Bedrock stream reported as generic error"
+  ],
+  "body": "Symptom: a Bedrock Claude stream that fails after it has started reports a generic error, so a client cannot tell throttling (429) from service unavailable (503) or timeout (408).\nRoot cause: `mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse` reads non-`event` frames; before the fix there was no status mapping.\nFix pattern: map `:exception-type` through `_BEDROCK_STREAM_EXCEPTION_STATUS` (429, 503, 408) with 502 as the default, and raise `HTTPException` so `safe_stream` writes that status into the SSE error chunk, the same way `send_stream_request` reports pre-first-frame errors.\nConstraints: the mapping is only for the retryable frames listed; other exception frames map to 502. Decode frames with botocore `EventStreamBuffer` from `botocore.eventstream`, and keep the install hint for a missing boto3.",
+  "applies": "Changes to the Bedrock event-stream to SSE conversion or to how stream errors are surfaced to clients.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "streaming",
+    "errors"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_event_stream_to_anthropic_sse",
+      "hash": "sha256:6a914e52d652128a8d052bf9",
+      "line": 47,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a914e52d652128a8d052bf9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_BEDROCK_STREAM_EXCEPTION_STATUS",
+      "hash": "sha256:3f83bda8db56195a4c8610cd",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T10:32:16.742Z",
+  "verified": "2026-10-11T10:32:16.742Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t",
+    "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t"
+  ],
+  "says": [
+    "Mid-stream errors from Bedrock report generic gateway failures instead of rate limits.",
+    "Streaming chat responses return generic 502 errors when Bedrock models time out.",
+    "Surface rate throttling as 429 status in streaming error events from Bedrock.",
+    "Client applications cannot distinguish service unavailability from timeouts during live model streams.",
+    "Map upstream provider exception types to specific HTTP codes inside stream chunks."
+  ],
+  "search": "Bedrock streaming exception frames must map into specific HTTP status codes when raised as HTTP exceptions for server-sent events. In mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse, non-event frames have their :exception-type mapped via _BEDROCK_STREAM_EXCEPTION_STATUS to 429, 503, or 408, defaulting to 502. Raising HTTPException allows safe_stream to embed the mapped status code into the SSE error chunk, decoding frames via botocore EventStreamBuffer and preserving the missing boto3 install hint.",
+  "saysFor": "s2:adae55db1934491a204e9a2ed0c996e252e948c143acf8012c2a1bd18ae1cbac"
+}

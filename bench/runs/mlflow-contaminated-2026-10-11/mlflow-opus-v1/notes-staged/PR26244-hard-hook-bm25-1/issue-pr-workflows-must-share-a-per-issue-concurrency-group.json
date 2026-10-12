@@ -1,0 +1,56 @@
+{
+  "id": "issue-pr-workflows-must-share-a-per-issue-concurrency-group",
+  "title": "Issue/PR workflows must share a per-issue concurrency group key, not github.run_id",
+  "kind": "rule",
+  "answers": [
+    "repeated edits to an issue trigger parallel workflow runs",
+    "why does my issue bot workflow run twice at once on the same issue",
+    "concurrency group for issue-triggered GitHub workflow",
+    "labeling workflow runs in parallel for the same pull request"
+  ],
+  "body": "Invariant: concurrency.group in issue- or PR-triggered workflows under .github/workflows must key on the issue or PR, as `${{ github.workflow }}-${{ github.event.issue.number }}` (issue-only triggers) or `${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}` (dual issues/pull_request_target triggers).\nSymptom: repeated opened/edited events on one issue or PR start overlapping bot runs.\nRoot cause: the group was `${{ github.run_id }}`, which is unique per run, so no two runs ever share a group and nothing serializes them.\nWhat breaks if skipped: a single-number key is empty for the other event type on dual-trigger workflows, so the `||` fallback is required in labeling.yml.\nConstraints: cancel-in-progress stays false in these files; the PR relies on job-level `if:` conditions to gate the work, so cancelling in-flight runs is not used. Enforced only by the YAML concurrency block, not by any test.",
+  "applies": "Applies to GitHub workflows triggered by issues or pull requests whose concurrency group must serialize repeated events per item; not to push, schedule or workflow_dispatch workflows, which have no issue number.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "workflows",
+    "issues"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/close-security-issues.yml",
+      "hash": "sha256:350d18b54b0d372408c3a836",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/issue-warning.yml",
+      "hash": "sha256:b8c51ce9f74bd9f4e52a9baf",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25617"
+  },
+  "created": "2026-10-11T08:49:46.819Z",
+  "verified": "2026-10-11T08:49:46.819Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Editing an issue repeatedly triggers overlapping bot runs at the same time.",
+    "Automated labeling bot runs multiple instances concurrently when a pull request is updated.",
+    "Issue automation bot posts duplicate comments when an issue is edited in rapid succession.",
+    "Ensure automated workflows for an issue run sequentially rather than in parallel.",
+    "Repeated changes to a pull request cause simultaneous automated triage actions."
+  ],
+  "search": "GitHub workflows triggered by issues or pull requests must serialize per item by keying concurrency.group on the workflow and issue or pull request number rather than github.run_id. Dual-trigger workflows require a fallback expression to prevent empty keys across both event types, as in .github/workflows/labeling.yml. Workflows keep cancel-in-progress set to false, relying on job-level if conditions rather than run cancellation. The rule applies to .github/workflows/close-security-issues.yml, issue-warning.yml, and labeling.yml, and does not apply to push, schedule, or workflow_dispatch triggers.",
+  "saysFor": "s2:dd0baf199446b43fe4e4557c5981be162b0dd37a61fcb402b590f48e6b95449f"
+}

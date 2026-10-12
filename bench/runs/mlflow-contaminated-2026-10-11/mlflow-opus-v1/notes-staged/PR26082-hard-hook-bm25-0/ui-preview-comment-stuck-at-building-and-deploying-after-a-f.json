@@ -1,0 +1,45 @@
+{
+  "id": "ui-preview-comment-stuck-at-building-and-deploying-after-a-f",
+  "title": "UI Preview comment stuck at 'Building and deploying' after a failed deploy: finalize job must wait on notify, build and deploy",
+  "kind": "rule",
+  "answers": [
+    "UI preview comment still says Building and deploying after the deployment failed",
+    "PR gets duplicate UI Preview comments on first preview attempt",
+    "How do I make the UI Preview PR comment show failure instead of staying in progress?",
+    "Why does the preview comment race with the build failure notification?"
+  ],
+  "body": "Symptom: After a UI preview deployment fails, the PR's UI Preview comment keeps saying \"Building and deploying…\" and never reaches a terminal state. On a first attempt, two comments can appear.\nRoot cause: .github/workflows/ui-preview.yml:finalize did not list notify in needs, so a fast build failure could let finalize and notify both see no marker comment and each create one; if notify posted last, the in-progress text stayed. Before this change, the comment was only written on the success path.\nFix pattern: Keep one finalize job as the only writer of the terminal comment. Set needs to [notify, build, deploy], use if: always() && !cancelled() && github.event_name != 'push' && (deploy success || build failure || deploy failure), then find the marker comment and PATCH it, or create it if absent.\nConstraints: Canceled runs, skipped runs and push runs on master are intentionally not finalized. Do not add a second job that creates the comment.",
+  "applies": "Edits to the UI Preview workflow in .github/workflows/ui-preview.yml that touch PR comment creation or finalization.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "ui-preview",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25674"
+  },
+  "created": "2026-10-11T08:48:47.444Z",
+  "verified": "2026-10-11T08:48:47.444Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pull request preview comment is stuck saying building and deploying even after deployment failed.",
+    "The pull request preview comment should update to show failure instead of staying in progress.",
+    "Opening a pull request generates duplicate preview status comments on the first attempt.",
+    "Make sure failed preview builds update the pull request comment with the failure status."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, the finalize job must list notify, build, and deploy in needs so it acts as the sole writer of the terminal PR comment. Applies to edits touching comment creation or finalization, requiring finalize to run when not cancelled, not a push event, and when deploy succeeds or build/deploy fails. The job patches the marker comment or creates it if absent, while canceled, skipped, and master push runs are intentionally not finalized. No second job should be added to create the comment.",
+  "saysFor": "s2:8978df7f3548d4d5a3226adbda3e87e334c4fc32c0b140b74289870161f5f5f9"
+}

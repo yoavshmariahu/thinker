@@ -1,0 +1,88 @@
+{
+  "id": "livespan-record-exception-normalize-string-input-to-exceptio",
+  "title": "LiveSpan.record_exception: normalize string input to Exception before type dispatch",
+  "kind": "rule",
+  "answers": [
+    "span.record_exception with a string sets status description to 'str: ...'",
+    "error status description on span does not match the recorded exception event",
+    "record_exception string message shows Exception event but str status text",
+    "tracing span error status says str instead of Exception"
+  ],
+  "body": "Symptom: When a user calls span.record_exception(\"Something went wrong\") with a plain string, the span's error status description reads \"str: Something went wrong\", while the recorded exception event says \"Exception\", so the two disagree.\nRoot cause: mlflow/entities/span.py:LiveSpan.record_exception branched on the argument's type and only wrapped the string in Exception(...) inside the event branch. The status description was therefore derived from the original, unwrapped str value.\nFix pattern: Convert the string to an Exception at the top of the method, before any isinstance dispatch, so every downstream use (event and status) sees the same Exception object. Keep the single Exception branch and the MlflowException raise for other types.\nConstraints: Applies to LiveSpan.record_exception and any similar helper that accepts str or Exception and writes both an event and a status. Do not add a separate string-only code path that builds its own event or status, because that is how the two drifted apart. Regression is covered by tests/tracing/test_fluent.py:test_span_record_exception_with_string, which asserts the status description.",
+  "applies": "Tracing span exception recording in mlflow/entities/span.py; not a general rule for other span APIs.",
+  "tags": [
+    "tracing",
+    "span",
+    "record_exception",
+    "status",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LiveSpan.record_exception",
+      "hash": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "line": 1111,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "fanout": {
+        "files": 14,
+        "sites": 20,
+        "refs": 20
+      }
+    },
+    {
+      "path": "tests/tracing/test_fluent.py",
+      "symbol": "test_span_record_exception_with_string",
+      "hash": "sha256:5f1c6a075f60fd5cd93cf647",
+      "line": 2016,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f1c6a075f60fd5cd93cf647",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "record_exception",
+      "hash": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "line": 1111,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "fanout": {
+        "files": 14,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26171"
+  },
+  "created": "2026-10-11T10:24:12.484Z",
+  "verified": "2026-10-11T10:24:12.484Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-get-must-stay-an-unresolved-attribute-hint-via-getattr",
+    "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss",
+    "span-classes-that-define-getitem-must-also-set-iter-none",
+    "span-getitem-hint-lookup-must-not-evaluate-attribute-getters"
+  ],
+  "says": [
+    "Trace span error status displays a strange string prefix instead of exception details.",
+    "Recorded error event and span status description show conflicting information in the trace viewer.",
+    "Span status description has an unwanted string prefix when logging plain text errors.",
+    "Trace details screen shows mismatched error names between the span status and timeline event."
+  ],
+  "search": "mlflow/entities/span.py:LiveSpan.record_exception must convert string arguments to Exception objects before type dispatch so status descriptions and recorded events match. Downstream event and status handling must share the single Exception instance, avoiding separate string paths and raising MlflowException on invalid types. This behavior is verified by tests/tracing/test_fluent.py:test_span_record_exception_with_string.",
+  "saysFor": "s2:8ace3cd26800d4de0b8261e6b57dad98584767f4eadbc638e3445ff521206c71"
+}

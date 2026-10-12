@@ -1,0 +1,89 @@
+{
+  "id": "issue-detection-invoke-must-require-use-on-the-gateway-secre",
+  "title": "Issue-detection invoke must require USE on the gateway secret it decrypts, not only UPDATE on the experiment",
+  "kind": "rule",
+  "answers": [
+    "Why can a user run issue detection with another user's AI Gateway API key?",
+    "issues/invoke secret_id authorization check for gateway secrets",
+    "Which permission is needed to use a gateway secret in issue detection?",
+    "GHSA-2m86-c5q7-rxgr issue detection secret bypass"
+  ],
+  "body": "Symptom: a user with edit rights on their own experiment can run issue detection with another user's AI Gateway secret, so the server decrypts a key they cannot access.\nRoot cause: mlflow/server/auth/__init__.py:validate_can_invoke_issue_detection previously was only validate_can_update_experiment, while the handler passes the body secret_id to _fetch_provider_credentials, which decrypts it via the tracking store's _get_decrypted_secret.\nFix pattern: keep the UPDATE check on the experiment, then read secret_id from the body and return _get_gateway_secret_permission(secret_id).can_use. Map INVOKE_ISSUE_DETECTION to this validator in BEFORE_REQUEST_VALIDATORS. The shared helper _get_permission_from_gateway_secret_id delegates to _get_gateway_secret_permission, so workspace resolution and the default-permission floor match the gateway secret RPCs.\nConstraints: the falsy guard (if not secret_id) must match the handler's own `if secret_id:` check, so an empty or absent secret_id needs no grant while an explicit id is always checked. READ on the secret is not enough; unknown ids resolve to no grant and are denied. genai/evaluate/invoke and scorer/invoke take no secret_id and keep the experiment-only check. An endpoint_name on this route is NOT checked against gateway-endpoint permissions (known gap).\nApplies: any basic-auth route whose handler decrypts or consumes a caller-supplied gateway secret id; applies to validators in mlflow/server/auth/__init__.py.",
+  "applies": "Basic-auth before-request validators for routes that cause the server to use a gateway secret from the request body.",
+  "tags": [
+    "auth",
+    "gateway",
+    "secrets",
+    "issue-detection",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_invoke_issue_detection",
+      "hash": "sha256:9f7271c736ea2426c870ce09",
+      "line": 2121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f7271c736ea2426c870ce09",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_permission_from_gateway_secret_id",
+      "hash": "sha256:6927a837fe34822a72521f72",
+      "line": 1117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6927a837fe34822a72521f72",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25848"
+  },
+  "created": "2026-10-11T10:32:07.245Z",
+  "verified": "2026-10-11T10:32:07.245Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-authz-validators-must-read-resource-ids-from-the-par",
+    "createmodelversion-source-read-check-must-authorize-the-prot",
+    "gateway-list-routes-need-authentication-plus-a-per-item-use",
+    "nested-graphql-fields-over-protected-resources-must-be-liste"
+  ],
+  "says": [
+    "Users can trigger issue detection by providing AI Gateway secrets they cannot access.",
+    "Require usage permissions on AI Gateway credentials when running automated issue detection.",
+    "Team members are consuming shared model provider API keys without granted permissions.",
+    "Issue detection jobs execute using private gateway secrets owned by other accounts.",
+    "Block unauthorized users from running trace issue analysis with restricted gateway keys."
+  ],
+  "search": "The basic-auth route validator validate_can_invoke_issue_detection in mlflow/server/auth/__init__.py must verify USE permission on the request secret_id alongside UPDATE permission on the experiment. The check calls _get_gateway_secret_permission via _get_permission_from_gateway_secret_id, requiring can_use for explicit secret_ids while allowing empty or absent ids. Unknown secret IDs are denied, READ permission is insufficient, endpoint_name is not checked against gateway-endpoint permissions, and genai/evaluate/invoke and scorer/invoke retain experiment-only checks. Applies to basic-auth routes whose handlers decrypt caller-supplied gateway secrets via _fetch_provider_credentials and tracking store _get_decrypted_secret.",
+  "saysFor": "s2:624b1cb94cefd9454303d8734c3482a35246215f163092a69dcd59f66cc22628"
+}

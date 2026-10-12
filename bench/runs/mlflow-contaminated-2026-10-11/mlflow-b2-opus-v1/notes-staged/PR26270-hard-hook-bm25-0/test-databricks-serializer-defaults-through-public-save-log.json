@@ -1,0 +1,80 @@
+{
+  "id": "test-databricks-serializer-defaults-through-public-save-log",
+  "title": "Test Databricks serializer defaults through public save/log, patching the module-level detection",
+  "kind": "rule",
+  "answers": [
+    "how to test databricks default serialization format",
+    "mock databricks runtime in flavor tests",
+    "test serialization default without running on databricks"
+  ],
+  "body": "Convention from review comments: helper-only tests (calling _get_default_serialization_format directly) do not prove the default reaches the artifact, dependencies or logged-model telemetry, so they are insufficient on their own.\nTest setup: patch the flavor's own is_in_databricks_runtime (e.g. mock.patch(\"mlflow.sklearn.is_in_databricks_runtime\", return_value=True)) and the tracking URI via mock.patch(\"mlflow.get_tracking_uri\", return_value=\"databricks\").\nAssert: call public save_model and log_model under both contexts and check the flavor configuration serialization_format and the requirements, not only the helper return value.\nConstraints: Pytorch export_model=True must still yield pt2 in the same contexts; LightGBM native Booster needs its own check.",
+  "applies": "Unit tests for flavor serialization defaults in tests/sklearn, tests/pytorch and tests/lightgbm.",
+  "tags": [
+    "testing",
+    "databricks",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_get_default_serialization_format_in_databricks",
+      "hash": "sha256:7cb8ff5df67022c92b66a9e2",
+      "line": 687,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7cb8ff5df67022c92b66a9e2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_get_default_serialization_format_in_databricks",
+      "hash": "sha256:cffd80ddabf7d5eb7bc854f6",
+      "line": 577,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cffd80ddabf7d5eb7bc854f6",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/lightgbm/test_lightgbm_model_export.py",
+      "symbol": "test_get_default_serialization_format_in_databricks",
+      "hash": "sha256:565e02a81a71e79fa8435c60",
+      "line": 403,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:565e02a81a71e79fa8435c60",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25992"
+  },
+  "created": "2026-10-11T10:29:35.953Z",
+  "verified": "2026-10-11T10:29:35.953Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Models saved in cloud workspace environments do not use the expected default serialization format.",
+    "Logged model artifacts in managed notebooks are missing environment-specific packaging requirements.",
+    "Ensure logged models automatically apply the recommended platform format when running in Databricks.",
+    "Exported model configurations fail to record the correct storage format during model logging."
+  ],
+  "search": "Testing Databricks default serialization formats requires calling public save_model and log_model while patching the flavor's is_in_databricks_runtime and get_tracking_uri. In tests/sklearn, tests/pytorch, and tests/lightgbm, tests must assert on serialization_format and requirements rather than relying solely on _get_default_serialization_format helper returns. PyTorch export_model=True must still yield pt2 in these contexts, and LightGBM native Booster requires its own check.",
+  "saysFor": "s2:d612d883a5230728785891a6893ae219ec613e04451130567c31ff1f62e76eb0"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "retry-yml-log-group-titles-use-the-full-pr-url-not-the-pr-nu",
+  "title": "retry.yml log group titles use the full PR URL, not the PR number",
+  "kind": "rule",
+  "answers": [
+    "retry workflow log groups show only PR number",
+    "how to find the PR for a retry log group",
+    "why is the retry group title a URL",
+    "PR group title in retry log"
+  ],
+  "body": "Convention: The per-PR log group in the retry workflow is titled with the full pull request URL, built from the repository and PR number, rather than the bare \"PR #<number>\" label.\nWhere enforced: .github/workflows/retry.yml, the `while IFS=$'\\t' read -r number sha` loop that emits `echo \"::group::https://github.com/$GH_REPO/pull/$number\"` before calling retry.sh.\nWhy it matters: The stated goal is that reruns are easy to locate and collect from the logs; a bare number does not link anywhere, while the URL is stable and clickable.\nConstraints: Keep the URL built from $GH_REPO so that it matches the repository used for the rerun calls. Changing the title back to a number reverses the discoverability fix.",
+  "applies": "Applies to log group titles in .github/workflows/retry.yml; does not cover the rerun notices printed by retry.sh.",
+  "tags": [
+    "retry",
+    "github-actions",
+    "logs",
+    "discoverability"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.yml",
+      "hash": "sha256:d7b181d8eb96458cd5beacb3",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26135"
+  },
+  "created": "2026-10-11T10:27:38.959Z",
+  "verified": "2026-10-11T10:27:38.959Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+    "dry-run-the-ci-retry-sweep-locally-and-by-manual-dispatch"
+  ],
+  "says": [
+    "Retry workflow logs display plain pull request numbers instead of clickable web links",
+    "Collapsible groups in the retry run log cannot be clicked to open pull requests",
+    "Make retry log section headers show the full clickable pull request address",
+    "Finding which pull request corresponds to a retry log section requires manual lookup"
+  ],
+  "search": "Log group titles in .github/workflows/retry.yml must use the full pull request URL constructed from $GH_REPO and the PR number instead of a bare PR number label. Building the URL with $GH_REPO ensures alignment with the repository used for retry.sh rerun invocations. This rule applies to log group titles in .github/workflows/retry.yml and does not cover notices emitted by retry.sh.",
+  "saysFor": "s2:418aec5209f57486d89efa2f6191ffc3a58c906f9b8fcd94338b472cca57d542"
+}

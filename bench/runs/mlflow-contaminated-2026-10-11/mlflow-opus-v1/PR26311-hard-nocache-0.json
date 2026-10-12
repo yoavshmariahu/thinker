@@ -1,0 +1,60 @@
+{
+  "id": "PR26311-hard-nocache-0",
+  "task": "PR26311-hard",
+  "area": "mlflow/data",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "17026b92-70db-4e00-a004-b6094bd9efe2",
+  "turns": 9,
+  "wall_ms": 34283,
+  "api_ms": 30027,
+  "cost": 0.195991,
+  "in_tokens": 153110,
+  "out_tokens": 3188,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 7,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "callsBeforeFirstEdit": 4,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "fail",
+    "testTail": "::endgroup::\n\n========================= command to run failed tests ==========================\npytest 'tests/data/test_evaluation_dataset.py::test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]'\n\n\u001b[36m\u001b[1m=========================== short test summary info ============================\u001b[0m\n\u001b[31mFAILED | MEM 6.9/16.0 GB | DISK 12.4/460.4 GB\u001b[0m tests/data/test_evaluation_dataset.py::\u001b[1mtest_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]\u001b[0m - AssertionError: assert b'\\xc1\\x99\\x9aE@W\\xbf\\xd0\\x00\\x00\\x00\\x00\\x00\\x00\\x0...\n\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m\n\u001b[31m==================== \u001b[31m\u001b[1m1 failed\u001b[0m, \u001b[32m5 passed\u001b[0m, \u001b[33m1 warning\u001b[0m\u001b[31m in 1.39s\u001b[0m\u001b[31m ====================\u001b[0m\n"
+  },
+  "result": "Datasets whose rows hold lists of dictionaries with different lengths now hash without error, so converting them to an evaluation dataset works. I reproduced the original `ValueError` before the fix, and the relevant test file now passes (7 tests).\n\n**Cause.** In `_hash_array_like_obj_as_bytes` (`mlflow/data/evaluation_dataset.py`), when the data is a numpy array whose elements are themselves arrays, the code called `np.array(data.tolist())` to turn it into a 2D grid. That only works when every inner array is the same length. A Hugging Face column of lists of dicts with differing lengths raised `ValueError: ... inhomogeneous shape`.\n\n**Fix.** In that branch, the code now first checks whether the nested arrays contain dictionaries (using the existing `_is_array_has_dict`). If they do, it hashes them element by element with the existing `_hash_array_of_dict_as_bytes`, so the hash comes from the actual contents and doesn't need a rectangular shape.\n\n**Existing results unchanged.**\n- Nested arrays that don't contain dicts go through the same path as before.\n- Same-length nested arrays of dicts already ended up in `_hash_array_of_dict_as_bytes` after the grid conversion. Going row by row there produces the same bytes as hashing the original rows directly, so their hashes don't change.\n\n**Tests** (added to `tests/data/test_evaluation_dataset.py`):\n- `test_hash_uneven_nested_arrays_of_dicts`: uneven nested arrays of dicts hash without error, give the same result on repeat, and give a different hash when the contents differ.\n- `test_hash_even_nested_arrays_of_dicts_unchanged`: same-length nested arrays of dicts produce exactly the same hash as the old grid-conversion path.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..ffd216422 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -143,6 +143,10 @@ def _hash_array_like_obj_as_bytes(data):\n         hashable = np.array(str(val) for val in data)\n         return _hash_ndarray_as_bytes(hashable)\n     elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n+        if _is_array_has_dict(data):\n+            # Nested arrays of dicts may have varying lengths (e.g. Hugging Face datasets),\n+            # which can't be converted into a rectangular ndarray, so hash them element-wise.\n+            return _hash_array_of_dict_as_bytes(data)\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n         hashable = np.array(data.tolist())\ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..9b79b5abe 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,7 +1,11 @@\n import numpy as np\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+from mlflow.data.evaluation_dataset import (\n+    _hash_array_like_obj_as_bytes,\n+    _hash_ndarray_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n@@ -36,3 +40,25 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+def _object_array(*elements):\n+    arr = np.empty(len(elements), dtype=object)\n+    arr[:] = [np.array(e, dtype=object) for e in elements]\n+    return arr\n+\n+\n+def test_hash_uneven_nested_arrays_of_dicts():\n+    data = _object_array([{\"a\": 1}], [{\"a\": 1}, {\"b\": 2}])\n+    other = _object_array([{\"a\": 1}], [{\"a\": 1}, {\"b\": 3}])\n+\n+    hashed = _hash_array_like_obj_as_bytes(data)\n+\n+    assert hashed == _hash_array_like_obj_as_bytes(data)\n+    assert hashed != _hash_array_like_obj_as_bytes(other)\n+\n+\n+def test_hash_even_nested_arrays_of_dicts_unchanged():\n+    data = _object_array([{\"a\": 1}, {\"b\": 2}], [{\"c\": 3}, {\"d\": 4}])\n+\n+    assert _hash_array_like_obj_as_bytes(data) == _hash_ndarray_as_bytes(np.array(data.tolist()))\n",
+  "distill": null,
+  "cache_read_tokens": 140075,
+  "cache_write_tokens": 13019,
+  "fresh_in_tokens": 16,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

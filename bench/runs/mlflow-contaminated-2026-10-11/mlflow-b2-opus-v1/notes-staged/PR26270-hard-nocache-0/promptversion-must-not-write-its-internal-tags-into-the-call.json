@@ -1,0 +1,54 @@
+{
+  "id": "promptversion-must-not-write-its-internal-tags-into-the-call",
+  "title": "PromptVersion must not write its internal tags into the caller's tags dict",
+  "kind": "rule",
+  "answers": [
+    "PromptVersion changes the tags dict I passed in",
+    "reusing a tags dict makes a new prompt get the old prompt's template or model config",
+    "prompt version tags contain mlflow.prompt.text after construction",
+    "model_config leaks from one prompt version to another"
+  ],
+  "body": "Symptom: Reusing one tags dict for two prompt versions makes the second prompt show the first prompt's model config (and template tags), and the caller's dict gains mlflow.prompt.* keys.\nRoot cause: mlflow/entities/model_registry/prompt_version.py:PromptVersion.__init__ did `tags = tags or {}`, which aliases the caller's dict, then wrote internal tags (mlflow.prompt.text, mlflow.prompt.type, mlflow.prompt.is_prompt, model config) into it.\nFix pattern: Copy the incoming mapping before adding internal keys (`tags = dict(tags or {})`). Apply the same copy-before-write to any constructor that stores caller-supplied dicts and then adds keys.\nConstraints: Applies to PromptVersion construction paths that take `tags`. Copying is shallow; nested values in the caller's dict are still shared.",
+  "applies": "Any change to PromptVersion.__init__ or other entity constructors in mlflow/entities that accept a tags dict and add keys to it.",
+  "tags": [
+    "prompts",
+    "entities",
+    "mutation",
+    "tags"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/model_registry/prompt_version.py",
+      "symbol": "PromptVersion.__init__",
+      "hash": "sha256:62b7c2c06a485239a34e09b0",
+      "line": 190,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:62b7c2c06a485239a34e09b0",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26245"
+  },
+  "created": "2026-10-11T10:23:39.868Z",
+  "verified": "2026-10-11T10:23:39.868Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Creating a second prompt version unexpectedly displays model settings from the first prompt.",
+    "Saving a new prompt modifies my original labels dictionary with internal tracking fields.",
+    "New prompt versions inherit model configurations and template labels from previously registered prompts.",
+    "Ensure prompt creation does not pollute or overwrite existing custom metadata across versions."
+  ],
+  "search": "Constructors in mlflow/entities, particularly PromptVersion.__init__, must copy caller-supplied tags mappings before mutating them with internal keys such as mlflow.prompt.text, mlflow.prompt.type, mlflow.prompt.is_prompt, and model config. Applies to PromptVersion construction taking tags or any entity constructor storing caller dicts; copying is shallow, leaving nested values shared.",
+  "saysFor": "s2:8e975a63865a2de6aafe7c6cea00efe7a5003a6b97f84a70482d528e50f65b29"
+}

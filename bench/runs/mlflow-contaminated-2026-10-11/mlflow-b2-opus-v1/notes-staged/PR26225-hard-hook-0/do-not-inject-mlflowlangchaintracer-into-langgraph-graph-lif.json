@@ -1,0 +1,70 @@
+{
+  "id": "do-not-inject-mlflowlangchaintracer-into-langgraph-graph-lif",
+  "title": "Do not inject MlflowLangchainTracer into LangGraph graph lifecycle callback managers",
+  "kind": "rule",
+  "answers": [
+    "LangGraph interrupt() logs MlflowLangchainTracer.on_interrupt AttributeError with autolog",
+    "spurious tracer error on resume with mlflow.langchain.autolog",
+    "langgraph callbacks manager receives MLflow tracer",
+    "Error in MlflowLangchainTracer.on_resume callback"
+  ],
+  "body": "Symptom: With mlflow.langchain.autolog() on and LangGraph >= 1.1.8, every interrupt() and resume logs \"Error in MlflowLangchainTracer.on_interrupt/on_resume callback: AttributeError\". Traces are still recorded correctly.\nRoot cause: mlflow/langchain/autolog.py:_patched_callback_manager_init patches BaseCallbackManager.__init__ and injects a MlflowLangchainTracer. langgraph.callbacks _GraphCallbackManager/_AsyncGraphCallbackManager inherit from BaseCallbackManager, only accept GraphCallbackHandler, and do not implement the tracer's hooks.\nFix pattern: Return early from _patched_callback_manager_init when the manager is a LangGraph lifecycle manager, using the _is_langgraph_lifecycle_manager check (type(manager).__module__ == \"langgraph.callbacks\"). Keep the check off the private classes so langgraph stays optional.\nConstraints: Do not replace the module check with duck-typing on on_interrupt; if langchain_core adds that hook to BaseCallbackManager, every manager would be skipped and tracing would silently stop. If LangGraph moves the classes, the log noise returns but traces are not lost. Ordinary CallbackManager must still get exactly one tracer.",
+  "applies": "Any change to the autolog callback-manager patch in mlflow/langchain/autolog.py or to how LangGraph callback managers are created.",
+  "tags": [
+    "langchain",
+    "langgraph",
+    "autolog",
+    "tracing",
+    "callbacks"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/langchain/autolog.py",
+      "symbol": "_patched_callback_manager_init",
+      "hash": "sha256:f5fc76626e1e014ce7e2e470",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f5fc76626e1e014ce7e2e470",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/langchain/autolog.py",
+      "symbol": "_is_langgraph_lifecycle_manager",
+      "hash": "sha256:08c516eb4c00ce5be238da6a",
+      "line": 87,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:08c516eb4c00ce5be238da6a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26136"
+  },
+  "created": "2026-10-11T10:27:29.547Z",
+  "verified": "2026-10-11T10:27:29.547Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automatic logging displays false callback error messages whenever an agent pauses or resumes.",
+    "Console fills with noisy callback failure warnings during interactive workflow pause and resume steps.",
+    "Stop showing harmless tracer exception logs when interrupting and resuming graph agent executions.",
+    "Pausing a graph run triggers alarming tracer errors even though execution tracing succeeds.",
+    "Suppress spurious lifecycle callback errors in terminal logs during interactive workflow pauses."
+  ],
+  "search": "In mlflow/langchain/autolog.py:_patched_callback_manager_init, return early using _is_langgraph_lifecycle_manager to check type(manager).__module__ == 'langgraph.callbacks' instead of injecting MlflowLangchainTracer into LangGraph graph lifecycle callback managers. This prevents AttributeError log noise on interrupt() and resume when mlflow.langchain.autolog() runs with LangGraph >= 1.1.8, where _GraphCallbackManager and _AsyncGraphCallbackManager inherit from BaseCallbackManager but only accept GraphCallbackHandler. Do not duck-type on on_interrupt to avoid silently disabling tracing if langchain_core adds the hook to BaseCallbackManager, and keep ordinary CallbackManager receiving exactly one tracer.",
+  "saysFor": "s2:bdc93a772ae3accea2b714b8e7ff49ed2134a89fd37e09963fb0ba3ca8cb6855"
+}

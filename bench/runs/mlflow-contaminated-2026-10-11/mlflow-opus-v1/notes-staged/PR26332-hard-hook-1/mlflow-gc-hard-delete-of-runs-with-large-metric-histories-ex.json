@@ -1,0 +1,71 @@
+{
+  "id": "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex",
+  "title": "mlflow gc hard-delete of runs with large metric histories exhausts memory",
+  "kind": "rule",
+  "answers": [
+    "mlflow gc runs out of memory deleting runs",
+    "hard delete of a run with millions of metrics uses GiBs of RAM",
+    "why does mlflow gc take so much memory and time on big runs",
+    "gc deleted runs cause OOM in the tracking server"
+  ],
+  "body": "Symptom: Running `mlflow gc` on a tracking store with a run that has a very large metric history consumes tens of GiB of memory and runs for a long time before the run is removed.\nRoot cause: SqlAlchemyStore._hard_delete_run (mlflow/store/tracking/sqlalchemy_store.py) called session.delete(run), so the ORM cascade loaded every SqlMetric, SqlLatestMetric, SqlParam and SqlTag row for the run into the session identity map before deleting them.\nFix pattern: Keep the existence check (self._get_run) and then issue set-based deletes: one session.query(model).filter(model.run_uuid == run_id).delete(synchronize_session=False) per child model in _RUN_DELETE_CASCADE_MODELS, then the same bulk delete for SqlRun. Memory stays flat regardless of history size.\nConstraints: synchronize_session=False is only safe because _hard_delete_run loads no child objects and the session is discarded afterwards. Do not reintroduce session.delete(run) or ORM relationship loading in this path. Bulk deletes run inside the same ManagedSessionMaker transaction, so the deletion stays atomic.\nApplies: Changes to _hard_delete_run or to the mlflow gc hard-delete path for runs in the SQL tracking store.",
+  "applies": "Changes to _hard_delete_run or to the mlflow gc hard-delete path for runs in the SQL tracking store.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "gc",
+    "memory",
+    "delete"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._hard_delete_run",
+      "hash": "sha256:a6066a6ed5f112d7f81a5f37",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6066a6ed5f112d7f81a5f37",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_RUN_DELETE_CASCADE_MODELS",
+      "hash": "sha256:361f1dd660872d789ab0f610",
+      "line": 276,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25773"
+  },
+  "created": "2026-10-11T08:47:48.845Z",
+  "verified": "2026-10-11T08:47:48.845Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va",
+    "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be",
+    "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca"
+  ],
+  "says": [
+    "Permanently deleting runs with massive metric histories causes the server to exhaust memory.",
+    "Garbage collection hangs and crashes when purging training runs that contain millions of data points.",
+    "Cleaning up deleted runs takes excessive memory and time on the tracking server.",
+    "Allow purging deleted experiment history without overloading the tracking database server memory."
+  ],
+  "search": "Hard-deleting runs via mlflow gc in the SQL tracking store causes excessive memory consumption when ORM cascades load entire metric histories. SqlAlchemyStore._hard_delete_run in mlflow/store/tracking/sqlalchemy_store.py prevents memory exhaustion by replacing session.delete(run) with set-based deletes using synchronize_session=False across _RUN_DELETE_CASCADE_MODELS and SqlRun. Bulk deletions must remain atomic within ManagedSessionMaker transactions and require that no child models or ORM relationships are loaded during deletion.",
+  "saysFor": "s2:923f9f425ad2e826aa1c133b763ed0db42af25a382159e57008624adc7a3c10a"
+}

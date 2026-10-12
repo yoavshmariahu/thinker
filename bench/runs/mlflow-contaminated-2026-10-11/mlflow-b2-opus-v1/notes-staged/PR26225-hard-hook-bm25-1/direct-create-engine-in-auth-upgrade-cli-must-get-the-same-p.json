@@ -1,0 +1,54 @@
+{
+  "id": "direct-create-engine-in-auth-upgrade-cli-must-get-the-same-p",
+  "title": "Direct create_engine in auth upgrade CLI must get the same PostgreSQL URL normalization",
+  "kind": "rule",
+  "answers": [
+    "mlflow auth db upgrade fails on postgres with no module named psycopg",
+    "auth database migration postgresql driver error SQLAlchemy 2.1",
+    "auth upgrade command ignores postgres driver normalization"
+  ],
+  "body": "Symptom: Running the MLflow auth database upgrade against a bare postgresql:// URL fails with a missing psycopg module on SQLAlchemy 2.1, even though the tracking server accepts the same URL.\nRoot cause: mlflow/server/auth/db/cli.py:upgrade calls sqlalchemy.create_engine directly and does not go through create_sqlalchemy_engine, so the normalization applied elsewhere is skipped.\nFix pattern: Apply the same bare-scheme-to-psycopg2 normalization to the URL before the direct create_engine call in upgrade, and cover it with a CLI test that patches sqlalchemy.create_engine and asserts the normalized URL and that migrate runs against the created engine at the default revision.\nConstraints: The direct engine call is pre-existing; routing upgrade through create_sqlalchemy_engine (pool_pre_ping, retries, pool sizing) was judged a separate change and left out of the driver fix. Existing auth CLI tests only use SQLite URLs, so a PostgreSQL-specific path there needs its own test.",
+  "applies": "The auth database CLI in mlflow/server/auth/db; any future direct create_engine call in CLI entry points needs the same URL handling.",
+  "tags": [
+    "auth",
+    "database",
+    "cli",
+    "postgresql",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/db/cli.py",
+      "symbol": "upgrade",
+      "hash": "sha256:a8c1ac3ac627e93bba9944ac",
+      "line": 12,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8c1ac3ac627e93bba9944ac",
+      "fanout": {
+        "files": 36,
+        "sites": 32,
+        "refs": 111
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26239"
+  },
+  "created": "2026-10-11T10:26:40.805Z",
+  "verified": "2026-10-11T10:26:40.805Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Running the authentication database upgrade command fails when connecting to a Postgres database.",
+    "Upgrading the auth database schema reports a missing driver on standard Postgres connection URLs.",
+    "Authentication database migration fails on Postgres even though the tracking server connects normally.",
+    "Allow the authentication database upgrade utility to accept standard Postgres database connection strings."
+  ],
+  "search": "Direct sqlalchemy.create_engine calls in the auth upgrade CLI must normalize bare postgresql:// URLs to psycopg2. In mlflow/server/auth/db/cli.py:upgrade, calling sqlalchemy.create_engine directly skips the normalization performed by create_sqlalchemy_engine, failing with missing psycopg under SQLAlchemy 2.1 while the tracking server succeeds. The fix normalizes bare PostgreSQL schemes before create_engine and adds CLI test coverage patching create_engine, while leaving pool tuning or routing through create_sqlalchemy_engine as a separate change.",
+  "saysFor": "s2:7f93a65046dc097ffefb566c71bf50e8a205948c2933e9537bc27b8baa91ec15"
+}

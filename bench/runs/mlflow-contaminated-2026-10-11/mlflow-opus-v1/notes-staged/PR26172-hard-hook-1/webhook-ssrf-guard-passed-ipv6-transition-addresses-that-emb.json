@@ -1,0 +1,103 @@
+{
+  "id": "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb",
+  "title": "Webhook SSRF guard passed IPv6-transition addresses that embed a private IPv4 as public",
+  "kind": "rule",
+  "answers": [
+    "webhook SSRF bypass via NAT64 metadata address 64:ff9b::169.254.169.254",
+    "webhook URL resolves to private or CGNAT IP through IPv4-mapped IPv6 ::ffff:100.64.0.1",
+    "webhook can reach cloud metadata endpoint through a 6to4 or NAT64 IPv6 address",
+    "why does the webhook public-IP check allow IPv6 addresses that wrap internal IPv4"
+  ],
+  "body": "Symptom: A webhook URL whose host resolves to an IPv6 address embedding a private, CGNAT, or link-local IPv4 (e.g. 64:ff9b::169.254.169.254 or ::ffff:100.64.0.1) is accepted as a public destination, so the webhook can reach cloud metadata or internal ranges.\nRoot cause: mlflow/webhooks/ssrf.py:_assert_public_peer and mlflow/utils/validation.py:_validate_hostname_resolves_to_public_ips called bare `.is_global` on the parsed IPv6 address, which does not inspect the IPv4 embedded in it.\nFix pattern: Decode the embedded IPv4 before the public check: mlflow/utils/validation.py:_embedded_ipv4 tries `ipv4_mapped`, then `sixtofour`, then takes the low 32 bits for NAT64 `64:ff9b::/96`; the caller uses `_is_public_ip` instead of `.is_global` on the raw address.\nConstraints: Covers only IPv4-mapped, 6to4, and NAT64 64:ff9b::/96 as stated in the PR; other transition or translation prefixes are not handled by this change. Plain IPv4 must still be blocked, and genuinely public IPv6 such as 2001:4860:4860::8888 and ::ffff:8.8.8.8 must still pass.",
+  "applies": "Any code in MLflow that classifies a resolved or peer IP as public for outbound requests (webhooks, public HTTPS URL validation).",
+  "tags": [
+    "security",
+    "ssrf",
+    "webhooks",
+    "ipv6",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_embedded_ipv4",
+      "hash": "sha256:257efd273e0fca81d87ca465",
+      "line": 904,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:257efd273e0fca81d87ca465",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_is_public_ip",
+      "hash": "sha256:d9a8d134ccca1d14e95b035f",
+      "line": 922,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d9a8d134ccca1d14e95b035f",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_hostname_resolves_to_public_ips",
+      "hash": "sha256:25cdf68e5def2c1135a79d5e",
+      "line": 980,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:25cdf68e5def2c1135a79d5e",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/webhooks/ssrf.py",
+      "symbol": "_assert_public_peer",
+      "hash": "sha256:4a5e3e77244ef61a670a3470",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a5e3e77244ef61a670a3470",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25568"
+  },
+  "created": "2026-10-11T08:43:42.992Z",
+  "verified": "2026-10-11T08:43:42.992Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pre-flight-and-connection-time-webhook-public-ip-checks-must",
+    "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin",
+    "destination-key-scan-must-be-shape-agnostic-walk-all-nested",
+    "basic-auth-password-policy-must-be-enforced-in-the-store-s-u"
+  ],
+  "says": [
+    "Webhooks can reach internal cloud metadata endpoints through addresses wrapping private IPs",
+    "Prevent outbound webhook requests from targeting private network ranges through transition addresses",
+    "Webhook destination validation mistakenly allows addresses that embed internal or local IPs",
+    "Block security bypass where webhooks connect to internal infrastructure using translated addresses",
+    "Reject webhook URLs resolving to private destinations while still permitting genuine public addresses"
+  ],
+  "search": "Outbound webhook security checks must inspect embedded IPv4 addresses in IPv6 transition addresses before classifying a destination as public. `_assert_public_peer` in `mlflow/webhooks/ssrf.py` and `_validate_hostname_resolves_to_public_ips` in `mlflow/utils/validation.py` must use `_is_public_ip` and `_embedded_ipv4` instead of `.is_global` to block access to private, CGNAT, or link-local ranges like `64:ff9b::169.254.169.254` or `::ffff:100.64.0.1`. Applies to outbound IP validation in MLflow, specifically covering IPv4-mapped, 6to4, and NAT64 `64:ff9b::/96` prefixes while ensuring plain private IPv4 remains blocked and public IPv6 addresses like `2001:4860:4860::8888` and `::ffff:8.8.8.8` pass.",
+  "saysFor": "s2:cf37f2e950a5153247a7bf942064d2033b28cabac857313da9b6137fbf312786"
+}

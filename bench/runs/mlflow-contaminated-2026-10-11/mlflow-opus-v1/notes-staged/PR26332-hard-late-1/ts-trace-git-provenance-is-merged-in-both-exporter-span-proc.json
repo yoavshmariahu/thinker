@@ -1,0 +1,112 @@
+{
+  "id": "ts-trace-git-provenance-is-merged-in-both-exporter-span-proc",
+  "title": "TS trace Git provenance is merged in both exporter span processors and cached per process",
+  "kind": "rule",
+  "answers": [
+    "Why don't my TypeScript traces show the git branch or commit?",
+    "Where is mlflow.source.git metadata added to traces in the JS SDK?",
+    "How do I change which git metadata is recorded on TypeScript traces?",
+    "Traces point at the wrong commit after switching branches in a long-running process"
+  ],
+  "body": "Git provenance (mlflow.source.git.commit, .branch, .repoURL) is attached in onStart of both span processors via `...resolveEnvironmentMetadata()` in libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor and libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor.\nThe value is cached once per process in libs/typescript/core/src/core/utils/environment.ts:resolveEnvironmentMetadata, so a checkout or cwd change after the first trace does not refresh it.\nAny new exporter that builds trace metadata should spread the same helper, or its traces will lack source metadata while the other exporter has it.\nRepo URLs pass through stripCredentialsFromUrl in environment.ts:resolveGitMetadata, so userinfo must never be written to trace metadata.\nTests needing other git states should call the uncached resolveGitMetadata with an injected runner, not resolveEnvironmentMetadata.",
+  "applies": "Applies to TypeScript core tracing exporters and any code that adds trace metadata; does not cover the Python SDK.",
+  "tags": [
+    "typescript",
+    "tracing",
+    "git-metadata",
+    "exporters"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:28ade0c3605149d615c01a95",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28ade0c3605149d615c01a95",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "stripCredentialsFromUrl",
+      "hash": "sha256:2f521cc2d9f3d83e9760e687",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2f521cc2d9f3d83e9760e687",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:ab924d4d972953a2d512a1f3",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ab924d4d972953a2d512a1f3",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:b2b43727a0b04da71aa7cb44",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2b43727a0b04da71aa7cb44",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-11T08:47:06.536Z",
+  "verified": "2026-10-11T08:47:06.536Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "git-metadata-fields-must-be-resolved-independently-unborn-re"
+  ],
+  "says": [
+    "Execution traces do not display the current git branch or commit details.",
+    "Traces show outdated git commit information after switching branches in running applications.",
+    "Display source code repository metadata in the trace details view.",
+    "Ensure private repository credentials are never shown in trace metadata."
+  ],
+  "search": "Git provenance metadata in TypeScript tracing is attached in onStart across both MlflowSpanProcessor and DatabricksUCTableSpanProcessor using resolveEnvironmentMetadata. Because metadata is cached once per process in libs/typescript/core/src/core/utils/environment.ts:resolveEnvironmentMetadata, branch switches or working directory changes after the initial trace are not refreshed. Any new exporter must spread this helper to prevent missing source metadata, while repository URLs are stripped of userinfo via stripCredentialsFromUrl. This applies to TypeScript tracing exporters rather than the Python SDK, with tests directed to use uncached resolveGitMetadata.",
+  "saysFor": "s2:2bcb1042fafe76cc840ce778f71f0f00718ab48dc5cf249fd7d27f60df920c70"
+}

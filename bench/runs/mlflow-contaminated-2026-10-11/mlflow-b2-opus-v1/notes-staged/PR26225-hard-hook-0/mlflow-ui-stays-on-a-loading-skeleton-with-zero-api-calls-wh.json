@@ -1,0 +1,86 @@
+{
+  "id": "mlflow-ui-stays-on-a-loading-skeleton-with-zero-api-calls-wh",
+  "title": "MLflow UI stays on a loading skeleton with zero API calls when navigator.onLine is false",
+  "kind": "rule",
+  "answers": [
+    "MLflow UI shows a blank loading skeleton forever and makes no requests",
+    "UI hangs on loading when the browser thinks it is offline",
+    "React Query query paused offline so the MLflow page never renders",
+    "notebook model trace explorer blank when navigator.onLine is false"
+  ],
+  "body": "Symptom: The MLflow UI (or the notebook trace renderer) sits on a loading skeleton with empty #root and no error, even though the tracking server answers normally; no /ajax-api request is issued when the browser reports offline.\nRoot cause: React Query's default networkMode 'online' pauses a query before queryFn runs when navigator.onLine is false. The serverInfo query (useServerInfo / useWorkspacesEnabled) is paused, and MLflowRouter in app.tsx gates router creation on its loading flag.\nFix pattern: Build every OSS QueryClient through createMlflowQueryClient (shared/web-shared/query-client/createMlflowQueryClient.ts) which sets defaultOptions.queries.networkMode to 'always'. Do not change only the serverInfo query; the other data queries also pause and the UI renders empty tables.\nConstraints: Applies to the OSS entry points (app.tsx MLFlowRoot, notebook bootstrap.tsx AppComponent). navigator.onLine is not trusted (desktop Chrome can latch it false while fetch works), and MLflow queries target the server that served the page, so pausing on that flag buys nothing.",
+  "applies": "Any change to QueryClient construction or React Query defaults in the OSS MLflow UI and the web-shared notebook renderer.",
+  "tags": [
+    "react-query",
+    "offline",
+    "networkmode",
+    "query-client",
+    "mlflow-ui"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.ts",
+      "symbol": "createMlflowQueryClient",
+      "hash": "sha256:3ac4327183320a197086367d",
+      "line": 3,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d211a1ef7c24f52bbf7a853",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/app.tsx",
+      "symbol": "MLFlowRoot",
+      "hash": "sha256:3c6de88e793084df0bd1e627",
+      "line": 27,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3c6de88e793084df0bd1e627",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/oss-notebook-renderer/bootstrap.tsx",
+      "symbol": "AppComponent",
+      "hash": "sha256:380ce90c95028843299a00aa",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:380ce90c95028843299a00aa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-11T10:25:23.740Z",
+  "verified": "2026-10-11T10:25:23.740Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "oss-entry-points-must-construct-queryclient-via-the-shared-f",
+    "under-shared-web-shared-import-the-local-query-client-re-exp"
+  ],
+  "says": [
+    "The web interface hangs indefinitely on a loading placeholder without loading any data.",
+    "The notebook trace viewer stays completely blank instead of displaying model traces.",
+    "Dashboard remains stuck loading when the browser mistakenly thinks there is no connection.",
+    "Allow local pages and notebook traces to load even when offline status is reported."
+  ],
+  "search": "OSS QueryClient construction in app.tsx MLFlowRoot and notebook bootstrap.tsx AppComponent must use createMlflowQueryClient with defaultOptions.queries.networkMode set to 'always'. React Query's default 'online' mode pauses queries like serverInfo when navigator.onLine is false, preventing router initialization and leaving the UI stuck on a loading skeleton. The setting must be applied client-wide rather than only to serverInfo because subsequent data queries would otherwise pause and render empty tables.",
+  "saysFor": "s2:1d22f1bbbe29d978d449844ad4634479d2aeb0860a784ecd8374d816ae16feb8"
+}

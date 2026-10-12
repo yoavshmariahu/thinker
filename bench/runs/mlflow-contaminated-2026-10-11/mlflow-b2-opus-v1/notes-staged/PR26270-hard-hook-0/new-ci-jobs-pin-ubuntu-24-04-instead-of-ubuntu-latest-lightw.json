@@ -1,0 +1,45 @@
+{
+  "id": "new-ci-jobs-pin-ubuntu-24-04-instead-of-ubuntu-latest-lightw",
+  "title": "New CI jobs pin ubuntu-24.04 instead of ubuntu-latest; lightweight jobs use ubuntu-slim",
+  "kind": "rule",
+  "answers": [
+    "Which runner should a new GitHub Actions job use instead of ubuntu-latest?",
+    "Why did MLflow CI stop using ubuntu-latest?",
+    "When should a workflow job use ubuntu-slim versus ubuntu-24.04?",
+    "How do I avoid the Ubuntu 26.04 migration breaking CI jobs?"
+  ],
+  "body": "Convention: write `runs-on: ubuntu-24.04` explicitly rather than `ubuntu-latest`. GitHub moves `ubuntu-latest` to Ubuntu 26.04 (Oct 19 to Nov 19, 2026), so the label is left unpinned on purpose.\nFor simple jobs (labeling, commenting, notifications) prefer `runs-on: ubuntu-slim`.\n`ubuntu-slim` has a 15-minute timeout, so long-running or polling jobs use `ubuntu-24.04` instead.\nNon-Ubuntu runners such as macos-latest are not part of this pin and stay as they are.\nApplies to new and edited jobs under .github/workflows/; the style guide is the reference.",
+  "applies": "GitHub Actions workflow jobs in this repository; not a runtime or test-code rule.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "runners",
+    "ubuntu"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3b83bc3660ebad3c1de394a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26183"
+  },
+  "created": "2026-10-11T10:26:58.492Z",
+  "verified": "2026-10-11T10:26:58.492Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Long running automated test jobs are timing out after fifteen minutes on lightweight runners.",
+    "Our continuous integration workflow failed because the default cloud operating system version changed.",
+    "Run lightweight pull request tasks like labeling and notifications on faster economical runners.",
+    "Lock our pull request build checks to a stable operating system release."
+  ],
+  "search": "GitHub Actions workflow jobs under .github/workflows/ must specify runs-on: ubuntu-24.04 explicitly instead of ubuntu-latest, which shifts to Ubuntu 26.04 between Oct 19 and Nov 19, 2026. Simple workflow jobs like labeling, commenting, and notifications prefer runs-on: ubuntu-slim, but long-running or polling jobs must use ubuntu-24.04 because ubuntu-slim has a 15-minute timeout. Non-Ubuntu runners such as macos-latest are not part of this pin and remain unchanged. This convention applies to new and edited jobs under .github/workflows/ according to .claude/skills/github-actions-style/SKILL.md, and does not apply to runtime or test code.",
+  "saysFor": "s2:c64851e1b8983c7d76fad2a39b8caaf4d0c43bd98738bc92aa5e24ce0519f019"
+}

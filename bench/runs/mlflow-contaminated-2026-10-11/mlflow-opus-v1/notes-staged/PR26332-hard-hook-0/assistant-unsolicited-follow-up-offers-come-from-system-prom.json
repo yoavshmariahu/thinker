@@ -1,0 +1,58 @@
+{
+  "id": "assistant-unsolicited-follow-up-offers-come-from-system-prom",
+  "title": "Assistant: unsolicited follow-up offers come from system-prompt directives; remove them from every prompt variant",
+  "kind": "rule",
+  "answers": [
+    "MLflow Assistant keeps offering to do more after answering",
+    "Assistant adds unsolicited follow-up offers and padding to responses",
+    "Why does the MLflow assistant ask 'would you like me to' after every answer?"
+  ],
+  "body": "Symptom: The MLflow Assistant appends unsolicited offers (\"I can also do X for you\", \"Would you like me to...\") after answering a plain question, padding the response.\nRoot cause: Directives in the system prompt told the model to always offer to complete tasks, e.g. CLAUDE_SYSTEM_PROMPT in mlflow/assistant/providers/claude_code.py (the 'Presenting Documentation Results' section said ALWAYS offer to complete tasks), and the equivalent minimize-steps paragraph in mlflow/assistant/providers/prompts.py.\nFix pattern: Replace offer-to-do-it-for-you wording with 'give the shortest actionable response', and add an explicit stop rule under 'Match Response Length to the Question': no follow-up questions or extra help unless the request is ambiguous or information is missing. Apply the same edit to both prompt variants.\nConstraints: Keep the requirement to complete tasks the user explicitly asked for. Only remove the unsolicited-offer instruction, not the requirement to act when asked. Clarifying questions remain allowed when the request is ambiguous.",
+  "applies": "Edits to system prompt text in mlflow/assistant/providers, for any Assistant provider variant.",
+  "tags": [
+    "assistant",
+    "prompts",
+    "uiux"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "symbol": "CLAUDE_SYSTEM_PROMPT",
+      "hash": "sha256:d8aa005741eca66d85b5c11a",
+      "line": 106,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-11T08:44:43.141Z",
+  "verified": "2026-10-11T08:44:43.141Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-system-prompt-variants-must-be-changed-together-an"
+  ],
+  "says": [
+    "The assistant keeps asking if it should do extra tasks after answering every question",
+    "Assistant chat responses are padded with unwanted offers to perform follow-up work",
+    "Stop the assistant from suggesting additional unprompted actions after giving a simple answer",
+    "Provide concise answers in the assistant without polite trailing offers for more help",
+    "Why does the assistant always end its replies by asking would you like me to"
+  ],
+  "search": "To eliminate unsolicited follow-up offers in Assistant responses, remove task completion directives from both CLAUDE_SYSTEM_PROMPT in claude_code.py and prompts.py. Directives instructing the model to always offer to complete tasks must be replaced with 'give the shortest actionable response'. Under 'Match Response Length to the Question', add an explicit stop rule forbidding follow-up questions or extra help unless the request is ambiguous or missing information. The requirement to complete explicitly requested tasks must be preserved, and clarifying questions remain allowed when requests are ambiguous.",
+  "saysFor": "s2:7b308092db508370c38adfbdbf9ae48a7e64ad2a6ef9e71eb54be4e6ab22b2cb"
+}

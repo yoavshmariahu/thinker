@@ -1,0 +1,118 @@
+{
+  "id": "invalidate-prompt-cache-after-the-registry-mutation-succeeds",
+  "title": "Invalidate prompt cache after the registry mutation succeeds, within the same registry scope",
+  "kind": "rule",
+  "answers": [
+    "prompt alias update not reflected in cached load_prompt",
+    "stale prompt still served after a failed alias or tag update",
+    "cache invalidation after register, alias or version-tag change"
+  ],
+  "body": "Invariant: in MlflowClient prompt mutators, the registry call (self._get_registry_client().<mutation>) runs first and PromptCache.get_instance().delete / delete_all runs after it returns, always passing registry_uri=self._registry_uri.\nEnforced by call ordering in mlflow/tracking/client.py:MlflowClient.set_prompt_alias, delete_prompt_alias, set_prompt_version_tag, delete_prompt_version_tag, delete_prompt_version and delete_prompt.\nTest evidence: tests/tracking/test_client.py:test_failed_prompt_mutation_preserves_cache checks that a raised mutation leaves the cached alias entry in place, so a failed write does not evict good entries.\nWhat breaks if skipped: invalidating before the mutation, or with a different scope than the key, leaves stale entries served from the cache for the rest of the TTL.",
+  "applies": "Any new MlflowClient method that changes prompt versions, aliases, tags or existence.",
+  "tags": [
+    "prompts",
+    "prompt-cache",
+    "invalidation",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient",
+      "hash": "sha256:b04e50d06bb4ef2d0faf470f",
+      "line": 224,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04e50d06bb4ef2d0faf470f",
+      "fanout": {
+        "files": 206,
+        "sites": 945,
+        "refs": 1391
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache",
+      "hash": "sha256:68e7895635bd0621346f6063",
+      "line": 354,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:68e7895635bd0621346f6063",
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 59
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.set_prompt_alias",
+      "hash": "sha256:b6999525ffe8de9cb222286a",
+      "line": 1265,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b6999525ffe8de9cb222286a",
+      "fanout": {
+        "files": 12,
+        "sites": 31,
+        "refs": 39
+      }
+    },
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "test_failed_prompt_mutation_preserves_cache",
+      "hash": "sha256:16e80fe3c316bca6d07411eb",
+      "line": 2499,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:16e80fe3c316bca6d07411eb",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache.get_instance",
+      "hash": "sha256:bc4110ae13bf3ffb72fa6543",
+      "line": 373,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bc4110ae13bf3ffb72fa6543",
+      "fanout": {
+        "files": 37,
+        "sites": 127,
+        "refs": 128
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26066"
+  },
+  "created": "2026-10-11T10:28:18.809Z",
+  "verified": "2026-10-11T10:28:18.809Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "prompt-cache-entries-must-be-scoped-by-registry-uri-and-acti",
+    "prompt-placeholder-source-strings-are-a-shared-contract-betw"
+  ],
+  "says": [
+    "Updating a prompt alias still returns the old prompt version when loading prompts.",
+    "Changes to prompt version tags do not appear immediately in prompt requests.",
+    "Prompt registry continues serving outdated prompt templates after saving modifications.",
+    "Make prompt alias modifications take effect right away without waiting for cache expiration.",
+    "Deleting a prompt version still allows users to fetch the deleted prompt."
+  ],
+  "search": "In MlflowClient prompt mutators, cache invalidation through PromptCache.get_instance().delete or delete_all must occur strictly after the registry mutation succeeds, passing registry_uri=self._registry_uri. This call ordering is enforced in mlflow/tracking/client.py for set_prompt_alias, delete_prompt_alias, set_prompt_version_tag, delete_prompt_version_tag, delete_prompt_version, and delete_prompt. Invalidating before mutations or using mismatched scopes serves stale cache entries for the TTL, whereas failed writes leave cached alias entries in place. Applies to any new MlflowClient method mutating prompt versions, aliases, tags, or existence.",
+  "saysFor": "s2:0b517b9aa41e9afd3c714fe77d41bcdc3bbe05297cc346dc49b476572803b49a",
+  "lastUsed": "2026-10-11T18:43:09.466Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26291-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26291-hard-1"
+  ]
+}

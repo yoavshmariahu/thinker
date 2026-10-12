@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12a64-4396-7170-913b-7939ed5c9b4f",
+  "turns": 1,
+  "in_tokens": 110444,
+  "cached_tokens": 95744,
+  "out_tokens": 860,
+  "wall_ms": 38759,
+  "result": "I’ll find where trace deletion parses the ID list, trim whitespace around each ID, and add a focused regression test. I’m using the repository’s Python style skill.\nUpdated trace deletion to strip leading and trailing whitespace from each comma-separated ID, so `\"a, b\"` behaves like `\"a,b\"`.\n\nAdded regression coverage for spaces, tabs, and newlines. All three focused cases passed; pytest then exited with a sandbox permission error in its process-inspection summary hook.\n\nNo dependencies installed or full suite run.",
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "command_execution": 5,
+      "file_change": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": null,
+  "arm": "nocache",
+  "task": "PR26204-hard",
+  "rep": 0,
+  "area": "mlflow/cli",
+  "id": "PR26204-hard-nocache-0",
+  "session": "01a12a64-4396-7170-913b-7939ed5c9b4f",
+  "cost": 0.285744,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/cli/traces.py b/mlflow/cli/traces.py\nindex ee4e85563..59c30f2c2 100644\n--- a/mlflow/cli/traces.py\n+++ b/mlflow/cli/traces.py\n@@ -462,7 +462,7 @@ def delete_traces(\n     mlflow traces delete --experiment-id 1 --max-timestamp-millis 1700000000000 --max-traces 100\n     \"\"\"\n     client = TracingClient()\n-    trace_id_list = trace_ids.split(\",\") if trace_ids else None\n+    trace_id_list = [tid.strip() for tid in trace_ids.split(\",\")] if trace_ids else None\n \n     count = client.delete_traces(\n         experiment_id=experiment_id,\ndiff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py\nindex bcc88ec50..81ae36ec2 100644\n--- a/tests/cli/test_traces.py\n+++ b/tests/cli/test_traces.py\n@@ -146,16 +146,27 @@ def test_get_command_with_fields(runner):\n         assert output_json == {\"info\": {\"trace_id\": \"tr-123\"}}\n \n \n-def test_delete_command(runner):\n-    with mock.patch(\"mlflow.cli.traces.TracingClient\") as mock_client:\n-        mock_client.return_value.delete_traces.return_value = 5\n+@pytest.mark.parametrize(\n+    \"trace_ids\",\n+    [\"tr-1,tr-2,tr-3\", \"tr-1, tr-2, tr-3\", \" \\ttr-1 ,\\ttr-2\\t, tr-3\\n\"],\n+)\n+def test_delete_command(runner, trace_ids):\n+    with mock.patch(\n+        \"mlflow.cli.traces.TracingClient.delete_traces\", return_value=3\n+    ) as mock_delete_traces:\n         result = runner.invoke(\n             commands,\n-            [\"delete\", \"--experiment-id\", \"1\", \"--trace-ids\", \"tr-1,tr-2,tr-3\"],\n+            [\"delete\", \"--experiment-id\", \"1\", \"--trace-ids\", trace_ids],\n         )\n \n         assert result.exit_code == 0\n-        assert \"Deleted 5 trace(s)\" in result.output\n+        assert \"Deleted 3 trace(s)\" in result.output\n+        mock_delete_traces.assert_called_once_with(\n+            experiment_id=\"1\",\n+            trace_ids=[\"tr-1\", \"tr-2\", \"tr-3\"],\n+            max_timestamp_millis=None,\n+            max_traces=None,\n+        )\n \n \n def test_field_validation_error(runner):\ndiff --git a/tests/utils/test_proto_json_utils.py b/tests/utils/test_proto_json_utils.py\nindex c60c3c131..4f23d9016 100644\n--- a/tests/utils/test_proto_json_utils.py\n+++ b/tests/utils/test_proto_json_utils.py\n@@ -22,6 +22,7 @@ from mlflow.utils.proto_json_utils import (\n     cast_df_types_according_to_schema,\n     dataframe_from_parsed_json,\n     dataframe_from_raw_json,\n+    dump_input_data,\n     message_to_json,\n     parse_dict,\n     parse_tf_serving_input,\n@@ -30,6 +31,35 @@ from mlflow.utils.proto_json_utils import (\n from tests.protos.test_message_pb2 import SampleMessage\n \n \n+@pytest.mark.parametrize(\n+    (\"data\", \"expected\"),\n+    [\n+        ({\"x\": np.array([1, 2])}, {\"inputs\": {\"x\": [1, 2]}}),\n+        (\n+            {\"ab\": np.array([[1, 2], [3, 4]]), \"column\": np.array([5.0])},\n+            {\"inputs\": {\"ab\": [[1, 2], [3, 4]], \"column\": [5.0]}},\n+        ),\n+    ],\n+)\n+def test_dump_input_data_dict(data, expected):\n+    assert json.loads(dump_input_data(data)) == expected\n+\n+\n+def test_dump_input_data_dict_with_custom_key_and_params():\n+    data = {\"x\": np.array([1, 2])}\n+    assert json.loads(\n+        dump_input_data(data, inputs_key=\"instances\", params={\"temperature\": 0.5})\n+    ) == {\n+        \"instances\": {\"x\": [1, 2]},\n+        \"params\": {\"temperature\": 0.5},\n+    }\n+\n+\n+def test_dump_input_data_dict_rejects_unsupported_value():\n+    with pytest.raises(MlflowException, match=\"Incompatible input type:.* for input x\"):\n+        dump_input_data({\"x\": [1, 2]})\n+\n+\n def test_message_to_json():\n     json_out = message_to_json(Experiment(\"123\", \"name\", \"arty\", \"active\").to_proto())\n     assert json.loads(json_out) == {\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "sts/cli/test_traces.py::test_search_command_params\n\n(8 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                       | Duration | Tests | Min    | Max    | Avg    |\n| ---- | -------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/cli/test_traces.py` | 2.53s    | 10    | 0.003s | 2.482s | 0.253s |\n\n::endgroup::\n\n\u001b[33m============================= Resource-heavy tests =============================\u001b[0m\ntests/cli/test_traces.py::test_commands_group_exists: MEM: +1.8 (5.9 -> 7.7) GB\n\u001b[33m======================== \u001b[32m10 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 11.25s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 14700,
+  "costBasis": "list price from token classes"
+}

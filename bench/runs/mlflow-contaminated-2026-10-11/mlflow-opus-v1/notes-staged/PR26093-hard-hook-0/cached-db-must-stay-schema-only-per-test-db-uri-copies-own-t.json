@@ -1,0 +1,71 @@
+{
+  "id": "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t",
+  "title": "cached_db must stay schema-only; per-test db_uri copies own the Default experiment",
+  "kind": "rule",
+  "answers": [
+    "why does the cached sqlite test database have no experiments",
+    "where is the Default experiment created for tests using db_uri",
+    "add a test fixture that needs a Default experiment in sqlite",
+    "cached_db experiment 0 missing in tests"
+  ],
+  "body": "Invariant: The session-scoped cached_db in tests/conftest.py must contain only schema and migrations, with no experiment rows.\nEnforced by: tests/conftest.py:db_uri inserts experiment_id DEFAULT_EXPERIMENT_ID with artifact_location under the test's tmp_dir, using the experiments table columns (name, artifact_location, lifecycle_stage, creation_time, last_update_time, workspace).\nWhat breaks if skipped: Copies that get no Default row let the store create one under ./mlruns, reintroducing shared-directory artifact cleanup races. Updating experiment 0's artifact_location in the copy matches zero rows, since the cache no longer has that row.\nConstraints: Any new per-test database setup should copy the cache and then insert its own Default experiment rather than writing into cached_db.",
+  "applies": "tests/conftest.py database fixtures; does not apply to production store code.",
+  "tags": [
+    "tests",
+    "sqlite",
+    "fixtures",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "tests/conftest.py",
+      "symbol": "cached_db",
+      "hash": "sha256:3ca091a168cf4ad1113b81a7",
+      "line": 1292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca091a168cf4ad1113b81a7",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "db_uri",
+      "hash": "sha256:2fa2ab2ccfeccaeea50ee964",
+      "line": 1321,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ce4229f3643edf24dc560030",
+      "fanout": {
+        "files": 53,
+        "sites": 0,
+        "refs": 293
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25753"
+  },
+  "created": "2026-10-11T08:47:54.231Z",
+  "verified": "2026-10-11T08:47:54.231Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parallel-tests-lose-artifacts-when-a-bare-sqlite-tracking-ur",
+    "store-test-session-cache-lives-only-in-tests-conftest-py-not"
+  ],
+  "says": [
+    "Automated test runs are randomly failing due to file cleanup conflicts in shared directories.",
+    "Database integration tests cannot find the default experiment when querying test database copies.",
+    "Database updates targeting experiment zero fail because the test database copy is empty.",
+    "Prevent parallel test executions from creating artifacts in shared default experiment folders."
+  ],
+  "search": "The session-scoped cached_db fixture in tests/conftest.py must contain only database schema and migrations without any experiment rows. Individual test database copies created via tests/conftest.py:db_uri insert DEFAULT_EXPERIMENT_ID with artifact_location pointing to the test tmp_dir. If copies lack a Default experiment row, the store creates one under ./mlruns, introducing shared-directory artifact cleanup races. New per-test fixtures must copy cached_db and create their own Default experiment rather than writing directly into cached_db.",
+  "saysFor": "s2:c5b088c6e9d4a3a8a214ec5e58a0598c4612c8451c38d6a2f9b12f6e6255bd30"
+}

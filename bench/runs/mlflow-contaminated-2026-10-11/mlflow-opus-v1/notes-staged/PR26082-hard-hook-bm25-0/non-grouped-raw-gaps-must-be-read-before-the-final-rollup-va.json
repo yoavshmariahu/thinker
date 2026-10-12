@@ -1,0 +1,78 @@
+{
+  "id": "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va",
+  "title": "Non-grouped raw gaps must be read before the final rollup validity check",
+  "kind": "rule",
+  "answers": [
+    "trace metrics over a time range show stale or mixed totals while a rollup is being rebuilt",
+    "SQL trace rollup query returns counts that mix old rollup data with newer raw traces",
+    "why does rollup_read_is_current run after raw_range_points in the trace metrics path",
+    "MSSQL REPEATABLE READ phantom rebuild queue row causes wrong trace metric results"
+  ],
+  "body": "Symptom: A trace metric chart or count over a time range can show a total that mixes stale pre-rebuild rollup values with newer raw trace data, so the number is wrong until the rollup is rebuilt.\nRoot cause: SqlAlchemyStore.raw_range_points (sqlalchemy_store.py) ran the final rollup_read_is_current check before reading the non-SQL-grouped raw gaps. On MSSQL under REPEATABLE READ a rebuild-queue row can appear as a phantom, so a rebuild queued between the check and the raw read was missed.\nFix pattern: Keep this order on the non-sql_grouped_merge path: (1) serve_rollup_read, (2) compute raw_points from served.raw_ranges, (3) call rollup_read_is_current on served.served_day_starts_ms, (4) only then merge or fall back. If the check fails, discard the mixed result and run one authoritative full-range raw query.\nConstraints: Applies only when the rollup is not SQL-grouped; the SQL-grouped path reads rollup and raw-gap contributions in one query and must not be changed this way. Do not move the validity check above the raw-gap read, and do not merge rollup and raw points before the check passes.",
+  "applies": "Any change to raw_range_points routing, serve_rollup_read, or rollup_read_is_current ordering in the SQL trace rollup feature.",
+  "tags": [
+    "tracing",
+    "sqlalchemy",
+    "trace-rollup",
+    "concurrency",
+    "mssql"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore",
+      "hash": "sha256:bfdc65f3eeaf93e0cdcc4562",
+      "line": 306,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bfdc65f3eeaf93e0cdcc4562",
+      "fanout": {
+        "files": 65,
+        "sites": 107,
+        "refs": 1089
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore",
+      "hash": "sha256:bfdc65f3eeaf93e0cdcc4562",
+      "line": 306,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bfdc65f3eeaf93e0cdcc4562",
+      "fanout": {
+        "files": 65,
+        "sites": 107,
+        "refs": 1089
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25589"
+  },
+  "created": "2026-10-11T08:43:20.876Z",
+  "verified": "2026-10-11T08:43:20.876Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be",
+    "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py",
+    "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex",
+    "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca"
+  ],
+  "says": [
+    "Trace metric charts display incorrect totals that mix old summary values with new traces",
+    "Summary counts in the trace dashboard show inaccurate numbers during scheduled data rebuilds",
+    "Time range aggregation graph displays stale metrics blended with recent trace events",
+    "Ensure trace metric totals stay consistent rather than mixing historical rollups with incoming data"
+  ],
+  "search": "In the SQL trace rollup feature of SqlAlchemyStore, the non-SQL-grouped merge path must read raw-gap points before running the final rollup_read_is_current validity check. This ordering prevents MSSQL REPEATABLE READ phantom rebuild queue rows from causing trace metrics queries to return mixed stale rollup data and newer raw traces. The sequence must execute serve_rollup_read, compute raw_points from served.raw_ranges, check rollup_read_is_current, and only merge if valid, otherwise falling back to an authoritative full-range raw query. This applies to raw_range_points routing in sqlalchemy_store.py when rollups are not SQL-grouped, and does not apply to the single-query SQL-grouped path.",
+  "saysFor": "s2:17623f706267fd6cf22d2485ec3c38178bd533fc5d2ef1d11b916b3188df3603",
+  "lastUsed": "2026-10-11T10:04:22.899Z",
+  "servedIn": [
+    "1a0837ae-3560-4976-976d-574bd2d3e160"
+  ]
+}

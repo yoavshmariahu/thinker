@@ -1,0 +1,71 @@
+{
+  "id": "provider-free-model-cost-lookup-must-iterate-catalog-provide",
+  "title": "Provider-free model cost lookup must iterate catalog providers in sorted order",
+  "kind": "rule",
+  "answers": [
+    "model cost differs between machines for the same model name",
+    "provider-free cost lookup picks a different catalog entry on Linux vs macOS",
+    "LLM cost is inconsistent when no model_provider is set",
+    "why does calculated span cost vary across platforms"
+  ],
+  "body": "Symptom: a span's calculated cost for a model name with no provider differs between machines or operating systems, even though the code and pricing are the same.\nRoot cause: mlflow/utils/providers.py:_list_provider_names returned the raw Path.glob(\"*.json\") order, which depends on the filesystem, so the first catalog hit for an ambiguous model name varied.\nFix pattern: wrap the listing in sorted(...) so provider iteration order is fixed. Keep any new listing of bundled catalog files sorted too.\nConstraints: this covers the provider-free path only. When a model_provider is passed, no cross-provider scan happens and the sort is irrelevant. Pinned by assert providers == sorted(providers) in tests/utils/test_providers.py:test_list_provider_names_returns_bundled_providers.",
+  "applies": "Any code that enumerates bundled provider catalogs to resolve a model name without an explicit provider.",
+  "tags": [
+    "tracing",
+    "cost",
+    "determinism",
+    "providers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/providers.py",
+      "symbol": "_list_provider_names",
+      "hash": "sha256:dde3885ccd7b1aef67c473c5",
+      "line": 234,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dde3885ccd7b1aef67c473c5",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/utils/test_providers.py",
+      "symbol": "test_list_provider_names_returns_bundled_providers",
+      "hash": "sha256:6b3346376c702711649baa4c",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b3346376c702711649baa4c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26154"
+  },
+  "created": "2026-10-11T10:27:08.601Z",
+  "verified": "2026-10-11T10:27:08.601Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cost-tests-with-ambiguous-model-names-must-pass-model-provid"
+  ],
+  "says": [
+    "Calculated LLM span costs differ between Linux and Mac for identical model runs.",
+    "Model cost tracking reports inconsistent pricing for the same model across different computers.",
+    "Tracing displays different token expenditure totals depending on which operating system runs.",
+    "Model expense calculation should return identical pricing regardless of the deployment host platform.",
+    "Ensure automated cost tracking chooses the same catalog pricing on all developer machines."
+  ],
+  "search": "Provider-free model cost lookup must sort bundled provider catalog listings using sorted(...) in mlflow/utils/providers.py:_list_provider_names. This ensures a consistent catalog provider iteration order across machines and operating systems when resolving model names without an explicit provider. It applies only when no model_provider is set, leaving explicit provider lookups unaffected, and is pinned by assert providers == sorted(providers) in tests/utils/test_providers.py:test_list_provider_names_returns_bundled_providers.",
+  "saysFor": "s2:d36a6c2b70c2eaec4c298ccb04fd52c5c8998550c32e289134b21040b2659990"
+}

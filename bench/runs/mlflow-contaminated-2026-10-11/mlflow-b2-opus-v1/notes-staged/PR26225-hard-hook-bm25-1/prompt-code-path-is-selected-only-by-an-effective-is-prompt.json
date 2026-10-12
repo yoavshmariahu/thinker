@@ -1,0 +1,73 @@
+{
+  "id": "prompt-code-path-is-selected-only-by-an-effective-is-prompt",
+  "title": "Prompt code path is selected only by an effective is_prompt tag value of true",
+  "kind": "rule",
+  "answers": [
+    "prompt tag set to false still skips run validation when registering a model version",
+    "duplicate is_prompt tags on create model version",
+    "why does a model version with mlflow.prompt.is_prompt false go through prompt validation",
+    "non-prompt model version bypasses source run checks"
+  ],
+  "body": "Invariant: CreateModelVersion takes the prompt branch only when the effective mlflow.prompt.is_prompt tag value is \"true\" (compared case-insensitively). Duplicate tag keys collapse with the last value winning, the same way ModelVersion._is_prompt resolves them.\nEnforced by: mlflow/server/handlers.py:_is_prompt_request, which builds a dict from request_message.tags before checking the value.\nWhat breaks if skipped: any tag value, including \"false\", used to select the prompt branch, which skipped _validate_source_run and _validate_source_model for a regular model version. A [true, false] pair also selected the prompt path while the stored entity was not a prompt.\nConstraints: the prompt branch and the regular branch must agree with the entity-level prompt check; change both together or tests for duplicate and non-true values will diverge.",
+  "applies": "Any code in the model registry create path that decides prompt versus regular model version from request tags.",
+  "tags": [
+    "model-registry",
+    "prompts",
+    "tags",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_is_prompt_request",
+      "hash": "sha256:ea40c3d3d0840898df2c7649",
+      "line": 3462,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea40c3d3d0840898df2c7649",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_create_model_version",
+      "hash": "sha256:92e16071a077643fdce0cab2",
+      "line": 3361,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:92e16071a077643fdce0cab2",
+      "fanout": {
+        "files": 7,
+        "sites": 54,
+        "refs": 72
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-11T10:31:40.942Z",
+  "verified": "2026-10-11T10:31:40.942Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+    "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the",
+    "trace-ids-input-contract-shared-by-the-three-invoke-handlers",
+    "validate-the-resolved-scorer-payload-that-a-job-will-run-not"
+  ],
+  "says": [
+    "Setting the prompt indicator tag to false erroneously bypasses source run validation checks.",
+    "Registering a standard model version incorrectly follows the prompt creation flow.",
+    "Enforce source model verification whenever the prompt label is marked false.",
+    "Ensure model version registration only treats items as prompts when explicitly flagged true."
+  ],
+  "search": "During model version creation, the prompt handling branch must only be taken when the effective mlflow.prompt.is_prompt tag value case-insensitively equals 'true'. In mlflow/server/handlers.py:_is_prompt_request and _create_model_version, request tags are converted to a dictionary where duplicate keys resolve with the last value winning. This prevents non-true values such as 'false' from skipping _validate_source_run and _validate_source_model, ensuring the create handler stays synchronized with entity-level prompt checks.",
+  "saysFor": "s2:fc1db3675a3796b10b858ae234515e5054dda7c5a357fbd543bf881da4d033f6"
+}

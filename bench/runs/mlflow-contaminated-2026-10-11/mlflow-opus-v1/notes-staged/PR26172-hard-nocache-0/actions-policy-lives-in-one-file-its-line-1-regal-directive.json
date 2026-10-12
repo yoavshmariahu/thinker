@@ -1,0 +1,51 @@
+{
+  "id": "actions-policy-lives-in-one-file-its-line-1-regal-directive",
+  "title": "Actions policy lives in one file; its line-1 regal directive also ignores file-length",
+  "kind": "rule",
+  "answers": [
+    "why does regal report file-length on policy.rego",
+    "where should a new GitHub Actions policy rule go",
+    "regal ignore file-length directive for the Actions policy file",
+    "why is all workflow policy in a single rego file"
+  ],
+  "body": "Convention: all GitHub Actions policy rules live in the single file .github/policy.rego; do not split them into per-rule rego files.\nThe file's line-1 directive `# regal ignore:directory-package-mismatch,file-length` suppresses regal's file-length limit, because the file sits near that limit and any non-trivial addition trips it.\nAdding a rule means adding a deny_* set rule in .github/policy.rego and keeping the directive on line 1; removing the file-length entry will make regal lint fail on the next addition.\nConstraints: the directive is the reviewed fix from this change; the one-file layout is described as deliberate in the PR, not enforced by a check.\nApplies: Editing .github/policy.rego and its regal lint configuration.",
+  "applies": "Changes to .github/policy.rego; does not apply to other rego files or to workflow YAML.",
+  "tags": [
+    "regal",
+    "rego",
+    "policy",
+    "lint",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25590"
+  },
+  "created": "2026-10-11T08:50:25.840Z",
+  "verified": "2026-10-11T08:50:25.840Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-list-github-s-default-pull-request-activity-types-in",
+    "job-level-permissions-shorthand-read-all-write-all-is-denied",
+    "workflows-default-github-actions-cache-mode-to-none-grant-re"
+  ],
+  "says": [
+    "Continuous integration fails because workflow policy document exceeds maximum allowed length",
+    "Pull request linter check fails when adding new automation workflow security rules",
+    "Keep all workflow automation compliance rules inside a single central policy definition",
+    "Ignore policy length limits so automated pipeline validation checks do not fail",
+    "Add a new automated guardrail rule to block prohibited continuous integration actions"
+  ],
+  "search": "All GitHub Actions policy rules must be placed in .github/policy.rego as deny_* set rules rather than split into per-rule files. The line-1 directive `# regal ignore:directory-package-mismatch,file-length` suppresses regal's file-length limit and must be retained when adding rules. This convention applies to .github/policy.rego and its regal lint configuration, not to workflow YAML or other rego files.",
+  "saysFor": "s2:27b0d67539e1f154d54d6f1de73bddbac97584f7ae02c5665f8a7e73fe919d4d"
+}

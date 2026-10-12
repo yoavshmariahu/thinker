@@ -1,0 +1,84 @@
+{
+  "id": "span-cost-setter-must-not-overwrite-an-llm-cost-that-was-alr",
+  "title": "Span cost setter must not overwrite an LLM_COST that was already set, including explicit null",
+  "kind": "rule",
+  "answers": [
+    "manually set span cost gets overwritten by calculated cost",
+    "custom cost ignored on trace in SageMaker",
+    "null cost on a span replaced with a calculated price",
+    "cost passed by the user disappears in the MLflow UI"
+  ],
+  "body": "Symptom: a cost the user set on a span (or deliberately set to null) is replaced by MLflow's calculated price after the span ends.\nRoot cause: mlflow/tracing/utils/__init__.py:set_span_cost_attribute used to compute and set LLM_COST unconditionally once client-side cost was enabled.\nFix pattern: return early when SpanAttributeKey.LLM_COST is a key in span._span.attributes. Check key presence, not truthiness, so an explicit null is kept.\nConstraints: the server-side path also keeps an existing LLM_COST. See test_translate_preserves_client_computed_cost in tests/tracing/otel/test_span_translation.py. Keep this guard in place if the setter is refactored.",
+  "applies": "Span cost computation on LiveSpan.end() and the server-side translate_span_when_storing path.",
+  "tags": [
+    "tracing",
+    "llm-cost",
+    "span-attributes"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/utils/__init__.py",
+      "symbol": "set_span_cost_attribute",
+      "hash": "sha256:8d14fffed1f3b2396f5766fc",
+      "line": 957,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8d14fffed1f3b2396f5766fc",
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_utils.py",
+      "symbol": "test_sagemaker_preserves_manual_cost_when_span_ends",
+      "hash": "sha256:a433c54cf150ce20e8814871",
+      "line": 740,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a433c54cf150ce20e8814871",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/tracing/otel/test_span_translation.py",
+      "symbol": "test_translate_preserves_client_computed_cost",
+      "hash": "sha256:d4178edfec3406472994b5ee",
+      "line": 923,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d4178edfec3406472994b5ee",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26178"
+  },
+  "created": "2026-10-11T10:24:18.455Z",
+  "verified": "2026-10-11T10:24:18.455Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "client-side-llm-cost-selection-must-mirror-server-side-cost"
+  ],
+  "says": [
+    "Manually recorded model costs in trace details are overwritten by the system's estimated price.",
+    "Setting an empty cost on a trace step still displays an automatic dollar calculation.",
+    "Custom token expense values provided during inference disappear from the trace monitoring screen.",
+    "Preserve user-entered cost amounts instead of replacing them when a trace completes.",
+    "Do not recalculate pricing for trace runs where cost tracking was intentionally cleared."
+  ],
+  "search": "When computing span costs, `set_span_cost_attribute` in `mlflow/tracing/utils/__init__.py` must not overwrite an existing `LLM_COST` attribute, including an explicit null value. The setter checks for key presence in `span._span.attributes` rather than truthiness and returns early to preserve manual or client-computed costs. This applies to cost computation during `LiveSpan.end()` and server-side translation in `translate_span_when_storing`. Verified by `test_sagemaker_preserves_manual_cost_when_span_ends` in `tests/tracing/utils/test_utils.py` and `test_translate_preserves_client_computed_cost` in `tests/tracing/otel/test_span_translation.py`.",
+  "saysFor": "s2:b0b368a0bf1ae323df852232e673005e77697a0be266a06457bf50a4c8fda387"
+}

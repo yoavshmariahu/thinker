@@ -1,0 +1,60 @@
+{
+  "id": "metric-comparisons-in-logged-model-filter-string-must-join-o",
+  "title": "Metric comparisons in logged-model filter_string must join one row per model",
+  "kind": "rule",
+  "answers": [
+    "search_logged_models with a metrics filter returns fewer models than max_results",
+    "logged model metric filter pagination stops early or drops models",
+    "metrics.accuracy filter on logged models gives short pages",
+    "duplicate logged models when filtering by metric across datasets"
+  ],
+  "body": "Symptom: Searching logged models with a metric comparison in filter_string (e.g. `metrics.accuracy > 0`) returns short pages, or pagination ends while matching models remain, when a model logged that metric at several steps, runs or datasets.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:_apply_filter_string_datasets_search_logged_models joined the model query to a subquery over whole SqlLoggedModelMetric rows. Several rows per model duplicated the model before OFFSET/LIMIT; deduplication happened later in Python.\nFix pattern: Select only `SqlLoggedModelMetric.model_id` from the metric subquery and call `.distinct()`, so the join is one-to-at-most-one per model. This matches the dataset-only filter in the same method.\nConstraints: Applies to the metric branch (comp.entity.type == EntityType.METRIC). Param and tag branches are left unchanged on purpose: their keys are pinned, so they match at most one row per model. Keep the subquery one row per model if you add conditions.\nApplies: SQLAlchemy tracking store search_logged_models filter_string handling for metrics.<name> comparisons.",
+  "applies": "Filter-string (not order_by) metric handling in SqlAlchemyStore logged model search; for metric ordering see the existing metric-ordered search note.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_apply_filter_string_datasets_search_logged_models",
+      "hash": "sha256:3774dcf9e9eeaaa1c516a492",
+      "line": 3682,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3774dcf9e9eeaaa1c516a492",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26057"
+  },
+  "created": "2026-10-11T10:28:08.845Z",
+  "verified": "2026-10-11T10:28:08.845Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-filter-correlation-must-pass-experiment-ids-to-trace-i",
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg"
+  ],
+  "says": [
+    "Filtering logged models by metric returns fewer results per page than requested.",
+    "Pagination ends prematurely when searching models with a metric filter.",
+    "Matching logged models are omitted from search results when filtering on metrics.",
+    "Ensure full pages of models appear when filtering by evaluation metrics."
+  ],
+  "search": "In SqlAlchemyStore._apply_filter_string_datasets_search_logged_models, metric comparisons in filter_string must join against a subquery selecting only distinct SqlLoggedModelMetric.model_id rows. Joining whole metric rows causes duplicate models before OFFSET and LIMIT pagination, resulting in short result pages or prematurely terminated pagination when metrics span multiple steps, runs, or datasets. This rule applies specifically to comp.entity.type == EntityType.METRIC comparisons, leaving param and tag filter branches unchanged since their keys are pinned to single rows.",
+  "saysFor": "s2:68dffdf8f60e93b421ba17fb9b009e90f16fb439d39e20bbf9c4333103a3390e"
+}

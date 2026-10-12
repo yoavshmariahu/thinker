@@ -1,0 +1,45 @@
+{
+  "id": "promote-latest-must-stay-in-its-own-fixed-concurrency-group",
+  "title": "promote-latest must stay in its own fixed concurrency group, gated before it queues",
+  "kind": "rule",
+  "answers": [
+    "canonical release never got its latest docker tag after a patch release ran",
+    "pending latest promotion was replaced by another workflow run",
+    "concurrency group for the docker promotion job",
+    "why is the latest check a separate job"
+  ],
+  "body": "Invariant: the floating-tag promotion must not share a concurrency group with runs that will skip promotion.\nEnforced at .github/workflows/push-images.yml:promote-latest (group `push-images-promote-latest`, `cancel-in-progress: false`, job-level `if: needs.check-latest.outputs.promote == 'true'`).\nWhat breaks: GitHub keeps one pending run per concurrency group and replaces it when a new run queues, even with `cancel-in-progress: false`. If a non-latest release's run replaces a pending canonical promotion and then skips, no job promotes the canonical release and the floating tags stay stale.\nKeep the `check-latest` decision in its own job, and keep the concurrency block off `push-images` and `check-latest`. The Latest re-check inside `promote-latest` must still run before the `imagetools create` writes.",
+  "applies": "Any job added to push-images.yml that writes floating image tags or uses a concurrency group.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "docker",
+    "release"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:f81e2019e4c7412cfdc9deb4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-11T10:27:46.429Z",
+  "verified": "2026-10-11T10:27:46.429Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The latest container image tag did not update after publishing a new canonical release.",
+    "Releasing an older patch version left the main Docker release tag pointing to stale builds.",
+    "Ensure floating image tags always point to the most recent canonical version.",
+    "Concurrent image publishing runs cancel the promotion of our latest release tag."
+  ],
+  "search": "Floating Docker image tag promotions in .github/workflows/push-images.yml must isolate promote-latest inside its own fixed concurrency group gated by a prior check-latest job. The promote-latest job uses group push-images-promote-latest with cancel-in-progress set to false and executes only when needs.check-latest.outputs.promote equals true. Keeping check-latest in an ungated separate job prevents skipped runs from canceling pending canonical promotions, and a final re-check must precede imagetools create writes.",
+  "saysFor": "s2:0301d48f8544bfaa32daa50d2af2f26b481854585fb760e04fa533ab1b0697ce"
+}

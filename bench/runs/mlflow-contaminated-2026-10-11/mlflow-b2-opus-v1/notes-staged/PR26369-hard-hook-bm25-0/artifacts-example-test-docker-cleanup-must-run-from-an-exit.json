@@ -1,0 +1,57 @@
+{
+  "id": "artifacts-example-test-docker-cleanup-must-run-from-an-exit",
+  "title": "Artifacts example test: Docker cleanup must run from an EXIT trap, not trailing commands",
+  "kind": "rule",
+  "answers": [
+    "artifacts example CI job leaves Docker containers or images behind after failure",
+    "docker compose down skipped when the mlflow artifacts example fails",
+    "missing docker compose logs in CI when the example test fails",
+    "cleanup not running after test_mlflow_artifacts_example exits early"
+  ],
+  "body": "Symptom: When the artifacts example integration test fails on GitHub Actions, downloaded images and containers are not removed, and compose logs are missing from the failure output.\nRoot cause: tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example ran `docker compose logs` and `docker compose down {rmi_option}` as plain trailing commands, so any earlier `exit` skipped them.\nFix pattern: Use `set -e` and register one `trap '...' EXIT` that captures `status=$?`, runs logs and down, ORs each failing step into `status=1`, and ends with `exit \"$status\"`.\nConstraints: The trap must run exactly once on every exit path, including exhausted pull retries. A cleanup failure may only raise a zero status to nonzero; it must not overwrite a nonzero application status. Keep `rmi_option` (`--rmi all` on GitHub Actions) inside the trap.",
+  "applies": "Shell script built inside test_mlflow_artifacts_example; any new step added to that script that can exit early should rely on the same trap.",
+  "tags": [
+    "testing",
+    "docker",
+    "ci",
+    "tracking"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "test_mlflow_artifacts_example",
+      "hash": "sha256:d030592902a606b59629b020",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e8d65e452d935a5cb0d39bd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25910"
+  },
+  "created": "2026-10-11T10:30:23.524Z",
+  "verified": "2026-10-11T10:30:23.524Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "artifacts-example-test-retry-only-the-docker-compose-pull-st"
+  ],
+  "says": [
+    "The artifact example automated test does not clean up containers when it fails.",
+    "Integration test failures for the artifact example are missing diagnostic service logs.",
+    "Please make the artifact sample test remove downloaded images even after crashes.",
+    "Build logs show no console output from services when the artifact test aborts.",
+    "Leftover test containers remain behind after the artifact sample pipeline step exits."
+  ],
+  "search": "In tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example, Docker cleanup and compose logs must run from an EXIT trap rather than trailing commands so failures do not leave containers or skip logs. The trap registers with set -e, captures status=$?, runs docker compose logs and docker compose down with rmi_option (--rmi all on GitHub Actions), ORs each failing step into status=1, and exits with status. It applies to the shell script in test_mlflow_artifacts_example and any new early-exit step, running once on every exit path while cleanup failures may only raise zero status to nonzero without overwriting a nonzero application status.",
+  "saysFor": "s2:97386e165bc91dcf53e97de597f258812c12908b7bc607f97e495b9a4fce0ee1"
+}

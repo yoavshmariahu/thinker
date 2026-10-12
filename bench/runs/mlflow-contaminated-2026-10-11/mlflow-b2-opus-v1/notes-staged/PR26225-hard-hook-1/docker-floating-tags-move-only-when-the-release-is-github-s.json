@@ -1,0 +1,48 @@
+{
+  "id": "docker-floating-tags-move-only-when-the-release-is-github-s",
+  "title": "Docker floating tags move only when the release is GitHub's canonical Latest release",
+  "kind": "rule",
+  "answers": [
+    "a patch release moved the Docker latest tag to an older version",
+    "why is docker latest not updated for maintenance releases",
+    "how are latest and latest-full image tags promoted in CI",
+    "release created with --latest=false changed the floating image tag"
+  ],
+  "body": "Symptom: a maintenance patch release (published with `gh release create --latest=false`) moves Docker `latest`, `latest-full`, or model-server `latest` to an older image.\nRoot cause: .github/workflows/push-images.yml (the removed `check_latest` step) chose `latest` by semver-sorting `gh release list` output inside the image-build job, not by GitHub's Latest pointer.\nFix pattern: the build job pushes only versioned tags (`type=ref,event=tag`, `flavor: latest=false`). The `check-latest` job reads `gh api repos/$GITHUB_REPOSITORY/releases/latest --jq .tag_name` and compares it to the release tag. The `promote-latest` job re-checks that and then runs `docker buildx imagetools create` to retag the three floating images from the versioned ones.\nConstraints: fail closed. A failed API read must leave promote=false and fail the job, and a mismatch must skip promotion. Do not reintroduce semver comparison or `type=raw,value=latest` in any metadata step.",
+  "applies": "Changes to release-triggered image tagging and promotion in push-images.yml.",
+  "tags": [
+    "docker",
+    "github-actions",
+    "release",
+    "image-tags"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "symbol": "type",
+      "hash": "sha256:12cc98e840eedef6ad066e56",
+      "line": 55,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-11T10:27:46.290Z",
+  "verified": "2026-10-11T10:27:46.290Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Publishing an older maintenance patch accidentally reverted our latest container image tag.",
+    "Prevent maintenance releases from updating the floating latest tag in the container registry.",
+    "Pulling the latest image tag downloads an older patch release instead of modern builds.",
+    "Only move the latest release tag when publishing the canonical newest platform version.",
+    "Backport releases published without the latest designation are erroneously retagging standard container images."
+  ],
+  "search": "In .github/workflows/push-images.yml, build jobs push only versioned tags, while floating tags (latest, latest-full, and model-server latest) are promoted via docker buildx imagetools create only when check-latest matches GitHub's canonical latest release. The check-latest job reads gh api repos/$GITHUB_REPOSITORY/releases/latest --jq .tag_name to compare against the release tag, replacing semver sorting from gh release list that caused maintenance releases with --latest=false to retag floating images. Workflow failures must fail closed: a failed API call leaves promote=false and fails the job, mismatches skip promotion, and semver comparison or type=raw,value=latest must not be reintroduced.",
+  "saysFor": "s2:815493008f70bc64e200d01a0e2a72bc1dd45dbc1424458eeb9c0f385a14d7b8"
+}

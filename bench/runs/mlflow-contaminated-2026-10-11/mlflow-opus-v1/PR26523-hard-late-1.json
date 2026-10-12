@@ -1,0 +1,64 @@
+{
+  "id": "PR26523-hard-late-1",
+  "task": "PR26523-hard",
+  "area": "mlflow/gateway",
+  "arm": "late",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "53ae813d-4dbb-4ab6-8c5a-f6b535871c6e",
+  "turns": 5,
+  "wall_ms": 28874,
+  "api_ms": 16548,
+  "cost": 0.095691,
+  "in_tokens": 71370,
+  "out_tokens": 1594,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "callsBeforeFirstEdit": 2,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [
+      "do-not-override-chat-streaming-to-model-on-the-vertex-claude",
+      "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "goldTests": "gold tests did not apply: Performing three-way merge...\nerror: tests/gateway/providers/test_anthropic_adapter.py: does not exist in index\nerror: cannot read the current contents of 'tests/gateway/providers/test_anthropic_adapter.py'\nerror: tests/gateway/providers/test_anthropic_adapter.py: patch does not apply\n",
+    "tests": "pass",
+    "testTail": "===============\n1.01s setup    tests/gateway/providers/test_anthropic_adapter.py::test_chat_parallel_tool_calls[auto-False-expected_tool_choice0]\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/gateway/providers/test_anthropic_adapter.py` | 1.02s    | 6     | 0.002s | 1.008s | 0.170s |\n\n::endgroup::\n\n\u001b[33m========================= \u001b[32m6 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.07s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "I fixed this in `AnthropicAdapter.chat_to_model` in `mlflow/gateway/providers/anthropic.py`, right after the tool-choice conversion. The test file that was already staged (`tests/gateway/providers/test_anthropic_adapter.py`) now passes, along with the existing Anthropic and Vertex AI provider tests (150 passed).\n\n- **Never forwarded:** the OpenAI-only `parallel_tool_calls` field is now removed from the request every time, whatever its value, so Anthropic no longer rejects it.\n- **Translated when turned off:** if `parallel_tool_calls` is `False` and the tool choice is a named tool, automatic or required, the Gateway adds `disable_parallel_tool_use: True` to the tool choice. For example, a named-tool choice becomes `{\"type\": \"tool\", \"name\": \"extract\", \"disable_parallel_tool_use\": True}`.\n- **Otherwise unchanged:** if the tool choice is disabled (`\"none\"`) or not given, it stays as it is and the request goes through without the field.\n\nClaude on Vertex gets the fix automatically, because its adapter inherits this conversion step and streaming requests go through it too. No Vertex-specific code was needed.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py\nindex e2918bfb1..28f9be113 100644\n--- a/mlflow/gateway/providers/anthropic.py\n+++ b/mlflow/gateway/providers/anthropic.py\n@@ -288,6 +288,13 @@ class AnthropicAdapter(ProviderAdapter):\n                 case {\"type\": \"function\", \"function\": {\"name\": name}}:\n                     payload[\"tool_choice\"] = {\"type\": \"tool\", \"name\": name}\n \n+        # `parallel_tool_calls` is OpenAI-only and rejected by Anthropic. When disabled,\n+        # map it to `disable_parallel_tool_use` on the tool choice, which Anthropic only\n+        # accepts on \"auto\", \"any\", and \"tool\" choices.\n+        if payload.pop(\"parallel_tool_calls\", None) is False:\n+            if payload.get(\"tool_choice\", {}).get(\"type\") in (\"auto\", \"any\", \"tool\"):\n+                payload[\"tool_choice\"][\"disable_parallel_tool_use\"] = True\n+\n         # Transform response_format for Anthropic structured outputs\n         # Anthropic uses output_config.format with {\"type\": \"json_schema\", \"schema\": {...}}\n         if response_format := payload.pop(\"response_format\", None):\ndiff --git a/tests/gateway/providers/test_anthropic_adapter.py b/tests/gateway/providers/test_anthropic_adapter.py\nnew file mode 100644\nindex 000000000..ad62abc78\n--- /dev/null\n+++ b/tests/gateway/providers/test_anthropic_adapter.py\n@@ -0,0 +1,45 @@\n+from types import SimpleNamespace\n+\n+import pytest\n+\n+from mlflow.gateway.providers.anthropic import AnthropicAdapter\n+\n+\n+@pytest.mark.parametrize(\n+    (\"tool_choice\", \"parallel_tool_calls\", \"expected_tool_choice\"),\n+    [\n+        (\"auto\", False, {\"type\": \"auto\", \"disable_parallel_tool_use\": True}),\n+        (\"required\", False, {\"type\": \"any\", \"disable_parallel_tool_use\": True}),\n+        (\n+            {\"type\": \"function\", \"function\": {\"name\": \"extract\"}},\n+            False,\n+            {\"type\": \"tool\", \"name\": \"extract\", \"disable_parallel_tool_use\": True},\n+        ),\n+        (\"auto\", True, {\"type\": \"auto\"}),\n+        (\"none\", False, {\"type\": \"none\"}),\n+        (None, False, None),\n+    ],\n+)\n+def test_chat_parallel_tool_calls(tool_choice, parallel_tool_calls, expected_tool_choice):\n+    config = SimpleNamespace(model=SimpleNamespace(name=\"claude-sonnet-4-6\"))\n+    payload = {\n+        \"messages\": [{\"role\": \"user\", \"content\": \"extract the fields\"}],\n+        \"tools\": [\n+            {\n+                \"type\": \"function\",\n+                \"function\": {\n+                    \"name\": \"extract\",\n+                    \"description\": \"extract\",\n+                    \"parameters\": {\"type\": \"object\", \"properties\": {}},\n+                },\n+            }\n+        ],\n+        \"parallel_tool_calls\": parallel_tool_calls,\n+    }\n+    if tool_choice is not None:\n+        payload[\"tool_choice\"] = tool_choice\n+\n+    result = AnthropicAdapter.chat_to_model(payload, config)\n+\n+    assert \"parallel_tool_calls\" not in result\n+    assert result.get(\"tool_choice\") == expected_tool_choice\n",
+  "distill": null,
+  "cache_read_tokens": 65015,
+  "cache_write_tokens": 6347,
+  "fresh_in_tokens": 8,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

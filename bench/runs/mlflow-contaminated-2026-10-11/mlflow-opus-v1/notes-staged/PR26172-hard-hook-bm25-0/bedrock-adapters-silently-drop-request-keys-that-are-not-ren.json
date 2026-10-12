@@ -1,0 +1,100 @@
+{
+  "id": "bedrock-adapters-silently-drop-request-keys-that-are-not-ren",
+  "title": "Bedrock adapters silently drop request keys that are not renamed to the provider's field name",
+  "kind": "rule",
+  "answers": [
+    "top_p is ignored on Bedrock Titan or Jurassic models",
+    "sampling parameter has no effect on Bedrock completions",
+    "Bedrock response ignores nucleus sampling setting",
+    "why does a request param silently disappear when calling Bedrock through the gateway"
+  ],
+  "body": "Symptom: a user sets top_p on a Bedrock Titan or Jurassic (AI21) completion and gets a normal answer, but the sampling setting has no effect.\nRoot cause: mlflow/gateway/providers/bedrock.py:AWSTitanAdapter.completions_to_model and AI21Adapter.completions_to_model build the body with rename_payload_keys, which passes unmapped keys through unchanged. Bedrock does not recognise the snake_case key and ignores it without error.\nFix pattern: every caller-facing parameter forwarded by a Bedrock adapter needs an explicit entry in that adapter's rename mapping to the model family's field name (top_p -> topP here). Cover it with a fixture in tests/gateway/providers/test_bedrock.py:bedrock_model_provider_fixtures; test_bedrock_request_response asserts the exact outbound body with assert_called_once_with, so it pins the key name.\nConstraints: applies per model family. Titan's textGenerationConfig and Jurassic's body both use topP; Converse builds inferenceConfig separately and is not covered by these adapters.",
+  "applies": "Any new or existing parameter added to a Bedrock completions adapter in mlflow/gateway/providers/bedrock.py.",
+  "tags": [
+    "bedrock",
+    "gateway",
+    "completions",
+    "silent-drop",
+    "parameter-mapping"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AWSTitanAdapter.completions_to_model",
+      "hash": "sha256:f00e82083243c1ac1da6576d",
+      "line": 124,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f00e82083243c1ac1da6576d",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AI21Adapter.completions_to_model",
+      "hash": "sha256:fc5ef60784c56079080616c0",
+      "line": 191,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fc5ef60784c56079080616c0",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_bedrock.py",
+      "symbol": "test_bedrock_request_response",
+      "hash": "sha256:1d26c903452886e9475f0697",
+      "line": 476,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d26c903452886e9475f0697",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_bedrock.py",
+      "symbol": "bedrock_model_provider_fixtures",
+      "hash": "sha256:95a7dc7adce10c850443c77f",
+      "line": 120,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25795"
+  },
+  "created": "2026-10-11T08:42:24.945Z",
+  "verified": "2026-10-11T08:42:24.945Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "titan-rejects-top-p-0-with-a-422-before-calling-bedrock",
+    "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t",
+    "bedrock-anthropic-passthrough-anthropic-models-only-api-key",
+    "bedrock-stream-exception-frames-must-raise-httpexception-wit"
+  ],
+  "says": [
+    "Sampling parameters like nucleus sampling have no effect when querying Bedrock Titan models.",
+    "Completion requests to Jurassic models silently ignore the top p sampling setting.",
+    "The AI gateway drops generation sampling settings when forwarding calls to Bedrock providers.",
+    "Make Bedrock completions respect custom sampling parameters configured in gateway requests."
+  ],
+  "search": "Parameters forwarded by Bedrock completions adapters in mlflow/gateway/providers/bedrock.py (AWSTitanAdapter.completions_to_model and AI21Adapter.completions_to_model) must explicitly map caller parameter names to provider field names like topP. Unmapped snake_case keys like top_p pass through rename_payload_keys unchanged and are silently ignored by Bedrock Titan and Jurassic models without error. Applies per model family for Titan textGenerationConfig and Jurassic bodies, excluding Converse inferenceConfig, and must be tested in tests/gateway/providers/test_bedrock.py with bedrock_model_provider_fixtures and test_bedrock_request_response.",
+  "saysFor": "s2:ad21269f69208d31db23cbe39645dece16c7cd9e50a881e8802078778c86472c"
+}

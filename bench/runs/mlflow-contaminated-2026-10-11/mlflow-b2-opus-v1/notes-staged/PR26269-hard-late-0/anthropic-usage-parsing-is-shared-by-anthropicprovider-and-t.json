@@ -1,0 +1,100 @@
+{
+  "id": "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t",
+  "title": "Anthropic usage parsing is shared by AnthropicProvider and the Bedrock passthrough",
+  "kind": "rule",
+  "answers": [
+    "Bedrock passthrough shows blank token usage and cost in traces",
+    "change Anthropic usage parsing and Bedrock trace tokens",
+    "where is Anthropic streaming token usage extracted",
+    "Anthropic and Bedrock token counts out of sync"
+  ],
+  "body": "Invariant: the Anthropic passthrough usage logic lives in module-level helpers `_extract_anthropic_passthrough_token_usage` and `_extract_anthropic_streaming_token_usage` in `mlflow/gateway/providers/anthropic.py`. `AnthropicProvider` methods and `AmazonBedrockProvider._extract_passthrough_token_usage` / `_extract_streaming_token_usage` both delegate to them.\nWhat breaks if skipped: InvokeModel returns Anthropic response bodies and stream events unchanged, so a change to one copy alone makes the Bedrock span lose usage and cost while the Anthropic provider keeps working.\nConstraints: input tokens are normalized to include cache tokens via `_normalize_anthropic_input_tokens` in both paths; change the shared helpers, not a provider copy.",
+  "applies": "Changes to token usage extraction for Anthropic-format responses in any provider.",
+  "tags": [
+    "gateway",
+    "tracing",
+    "token-usage",
+    "anthropic",
+    "bedrock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_passthrough_token_usage",
+      "hash": "sha256:0230e64d648d518c5927fa43",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0230e64d648d518c5927fa43",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_streaming_token_usage",
+      "hash": "sha256:323c84d4cfcfda5d5f098029",
+      "line": 100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:323c84d4cfcfda5d5f098029",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._extract_streaming_token_usage",
+      "hash": "sha256:2d5dd39467d3e138a4659b31",
+      "line": 849,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2d5dd39467d3e138a4659b31",
+      "fanout": {
+        "files": 6,
+        "sites": 41,
+        "refs": 41
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._extract_passthrough_token_usage",
+      "hash": "sha256:9ca9d47dc1dcb73dd9176318",
+      "line": 844,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9ca9d47dc1dcb73dd9176318",
+      "fanout": {
+        "files": 9,
+        "sites": 26,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T10:32:17.062Z",
+  "verified": "2026-10-11T10:32:17.062Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t",
+    "bedrock-streaming-exception-frames-must-raise-httpexception"
+  ],
+  "says": [
+    "Trace details show zero tokens and empty cost for models running through Amazon.",
+    "Streaming execution traces are missing token consumption and billing metrics for routed models.",
+    "Prompt caching token counts do not appear in cloud provider inference trace logs.",
+    "Ensure token usage and cost metrics display properly for all hosted model gateways."
+  ],
+  "search": "Anthropic-format token usage extraction is centralized in module helpers _extract_anthropic_passthrough_token_usage and _extract_anthropic_streaming_token_usage in mlflow/gateway/providers/anthropic.py. Both AnthropicProvider and AmazonBedrockProvider delegate to these shared helpers for InvokeModel responses and stream events to keep Bedrock trace token usage and cost in sync. Input tokens are normalized to include cache tokens via _normalize_anthropic_input_tokens, and changes must be made to the shared helpers rather than provider copies.",
+  "saysFor": "s2:3fa9618f1dec5024d75f7f52583ddda09d4ee75ea83ce98a20a7937b8ca12e6a"
+}

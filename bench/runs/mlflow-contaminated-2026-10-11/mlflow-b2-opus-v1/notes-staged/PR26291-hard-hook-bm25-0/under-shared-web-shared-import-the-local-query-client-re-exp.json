@@ -1,0 +1,59 @@
+{
+  "id": "under-shared-web-shared-import-the-local-query-client-re-exp",
+  "title": "Under shared/web-shared, import the local query-client re-export relatively, not via @mlflow/mlflow alias",
+  "kind": "rule",
+  "answers": [
+    "can web-shared import from @mlflow/mlflow/src aliases",
+    "where do I import QueryClient inside shared/web-shared",
+    "web-shared portability import convention"
+  ],
+  "body": "Convention: code under shared/web-shared/ stays self-contained and does not import back through the @mlflow/mlflow/* alias, so it remains portable.\nThe pattern: import QueryClient and QueryClientProvider from the local re-export shared/web-shared/query-client/queryClient.ts, and reach sibling helpers such as createMlflowQueryClient with relative paths.\nApp-level code outside web-shared (app.tsx) still uses the @mlflow/mlflow/src alias for the same factory.\nReviewer-enforced: an alias import added to bootstrap.tsx was rejected in favour of the relative path.",
+  "applies": "Files under mlflow/server/js/src/shared/web-shared/. Does not apply to app-level files under src/ outside web-shared.",
+  "tags": [
+    "web-shared",
+    "imports",
+    "convention",
+    "portability"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/queryClient.ts",
+      "hash": "sha256:f79d7d51521939cee5353017",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.ts",
+      "symbol": "createMlflowQueryClient",
+      "hash": "sha256:3ac4327183320a197086367d",
+      "line": 3,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d211a1ef7c24f52bbf7a853",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-11T10:25:24.123Z",
+  "verified": "2026-10-11T10:25:24.123Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-ui-stays-on-a-loading-skeleton-with-zero-api-calls-wh",
+    "oss-entry-points-must-construct-queryclient-via-the-shared-f"
+  ],
+  "says": [
+    "Make shared web interface components portable without dependencies on the core application.",
+    "Decouple shared frontend modules so they can be reused across separate web products."
+  ],
+  "search": "Code under mlflow/server/js/src/shared/web-shared/ must remain self-contained and import the local QueryClient and QueryClientProvider re-exports via relative paths rather than using the @mlflow/mlflow/* alias. Sibling helpers like createMlflowQueryClient must also be reached relatively, whereas app-level code outside web-shared such as app.tsx still uses the @mlflow/mlflow/src alias. This portability rule applies strictly to files under shared/web-shared/ and does not apply to app-level files outside it.",
+  "saysFor": "s2:356c7429305434c054da5c90f020f37c6a20a4a910213e7b2a00c15afc1e578a"
+}

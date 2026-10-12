@@ -1,0 +1,100 @@
+{
+  "id": "dev-version-strings-must-be-bumped-together-across-python-ui",
+  "title": "Dev version strings must be bumped together across Python, UI, docs, Java, R and build files; Helm appVersion tracks the last release",
+  "kind": "rule",
+  "answers": [
+    "after a release, why does the version differ between mlflow, the UI, docs and Java/R?",
+    "CI uv sync --locked fails after bumping the dev version in pyproject.toml",
+    "how do I bump MLflow to the next dev version after a release tag?",
+    "why is charts/Chart.yaml appVersion not the new dev version?"
+  ],
+  "body": "Symptom: After a release, the installed mlflow package, the web UI, the docs and the Java/R artifacts report different version numbers, or the next dev cycle is only partly bumped. A bumped pyproject.toml with a stale uv.lock mlflow entry can fail the CI `uv sync --locked` step.\nRoot cause: The version is duplicated in mlflow/version.py:VERSION, pyproject.toml and pyproject.release.toml ([project] version), libs/skinny/pyproject.toml, libs/tracing/pyproject.toml, mlflow/server/js/src/common/constants.tsx:Version, docs/src/constants.ts:Version, mlflow/java/pom.xml, mlflow/R/mlflow/DESCRIPTION and charts/Chart.yaml.\nFix pattern: Bump all of these in one change to the next dev version (X.Y.Z.dev0 for Python/UI/docs, X.Y.Z-SNAPSHOT for Java, X.Y.Z for R). Only the editable mlflow package entry in uv.lock is updated, not the whole lockfile.\nConstraints: Helm charts/Chart.yaml appVersion is set to the just-released version, not the new dev version. The pyproject.release.toml mlflow-skinny/mlflow-tracing pins must point at the same new dev version. Do not hand-edit generated lockfile churn beyond the mlflow entry. A reviewer on the version-bump PR reported that the uv.lock mlflow entry must be regenerated in the same change as pyproject.toml, because `uv sync --locked` rejects a stale entry; the PR description had excluded uv.lock, so treat this as reviewer-reported rather than settled.\nApplies: Release-time version bumps in this repository after a release tag is cut. Not for changes to dependency bounds (see the version-bounds note).",
+  "applies": "Release-time version bumps in this repository after a release tag is cut. Not for changes to dependency bounds (see the version-bounds note).",
+  "tags": [
+    "release",
+    "versioning",
+    "build",
+    "uv-lock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/version.py",
+      "symbol": "VERSION",
+      "hash": "sha256:849e29800ed9e15383789b67",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 112
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/common/constants.tsx",
+      "symbol": "Version",
+      "hash": "sha256:b46eefb50441cc3ade53c385",
+      "line": 12,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55c892bd17e9ea65c26217cc",
+      "fanout": {
+        "files": 47,
+        "sites": 0,
+        "refs": 81
+      }
+    },
+    {
+      "path": "docs/src/constants.ts",
+      "symbol": "Version",
+      "hash": "sha256:b46eefb50441cc3ade53c385",
+      "line": 1,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:966434502f243f493ee67fbe",
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 85
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "uv.lock",
+      "hash": "sha256:05c02090295f8de03806091e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25582"
+  },
+  "created": "2026-10-11T08:44:15.483Z",
+  "verified": "2026-10-11T08:50:33.339Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-local-test-env-python-version-test-requirements-file"
+  ],
+  "history": [
+    {
+      "at": "2026-10-11T08:50:33.351Z",
+      "reason": "extended by a new session",
+      "prevBody": "Symptom: After a release, the installed mlflow package, the web UI, the docs and the Java/R artifacts report different version numbers, or the next dev cycle is only partly bumped.\nRoot cause: The version is duplicated in mlflow/version.py:VERSION, pyproject.toml and pyproject.release.toml ([project] version), libs/skinny/pyproject.toml, libs/tracing/pyproject.toml, mlflow/server/js/src/common/constants.tsx:Version, docs/src/constants.ts:Version, mlflow/java/pom.xml, mlflow/R/mlflow/DESCRIPTION and charts/Chart.yaml.\nFix pattern: Bump all of these in one change to the next dev version (X.Y.Z.dev0 for Python/UI/docs, X.Y.Z-SNAPSHOT for Java, X.Y.Z for R). Only the editable mlflow package entry in uv.lock is updated, not the whole lockfile.\nConstraints: Helm charts/Chart.yaml appVersion is set to the just-released version, not the new dev version. The pyproject.release.toml mlflow-skinny/mlflow-tracing pins must point at the same new dev version. Do not hand-edit generated lockfile churn beyond the mlflow entry."
+    }
+  ],
+  "says": [
+    "The web interface displays a different version number than the documentation pages.",
+    "Installed package version does not match the release number shown in the dashboard.",
+    "The documentation website shows an outdated release number after the latest product launch.",
+    "Application dashboard and client library show conflicting version numbers after a release.",
+    "Synchronize displayed version numbers across the web console, documentation, and installed packages."
+  ],
+  "search": "Post-release dev version bumps require synchronizing version strings across Python, UI, docs, Java, R, and build configurations in a single change to prevent version mismatches and CI uv sync --locked failures. Updates must bump mlflow/version.py:VERSION, pyproject.toml, pyproject.release.toml, libs/skinny/pyproject.toml, libs/tracing/pyproject.toml, mlflow/server/js/src/common/constants.tsx:Version, docs/src/constants.ts:Version, mlflow/java/pom.xml, and mlflow/R/mlflow/DESCRIPTION to their respective dev version formats, while updating only the editable mlflow entry in uv.lock. As an exception, Helm charts/Chart.yaml appVersion tracks the just-released version instead of the new dev version, and pyproject.release.toml pins for mlflow-skinny and mlflow-tracing must target the new dev version. This guidance applies to release-time version bumps after cutting a release tag, excluding dependency bounds modifications, and warns against hand-editing lockfile churn beyond the mlflow entry.",
+  "saysFor": "s2:07785e2d88d6ebd2f7f6985d7a9fbb946ae9dcd5e5ebce155d6853c8c525364c"
+}

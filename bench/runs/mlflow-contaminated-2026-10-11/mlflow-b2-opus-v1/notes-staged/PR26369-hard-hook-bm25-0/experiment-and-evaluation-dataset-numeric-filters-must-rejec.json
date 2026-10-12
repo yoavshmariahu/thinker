@@ -1,0 +1,87 @@
+{
+  "id": "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+  "title": "Experiment and evaluation-dataset numeric filters must reject float values after central parsing",
+  "kind": "rule",
+  "answers": [
+    "Why do experiment or evaluation dataset searches reject a decimal timestamp filter?",
+    "Which search APIs require integer-only numeric attribute values?",
+    "Why is there an Invalid value for numeric attribute error on experiment search?"
+  ],
+  "body": "Invariant: Experiment and evaluation-dataset searches accept only integer numeric values. The shared parser now returns floats for fractional literals, so the explicit `isinstance(value, float)` check must run before the `int(value)` coercion, or fractional timestamps are silently truncated.\nEnforced in: mlflow/store/tracking/sqlalchemy_store.py:_get_search_experiments_filter_clauses and _get_search_datasets_filter_clauses, which raise MlflowException INVALID_PARAMETER_VALUE for float values.\nWhat breaks if skipped: Fractional timestamps are truncated to integers in SQL, returning matches that should not exist.\nConstraints: This guard is specific to these two APIs. Run and MCP searches intentionally keep float comparisons, so do not copy the guard there.",
+  "applies": "SQL filter builders for experiment and evaluation-dataset search in the SQLAlchemy tracking store.",
+  "tags": [
+    "search",
+    "experiments",
+    "evaluation-dataset",
+    "validation",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_experiments_filter_clauses",
+      "hash": "sha256:89020edabf9dded58bde7923",
+      "line": 10175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89020edabf9dded58bde7923",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_datasets_filter_clauses",
+      "hash": "sha256:553b894cf7dad27acb23d27f",
+      "line": 10761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:553b894cf7dad27acb23d27f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._get_value",
+      "hash": "sha256:5695cab8f8f5a828d29796ca",
+      "line": 436,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5695cab8f8f5a828d29796ca",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26180"
+  },
+  "created": "2026-10-11T10:24:10.881Z",
+  "verified": "2026-10-11T10:24:10.881Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "metric-comparisons-in-logged-model-filter-string-must-join-o",
+    "logged-model-search-must-eager-load-every-child-relationship",
+    "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b",
+    "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back"
+  ],
+  "says": [
+    "Filtering experiments by decimal timestamps returns an invalid numeric attribute value error.",
+    "Searching evaluation datasets with fractional numbers displays an invalid parameter alert.",
+    "Experiment search returns incorrect records when filtering using decimal time values.",
+    "Reject decimal filters on experiment search instead of silently truncating fractional seconds."
+  ],
+  "search": "SQL filter builders for experiment and evaluation-dataset search in mlflow/store/tracking/sqlalchemy_store.py:_get_search_experiments_filter_clauses and _get_search_datasets_filter_clauses must reject float values with MlflowException INVALID_PARAMETER_VALUE. Because SearchUtils._get_value returns floats for fractional literals, an explicit isinstance(value, float) check must run before int(value) coercion to prevent silently truncating fractional timestamps in SQL and returning false matches. This constraint applies exclusively to experiment and evaluation-dataset searches, while run and MCP searches intentionally retain float comparisons.",
+  "saysFor": "s2:11194e7805ff55527f426d67cc1a226ad65d1c6b2ad41ff73715a7aa5e1a79c7"
+}

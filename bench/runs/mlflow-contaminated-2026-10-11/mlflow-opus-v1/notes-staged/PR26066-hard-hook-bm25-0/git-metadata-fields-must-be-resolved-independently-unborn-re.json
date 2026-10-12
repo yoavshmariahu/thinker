@@ -1,0 +1,66 @@
+{
+  "id": "git-metadata-fields-must-be-resolved-independently-unborn-re",
+  "title": "Git metadata fields must be resolved independently (unborn repo drops branch and remote)",
+  "kind": "rule",
+  "answers": [
+    "Traces from a freshly initialized git repo are missing branch and repository URL",
+    "Git source info disappears before the first commit",
+    "Why is the repo URL missing when HEAD has no commits?"
+  ],
+  "body": "Symptom: traces from a newly initialized repository with no commits show no branch or repository URL, even though both exist.\nRoot cause: libs/typescript/core/src/core/utils/environment.ts:resolveGitMetadata gated all fields on `git rev-parse HEAD`, which fails on an unborn branch.\nFix pattern: run each git command (commit, branch, remote.origin.url) separately and include each field only when its own output is non-empty.\nConstraints: keep each field optional; the commit being absent must not affect branch or remote. Regression coverage lives in libs/typescript/core/tests/core/utils/environment.test.ts.",
+  "applies": "Applies to any change to resolveGitMetadata; the cwd and runner are injectable for tests.",
+  "tags": [
+    "typescript",
+    "git-metadata",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:28ade0c3605149d615c01a95",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28ade0c3605149d615c01a95",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/utils/environment.test.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:a28c492747f68352f96f74f2",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-11T08:47:06.771Z",
+  "verified": "2026-10-11T08:47:06.771Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ts-trace-git-provenance-is-merged-in-both-exporter-span-proc"
+  ],
+  "says": [
+    "Execution traces from a new repository with no commits omit the branch and remote URL.",
+    "Project run details show blank version control source and branch before the first commit.",
+    "Show repository URL and current branch in trace metadata even when no commit exists.",
+    "Why does trace origin information disappear when working in an unborn repository branch?"
+  ],
+  "search": "Git metadata resolution in libs/typescript/core/src/core/utils/environment.ts:resolveGitMetadata must query commit, branch, and remote.origin.url independently rather than gating all fields on git rev-parse HEAD. Each field is included only when its command output is non-empty, ensuring an absent commit on an unborn branch does not drop the branch or repository URL. Applies to changes to resolveGitMetadata, where cwd and runner are injectable for tests, with regression coverage in libs/typescript/core/tests/core/utils/environment.test.ts.",
+  "saysFor": "s2:0482b293d237266ff36b848eb181e68a2477178e5d9434d030e74f677b5e00b9"
+}

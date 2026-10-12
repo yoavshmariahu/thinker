@@ -1,0 +1,84 @@
+{
+  "id": "public-genai-fluent-apis-backed-by-oss-only-routes-need-data",
+  "title": "Public genai fluent APIs backed by OSS-only routes need @databricks_api_disabled",
+  "kind": "rule",
+  "answers": [
+    "review queue call returns INTERNAL_ERROR Not Found on Databricks",
+    "list_review_queues fails with 500 on databricks tracking uri",
+    "how to block an mlflow.genai function on Databricks tracking URI",
+    "why does mlflow.genai.review_queues raise RestException Not Found on Databricks"
+  ],
+  "body": "Symptom: On a Databricks tracking URI, calling mlflow.genai.review_queues functions (e.g. list_review_queues, create_review_queue) fails with \"RestException: INTERNAL_ERROR: Not Found\" (HTTP 500), which looks like a server outage rather than an unsupported feature.\nRoot cause: mlflow/genai/review_queues/__init__.py public functions had no Databricks guard, so they reached TracingClient and the OSS /api/3.0/mlflow/review-queues/* routes, which Databricks does not implement.\nFix pattern: Stack @databricks_api_disabled(\"<function_name>\", _REVIEWS_UI_ALTERNATIVE) directly under @experimental(...) on each public function. The decorator (mlflow/utils/databricks_utils.py:databricks_api_disabled) raises MlflowException INVALID_PARAMETER_VALUE with the function name and the alternative text before any client work.\nConstraints: Apply only to fluent APIs whose backend route is absent on Databricks; the sibling mlflow.genai.label_schemas functions use the same decorator. The name string must match the function name, since the SDK test asserts on it. Keep the guard outside any client construction so no network call or client init happens.",
+  "applies": "Any public mlflow.genai.* function that calls an OSS-only tracking route; not for functions that Databricks serves.",
+  "tags": [
+    "databricks",
+    "tracking-uri",
+    "genai",
+    "review-queues",
+    "guardrail"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/review_queues/__init__.py",
+      "symbol": "list_review_queues",
+      "hash": "sha256:f264e898c85a2cf82ca8266a",
+      "line": 163,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f264e898c85a2cf82ca8266a",
+      "fanout": {
+        "files": 8,
+        "sites": 19,
+        "refs": 30
+      }
+    },
+    {
+      "path": "mlflow/genai/review_queues/__init__.py",
+      "symbol": "create_review_queue",
+      "hash": "sha256:300fc5f5e26a7e34dca62ce1",
+      "line": 69,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:300fc5f5e26a7e34dca62ce1",
+      "fanout": {
+        "files": 11,
+        "sites": 109,
+        "refs": 122
+      }
+    },
+    {
+      "path": "mlflow/utils/databricks_utils.py",
+      "symbol": "databricks_api_disabled",
+      "hash": "sha256:347316d3cf71dc74c5567ea8",
+      "line": 1647,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:347316d3cf71dc74c5567ea8",
+      "fanout": {
+        "files": 2,
+        "sites": 18,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25879"
+  },
+  "created": "2026-10-11T08:45:43.192Z",
+  "verified": "2026-10-11T08:45:43.192Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Review queue requests fail with a server error when connected to managed workspace tracking.",
+    "Unsupported review queue operations on Databricks look like an unexpected server outage.",
+    "Show a clear explanation and UI alternative when unsupported queue features are called on Databricks.",
+    "Block open-source only tracking commands immediately before sending requests to incompatible servers.",
+    "Listing or creating review queues reports not found errors instead of indicating lack of support."
+  ],
+  "search": "Public mlflow.genai fluent APIs calling OSS-only routes (such as list_review_queues and create_review_queue in mlflow/genai/review_queues/__init__.py) require @databricks_api_disabled. Without this guard on Databricks tracking URIs, calls reach TracingClient and unhandled /api/3.0/mlflow/review-queues/* endpoints, returning HTTP 500 RestException: INTERNAL_ERROR: Not Found. The decorator from mlflow/utils/databricks_utils.py must be placed directly under @experimental(...) before client construction, raising MlflowException INVALID_PARAMETER_VALUE with the function name and UI alternative. Applies to public mlflow.genai.* APIs absent on Databricks (including mlflow.genai.label_schemas), not functions Databricks serves.",
+  "saysFor": "s2:8564baee4fbb263d55a8d8f88412286ebbb6e05f7978bf29c8f1e394f00bbf7c"
+}

@@ -8,7 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
-import { testGreen } from './oracle.js';
+import { testGreen, resetWorktree, goldTestsSeen } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -60,9 +60,7 @@ function stageNotes(id) {
   return dst;
 }
 
-function resetWorktree(wt) {
-  try { execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt }); execFileSync('git', ['clean', '-qfd'], { cwd: wt }); } catch {}
-}
+// bench/oracle.js:resetWorktree: a hard reset, since the oracle stages the gold tests
 
 // A test run is a shell command that invokes a test runner; it is green when its output carries
 // no failure marker. The loop counters (bench/MEASUREMENT.md): test runs before the first edit,
@@ -308,7 +306,9 @@ async function main() {
       const transcriptModelIds = transcriptModels(transcriptPath(r.session_id, cwd));
       if (flags['strict-model'] && transcriptModelIds.some(m => m !== model)) throw new Error(`${id}: transcript model mismatch: ${transcriptModelIds.join(', ')}`);
       tools.injected = injectedIds(transcriptPath(r.session_id, cwd));
-      try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); } catch {}
+      let leak = [];
+      try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); leak = goldTestsSeen(task, tx); } catch {}
+      if (leak.length) console.log(`${id} LEAK: the transcript names gold tests ${leak.join(', ')}`);
       let grade = null, diff = null;
       if (task.type === 'change') {
         try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker'], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
@@ -332,6 +332,7 @@ async function main() {
         out_tokens: r.usage?.output_tokens || 0, tools, grade, result: r.result, is_error: r.is_error, diff, distill,
         cache_read_tokens: r.usage?.cache_read_input_tokens || 0, cache_write_tokens: r.usage?.cache_creation_input_tokens || 0, fresh_in_tokens: r.usage?.input_tokens || 0,
         goldTouched: diff ? goldTouched(task, diff) : null,
+        leak,  // gold test names the transcript shows: a session that saw one had the answer key
       };
       fs.writeFileSync(file, JSON.stringify(rec, null, 2));
       summary.push(rec);

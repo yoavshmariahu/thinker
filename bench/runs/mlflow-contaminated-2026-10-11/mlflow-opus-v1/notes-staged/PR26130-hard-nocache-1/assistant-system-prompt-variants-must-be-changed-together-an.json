@@ -1,0 +1,61 @@
+{
+  "id": "assistant-system-prompt-variants-must-be-changed-together-an",
+  "title": "Assistant system-prompt variants must be changed together and guarded by wording tests",
+  "kind": "rule",
+  "answers": [
+    "How do I change Assistant prompt behavior safely?",
+    "Which prompt variants need updating when editing MLflow Assistant instructions?",
+    "Assistant prompt edit conflicts with another instruction"
+  ],
+  "body": "Invariant: The Assistant has two system-prompt variants (the one in mlflow/assistant/providers/claude_code.py and the one in mlflow/assistant/providers/prompts.py). A behavior change must be applied to both, and a conflicting directive left in either one undoes the fix.\nWhy: In review, a new stop rule was contradicted by 'ALWAYS offer to complete tasks' in the Claude prompt, so the unwanted offers would still appear for documentation-backed answers.\nEnforcement: tests/assistant/providers/test_prompts.py checks prompt wording. Negative assertions for banned phrasing run for both prompts in one shared loop, and positive wording assertions are kept variant-specific.\nWhat breaks if skipped: One variant keeps producing the old behavior while tests pass, because the test only checks the phrasing that was changed.",
+  "applies": "Any edit to Assistant system prompt text in mlflow/assistant/providers.",
+  "tags": [
+    "assistant",
+    "prompts",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "symbol": "CLAUDE_SYSTEM_PROMPT",
+      "hash": "sha256:d8aa005741eca66d85b5c11a",
+      "line": 106,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-11T08:44:43.235Z",
+  "verified": "2026-10-11T08:44:43.235Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "assistant-unsolicited-follow-up-offers-come-from-system-prom"
+  ],
+  "says": [
+    "Assistant behavior changes work for one model provider but fail on another",
+    "The assistant still offers unwanted follow-ups when answering documentation questions",
+    "Keep assistant instructions and responses consistent across all supported model options",
+    "Fixed assistant conversation habits revert back depending on which provider is configured"
+  ],
+  "search": "Edits to Assistant system prompts in mlflow/assistant/providers must be applied simultaneously to both CLAUDE_SYSTEM_PROMPT in claude_code.py and prompts.py. Leaving conflicting instructions in either variant causes unintended behaviors to persist across provider configurations. Changes are enforced in tests/assistant/providers/test_prompts.py using a shared loop of negative assertions for banned phrases and variant-specific positive assertions. Applies to any modification of Assistant system prompt text across providers.",
+  "saysFor": "s2:c477c8f6bf8d55c802cfe1961fc731bcaac85e060e31d7cc758f1f075383dbbb",
+  "lastUsed": "2026-10-11T10:05:01.257Z",
+  "servedIn": [
+    "codex-mlflow-astra-v1-PR26252-hard-0"
+  ]
+}

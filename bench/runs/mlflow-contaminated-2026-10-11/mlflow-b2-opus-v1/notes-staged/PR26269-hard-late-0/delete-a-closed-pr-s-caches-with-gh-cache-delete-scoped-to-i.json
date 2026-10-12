@@ -1,0 +1,45 @@
+{
+  "id": "delete-a-closed-pr-s-caches-with-gh-cache-delete-scoped-to-i",
+  "title": "Delete a closed PR's caches with gh cache delete scoped to its merge ref",
+  "kind": "howto",
+  "answers": [
+    "How do I delete the caches for one pull request with gh?",
+    "What does --succeed-on-no-caches do in gh cache delete?",
+    "How to clean up GitHub Actions caches for a closed PR in MLflow CI",
+    "Delete PR-scoped caches without touching other branches"
+  ],
+  "body": "Command used in .github/workflows/pr-closed.yml (job delete-caches): `gh cache delete --all --ref \"refs/pull/$PR_NUMBER/merge\" --succeed-on-no-caches --repo \"$REPO\"`.\nPass PR_NUMBER from `github.event.pull_request.number` and REPO from `github.repository` via env; GH_TOKEN comes from `secrets.GITHUB_TOKEN`.\n`--ref` limits deletion to the PR's merge ref, so caches for other branches are kept.\n`--succeed-on-no-caches` stops the step failing when the PR has no caches.\nThe job runs on ubuntu-slim with timeout-minutes 5 and needs actions: write.",
+  "applies": "Cleaning up Actions caches for a single PR from a workflow step; not for deleting all repo caches.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "gh-cli",
+    "caches"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-closed.yml",
+      "hash": "sha256:960834be4cab5553f2fc50f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25871"
+  },
+  "created": "2026-10-11T10:31:24.490Z",
+  "verified": "2026-10-11T10:31:24.490Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automatically purge build cache storage whenever a pull request is closed.",
+    "The pull request cleanup pipeline fails when there are no caches to remove.",
+    "Clear cached build artifacts for a closed pull request without clearing other branches.",
+    "Free up continuous integration cache space after merging or closing pull requests."
+  ],
+  "search": "GitHub Actions cache deletion for a closed pull request is executed using gh cache delete scoped to its merge ref. Configured in the delete-caches job of .github/workflows/pr-closed.yml, the command runs gh cache delete --all --ref refs/pull/$PR_NUMBER/merge --succeed-on-no-caches --repo $REPO with GH_TOKEN, actions: write permissions, and an ubuntu-slim runner. This guidance applies specifically to deleting caches for a single pull request from a workflow step rather than purging all repository caches.",
+  "saysFor": "s2:8250f42a796c4a51c3e1c01ab9b911b4754f1f90241bcc1d191d1b341a408540"
+}

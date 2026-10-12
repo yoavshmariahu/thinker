@@ -1,0 +1,60 @@
+{
+  "id": "assistant-system-prompts-new-behavioral-directives-must-be-c",
+  "title": "Assistant system prompts: new behavioral directives must be checked against the whole prompt and mirrored in both variants",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow Assistant keep making unsolicited offers after I changed the system prompt?",
+    "How do I change the Assistant's response behavior without conflicting instructions?",
+    "Where do I edit the Assistant's system prompt so both Claude and the other provider behave the same?",
+    "Assistant offers to do more work even after I told it to stop"
+  ],
+  "body": "Invariant: the Assistant system prompt is one long string with sections written at different times, so a later section can silently override an earlier stop rule. Before adding or relaxing a directive, grep the whole prompt for conflicting imperatives such as \"ALWAYS offer\", \"offer to complete\", or \"ask whether\".\nEnforced in: mlflow/assistant/providers/claude_code.py:CLAUDE_SYSTEM_PROMPT (documentation-results section) and the parallel system prompt string in mlflow/assistant/providers/prompts.py.\nBoth variants must carry the same behavioral directives. A change to one (e.g. the \"Match Response Length to the Question\" section) must be applied to the other, or the two providers diverge.\nIf skipped, the model receives contradictory instructions and keeps producing the behavior the change was meant to remove, while tests that only check the new wording still pass.\nConstraints: this applies to behavioral directives shared by both prompts; provider-specific wording (for example Claude-only tool details) may differ.",
+  "applies": "Any edit to the Assistant system prompt text in mlflow/assistant/providers/.",
+  "tags": [
+    "assistant",
+    "system-prompt",
+    "prompts",
+    "consistency"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "symbol": "CLAUDE_SYSTEM_PROMPT",
+      "hash": "sha256:d8aa005741eca66d85b5c11a",
+      "line": 106,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-11T10:30:16.759Z",
+  "verified": "2026-10-11T10:30:16.759Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-prompt-wording-tests-should-assert-banned-phrasing"
+  ],
+  "says": [
+    "The assistant offers to do more work even after I told it to stop.",
+    "Chat responses are far too verbose instead of matching the question length.",
+    "The assistant behaves inconsistently when switching between different underlying model providers.",
+    "Why does the chat assistant keep making unsolicited suggestions after prompt updates?",
+    "Make sure behavioral changes are mirrored consistently across all assistant provider models."
+  ],
+  "search": "When updating Assistant system prompts, new behavioral directives must be verified against the entire prompt text for conflicts and mirrored across both prompt variants. Edits require checking the full prompt for conflicting imperatives such as 'ALWAYS offer', 'offer to complete', or 'ask whether' across mlflow/assistant/providers/claude_code.py:CLAUDE_SYSTEM_PROMPT and mlflow/assistant/providers/prompts.py. Shared directives like the 'Match Response Length to the Question' section must be applied to both variants to prevent model divergence, while provider-specific details like Claude-only tools may differ.",
+  "saysFor": "s2:82a98c07bae440f264255f1e09d4c9714039ac5b1267f797642f81c2d60bded0"
+}

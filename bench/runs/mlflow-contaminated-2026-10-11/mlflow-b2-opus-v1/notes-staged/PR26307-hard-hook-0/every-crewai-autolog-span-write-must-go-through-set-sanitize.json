@@ -1,0 +1,96 @@
+{
+  "id": "every-crewai-autolog-span-write-must-go-through-set-sanitize",
+  "title": "Every CrewAI autolog span write must go through _set_sanitized_attribute and the credential key filter",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new CrewAI attribute to a trace without leaking secrets?",
+    "Where should CrewAI span attribute sanitization happen?",
+    "Which keys are dropped from CrewAI autolog spans?"
+  ],
+  "body": "Invariant: every attribute written in mlflow/crewai/autolog.py:_set_span_attributes goes through mlflow/crewai/autolog.py:_set_sanitized_attribute, not span.set_attribute directly; calling set_attribute with a raw object skips the guard and can leak an api_key.\n_set_sanitized_attribute returns early when the key itself matches _SENSITIVE_KEY_PATTERN, because a field such as auth_token holds a plain string that _sanitize_value cannot recognize as a credential.\n_SENSITIVE_KEY_PATTERN drops api_key, secret, password, authorization and credential anywhere in the name, and token only as a snake_case suffix or camelCase Token suffix. max_tokens, tokenizer and token_usage are kept.\n_get_agent_attributes, _get_task_attributes and _get_llm_attributes apply the same key filter; _get_llm_attributes skips callbacks explicitly.\nWhat breaks if skipped: a credential reaches mlflow.spanAttributes or mlflow.spanInputs in the trace JSON.",
+  "applies": "Any new or edited span attribute, span input, or LLM/Agent/Task/Crew field handling in mlflow/crewai/autolog.py.",
+  "tags": [
+    "crewai",
+    "tracing",
+    "autologging",
+    "security",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_sanitized_attribute",
+      "hash": "sha256:b53085e3e64acfc7313ae680",
+      "line": 367,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b53085e3e64acfc7313ae680",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_SENSITIVE_KEY_PATTERN",
+      "hash": "sha256:4d6f2e11e602883f108c637d",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_get_llm_attributes",
+      "hash": "sha256:cb382c6c20ea115a3257fee4",
+      "line": 407,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cb382c6c20ea115a3257fee4",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_span_attributes",
+      "hash": "sha256:635dbc139cfbf9b97cceb3e0",
+      "line": 310,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:635dbc139cfbf9b97cceb3e0",
+      "fanout": {
+        "files": 4,
+        "sites": 8,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25845"
+  },
+  "created": "2026-10-11T10:32:26.662Z",
+  "verified": "2026-10-11T10:32:26.662Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "crewai-autolog-leaked-llm-api-key-into-span-attributes-and-i"
+  ],
+  "says": [
+    "Private API keys and passwords are visible inside agent run trace details.",
+    "Sanitize authentication tokens before recording agent and task execution traces.",
+    "Secret credentials leaked into the exported trace view for multi-agent workflows.",
+    "Mask authorization secrets while keeping usage token counts in trace logs."
+  ],
+  "search": "Span attribute writes in mlflow/crewai/autolog.py:_set_span_attributes must call _set_sanitized_attribute to prevent leaking credentials into trace attributes or inputs. The _SENSITIVE_KEY_PATTERN filter drops keys containing api_key, secret, password, authorization, or credential anywhere in the name, and token only as a snake_case suffix or camelCase Token suffix, while preserving max_tokens, tokenizer, and token_usage. The key filter applies to _get_agent_attributes, _get_task_attributes, and _get_llm_attributes, with callbacks skipped explicitly in _get_llm_attributes. Calling span.set_attribute directly with raw objects bypasses sanitization and leaks sensitive credentials into mlflow.spanAttributes or mlflow.spanInputs.",
+  "saysFor": "s2:4c88ff93c66fb6ca764269f7f2e7ce4ae14cbf86ee7c5eea3f49cf89d6865673"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "automation-workflows-keep-job-github-token-at-contents-read",
+  "title": "Automation workflows keep job GITHUB_TOKEN at contents: read; PR writes go through the App token",
+  "kind": "rule",
+  "answers": [
+    "Why does my workflow job fail with 403 when creating or updating a pull request?",
+    "Which permissions should a GitHub Actions job get for GITHUB_TOKEN in this repo?",
+    "Can I add pull-requests: write to a job's permissions block?",
+    "How do automated bot PRs get write access in the MLflow workflows?"
+  ],
+  "body": "Invariant: job-level `permissions` in the automation workflows (.github/workflows/uv.yml, remove-experimental-decorators.yml, update-model-catalog.yml `create-pr` job) is `contents: read`. No `pull-requests: write` or `contents: write` is granted to the job GITHUB_TOKEN.\nWhere: the `permissions:` block of each job in those files; PR-writing steps authenticate with the `mlflow-app` token from `actions/create-github-app-token` (its `permission-*` inputs carry the write scopes).\nWhy: the PR removed `contents: write` and `pull-requests: write` from these jobs, while the App token was kept as the write path. Unused write scopes on GITHUB_TOKEN were the reduction target.\nBreaks if skipped: adding write scopes back to the job token widens what any step in that job can do; moving a PR step onto GITHUB_TOKEN without the scope fails with 403.\nConstraints: inferred from the PR description and diff, not from a reviewer comment. Whether a given step truly needs the App token (vs. the job token) must be checked per step. The publish job in update-model-catalog.yml uses secrets.GITHUB_TOKEN with its own permissions and is not covered by this note.",
+  "applies": "Job-level permissions of the automation workflows listed above; check each step's token source before changing the permissions block.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "security",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:d47d3edb6a2e65e419a9488c",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/remove-experimental-decorators.yml",
+      "hash": "sha256:d0f1f9d5a3952a27040405cc",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25605"
+  },
+  "created": "2026-10-11T08:49:56.209Z",
+  "verified": "2026-10-11T08:49:56.209Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automation jobs fail with permission denied errors when attempting to open pull requests.",
+    "Automated maintenance tasks cannot push changes or update pull requests in the repository.",
+    "Restrict default workflow permissions while allowing automated pull requests through dedicated app credentials.",
+    "Model catalog update tasks fail with permission errors during pull request creation."
+  ],
+  "search": "Automation workflow jobs must restrict job-level GITHUB_TOKEN permissions to contents: read, using dedicated GitHub App tokens for pull request writes. In .github/workflows/uv.yml, remove-experimental-decorators.yml, and the create-pr job of update-model-catalog.yml, PR-writing steps authenticate via actions/create-github-app-token to avoid granting contents: write or pull-requests: write to the job token. Assigning write scopes to the job token exposes unnecessary permissions, while executing PR steps with GITHUB_TOKEN without scopes triggers 403 errors. Applies to job-level permissions in those specific automation workflows, whereas the publish job in update-model-catalog.yml uses secrets.GITHUB_TOKEN and is excluded.",
+  "saysFor": "s2:dec0b838b9b757aa9ba534df62619563c64b03154766445c439f82cb9c64c26b"
+}

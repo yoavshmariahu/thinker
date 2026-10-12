@@ -1,0 +1,74 @@
+{
+  "id": "span-classes-that-define-getitem-must-also-set-iter-none",
+  "title": "Span classes that define __getitem__ must also set __iter__ = None",
+  "kind": "rule",
+  "answers": [
+    "iter(span) succeeds on a span and then fails when iterated",
+    "\"name\" in span gives a confusing 'not subscriptable' error",
+    "why does Span need __iter__ = None",
+    "span is treated as a sequence by Python"
+  ],
+  "body": "Invariant: any span class that defines __getitem__ must also set `__iter__ = None` next to it.\nWhy: defining __getitem__ alone enables Python's legacy sequence iteration protocol, so iter(span) returns an iterator that only raises on first use, and `x in span` falls back to that iterator and reports the subscript message.\nEnforced at: mlflow/entities/span.py:Span (class attributes __iter__ = None and __getitem__, which always raises TypeError).\nIf skipped: iteration and membership tests on spans fail with misleading errors instead of the clear 'not iterable' TypeError.\nTests: tests/entities/test_span.py:test_span_is_not_iterable asserts both iter(span) and `\"name\" in span` raise 'not iterable'.\nApplies: Span, LiveSpan, LazySpan and any span-like wrapper in mlflow/entities/span.py that adds __getitem__.",
+  "applies": "Span-family classes in mlflow/entities/span.py; not for unrelated containers in other modules.",
+  "tags": [
+    "tracing",
+    "entities",
+    "span",
+    "python-protocols"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span",
+      "hash": "sha256:a5012de3297b90299c66578d",
+      "line": 119,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a5012de3297b90299c66578d",
+      "fanout": {
+        "files": 102,
+        "sites": 85,
+        "refs": 453
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_is_not_iterable",
+      "hash": "sha256:5567c614fd312e1550bb288c",
+      "line": 1530,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5567c614fd312e1550bb288c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26008"
+  },
+  "created": "2026-10-11T10:29:13.796Z",
+  "verified": "2026-10-11T10:29:13.796Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss",
+    "span-get-must-stay-an-unresolved-attribute-hint-via-getattr",
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "span-getitem-hint-lookup-must-not-evaluate-attribute-getters"
+  ],
+  "says": [
+    "Checking if a property exists in a trace span shows a confusing subscript error message.",
+    "Looping through a trace span gives a confusing indexing message instead of an iterable warning.",
+    "Membership tests on trace spans should clearly report that spans do not support iteration.",
+    "Searching inside a trace step should return a clear error stating it is not a sequence.",
+    "Trace steps in custom evaluation scripts produce confusing error messages when accessed like a list."
+  ],
+  "search": "Span-family classes in `mlflow/entities/span.py` defining `__getitem__` must also set `__iter__ = None`. Without setting `__iter__ = None`, Python falls back to legacy sequence iteration, causing `iter(span)` to fail only on first consumption and membership checks (`x in span`) to raise misleading subscript errors. `Span`, `LiveSpan`, `LazySpan`, and related wrappers must raise a clear non-iterable TypeError rather than an indexing error. This applies strictly to span-like classes in `mlflow/entities/span.py` and is verified by `tests/entities/test_span.py:test_span_is_not_iterable`.",
+  "saysFor": "s2:d47abc6412900fa4f92d3b64e54a858b35b19089498cab79a62679aba44a2dc0"
+}

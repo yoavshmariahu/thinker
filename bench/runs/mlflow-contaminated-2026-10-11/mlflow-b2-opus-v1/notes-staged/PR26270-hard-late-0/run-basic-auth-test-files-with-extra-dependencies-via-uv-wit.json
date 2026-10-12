@@ -1,0 +1,70 @@
+{
+  "id": "run-basic-auth-test-files-with-extra-dependencies-via-uv-wit",
+  "title": "Run basic-auth test files with extra dependencies via uv --with",
+  "kind": "howto",
+  "answers": [
+    "how to run the auth server tests",
+    "pytest tests/server/auth command with uv",
+    "which extra packages are needed for basic-auth tests",
+    "run fail-closed and workspace auth tests"
+  ],
+  "body": "Command: uv run --with 'flask-wtf,httpx2,pyjwt' pytest tests/server/auth/test_fail_closed_flag.py tests/server/auth/test_authorization_coverage.py tests/server/auth/test_auth_workspace.py\nThe --with flag adds flask-wtf, httpx2 and pyjwt for this run without changing project dependencies; the PR reports these three files all pass with it.\nRun tests/server/auth/test_auth.py the same way when exercising the secret create route end to end (the PR reports 11 such tests passing).\nThe auth tests cover the fail-closed backstop and workspace create validators, so run them after changing _authorized_outside_before_request or any validate_can_create_* validator.",
+  "applies": "Local verification of basic-auth authorization changes in mlflow/server/auth; the extras list is as stated in the PR and may change.",
+  "tags": [
+    "testing",
+    "auth",
+    "uv"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_every_ownership_grant_route_has_a_before_request_validator",
+      "hash": "sha256:122b401a346a87070621f8c2",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:122b401a346a87070621f8c2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "hash": "sha256:1744fcf37313b0d8a8eef3a9",
+      "missing": false
+    },
+    {
+      "path": "tests/server/auth/test_auth_workspace.py",
+      "hash": "sha256:acc16f07860d6e56ab714cf6",
+      "missing": false
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "hash": "sha256:89522db9e004e78eff76be44",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-11T10:31:00.527Z",
+  "verified": "2026-10-11T10:31:00.527Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "only-response-filters-may-self-authorize-a-route-in-the-fail"
+  ],
+  "says": [
+    "Verify user permission rules and workspace access controls during local testing",
+    "Security tests for fail closed protection fail because required authentication libraries are missing",
+    "Test secret creation permissions and workspace validation after changing authorization rules",
+    "Make sure workspace creation permission checks properly enforce access restrictions"
+  ],
+  "search": "Run basic-auth authorization tests using uv run --with 'flask-wtf,httpx2,pyjwt' pytest to add transient dependencies without modifying project dependencies. This command executes tests/server/auth/test_fail_closed_flag.py, tests/server/auth/test_authorization_coverage.py, and tests/server/auth/test_auth_workspace.py, as well as tests/server/auth/test_auth.py for end-to-end secret create route testing. The suite covers the fail-closed backstop and workspace create validators, serving as verification when modifying _authorized_outside_before_request or validate_can_create_* validators. Guidance applies to local verification in mlflow/server/auth with an extras list subject to change.",
+  "saysFor": "s2:975960c8626c1e8b13280a7861ec5daae21c5189528a8d09a60da459287a21ee"
+}

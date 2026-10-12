@@ -1,0 +1,156 @@
+{
+  "id": "gateway-authz-validators-must-read-resource-ids-from-the-par",
+  "title": "Gateway authz validators must read resource IDs from the parsed proto message, not raw request params",
+  "kind": "rule",
+  "answers": [
+    "gateway secret delete or update acts on the wrong secret when request mixes snake_case and camelCase fields",
+    "AI Gateway permission check ignores secretId or endpointId alias in the request body",
+    "403 or wrong-resource authorization for gateway endpoints or model definitions sent with JSON-name keys",
+    "why does gateway permission check read secret_id differently from the handler"
+  ],
+  "body": "Symptom: a user sends a gateway request whose resource ID uses a camelCase alias (e.g. secretId) alongside a snake_case key, and authorization is evaluated against a different resource than the handler uses.\nRoot cause: mlflow/server/auth/__init__.py:_get_permission_from_gateway_secret_id (and the endpoint/model-definition equivalents) read raw keys via _get_request_param(\"secret_id\"), which misses protobuf JSON-name aliases.\nFix pattern: in each validate_can_*_gateway_* validator, parse with _get_request_message(<RequestProto>()) and use msg.<field>; then call the shared helper (_get_gateway_secret_permission, _get_gateway_endpoint_permission, _get_gateway_model_definition_permission) with that value. Keep the helpers taking an explicit ID so the raw-param path is not reused.\nConstraints: applies to gateway routes registered in the before-request validator map. A GET by name has no ID in the message, so resolve endpoint_id via _get_tracking_store().get_gateway_endpoint(name=...) first. Do not add local try/except there; the outer @catch_mlflow_exception turns MlflowException into the proper error response.",
+  "applies": "Any gateway (secrets, model definitions, endpoints, guardrail/binding routes) authorization validator in mlflow/server/auth/__init__.py.",
+  "tags": [
+    "auth",
+    "gateway",
+    "protobuf",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_permission_from_gateway_secret_id",
+      "hash": "sha256:6927a837fe34822a72521f72",
+      "line": 1117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6927a837fe34822a72521f72",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_request_param",
+      "hash": "sha256:459160688c29d0a9a51f5f0d",
+      "line": 571,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:459160688c29d0a9a51f5f0d",
+      "fanout": {
+        "files": 5,
+        "sites": 72,
+        "refs": 80
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "secret_id",
+      "hash": "sha256:b0ad7f32da4eee385c953bf1",
+      "line": 2093,
+      "missing": false,
+      "fanout": {
+        "files": 44,
+        "sites": 0,
+        "refs": 649
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_read_gateway_endpoint",
+      "hash": "sha256:64240c8a1db1f2cd0e1bc5ef",
+      "line": 2034,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:64240c8a1db1f2cd0e1bc5ef",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_model_definition",
+      "hash": "sha256:f35b0bf8d3217abcee255709",
+      "line": 2101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f35b0bf8d3217abcee255709",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_permission_from_gateway_secret_id",
+      "hash": "sha256:6927a837fe34822a72521f72",
+      "line": 1117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6927a837fe34822a72521f72",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-11T10:25:31.838Z",
+  "verified": "2026-10-11T10:25:31.838Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "createmodelversion-source-read-check-must-authorize-the-prot",
+    "model-version-create-denies-a-nonexistent-source-run-model-w",
+    "authorization-validators-must-parse-the-route-s-own-request",
+    "issue-detection-invoke-must-require-use-on-the-gateway-secre"
+  ],
+  "says": [
+    "Updating or deleting a gateway secret fails with a permission error when using camelCase fields.",
+    "Gateway permission checks evaluate the wrong resource when requests use alternative identifier field names.",
+    "Users receive an unauthorized error when managing gateway endpoints with JSON style property names.",
+    "Ensure authorization checks for gateway secrets correctly identify resources across different request formats.",
+    "Modifying a gateway model definition targets the wrong resource during permission evaluation."
+  ],
+  "search": "AI Gateway authorization validators in mlflow/server/auth/__init__.py must obtain resource IDs from parsed protobuf request messages rather than raw request parameters. Reading raw parameters via _get_request_param misses protobuf JSON-name aliases like secretId or endpointId, causing permission checks to evaluate a different resource than the handler uses. Validators must parse requests with _get_request_message and pass msg.<field> to explicit helpers (_get_gateway_secret_permission, _get_gateway_endpoint_permission, _get_gateway_model_definition_permission). For GET requests by name where the message lacks an ID, endpoint_id is resolved via _get_tracking_store().get_gateway_endpoint(name=...) without local try/except, delegating errors to @catch_mlflow_exception.",
+  "saysFor": "s2:87f3d8c64c88ec95ffaa34155f32f0ca52116b2be8c78e66c103ea85f8cf283b"
+}

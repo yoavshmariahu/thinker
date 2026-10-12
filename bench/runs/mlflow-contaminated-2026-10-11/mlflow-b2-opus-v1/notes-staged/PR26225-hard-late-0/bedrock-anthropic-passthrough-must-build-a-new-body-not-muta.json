@@ -1,0 +1,57 @@
+{
+  "id": "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta",
+  "title": "Bedrock Anthropic passthrough must build a new body, not mutate the caller's payload",
+  "kind": "rule",
+  "answers": [
+    "gateway fallback to Bedrock sends wrong body after first provider fails",
+    "Bedrock passthrough removes model field and breaks the fallback provider",
+    "why does AmazonBedrockProvider copy the payload before passthrough",
+    "anthropic messages fallback endpoint returns error on second leg"
+  ],
+  "body": "Symptom: when an endpoint with a Bedrock fallback leg fails over, the next provider receives a body missing fields or with a stray `anthropic_version`, or returns an error on the route.\nRoot cause: `mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough` takes the same `payload` that `FallbackProvider` later hands to the next provider.\nFix pattern: never pop or edit `payload`; build `body = {k: v for k, v in payload.items() if k not in (\"model\", \"stream\")}` and add `anthropic_version` to that copy.\nConstraints: applies to any provider whose passthrough rewrites the body for its own URL or schema. Bedrock takes the model and streaming mode from the URL, so `model` and `stream` must stay out of the JSON body while remaining in the caller's payload.",
+  "applies": "Changes to AmazonBedrockProvider._passthrough or to passthrough body rewriting in any provider used as a FallbackProvider leg.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "passthrough",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T10:32:16.286Z",
+  "verified": "2026-10-11T10:32:16.286Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t"
+  ],
+  "says": [
+    "Gateway route fallback fails on the second model provider after Bedrock fails.",
+    "Failover endpoints return bad request errors because the model parameter is missing.",
+    "Requests should seamlessly route to the backup provider when the primary endpoint fails.",
+    "Subsequent providers in a gateway failover chain receive corrupted request payloads.",
+    "Keep original request options intact when switching between providers in routing rules."
+  ],
+  "search": "In the MLflow AI Gateway, Bedrock Anthropic passthrough must construct a new request body rather than mutating the caller payload in place. In mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough, mutating payload corrupts the dictionary shared with subsequent legs in FallbackProvider. The copied body must omit model and stream—which Bedrock supplies via URL parameters—and add anthropic_version without modifying the original caller dictionary.",
+  "saysFor": "s2:5a105447927464873e1cd3209e815544d7bad30eced3ee0de7b6e1258d89e5b3"
+}

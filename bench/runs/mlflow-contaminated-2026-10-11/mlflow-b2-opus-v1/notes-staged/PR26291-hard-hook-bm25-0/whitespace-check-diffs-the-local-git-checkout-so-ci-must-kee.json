@@ -1,0 +1,75 @@
+{
+  "id": "whitespace-check-diffs-the-local-git-checkout-so-ci-must-kee",
+  "title": "Whitespace check diffs the local git checkout, so CI must keep the base revision fetched",
+  "kind": "rule",
+  "answers": [
+    "whitespace check fails with a git error in lint CI",
+    "lint job breaks after shallow checkout change",
+    "why does check_whitespace_only need fetch-depth 2",
+    "PR whitespace-only check reports no diff or crashes"
+  ],
+  "body": "Invariant: dev/check_whitespace_only.py no longer downloads the PR .diff from GitHub. get_pr_diff(base_revision) runs `git diff --no-ext-diff --no-color <base>...HEAD` in the local clone.\nEnforced by: dev/check_whitespace_only.py:get_pr_diff and parse_args (--base-revision is required).\nCI wiring: .github/workflows/lint.yml passes `--base-revision HEAD^1`; that revision only exists because the checkout uses `fetch-depth: 2`.\nWhat breaks if skipped: lowering fetch-depth to 1 or removing the base fetch makes git diff fail (subprocess.CalledProcessError, no fallback), and the lint step errors instead of checking the PR.\nKeep the lint.yml fetch depth and the --base-revision value changed together.",
+  "applies": "Any change to the lint job checkout step, or to how check_whitespace_only.py obtains the diff.",
+  "tags": [
+    "ci",
+    "lint",
+    "git",
+    "whitespace"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "get_pr_diff",
+      "hash": "sha256:3833aed6df998a65a6fe73ef",
+      "line": 57,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3833aed6df998a65a6fe73ef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "parse_args",
+      "hash": "sha256:31647357623c36991df77826",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:31647357623c36991df77826",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:86030cddebefeb6cb6ae79b4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26094"
+  },
+  "created": "2026-10-11T10:27:58.337Z",
+  "verified": "2026-10-11T10:27:58.337Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "run-the-whitespace-only-check-locally-against-a-fetched-base"
+  ],
+  "says": [
+    "Pull request lint workflow crashes with a git diff error during validation.",
+    "Code formatting check fails in continuous integration on shallow git checkouts.",
+    "Whitespace validation job errors out instead of reviewing pull request changes.",
+    "Ensure the pull request linting pipeline fetches enough commit history to compare."
+  ],
+  "search": "In dev/check_whitespace_only.py, get_pr_diff runs a local git diff against a required --base-revision rather than downloading the PR diff from GitHub. The workflow .github/workflows/lint.yml supplies --base-revision HEAD^1, which requires fetch-depth: 2 in the checkout step. Lowering fetch-depth to 1 causes git diff to fail with subprocess.CalledProcessError and aborts the lint step, so fetch depth and --base-revision must be updated together.",
+  "saysFor": "s2:361fb4ee4caff7ac70c1eb5c65f796298ebd00463ca69e780b44a6798d1fc52c"
+}

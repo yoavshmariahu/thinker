@@ -1,0 +1,83 @@
+{
+  "id": "response-filter-lookup-is-keyed-on-the-endpoint-function-and",
+  "title": "Response-filter lookup is keyed on the endpoint function, and the job filter depends on the creator wire field",
+  "kind": "rule",
+  "answers": [
+    "why is my POST route not filtered by the response filter",
+    "job search filter returns nothing for non-admins after changing the Job model",
+    "how do response filters find which route to filter",
+    "creator field missing from job JSON breaks ownership filtering"
+  ],
+  "body": "Invariant: mlflow/server/auth/__init__.py:_find_fastapi_response_filter takes only the request and looks up scope['endpoint'] in FASTAPI_ENDPOINT_RESPONSE_FILTERS. It no longer checks the HTTP method, so a POST collection route registered there is filtered too; the lookup is exact per function, so other routes get no filter.\n_filter_search_jobs reads job['creator'] from the serialized JSON. That key exists only because mlflow/server/job_api.py:Job declares creator and from_job_entity copies job.creator. Renaming or dropping either silently hides every job from non-admins (fail-closed) rather than erroring.\nTests that compare the full job JSON, such as test_job_submit and test_job_cancel in tests/server/jobs/test_endpoint.py, must include \"creator\": None, since pydantic serializes unset optional fields as null (as with status_details).\nApplies: any change to the Job response model or to response filter registration for job routes.",
+  "applies": "Changes to job_api.Job, the response filter map, or job route serialization.",
+  "tags": [
+    "auth",
+    "jobs",
+    "response-filter",
+    "fastapi",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5957,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "Job",
+      "hash": "sha256:7e31d3bbd48d74a915b17a41",
+      "line": 18,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7e31d3bbd48d74a915b17a41"
+    },
+    {
+      "path": "tests/server/jobs/test_endpoint.py",
+      "symbol": "test_job_submit",
+      "hash": "sha256:5923b906ff72c25d7e85ac2c",
+      "line": 162,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5923b906ff72c25d7e85ac2c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T08:45:28.859Z",
+  "verified": "2026-10-11T08:45:28.859Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j",
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+    "nested-graphql-fields-that-return-per-model-resources-must-b",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo"
+  ],
+  "says": [
+    "Job list appears completely empty for non-admin users after recent updates.",
+    "Non-administrators cannot see their submitted jobs in the jobs dashboard.",
+    "Restore ownership visibility so team members can view jobs they created.",
+    "Search jobs table returns zero results when logged in without administrator privileges."
+  ],
+  "search": "Response filtering in mlflow/server/auth/__init__.py:_find_fastapi_response_filter matches scope['endpoint'] against FASTAPI_ENDPOINT_RESPONSE_FILTERS without checking HTTP methods. Ownership filtering in _filter_search_jobs relies on the creator field serialized in mlflow/server/job_api.py:Job; omitting or renaming it silently hides all jobs from non-admin users. Tests comparing serialized job JSON, such as test_job_submit and test_job_cancel in tests/server/jobs/test_endpoint.py, must expect creator as None for unset optional fields. Applies to modifications of the Job response model, response filter registration, or job route serialization.",
+  "saysFor": "s2:7ba7e08be9b05dab33bef4805712146adc863f734de4fd72bee06c2cdfe79c8a"
+}

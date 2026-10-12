@@ -1,0 +1,44 @@
+{
+  "id": "stack-nudge-eligibility-guards-humans-only-no-native-stacks",
+  "title": "Stack nudge eligibility guards: humans only, no native stacks",
+  "kind": "rule",
+  "answers": [
+    "why does the stack nudge not comment on my PR",
+    "bot PRs or outside contributor PRs should not get stacked PR nudge",
+    "native GitHub stack PR gets stacked PR comment"
+  ],
+  "body": "Invariant: The nudge runs only for PRs whose author is a non-bot with author_association MEMBER, OWNER, or COLLABORATOR, whose body contains the phrase `🥞 Stacked PR`, and which is not already a native GitHub stack (`!github.event.pull_request.stack`).\nEnforced at: .github/workflows/stack-nudge.yml:nudge (job-level `if`).\nWhat breaks if skipped: bots or external contributors get an unsolicited comment, and PRs already using native stacks get redundant advice.\nConstraints: Keep these as job-level `if` checks so the job never starts; adding a check only inside a step still runs the job and spends a runner.",
+  "applies": "Any change to the trigger, `if`, or permissions of the Stack Nudge workflow.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "stack-nudge"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-11T10:32:18.461Z",
+  "verified": "2026-10-11T10:32:18.461Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated stack comments should not post on pull requests submitted by external contributors.",
+    "Prevent redundant stack advice comments from appearing on pull requests using native stacks.",
+    "Bot pull requests receive unwanted automated comments reminding authors about stacked changes.",
+    "Why did the stacked pull request helper not comment on my change description?",
+    "Stop posting stacked pull request reminders to non-member contributors and automated bots."
+  ],
+  "search": "The stack nudge workflow in .github/workflows/stack-nudge.yml must restrict execution to non-bot pull request authors with MEMBER, OWNER, or COLLABORATOR associations whose PR body contains `🥞 Stacked PR` and is not already a native stack. These eligibility guards are enforced at the job-level `if` in .github/workflows/stack-nudge.yml:nudge to prevent unsolicited comments on bot or external contributor PRs and redundant advice on native GitHub stacks. The conditions must remain as job-level `if` checks rather than step-level checks to ensure the workflow job never starts and avoids wasting a runner.",
+  "saysFor": "s2:3e25deb80362b882bd44c828e9e8014fe6dd80a1bd91498017a0d57791eac09f"
+}

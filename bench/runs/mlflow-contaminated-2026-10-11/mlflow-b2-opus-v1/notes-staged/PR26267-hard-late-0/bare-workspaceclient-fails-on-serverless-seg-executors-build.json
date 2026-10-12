@@ -1,0 +1,71 @@
+{
+  "id": "bare-workspaceclient-fails-on-serverless-seg-executors-build",
+  "title": "Bare WorkspaceClient() fails on serverless/SEG executors; build the SDK client from resolved host/token creds",
+  "kind": "rule",
+  "answers": [
+    "Model load fails on serverless compute with 'default auth: cannot configure default credentials'",
+    "Unity Catalog model download works on classic cluster but not on serverless or SEG",
+    "How should the Databricks SDK workspace client be created inside MLflow artifact repos?"
+  ],
+  "body": "Symptom: Loading or registering a Unity Catalog model from serverless or internet-restricted (SEG) compute fails with a default-auth error ('default auth: cannot configure default credentials').\nRoot cause: mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client called a bare WorkspaceClient(). Spark executors on serverless have no default Databricks credentials.\nFix pattern: Resolve creds with get_databricks_host_creds(registry_uri), and when both host and token are present build WorkspaceClient(host=..., token=...). Catch resolution errors, log at debug, and fall back to WorkspaceClient() default auth only when no usable creds exist (classic compute).\nConstraints: registry_uri must be threated in from the caller (DatabricksSDKModelsArtifactRepository.__init__). Keep the default-auth fallback so classic compute still works without a token.",
+  "applies": "Construction of any Databricks SDK client inside mlflow artifact or registry code that runs on executors.",
+  "tags": [
+    "databricks-sdk",
+    "serverless",
+    "authentication",
+    "unity-catalog"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "_get_databricks_workspace_client",
+      "hash": "sha256:9d13e5702befd242cd970849",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d13e5702befd242cd970849",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository.__init__",
+      "hash": "sha256:f16e269e1f0d7db7310af61b",
+      "line": 44,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f16e269e1f0d7db7310af61b",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-11T10:29:38.581Z",
+  "verified": "2026-10-11T10:29:38.581Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cloudartifactrepository-single-stream-download-guard-must-co",
+    "sdk-models-repo-workspace-client-must-resolve-host-and-token"
+  ],
+  "says": [
+    "Loading registered models from Unity Catalog fails when running on serverless compute clusters.",
+    "Serverless jobs crash with credential configuration errors while downloading models from the catalog.",
+    "Models download successfully on classic clusters but fail on serverless or secure environments.",
+    "Model registration cannot authenticate to the catalog when running on serverless execution nodes.",
+    "Allow serverless compute tasks to download registered catalog models without manual authentication setup."
+  ],
+  "search": "In mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client, Databricks SDK WorkspaceClient instances on executors must be constructed using resolved host and token credentials rather than bare default authentication. Credentials are resolved using get_databricks_host_creds(registry_uri), passing host and token to WorkspaceClient when available, and falling back to default auth only when credentials cannot be resolved. The registry_uri is threaded from DatabricksSDKModelsArtifactRepository.__init__, preventing default-auth failures on serverless and internet-restricted SEG executors.",
+  "saysFor": "s2:2aede6096a030a7f31aaab874cd042d5c446ff53bb683f812f453c0643bdd22d"
+}

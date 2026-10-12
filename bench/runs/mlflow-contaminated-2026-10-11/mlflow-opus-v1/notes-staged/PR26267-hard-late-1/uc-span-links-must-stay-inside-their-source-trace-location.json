@@ -1,0 +1,112 @@
+{
+  "id": "uc-span-links-must-stay-inside-their-source-trace-location",
+  "title": "UC span links must stay inside their source trace location",
+  "kind": "rule",
+  "answers": [
+    "Why does a span link on a Unity Catalog trace point to the wrong trace or get dropped?",
+    "How are span links handled for traces stored in a UC trace location?",
+    "Can a span on a catalog.schema trace link to a trace in another location?",
+    "Why does add_link skip my link for a UC trace?"
+  ],
+  "body": "Invariant: a link on a UC trace (request ID `trace:/catalog.schema/...`) may only target a trace in the same UC location. Bare (`abc123`) and `tr-` targets are qualified with the source location; targets carrying a different `trace:/` location are not stored.\nEnforcement: mlflow/entities/span.py:_normalize_link_trace_id returns the qualified ID, or None for cross-location targets. It is called from mlflow/entities/span.py:LiveSpan.add_link, mlflow/entities/span.py:Span.from_otel_proto and mlflow/entities/span.py:_link_from_otel_link.\nNative OTel links on UC spans are preserved, not dropped; the old 'links not supported for UC' drop paths were removed.\nSkipping the check conflates traces from different UC locations, so a link resolves to a trace the user never meant to reference.",
+  "applies": "Any change to span link construction, LiveSpan.add_link, or OTLP link conversion for UC (`trace:/`) traces. Does not change behavior for non-UC traces, whose links are used as-is.",
+  "tags": [
+    "tracing",
+    "unity-catalog",
+    "span-links"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "_normalize_link_trace_id",
+      "hash": "sha256:ac14a04a13fe5f05450f42d1",
+      "line": 52,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac14a04a13fe5f05450f42d1",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "_link_from_otel_link",
+      "hash": "sha256:6bcb0205584b1d008c32769b",
+      "line": 62,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6bcb0205584b1d008c32769b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LiveSpan.add_link",
+      "hash": "sha256:a9c5204b7046a318fa16e36a",
+      "line": 1016,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a9c5204b7046a318fa16e36a",
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.from_otel_proto",
+      "hash": "sha256:cce478985ecaa45d533f858c",
+      "line": 467,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cce478985ecaa45d533f858c",
+      "fanout": {
+        "files": 11,
+        "sites": 14,
+        "refs": 21
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_add_link_skips_cross_location_v4_trace_id",
+      "hash": "sha256:52b5d34514611c7c8981c669",
+      "line": 1010,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:52b5d34514611c7c8981c669",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25597"
+  },
+  "created": "2026-10-11T08:50:16.767Z",
+  "verified": "2026-10-11T08:50:16.767Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "archived-uc-span-links-must-be-normalized-against-the-preser",
+    "new-public-livespan-methods-need-a-noopspan-stub-and-an-api"
+  ],
+  "says": [
+    "Span links on catalog traces connect to the wrong execution trace.",
+    "A trace link between spans in different catalog locations disappears or fails.",
+    "Clicking a linked span in a catalog trace opens an unrelated trace.",
+    "Ensure trace links only resolve to executions within the same catalog location."
+  ],
+  "search": "Span links on Unity Catalog traces must target the same location, enforced by mlflow/entities/span.py:_normalize_link_trace_id. Called by LiveSpan.add_link, Span.from_otel_proto, and _link_from_otel_link, this helper qualifies bare and tr- IDs with the source location while dropping cross-location targets. Native OpenTelemetry links are preserved rather than dropped to prevent links from conflating across different catalog locations. This applies to trace:/ span link construction and OTLP conversion without altering non-UC traces.",
+  "saysFor": "s2:c3203a618e4b9bf4092ba4c796ee93377ac1deda341ceda7cbad75bc2b9aa3d6"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "consume-non-streaming-databricks-sdk-responses-to-release-po",
+  "title": "Consume non-streaming Databricks SDK responses to release pooled HTTP connections",
+  "kind": "rule",
+  "answers": [
+    "Notebook hangs after many MLflow evaluations in a long-lived Databricks session",
+    "Why do MLflow requests through the Databricks SDK stop responding after repeated calls?",
+    "connection pool exhausted when calling api_client.do with raw=True in mlflow",
+    "leaked HTTP connections in mlflow rest_utils with use_databricks_sdk"
+  ],
+  "body": "Symptom: In long-lived Databricks notebooks, MLflow calls (e.g. mlflow.genai.evaluate with LLM judges) silently hang after roughly 20 iterations; the connection pool runs dry.\nRoot cause: mlflow/utils/rest_utils.py:http_request (nested make_sdk_call) calls WorkspaceClient().api_client.do(..., raw=True), which streams the response, so the connection stays checked out of the pool until the body is read. Nothing read it for non-streaming callers.\nFix pattern: In make_sdk_call, after getting the response from raw_response[\"contents\"]._response, read response.content when kwargs.get(\"stream\", False) is false, then return the response. Streaming callers (stream=True) get the unconsumed response.\nConstraints: Applies to every request routed through the Databricks SDK path (use_databricks_sdk=True). Do not drop the body read for non-streaming calls, and do not read the body for stream=True callers, because that would defeat streaming. Test coverage: tests/utils/test_rest_utils.py:test_databricks_sdk_response_is_consumed_unless_streaming.",
+  "applies": "Any MLflow HTTP request sent via the Databricks SDK in mlflow/utils/rest_utils.py http_request; not for plain requests-session calls.",
+  "tags": [
+    "databricks",
+    "rest-utils",
+    "http",
+    "connection-pool",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/rest_utils.py",
+      "symbol": "http_request",
+      "hash": "sha256:72c9005a61f09e1db49fbfee",
+      "line": 103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:72c9005a61f09e1db49fbfee",
+      "fanout": {
+        "files": 47,
+        "sites": 81,
+        "refs": 361
+      }
+    },
+    {
+      "path": "tests/utils/test_rest_utils.py",
+      "symbol": "test_databricks_sdk_response_is_consumed_unless_streaming",
+      "hash": "sha256:cfd66f4e651ac2736d112a0c",
+      "line": 701,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cfd66f4e651ac2736d112a0c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25561"
+  },
+  "created": "2026-10-11T08:50:42.132Z",
+  "verified": "2026-10-11T08:50:42.132Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Databricks notebook evaluation jobs freeze without an error message after about twenty repeated runs.",
+    "Model evaluations with judge models silently stop responding during long-running notebook sessions.",
+    "The notebook gets stuck indefinitely when running multiple generative model assessments in sequence.",
+    "Prevent connection timeouts and stalls during extended automated model evaluation in notebooks.",
+    "Repeated evaluation calls in Databricks hang permanently instead of returning the benchmark scores."
+  ],
+  "search": "MLflow HTTP requests sent via the Databricks SDK in mlflow/utils/rest_utils.py:http_request must read response.content on non-streaming calls to release pooled HTTP connections. Calling WorkspaceClient().api_client.do with raw=True streams responses, leaving connections checked out and exhausting the pool so long-lived Databricks notebooks silently hang during repeated calls like mlflow.genai.evaluate. In make_sdk_call, read response.content from raw_response['contents']._response when kwargs.get('stream', False) is false, but preserve unconsumed responses when stream=True. The fix applies strictly to SDK calls with use_databricks_sdk=True rather than plain requests-session calls, verified in tests/utils/test_rest_utils.py:test_databricks_sdk_response_is_consumed_unless_streaming.",
+  "saysFor": "s2:1e2a17dd4a2bb89a3bd89718f80dce25c6c04768489b1ae541f5a026573a7147"
+}

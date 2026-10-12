@@ -1,0 +1,46 @@
+{
+  "id": "copilot-code-review-findings-lead-with-the-fix-then-a-why-se",
+  "title": "Copilot code-review findings lead with the fix, then a Why section",
+  "kind": "rule",
+  "answers": [
+    "How should Copilot review comments be formatted?",
+    "What order should review findings use: fix or explanation first?",
+    "Where is the code review comment format defined for Copilot?",
+    "How do I change the wording or structure of automated PR review comments?"
+  ],
+  "body": "Convention: each review finding is written as two bolded sections, \"**🔧 Fix:**\" first (the recommended change, with only the detail needed to implement it), then \"**💡 Why:**\" (the trigger and concrete consequence).\nWhere: .github/instructions/code-review.instructions.md, section \"## Review Comment Format\", which is read by the Copilot code reviewer.\nKeep the fix leading. Do not move the rationale above it or add a free-form preamble, or the reviewer output stops matching this format.\nWhen editing this file, keep the section ahead of \"## Knowledge Cutoff\" and preserve the two labels exactly, since they are the format's contract.\nThe format applies to findings that come with a fix; the text does not define a format for comments without one.",
+  "applies": "Edits to .github/instructions/code-review.instructions.md and the format of Copilot-generated PR review comments in this repo.",
+  "tags": [
+    "copilot",
+    "code-review",
+    "instructions",
+    "review-format"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:f7bdd41ad61e04825158fbd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25864"
+  },
+  "created": "2026-10-11T10:25:48.278Z",
+  "verified": "2026-10-11T10:25:48.278Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated pull request review comments should show the suggested fix before the explanation.",
+    "Make automated code review findings lead directly with the solution followed by the rationale.",
+    "Automated reviewer comments put lengthy explanations ahead of the code change recommendation.",
+    "Remove conversational intro text from automated review comments and start with the fix.",
+    "Automated pull request review findings are missing standard fix and why section headings."
+  ],
+  "search": "Copilot code-review findings with fixes must be structured with **🔧 Fix:** first followed by **💡 Why:**. Defined in .github/instructions/code-review.instructions.md under ## Review Comment Format, this convention forbids moving rationale above the fix or adding a free-form preamble. When modifying the file, preserve the two exact labels and keep the section positioned ahead of ## Knowledge Cutoff. The format governs only review findings that include a fix, with comments lacking fixes left undefined.",
+  "saysFor": "s2:6330100378a58724282d88ce1d15dfb59a2acee5d8f53753bb2662bc6e88b8d1"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "claude-code-llm-and-conversation-span-end-times-must-derive",
+  "title": "Claude Code LLM and conversation span end times must derive from transcript timestamps of all coalesced entries",
+  "kind": "rule",
+  "answers": [
+    "Claude Code trace timeline ends before the last LLM span",
+    "Claude Code root conversation span shorter than its child spans",
+    "Claude Code trace duration wrong when transcript ends with progress rows"
+  ],
+  "body": "Invariant: The LLM span end time is computed from the last coalesced entry of the logical message, not from the first entry, and the conversation root span must end no earlier than any child LLM or tool span.\nEnforced at: libs/typescript/integrations/claude-code/src/tracing.ts:createLlmAndToolSpans (fallbackEndTimeNs uses transcript[logicalMessage.lastIdx]; tool-bearing LLM spans are capped at the next logical timestamp) and libs/typescript/integrations/claude-code/src/tracing.ts:processTranscript (convEndNs is padded by NANOSECONDS_PER_S before the fallback check).\nWhat breaks if skipped: Using the first fragment's timestamp makes a split message end before its final content block, and an unpadded root end lets a trailing progress or metadata row leave the root shorter than an LLM fallback span, giving an incomplete or invalid timeline.\nConstraints: The 10-second fallback from conversation start still applies when the last timestamp is missing or not after the start time.",
+  "applies": "Span timing in the Claude Code TypeScript tracer; any change to how entries are coalesced or how the transcript end is computed must keep these end-time relations.",
+  "tags": [
+    "claude-code",
+    "tracing",
+    "typescript",
+    "span-timing"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "createLlmAndToolSpans",
+      "hash": "sha256:ec612201e7b0abdc001eecc8",
+      "line": 372,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f6d37862c597201ad2d8f22",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:4718af474db349227c26be43",
+      "line": 528,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4718af474db349227c26be43",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25931"
+  },
+  "created": "2026-10-11T10:25:41.865Z",
+  "verified": "2026-10-11T10:25:41.865Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "claude-code-llm-spans-must-be-emitted-per-logical-assistant",
+    "trace-user-metadata-must-fall-back-from-user-to-username-on"
+  ],
+  "says": [
+    "The trace timeline ends before the final assistant response actually finishes in the viewer.",
+    "Root conversation duration in the trace viewer appears shorter than its nested child spans.",
+    "Session trace displays an incorrect overall duration when progress messages occur at the end.",
+    "A multi-part assistant message prematurely truncates on the trace visualization timeline.",
+    "Parent trace bars should fully enclose all model generation and tool execution bars."
+  ],
+  "search": "In libs/typescript/integrations/claude-code/src/tracing.ts, LLM span end times must derive from the last coalesced transcript entry of a logical message, and the root conversation span must end no earlier than any child span. createLlmAndToolSpans derives fallbackEndTimeNs from transcript[logicalMessage.lastIdx] and caps tool-bearing LLM spans at the next logical timestamp, while processTranscript pads convEndNs by NANOSECONDS_PER_S. If skipped, split messages truncate early and progress rows leave root spans shorter than fallback spans; a 10-second fallback applies when timestamps are missing.",
+  "saysFor": "s2:39a082d8dcf82713b3422f6a7c7b2ee1dc43e6f6471973041ce1c438f930eec8"
+}

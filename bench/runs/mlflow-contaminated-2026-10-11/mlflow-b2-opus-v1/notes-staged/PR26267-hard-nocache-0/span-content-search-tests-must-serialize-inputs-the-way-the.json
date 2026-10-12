@@ -1,0 +1,55 @@
+{
+  "id": "span-content-search-tests-must-serialize-inputs-the-way-the",
+  "title": "Span-content search tests must serialize inputs the way the tracing SDK does",
+  "kind": "rule",
+  "answers": [
+    "how to test trace search with unicode text",
+    "test for non-ASCII trace.text filter",
+    "why does my search test pass without the unicode fix",
+    "span content json.dumps escapes unicode in tests"
+  ],
+  "body": "Convention: Tests for `trace.text` / `span.content` search build span inputs with `dump_span_attribute_value` from mlflow/tracing/utils.py, not with plain `json.dumps`.\nWhy: the `create_test_span` helper uses default `json.dumps`, which already escapes non-ASCII, so a test built on it passes even without the `ensure_ascii=False` fix and does not exercise the bug.\nPlacement: see tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py:test_search_traces_with_full_text_filter_non_ascii, parametrized over LIKE/ILIKE and both `trace.text` and `span.content` keys.\nConstraints: The test is skipped on MSSQL (`IS_MSSQL`) because MSSQL keeps the escaped form of span content.",
+  "applies": "Sqlalchemy store tests that create spans with non-ASCII content and assert on search results.",
+  "tags": [
+    "tracing",
+    "testing",
+    "sqlalchemy",
+    "unicode"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py",
+      "symbol": "test_search_traces_with_full_text_filter_non_ascii",
+      "hash": "sha256:f01ba18a9bdc76eefe0b8b34",
+      "line": 910,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01ba18a9bdc76eefe0b8b34",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26130"
+  },
+  "created": "2026-10-11T10:24:35.468Z",
+  "verified": "2026-10-11T10:24:35.468Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Searching traces with non-English characters in the trace search bar returns no matching results.",
+    "Trace content search fails to find execution traces that contain special or accented Unicode text.",
+    "Support full-text search and filtering across trace spans containing international languages.",
+    "Filtering traces by message text ignores spans with non-ASCII symbols in the tracking dashboard.",
+    "Users should be able to query trace content using foreign language search terms."
+  ],
+  "search": "Tests for `trace.text` and `span.content` search must serialize span inputs using `dump_span_attribute_value` from `mlflow/tracing/utils.py` instead of plain `json.dumps`. Standard `json.dumps` escapes non-ASCII characters, hiding bugs where unicode text searches fail unless `ensure_ascii=False` is tested. The convention is implemented in `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py:test_search_traces_with_full_text_filter_non_ascii`, parametrized across LIKE and ILIKE operators for both search keys. Applies specifically to SQLAlchemy store trace search tests, but is skipped on MSSQL because MSSQL retains escaped span content.",
+  "saysFor": "s2:1e927157b28370adb1c6bce181c923262c5c147168afc40e582319976514ce37"
+}

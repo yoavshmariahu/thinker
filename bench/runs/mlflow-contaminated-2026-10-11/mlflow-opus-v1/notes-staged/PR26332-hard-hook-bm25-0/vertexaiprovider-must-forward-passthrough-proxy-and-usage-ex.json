@@ -1,0 +1,88 @@
+{
+  "id": "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex",
+  "title": "VertexAIProvider must forward passthrough, proxy and usage extraction to its Claude/MaaS delegate",
+  "kind": "rule",
+  "answers": [
+    "Anthropic passthrough on Vertex AI Claude returns 400",
+    "AI Gateway proxy for Claude on Vertex sent to generativelanguage googleapis",
+    "Vertex AI MaaS OpenAI passthrough not working in gateway",
+    "gateway proxy route goes to wrong host for Vertex model"
+  ],
+  "body": "Symptom: POST /gateway/anthropic/v1/messages on a Vertex Claude endpoint returns 400, and /gateway/proxy/{endpoint}/v1/messages reaches generativelanguage.googleapis.com with a Vertex OAuth token.\nRoot cause: VertexAIProvider (mlflow/gateway/providers/vertex_ai.py) only forwarded _chat, _chat_stream, _completions and get_endpoint_url, so _passthrough, _proxy and _extract_passthrough_token_usage fell through to the GeminiProvider base.\nFix pattern: forward _passthrough, _proxy and _extract_passthrough_token_usage to self._delegate when one exists, and to the Gemini implementation otherwise.\nConstraints: the Claude delegate needs its own _passthrough. AnthropicProvider._passthrough posts to base_url + 'messages' with the model in the body, which Vertex rejects, so it must use _get_chat_path/_get_chat_stream_path and _prepare_payload (rawPredict/streamRawPredict, anthropic_version in body). Its _proxy returns 501 for any path other than v1/messages.",
+  "applies": "Any new passthrough, proxy or usage hook added to VertexAIProvider or to a Vertex delegate.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "passthrough",
+    "proxy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._passthrough",
+      "hash": "sha256:5d6392e4e9f534d73f30587f",
+      "line": 221,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5d6392e4e9f534d73f30587f",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._proxy",
+      "hash": "sha256:e32f29c87d3127d7a36c7681",
+      "line": 250,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e32f29c87d3127d7a36c7681",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T08:47:04.616Z",
+  "verified": "2026-10-11T08:47:04.616Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta",
+    "vertex-delegates-must-always-drop-client-auth-headers-before",
+    "enable-tracing-must-be-passed-into-vertex-ai-delegates-or-pa"
+  ],
+  "says": [
+    "Sending Anthropic messages through the gateway to Claude on Vertex AI returns a bad request",
+    "Gateway proxy requests for Claude models are routed to the wrong Google backend service",
+    "Passthrough requests to Models as a Service endpoints fail instead of reaching the provider",
+    "Track token usage properly when routing passthrough requests to Claude and other hosted models",
+    "Claude proxy route on the gateway rejects any path other than the messages endpoint"
+  ],
+  "search": "`VertexAIProvider` in `mlflow/gateway/providers/vertex_ai.py` must forward `_passthrough`, `_proxy`, and `_extract_passthrough_token_usage` to `self._delegate` when present, falling back to `GeminiProvider` base implementations otherwise. This prevents 400 errors on `POST /gateway/anthropic/v1/messages` and stops proxy requests from routing to `generativelanguage.googleapis.com` with a Vertex OAuth token. In `mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider`, `_passthrough` must use `_get_chat_path`/`_get_chat_stream_path` and `_prepare_payload` with `rawPredict`/`streamRawPredict` and `anthropic_version`, while `_proxy` returns 501 for any path other than `v1/messages`. Applies to any new passthrough, proxy, or usage hook added to `VertexAIProvider` or Vertex delegates.",
+  "saysFor": "s2:91f95f3652a0488bfc71fac28d36d7d93df58aedafb1d9597d2eb247dfe957ca"
+}

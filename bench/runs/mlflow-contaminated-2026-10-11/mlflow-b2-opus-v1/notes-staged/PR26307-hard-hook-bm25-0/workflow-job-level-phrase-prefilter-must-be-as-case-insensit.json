@@ -1,0 +1,43 @@
+{
+  "id": "workflow-job-level-phrase-prefilter-must-be-as-case-insensit",
+  "title": "Workflow job-level phrase prefilter must be as case-insensitive as the body matcher",
+  "kind": "rule",
+  "answers": [
+    "stacked PR nudge not posted for lowercase stacked PR description",
+    "Stack Nudge misses PRs that mention stacked PR in a different case",
+    "job if condition skips valid PR descriptions before the matcher runs"
+  ],
+  "body": "Symptom: The stacked-PR nudge never fires for a PR whose description uses the phrase in different casing (e.g. \"I have a stacked PR\"), even though the matcher is meant to accept it.\nRoot cause: .github/workflows/stack-nudge.yml:nudge (job `if`) uses case-sensitive `contains(github.event.pull_request.body, '🥞 Stacked PR')`, so the job is skipped before the case-insensitive matcher step runs.\nFix pattern: Make the phrase check in one place. Either let the case-insensitive regex step be the only phrase gate, or use a job-level prefilter that is equivalent to it (a dedicated regex-gated detect step was used in a later revision, per review).\nConstraints: GitHub expression `contains()` is case-sensitive. Applies to any early `if` gate that duplicates a later matcher; does not apply to the author/bot/stack guards, which are exact checks.",
+  "applies": "Edits to the phrase-detection gate in .github/workflows/stack-nudge.yml.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "stack-nudge"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-11T10:32:18.209Z",
+  "verified": "2026-10-11T10:32:18.209Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Stacked pull request reminder comment is never posted when lowercase text is used.",
+    "Pull request bot misses stacked branches if the description casing is different.",
+    "Automated stack guidance should detect stacked pull requests regardless of letter capitalization.",
+    "Nudge workflow fails to trigger on pull requests mentioning stacked changes."
+  ],
+  "search": "In .github/workflows/stack-nudge.yml, job-level if conditions must not use case-sensitive contains() on pull request bodies when preceding a case-insensitive matcher. A case-sensitive check on '🥞 Stacked PR' skips the nudge job prematurely on differing casing before the matcher step runs. Edits should consolidate phrase detection into a single case-insensitive step or equivalent prefilter, while keeping exact checks for author, bot, and stack guards.",
+  "saysFor": "s2:a4ee2f51831ea49943a0ab4d61580c0e5a40fb0d98879fca05b3ee32c3993083"
+}

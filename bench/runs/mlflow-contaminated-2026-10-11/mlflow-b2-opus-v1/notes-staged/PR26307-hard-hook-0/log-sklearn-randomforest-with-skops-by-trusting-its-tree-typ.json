@@ -1,0 +1,46 @@
+{
+  "id": "log-sklearn-randomforest-with-skops-by-trusting-its-tree-typ",
+  "title": "Log sklearn RandomForest with skops by trusting its Tree type",
+  "kind": "howto",
+  "answers": [
+    "mlflow sklearn log_model fails with untrusted type Tree under skops",
+    "how do I log a RandomForest model with skops serialization in MLflow",
+    "skops_trusted_types sklearn.tree._tree.Tree",
+    "pickle-free sklearn model logging untrusted types error"
+  ],
+  "body": "Default scikit-learn serialization in MLflow is `skops`, and a RandomForest model contains the `sklearn.tree._tree.Tree` type, which skops treats as untrusted.\nPass the reviewed type explicitly: `mlflow.sklearn.log_model(..., skops_trusted_types=[\"sklearn.tree._tree.Tree\"])`.\nUse a small `input_example` (for example `X_train[:2]`) so the logged example stays lightweight.\nTrust only types you have reviewed; the pickle-free model guidance is at /ml/tracking/pickle-free-models.\nThe tutorial that shows this pattern is docs/docs/classic-ml/model-registry/tutorial.mdx.",
+  "applies": "Applies to logging scikit-learn tree-based models (RandomForest) with MLflow's default skops serialization; does not cover other frameworks or pickle-based formats.",
+  "tags": [
+    "sklearn",
+    "skops",
+    "model-registry",
+    "serialization",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/classic-ml/model-registry/tutorial.mdx",
+      "hash": "sha256:29f4f2d512e6830842dadee2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26287"
+  },
+  "created": "2026-10-11T10:23:38.667Z",
+  "verified": "2026-10-11T10:23:38.667Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Logging a random forest model fails with an untrusted type security error.",
+    "How do I save tree models using secure serialization without untrusted type warnings?",
+    "Model logging fails under default secure format for tree based machine learning models.",
+    "Allow trusted tree types when saving random forest models to the model registry."
+  ],
+  "search": "Logging scikit-learn RandomForest models under default skops serialization requires explicitly passing skops_trusted_types with sklearn.tree._tree.Tree to mlflow.sklearn.log_model. A small input_example such as X_train[:2] keeps the logged example lightweight, and only reviewed types should be trusted. This pattern is documented in docs/docs/classic-ml/model-registry/tutorial.mdx and applies to tree-based scikit-learn models rather than pickle-based formats.",
+  "saysFor": "s2:31373eaca23e13b5b130c317d4d8b125d6884e13c91b139baad5cecb191c83bd"
+}

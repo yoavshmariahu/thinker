@@ -1,0 +1,52 @@
+{
+  "id": "helm-chart-render-checks-in-ci-via-helm-yml-render-helper",
+  "title": "Helm chart render checks in CI via helm.yml render() helper",
+  "kind": "howto",
+  "answers": [
+    "how to test helm chart template rendering in CI",
+    "how to assert a helm value renders into deployment.yaml",
+    "how to check a field is omitted by default in the mlflow chart",
+    "helm template grep assertion workflow step"
+  ],
+  "body": "The render check lives in .github/workflows/helm.yml as steps named \"Render ...\". Each step defines render() as: helm template mlflow charts/ --set mlflow.backendStoreUri=\"sqlite:////tmp/mlflow.db\" \"$@\" -s templates/deployment.yaml.\nmlflow.backendStoreUri must be set or the render fails, so keep it in the helper rather than each call.\n-s templates/deployment.yaml limits output to the Deployment, so greps do not match other templates.\nTo assert omission, use render | grep -q '<key>:' inside an if and exit 1 on match.\nTo assert rendering, pass --set 'list[0].field=value' flags and grep for exact indented lines (for example '^          maxSkew: 1'). The indentation comes from nindent in the template, so update the patterns if the nindent changes.",
+  "applies": "Adding or changing chart template behaviour in charts/templates/deployment.yaml.",
+  "tags": [
+    "helm",
+    "ci",
+    "github-actions",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    },
+    {
+      "path": "charts/templates/deployment.yaml",
+      "hash": "sha256:fa682d80dea8282ec07959a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25778"
+  },
+  "created": "2026-10-11T08:47:40.838Z",
+  "verified": "2026-10-11T08:47:40.838Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assert-one-helm-probe-s-fields-in-ci-by-scoping-the-grep-to"
+  ],
+  "says": [
+    "How do I verify our deployment templates render correctly in pull request checks?",
+    "Add automated pipeline verification for newly introduced deployment configuration settings and defaults.",
+    "Ensure custom container deployment flags are properly omitted when not explicitly configured.",
+    "Confirm that deployment manifest outputs reflect custom configuration values during automated builds."
+  ],
+  "search": "Helm chart render checks in .github/workflows/helm.yml define a render() helper calling helm template on charts/ targeting templates/deployment.yaml with mlflow.backendStoreUri set. Steps assert field omission by verifying render | grep -q exits 1 on match, or assert rendering by passing --set flags and grepping exact indented lines produced by nindent. Applies when adding or changing chart template behaviour in charts/templates/deployment.yaml.",
+  "saysFor": "s2:6f22ade343d659492e759c4252b74b7b3e74d5d7612f05e7972f3d4fe037a14b"
+}

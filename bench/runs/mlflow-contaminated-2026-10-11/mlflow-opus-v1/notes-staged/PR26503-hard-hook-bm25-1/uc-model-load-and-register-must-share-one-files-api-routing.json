@@ -1,0 +1,82 @@
+{
+  "id": "uc-model-load-and-register-must-share-one-files-api-routing",
+  "title": "UC model load and register must share one Files-API routing flag",
+  "kind": "rule",
+  "answers": [
+    "UC model load_model uses vended token and fails on DBR 15.4",
+    "register model to Unity Catalog stopped working after tokens blocked",
+    "how to route UC model artifacts through Databricks Files API",
+    "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC not taking effect on register"
+  ],
+  "body": "Symptom: Loading or registering a model in Unity Catalog (models:/catalog.schema.model/version, databricks-uc) fails on DBR 15.4 LTS because UC blocks vended scoped tokens.\nRoot cause: UnityCatalogModelsArtifactRepository._get_artifact_repo (load) and UcModelRegistryStore._get_artifact_repo (register) each pick the scoped-cloud-credential repo; only the load path was switchable before.\nFix pattern: Both paths check MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC.get() (read at call time, default False) and return DatabricksSDKModelsArtifactRepository, passing registry_uri (load) or store_uri (register).\nConstraints: Change routing in both places together; gating one leaves the other on vended tokens. With the flag unset, behavior must stay identical to the scoped-credential path, which still calls _get_temporary_model_version_write_credentials / _get_scoped_token.",
+  "applies": "Unity Catalog model registry (databricks-uc) load and register only; not Volumes or DBFS artifact paths.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "artifact-repo",
+    "databricks-sdk"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "UcModelRegistryStore._get_artifact_repo",
+      "hash": "sha256:a8ee1ef8f21380efbaa7a560",
+      "line": 1112,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8ee1ef8f21380efbaa7a560",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/unity_catalog_models_artifact_repo.py",
+      "symbol": "UnityCatalogModelsArtifactRepository._get_artifact_repo",
+      "hash": "sha256:dcf01c1a77ee218b5e163c5c",
+      "line": 170,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dcf01c1a77ee218b5e163c5c",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC",
+      "hash": "sha256:c702dffb494a71467110dd92",
+      "line": 1172,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25986"
+  },
+  "created": "2026-10-11T08:44:47.783Z",
+  "verified": "2026-10-11T08:44:47.783Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-load-and-register-must-gate-on-the-sdk-files-api-fl"
+  ],
+  "says": [
+    "Model loading from the catalog stops working when scoped tokens are blocked on runtime clusters.",
+    "Model registration fails because the system continues using legacy tokens instead of the files API.",
+    "Support loading and saving catalog models when cloud storage tokens are disabled.",
+    "Enabling files routing for catalog models works for loading but fails during registration."
+  ],
+  "search": "Unity Catalog model registry load and register paths must concurrently check MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC to return DatabricksSDKModelsArtifactRepository. Both UnityCatalogModelsArtifactRepository._get_artifact_repo (passing registry_uri) and UcModelRegistryStore._get_artifact_repo (passing store_uri) must implement this routing to avoid failures when DBR 15.4 LTS blocks vended tokens. This applies strictly to databricks-uc model registry workflows, excluding Volumes or DBFS paths. When unset, the flag defaults to False and preserves legacy calls to _get_temporary_model_version_write_credentials and _get_scoped_token.",
+  "saysFor": "s2:021def89e1aa0a1d3428d73c88e0caede2edb52ed14ff2d3d083f45b6ddd6e4d"
+}

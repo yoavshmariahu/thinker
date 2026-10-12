@@ -1,0 +1,63 @@
+{
+  "id": "dependencytype-stubs-and-gencode-are-regenerated-via-dev-gen",
+  "title": "DependencyType stubs and gencode are regenerated via dev/generate_protos.py, not hand-edited",
+  "kind": "howto",
+  "answers": [
+    "how do I regenerate the databricks uc registry protobuf python files",
+    "I changed the proto enum, how do I update _pb2.py and _pb2.pyi",
+    "why does lint-proto or buf fail after editing databricks_uc_registry_messages.proto",
+    "which protoc version generates the mlflow protos"
+  ],
+  "body": "Edit the source .proto (mlflow/protos/databricks_uc_registry_messages.proto), then regenerate with dev/generate_protos.py so the output uses the repository's pinned protoc and mypy-protobuf toolchain.\nThe generated pair mlflow/protos/databricks_uc_registry_messages_pb2.py and databricks_uc_registry_messages_pb2.pyi must change together; the .pyi enum wrapper lists every enum member, so a new value must appear in both _DependencyTypeEnumTypeWrapper and the module-level constants.\nDo not hand-edit the _pb2 files. Check the result by importing the regenerated module and round-tripping the new enum value, then run lint-proto and buf.",
+  "applies": "Any change to mlflow/protos/databricks_uc_registry_messages.proto and its generated Python.",
+  "tags": [
+    "protobuf",
+    "codegen",
+    "unity-catalog"
+  ],
+  "deps": [
+    {
+      "path": "dev/generate_protos.py",
+      "hash": "sha256:810d8aa123210522986672b9",
+      "missing": false
+    },
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages_pb2.pyi",
+      "symbol": "DependencyType",
+      "hash": "sha256:2cd470a60d9997e20f901bc4",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2cd470a60d9997e20f901bc4",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages_pb2.py",
+      "hash": "sha256:2a3421e4d7a8a852c0c1941b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26140"
+  },
+  "created": "2026-10-11T10:27:22.719Z",
+  "verified": "2026-10-11T10:27:22.719Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Support new model dependency types within the catalog model registry integration.",
+    "Type checking fails after adding a new dependency enum value for model registries.",
+    "Ensure generated interface stubs match updated model registry dependency protocol specifications.",
+    "Pull request verification fails protocol buffer linting when updating registry message formats."
+  ],
+  "search": "Python protobuf stubs and generated code for DependencyType must be rebuilt using dev/generate_protos.py rather than edited manually. After modifying mlflow/protos/databricks_uc_registry_messages.proto, the pinned protoc and mypy-protobuf toolchain must update both mlflow/protos/databricks_uc_registry_messages_pb2.py and databricks_uc_registry_messages_pb2.pyi together, reflecting new enum entries in _DependencyTypeEnumTypeWrapper and module constants. Verification requires importing the module to round-trip new values and passing lint-proto and buf checks, applying strictly to Databricks UC registry message proto definitions.",
+  "saysFor": "s2:39e5a98e215d008c442162b9c384b7cdeee004cc0a9dbb530bad24e3bf2a63c9"
+}

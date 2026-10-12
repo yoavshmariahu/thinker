@@ -1,0 +1,73 @@
+{
+  "id": "per-request-permission-predicates-that-run-once-per-row-must",
+  "title": "Per-request permission predicates that run once per row must be memoized on flask g",
+  "kind": "rule",
+  "answers": [
+    "mlflowSearchRuns slow with many runs and model versions",
+    "N+1 grants query in GraphQL nested field",
+    "permission lookup repeated for each run in auth middleware",
+    "cache read predicate per request basic-auth"
+  ],
+  "body": "Symptom: a runs-table query over up to 100 runs becomes slow, because each run triggers a user lookup and a grants SQL query.\nRoot cause: _role_based_read_predicate and _rm_or_prompt_read_predicate in mlflow/server/auth/__init__.py do a user lookup plus a grants query when built, and the nested modelVersions resolver runs once per run in mlflowSearchRuns.\nFix pattern: build the predicate once per request and username, stored in Flask g under a dedicated key, via GraphQLAuthorizationMiddleware._model_version_read_predicate, and reuse it for every resolution.\nConstraints: the cache lives only for the current request, so grant changes made within a request are not seen by later calls in that same request. Any new per-row filter in the middleware should reuse this helper instead of building its own predicate.\nApplies: GraphQL middleware post-resolution filters that run once per returned row.",
+  "applies": "GraphQL middleware post-resolution filters in mlflow/server/auth/__init__.py that run once per returned row.",
+  "tags": [
+    "auth",
+    "performance",
+    "graphql",
+    "basic-auth"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._model_version_read_predicate",
+      "hash": "sha256:ebe3709771f7d058714fee16",
+      "line": 5237,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ebe3709771f7d058714fee16",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_role_based_read_predicate",
+      "hash": "sha256:2b9f2da1435647cceea27445",
+      "line": 1874,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2b9f2da1435647cceea27445",
+      "fanout": {
+        "files": 4,
+        "sites": 13,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-11T08:45:09.864Z",
+  "verified": "2026-10-11T08:45:09.864Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+    "model-version-read-filtering-must-use-the-prompt-aware-predi",
+    "nested-graphql-fields-that-return-per-model-resources-must-b",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo"
+  ],
+  "says": [
+    "The experiment runs table loads very slowly when displaying many runs and model versions",
+    "Searching runs in the dashboard experiences significant latency due to repeated user permission lookups",
+    "Viewing large batches of runs causes sluggish response times in the tracking interface",
+    "Speed up runs table queries by caching authorization checks across returned model version rows"
+  ],
+  "search": "In mlflow/server/auth/__init__.py, GraphQL middleware post-resolution filters that execute once per row must memoize read predicates on Flask g. Without memoization, nested resolvers such as modelVersions in mlflowSearchRuns trigger repeated user lookups and grants SQL queries via _role_based_read_predicate and _rm_or_prompt_read_predicate. GraphQLAuthorizationMiddleware._model_version_read_predicate builds and stores the predicate once per request and username, though grant changes made within the current request will not be observed.",
+  "saysFor": "s2:d595e305db5f940f8ada4bf3a5657c880361e59b4b46f8f8e7bca63914ba4fa3"
+}

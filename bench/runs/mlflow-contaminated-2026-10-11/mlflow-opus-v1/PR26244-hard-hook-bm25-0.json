@@ -1,0 +1,65 @@
+{
+  "id": "PR26244-hard-hook-bm25-0",
+  "task": "PR26244-hard",
+  "area": "mlflow/entities",
+  "arm": "hook-bm25",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "6b5d296e-60bd-4eea-9b1f-bc51aa0939bc",
+  "turns": 13,
+  "wall_ms": 101999,
+  "api_ms": 88518,
+  "cost": 0.1950376,
+  "in_tokens": 213540,
+  "out_tokens": 2671,
+  "tools": {
+    "calls": 12,
+    "byTool": {
+      "Bash": 10,
+      "Edit": 1,
+      "Write": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 4,
+    "attemptsToGreen": 4,
+    "greenReached": true,
+    "injected": [
+      "modelversion-to-proto-must-assign-the-nested-deployment-job",
+      "archived-uc-span-links-must-be-normalized-against-the-preser"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "goldTests": "gold tests did not apply: Performing three-way merge...\nerror: tests/entities/test_logged_model.py: does not exist in index\nerror: cannot read the current contents of 'tests/entities/test_logged_model.py'\nerror: tests/entities/test_logged_model.py: patch does not apply\n",
+    "tests": "pass",
+    "testTail": " will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)\n    num_metric_entries = session.query(SqlMetric).count()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.82s setup    tests/entities/test_logged_model.py::test_logged_model_proto_round_trip_preserves_status_message\n\n(2 durations < 0.005s hidden.  Use -vv to show these durations.)\n\u001b[33m========================= \u001b[32m1 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 0.84s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "A logged model's status message now survives conversion to protobuf and back. The new round-trip test passes; I only ran that one test file, not the wider suite.\n\n**The fix:** reading `status_message` back from the protobuf already worked, but `LoggedModel.to_proto` (`mlflow/entities/logged_model.py`) never wrote it out, so it was lost on every round trip. I added the missing `status_message=self.status_message` line. No other fields change. If a model has no status message, the field is simply left unset, as before.\n\n**The test:** I added `tests/entities/test_logged_model.py`, since there was no test file for this class. It builds a failed model with \"Upload failed\" and checks three things:\n- the protobuf contains the message;\n- reading it back gives the failed status and \"Upload failed\";\n- the whole model matches the original after the round trip.\n\nThe test passes `metrics=[]` explicitly. That's because of an existing quirk I left alone: a model created with no metrics comes back with an empty list instead of `None`.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/entities/logged_model.py b/mlflow/entities/logged_model.py\nindex e0137a7c7..1d9815ed4 100644\n--- a/mlflow/entities/logged_model.py\n+++ b/mlflow/entities/logged_model.py\n@@ -201,6 +201,7 @@ class LoggedModel(_MlflowObject):\n                 model_type=self.model_type,\n                 source_run_id=self.source_run_id,\n                 status=self.status.to_proto(),\n+                status_message=self.status_message,\n                 tags=[pb2.LoggedModelTag(key=k, value=v) for k, v in self.tags.items()],\n             ),\n             data=pb2.LoggedModelData(\ndiff --git a/tests/entities/test_logged_model.py b/tests/entities/test_logged_model.py\nnew file mode 100644\nindex 000000000..b57c10f0a\n--- /dev/null\n+++ b/tests/entities/test_logged_model.py\n@@ -0,0 +1,28 @@\n+from mlflow.entities.logged_model import LoggedModel\n+from mlflow.entities.logged_model_status import LoggedModelStatus\n+\n+\n+def test_logged_model_proto_round_trip_preserves_status_message():\n+    model = LoggedModel(\n+        experiment_id=\"1\",\n+        model_id=\"m-123\",\n+        name=\"model\",\n+        artifact_location=\"file:///tmp/artifacts\",\n+        creation_timestamp=1,\n+        last_updated_timestamp=2,\n+        model_type=\"agent\",\n+        source_run_id=\"run-1\",\n+        status=LoggedModelStatus.FAILED,\n+        status_message=\"Upload failed\",\n+        tags={\"t\": \"v\"},\n+        params={\"p\": \"1\"},\n+        metrics=[],\n+    )\n+\n+    proto = model.to_proto()\n+    assert proto.info.status_message == \"Upload failed\"\n+\n+    restored = LoggedModel.from_proto(proto)\n+    assert restored.status == LoggedModelStatus.FAILED\n+    assert restored.status_message == \"Upload failed\"\n+    assert restored.to_dictionary() == model.to_dictionary()\ndiff --git a/tests/evaluate/test_validation.py b/tests/evaluate/test_validation.py\nindex 3c9b87c63..d14ae00c7 100644\n--- a/tests/evaluate/test_validation.py\n+++ b/tests/evaluate/test_validation.py\n@@ -823,6 +823,62 @@ def test_validation_model_comparison_relative_threshold_should_pass(\n     )\n \n \n+@pytest.mark.parametrize(\n+    (\"greater_is_better\", \"min_relative_change\", \"baseline\", \"candidate\", \"should_pass\"),\n+    [\n+        # An R2 score below 0: a worse candidate must fail and a perfect one must pass.\n+        (True, 0.05, -1.8, -5.0, False),\n+        (True, 0.05, -1.8, 1.0, True),\n+        # Negative baselines, 10% gate: candidates 50%, 20% and 5% better than the baseline\n+        # (measured against its magnitude), then 5%, 20% and 50% worse.\n+        (True, 0.1, -2.0, -1.0, True),\n+        (True, 0.1, -2.0, -1.6, True),\n+        (True, 0.1, -2.0, -1.9, False),\n+        (True, 0.1, -2.0, -2.1, False),\n+        (True, 0.1, -2.0, -2.4, False),\n+        (True, 0.1, -2.0, -3.0, False),\n+        (False, 0.1, -2.0, -3.0, True),\n+        (False, 0.1, -2.0, -2.4, True),\n+        (False, 0.1, -2.0, -2.1, False),\n+        (False, 0.1, -2.0, -1.9, False),\n+        (False, 0.1, -2.0, -1.6, False),\n+        (False, 0.1, -2.0, -1.0, False),\n+        # Positive baselines keep their existing behavior.\n+        (True, 0.1, 2.0, 3.0, True),\n+        (True, 0.1, 2.0, 2.4, True),\n+        (True, 0.1, 2.0, 2.1, False),\n+        (True, 0.1, 2.0, 1.9, False),\n+        (True, 0.1, 2.0, 1.6, False),\n+        (True, 0.1, 2.0, 1.0, False),\n+        (False, 0.1, 2.0, 1.0, True),\n+        (False, 0.1, 2.0, 1.6, True),\n+        (False, 0.1, 2.0, 1.9, False),\n+        (False, 0.1, 2.0, 2.1, False),\n+        (False, 0.1, 2.0, 2.4, False),\n+        (False, 0.1, 2.0, 3.0, False),\n+    ],\n+)\n+def test_validation_relative_threshold_uses_baseline_magnitude(\n+    greater_is_better, min_relative_change, baseline, candidate, should_pass\n+):\n+    kwargs = {\n+        \"validation_thresholds\": {\n+            \"metric\": MetricThreshold(\n+                min_relative_change=min_relative_change, greater_is_better=greater_is_better\n+            )\n+        },\n+        \"candidate_result\": EvaluationResult(metrics={\"metric\": candidate}, artifacts={}),\n+        \"baseline_result\": EvaluationResult(metrics={\"metric\": baseline}, artifacts={}),\n+    }\n+    if should_pass:\n+        mlflow.validate_evaluation_results(**kwargs)\n+    else:\n+        with pytest.raises(\n+            ModelValidationFailedException, match=\"minimum relative change check failed\"\n+        ):\n+            mlflow.validate_evaluation_results(**kwargs)\n+\n+\n @pytest.fixture\n def multi_thresholds_test_spec(request):\n     \"\"\"\n",
+  "distill": null,
+  "cache_read_tokens": 200848,
+  "cache_write_tokens": 12670,
+  "fresh_in_tokens": 22,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

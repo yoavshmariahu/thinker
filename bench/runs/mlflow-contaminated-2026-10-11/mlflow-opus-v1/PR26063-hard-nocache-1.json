@@ -1,0 +1,60 @@
+{
+  "id": "PR26063-hard-nocache-1",
+  "task": "PR26063-hard",
+  "area": "mlflow/tracing",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "fa1acbb0-54a1-4284-beeb-f88faf15ce2e",
+  "turns": 9,
+  "wall_ms": 36229,
+  "api_ms": 29817,
+  "cost": 0.1944356,
+  "in_tokens": 170981,
+  "out_tokens": 3233,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 7,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "callsBeforeFirstEdit": 4,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 2,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "fail",
+    "testTail": "_processor.py` | 1.11s    | 6     | 0.002s | 0.990s | 0.185s |\n\n::endgroup::\n\n========================= command to run failed tests ==========================\npytest 'tests/tracing/processor/test_uc_table_processor.py::test_on_end_exports_root_span_when_user_session_enrichment_fails'\n\n\u001b[36m\u001b[1m=========================== short test summary info ============================\u001b[0m\n\u001b[31mFAILED | MEM 7.2/16.0 GB | DISK 12.4/460.4 GB\u001b[0m tests/tracing/processor/test_uc_table_processor.py::\u001b[1mtest_on_end_exports_root_span_when_user_session_enrichment_fails\u001b[0m - assert False\n\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m\n\u001b[31m==================== \u001b[31m\u001b[1m1 failed\u001b[0m, \u001b[32m5 passed\u001b[0m, \u001b[33m1 warning\u001b[0m\u001b[31m in 1.15s\u001b[0m\u001b[31m ====================\u001b[0m\n"
+  },
+  "result": "A failure while adding user and session info to the root span no longer drops the trace. The failure is logged at debug level and the span is exported once, as normal. All 12 tests in `tests/tracing/processor/test_uc_table_processor.py` pass, including the two new ones.\n\n**The fix** (`mlflow/tracing/processor/uc_table.py`): in `DatabricksUCTableSpanProcessor.on_end`, the call to `_set_user_session_span_attributes` is now in a `try/except Exception` that logs with `_logger.debug(..., exc_info=True)`, so the traceback is kept. `super().on_end(span)` is outside the `try`, so it runs exactly once whether or not tagging succeeds. The exporter path isn't wrapped, so exporter failures are not hidden.\n\nOne thing I learned while testing: the exporter path never raised exceptions to the caller, even before this change. OpenTelemetry's own span processor (which ours builds on) catches exporter exceptions and logs them as errors with a traceback. So \"exporter failures still surface as errors\" means they still appear in that error log and don't end up in my debug-level handler. They won't propagate as exceptions.\n\n**Tests** (`tests/tracing/processor/test_uc_table_processor.py`):\n- `test_on_end_exports_span_when_setting_user_session_attributes_fails`: makes the tagging step raise, then checks that the span is exported exactly once and that the failure is logged at debug level.\n- `test_on_end_does_not_swallow_exporter_errors`: makes the exporter raise, then checks that OpenTelemetry logs the error and the new debug handler is never called.\n\nThe changes to `tests/cli/test_scorers.py` and `tests/utils/test_string_utils.py` that were already staged are untouched.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/tracing/processor/uc_table.py b/mlflow/tracing/processor/uc_table.py\nindex 7a6e25026..e921e7e41 100644\n--- a/mlflow/tracing/processor/uc_table.py\n+++ b/mlflow/tracing/processor/uc_table.py\n@@ -85,7 +85,11 @@ class DatabricksUCTableSpanProcessor(BaseMlflowSpanProcessor):\n \n     def on_end(self, span: OTelReadableSpan) -> None:\n         if span._parent is None:\n-            self._set_user_session_span_attributes(span)\n+            # Best-effort: a failure here must not prevent the span from being exported.\n+            try:\n+                self._set_user_session_span_attributes(span)\n+            except Exception:\n+                _logger.debug(\"Failed to set user/session attributes on root span\", exc_info=True)\n         super().on_end(span)\n \n     def _set_user_session_span_attributes(self, root_span: OTelReadableSpan) -> None:\ndiff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py\nindex 5c1b301a5..a4656e7eb 100644\n--- a/tests/cli/test_scorers.py\n+++ b/tests/cli/test_scorers.py\n@@ -146,7 +146,7 @@ def test_list_scorers_json_output(\n @pytest.mark.parametrize(\n     (\"output_format\", \"expected_output\"),\n     [\n-        (\"table\", \"\"),\n+        (\"table\", \"Scorer Name    Description  \\n-------------  -------------\\n\"),\n         (\"json\", {\"scorers\": []}),\n     ],\n )\n@@ -164,8 +164,7 @@ def test_list_scorers_empty_experiment(\n         output_json = json.loads(result.output)\n         assert output_json == expected_output\n     else:\n-        # Empty table produces minimal output\n-        assert result.output.strip() == expected_output\n+        assert result.output == expected_output\n \n \n def test_list_scorers_with_experiment_id_env_var(\ndiff --git a/tests/tracing/processor/test_uc_table_processor.py b/tests/tracing/processor/test_uc_table_processor.py\nindex 8fe41a934..147ff2d52 100644\n--- a/tests/tracing/processor/test_uc_table_processor.py\n+++ b/tests/tracing/processor/test_uc_table_processor.py\n@@ -214,3 +214,45 @@ def test_start_trace_no_client_request_id_outside_model_serving(active_uc_schema\n     trace_manager = InMemoryTraceManager.get_instance()\n     created_trace = list(trace_manager._traces.values())[0]\n     assert created_trace.info.client_request_id is None\n+\n+\n+def test_on_end_exports_span_when_setting_user_session_attributes_fails():\n+    trace_manager = InMemoryTraceManager.get_instance()\n+    with mock.patch.object(trace_manager, \"pop_trace\", return_value=None):\n+        with mlflow.start_span(\"foo\") as live_span:\n+            otel_span = live_span._span\n+\n+    mock_exporter = mock.MagicMock()\n+    processor = DatabricksUCTableSpanProcessor(span_exporter=mock_exporter)\n+    with (\n+        mock.patch.object(\n+            processor, \"_set_user_session_span_attributes\", side_effect=RuntimeError(\"boom\")\n+        ),\n+        mock.patch(\"mlflow.tracing.processor.uc_table._logger.debug\") as mock_debug,\n+    ):\n+        processor.on_end(otel_span)\n+\n+    mock_exporter.export.assert_called_once_with((otel_span,))\n+    mock_debug.assert_called_once()\n+\n+\n+def test_on_end_does_not_swallow_exporter_errors():\n+    trace_manager = InMemoryTraceManager.get_instance()\n+    with mock.patch.object(trace_manager, \"pop_trace\", return_value=None):\n+        with mlflow.start_span(\"foo\") as live_span:\n+            otel_span = live_span._span\n+\n+    mock_exporter = mock.MagicMock()\n+    mock_exporter.export.side_effect = RuntimeError(\"export failed\")\n+    processor = DatabricksUCTableSpanProcessor(span_exporter=mock_exporter)\n+\n+    with (\n+        mock.patch(\"opentelemetry.sdk.trace.export.logger.exception\") as mock_otel_exception,\n+        mock.patch(\"mlflow.tracing.processor.uc_table._logger.debug\") as mock_debug,\n+    ):\n+        processor.on_end(otel_span)\n+\n+    mock_exporter.export.assert_called_once_with((otel_span,))\n+    # Exporter failures are reported at error level by the OTel processor, not hidden at debug\n+    mock_otel_exception.assert_called_once()\n+    mock_debug.assert_not_called()\ndiff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py\nindex 20c7ac3c6..ca9ba61db 100644\n--- a/tests/utils/test_string_utils.py\n+++ b/tests/utils/test_string_utils.py\n@@ -1,6 +1,7 @@\n import pytest\n \n from mlflow.utils.string_utils import (\n+    _create_table,\n     format_table_cell_value,\n     is_string_type,\n     mslex_quote,\n@@ -9,6 +10,13 @@ from mlflow.utils.string_utils import (\n )\n \n \n+def test_create_table_empty_rows_keeps_headers():\n+    assert _create_table([], [\"Name\", \"ID\"]).splitlines() == [\n+        \"Name    ID  \",\n+        \"------  ----\",\n+    ]\n+\n+\n @pytest.mark.parametrize(\n     ((\"original\", \"prefix\", \"expected\")),\n     [(\"smoketest\", \"smoke\", \"test\"), (\"\", \"test\", \"\"), (\"\", \"\", \"\"), (\"test\", \"\", \"test\")],\n",
+  "distill": null,
+  "cache_read_tokens": 158718,
+  "cache_write_tokens": 12245,
+  "fresh_in_tokens": 18,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "copilot-review-findings-lead-with-the-fix-then-the-why",
+  "title": "Copilot review findings lead with the fix, then the why",
+  "kind": "rule",
+  "answers": [
+    "How should Copilot code review comments be formatted in this repo?",
+    "What sections must a review finding have in code-review.instructions.md?",
+    "Why does the review comment start with the recommended fix instead of the problem?",
+    "Where is the review comment format for Copilot defined?"
+  ],
+  "body": "Convention: when a review finding has a recommended fix, write it as two short bold-labelled sections, in this order.\n- \"**🔧 Fix:**\" comes first and states the recommended change, with only the detail needed to implement it.\n- \"**💡 Why:**\" follows and states the trigger and the concrete consequence that make the fix necessary.\n- The format is defined in the \"## Review Comment Format\" section of .github/instructions/code-review.instructions.md.\n- Keep the two labels and their order if you edit that section; the Copilot reviewer reads this file.",
+  "applies": "Only for Copilot/agent code review output in this repository, as set by .github/instructions/code-review.instructions.md; not for human review comments or general docs.",
+  "tags": [
+    "copilot",
+    "code-review",
+    "instructions",
+    "review-format"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:c285df58ecd7ef16ef7cc4b1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25864"
+  },
+  "created": "2026-10-11T08:41:45.843Z",
+  "verified": "2026-10-11T08:41:45.843Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Copilot code review comments should show the recommended fix before explaining the reason.",
+    "Automated pull request review feedback displays the background explanation ahead of the required change.",
+    "Format reviewer bot comments with the concrete solution first followed by the rationale.",
+    "The automated reviewer suggestions should put actionable code changes ahead of explanations."
+  ],
+  "search": "Copilot review findings with recommended fixes must present two bold-labelled sections starting with '**🔧 Fix:**' followed by '**💡 Why:**'. The fix section states the recommended change with minimal implementation detail, while the why section describes the trigger and concrete consequences requiring the change. Defined in the '## Review Comment Format' section of .github/instructions/code-review.instructions.md, this convention applies strictly to Copilot and agent review comments rather than human reviews or general documentation.",
+  "saysFor": "s2:a5b2d80255043630fcf2a61125c4e838a41bb1f84f597dd6c5f66c5a5fff8601"
+}

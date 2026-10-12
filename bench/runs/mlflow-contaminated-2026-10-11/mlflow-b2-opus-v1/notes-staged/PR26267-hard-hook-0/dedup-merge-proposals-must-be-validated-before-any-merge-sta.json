@@ -1,0 +1,71 @@
+{
+  "id": "dedup-merge-proposals-must-be-validated-before-any-merge-sta",
+  "title": "Dedup merge proposals must be validated before any merge state or issue metadata changes",
+  "kind": "rule",
+  "answers": [
+    "partial merge applied when a dedup group is invalid",
+    "invalid merge overwrote a valid merged issue",
+    "overlapping dedup groups merge incorrectly in discovery",
+    "transitive dedup merge with bad group"
+  ],
+  "body": "Invariant: _dedup_issues must finish validating a proposed group before it writes merge state (group_by_root, union-find roots) or issue name, description, root_cause, or example_indices. A group that fails validation must not partially mutate anything.\nEnforced at: mlflow/genai/discovery/pipeline.py:_dedup_issues, in the validation check that runs before root = min(group.indices) and the group_by_root assignment.\nWhat breaks if skipped: an invalid group that overlaps a valid one can overwrite the valid merge's metadata or leave an issue changed by a rejected proposal. Valid overlapping groups must still merge transitively.\nTests: tests/genai/discovery/test_pipeline.py:test_dedup_issues_invalid_group_cannot_overwrite_valid_merge covers both orderings; new cases should compare full model_dump() snapshots taken before the call.",
+  "applies": "Applies to any change to how _dedup_issues accepts, rejects, or applies merge groups.",
+  "tags": [
+    "genai",
+    "discovery",
+    "dedup",
+    "invariant",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/discovery/pipeline.py",
+      "symbol": "_dedup_issues",
+      "hash": "sha256:949404fa048c659f34dccbe4",
+      "line": 360,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:949404fa048c659f34dccbe4",
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 14
+      }
+    },
+    {
+      "path": "tests/genai/discovery/test_pipeline.py",
+      "symbol": "test_dedup_issues_invalid_group_cannot_overwrite_valid_merge",
+      "hash": "sha256:e415feb704e43548314d214c",
+      "line": 1291,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e415feb704e43548314d214c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26082"
+  },
+  "created": "2026-10-11T10:24:55.522Z",
+  "verified": "2026-10-11T10:24:55.522Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "malformed-dedup-group-indices-crash-issue-discovery-or-silen"
+  ],
+  "says": [
+    "Rejected duplicate issue merges in discovery are still modifying issue details and descriptions.",
+    "Overlapping duplicate groups overwrite previously merged issue metadata in the discovery view.",
+    "An invalid issue merge proposal partially changed the root cause and example list.",
+    "Ensure discovery issue deduplication validates merge candidates before mutating any issue fields."
+  ],
+  "search": "Deduplication issue merge proposals must be fully validated before writing merge state or mutating issue metadata. In mlflow/genai/discovery/pipeline.py:_dedup_issues, validation must finish before assigning group_by_root, union-find roots, name, description, root_cause, or example_indices to prevent invalid groups from corrupting valid overlapping merges. This invariant applies to any change in how _dedup_issues handles merge groups, with regression coverage in tests/genai/discovery/test_pipeline.py:test_dedup_issues_invalid_group_cannot_overwrite_valid_merge requiring model_dump() snapshot comparisons.",
+  "saysFor": "s2:f46289420099776fcc3b82a988f5bc7d3022ddcd4ba148bbbf4c32dfae8de3e8"
+}

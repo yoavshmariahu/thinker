@@ -1,0 +1,114 @@
+{
+  "id": "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss",
+  "title": "LazySpan.__getattr__ must fall back to Span.__getattr__ on a miss",
+  "kind": "rule",
+  "answers": [
+    "lazy loaded span gives bare AttributeError for span.get",
+    "LazySpan missing attribute hint not shown",
+    "why does LazySpan not show the span get hint"
+  ],
+  "body": "Symptom: A span loaded lazily (LazySpan) reports a bare AttributeError for span.get, without the attribute-access hint that eager spans show.\nRoot cause: mlflow/entities/span.py:LazySpan.__getattr__ called object.__getattribute__(self, name) directly, so a missing name raised the generic error and never reached the base hook.\nFix pattern: Keep self._ensure_materialized() first, then wrap object.__getattribute__ in try/except AttributeError and return super().__getattr__(name) on a miss. This lets the base class decide the message.\nConstraints: Any __getattr__ override in the span hierarchy must delegate to super().__getattr__ on a miss, or the base hint silently disappears for that subclass. Materialization must still run before the lookup.\nTests: tests/entities/test_span.py:test_span_get_raises_helpful_attribute_error covers LazySpan(span.to_dict()).",
+  "applies": "LazySpan and other subclasses that override __getattr__ in mlflow/entities/span.py.",
+  "tags": [
+    "tracing",
+    "lazy-span",
+    "getattr",
+    "inheritance"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LazySpan.__getattr__",
+      "hash": "sha256:82ea1fc12c0437aa593ec834",
+      "line": 1406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:82ea1fc12c0437aa593ec834",
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getattr__",
+      "hash": "sha256:26a87c32a60f91143b87ed27",
+      "line": 333,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:26a87c32a60f91143b87ed27",
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_get_raises_helpful_attribute_error",
+      "hash": "sha256:ffc5e84847a2700b7bec012d",
+      "line": 1540,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffc5e84847a2700b7bec012d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "get",
+      "hash": "sha256:e15c3525f04a2978d5666119",
+      "line": 1554,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e15c3525f04a2978d5666119"
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "to_dict",
+      "hash": "sha256:0579a8c2d226f06922e7af33",
+      "line": 356,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0579a8c2d226f06922e7af33",
+      "fanout": {
+        "files": 167,
+        "sites": 572,
+        "refs": 628
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26165"
+  },
+  "created": "2026-10-11T10:27:10.369Z",
+  "verified": "2026-10-11T10:27:10.369Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "span-get-must-stay-an-unresolved-attribute-hint-via-getattr",
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "span-classes-that-define-getitem-must-also-set-iter-none",
+    "span-getitem-hint-lookup-must-not-evaluate-attribute-getters"
+  ],
+  "says": [
+    "Lazy loaded trace spans do not show helpful error hints when accessing missing attributes.",
+    "Missing attribute error message on trace spans lacks suggestions shown on standard spans.",
+    "Trace spans fetched on demand should provide helpful suggestions when invalid attributes are accessed.",
+    "Accessing properties on lazily loaded spans throws a generic error without user hints."
+  ],
+  "search": "In mlflow/entities/span.py, LazySpan.__getattr__ must catch AttributeError from object.__getattribute__ and delegate to super().__getattr__ so base class attribute hints are preserved. self._ensure_materialized() must run before the attribute lookup, and all __getattr__ overrides across the span hierarchy must delegate misses to super().__getattr__. The behavior is tested by tests/entities/test_span.py:test_span_get_raises_helpful_attribute_error.",
+  "saysFor": "s2:1ee82598a3c6f19055989ddcd01b2420ab3d8b272fd4f6bf611694187ed7504c",
+  "lastUsed": "2026-10-11T18:48:50.132Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26307-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26307-hard-1"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "server-must-re-read-the-stored-registered-scorer-by-name-and",
+  "title": "Server must re-read the stored registered scorer by name and version instead of trusting the client payload",
+  "kind": "rule",
+  "answers": [
+    "run a registered scorer by name and version from the API",
+    "server scorer invoke uses client-supplied definition",
+    "scorer version pinned when invoking from the UI",
+    "why does invoke fetch the scorer from the store"
+  ],
+  "body": "Invariant: when a request names a registered scorer (scorer_name plus scorer_version), the handler fetches that version via tracking_store.get_scorer and uses the stored serialized_scorer and the resolved scorer_version, not the client-supplied payload.\nEnforced at mlflow/server/handlers.py:_invoke_scorer_handler (scorer_name branch) and mlflow/server/handlers.py:_invoke_genai_evaluate_handler (per-index loop over serialized_scorers and scorer_versions).\nWhat breaks if skipped: the job would run a client-supplied definition while recording a version that does not describe it, so assessments carry a false scorerVersion.\nConstraints: scorer_name and scorer_version must be given together; scorer_version must be a non-bool integer or null. The stored resolved version is the one submitted to the job, which the regression test shows can differ from the requested version. Serialized-scorer validation still runs on the final payload.\nApplies: any server handler that accepts a registered scorer reference and submits a job under it.",
+  "applies": "Server-side invoke and genai evaluate handlers that accept registered scorer references; inline serialized scorers without a version are unchanged.",
+  "tags": [
+    "scorers",
+    "server",
+    "security",
+    "registered-scorers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25570"
+  },
+  "created": "2026-10-11T08:50:51.763Z",
+  "verified": "2026-10-11T08:50:51.763Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-serialized-scorer-entry-point-must-run-validate-serial",
+    "the-three-invoke-handlers-share-one-trace-ids-input-contract",
+    "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+    "trace-experiment-binding-lookup-must-be-unscoped-generic-on"
+  ],
+  "says": [
+    "Model evaluation assessments display a recorded scorer version that contradicts the evaluated logic.",
+    "Evaluation runs must execute the saved registered scorer definition instead of client payloads.",
+    "Invoking a registered scorer from the interface records an incorrect version on assessments.",
+    "Ensure model evaluation jobs always run the approved scorer stored in the registry.",
+    "Evaluation assessments report the wrong scorer version when invoked with modified code."
+  ],
+  "search": "Server handlers _invoke_scorer_handler and _invoke_genai_evaluate_handler must retrieve registered scorers by name and version via tracking_store.get_scorer and use the stored definition rather than client-supplied payloads. Skipping this causes evaluation jobs to run unverified client definitions while recording an inaccurate scorerVersion on assessments. Scorer name and version must be provided together, where version is a non-bool integer or null, and the store's resolved version is submitted to the job. Applies to server invoke and evaluation handlers accepting registered scorer references, leaving unversioned inline serialized scorers unchanged.",
+  "saysFor": "s2:58024add7a12e581c8d7a2cd843f6b21023d92ef7290492edf2e8da94d2ff757"
+}

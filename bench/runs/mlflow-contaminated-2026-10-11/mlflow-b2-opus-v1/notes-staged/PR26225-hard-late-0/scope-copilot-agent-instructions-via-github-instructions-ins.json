@@ -1,0 +1,45 @@
+{
+  "id": "scope-copilot-agent-instructions-via-github-instructions-ins",
+  "title": "Scope Copilot agent instructions via .github/instructions/*.instructions.md frontmatter",
+  "kind": "rule",
+  "answers": [
+    "How do I add instructions only for the Copilot cloud agent?",
+    "How to exclude the code-review agent from repository custom instructions",
+    "Where do path-specific Copilot custom instructions live in this repo?",
+    "Why does my Copilot instruction file apply to every file or every agent?"
+  ],
+  "body": "Convention: agent-specific guidance goes in `.github/instructions/<name>.instructions.md`, not in the root `AGENTS.md`-style files.\nFrontmatter controls scope: `applyTo` sets the file glob (`\"**\"` = all paths) and `excludeAgent` names the agent to skip (`\"code-review\"` keeps the file away from the code-review agent).\nThe cloud-agent file is `.github/instructions/cloud-agent.instructions.md`; it currently only has a `## Pull request descriptions` section.\nKeep new cloud-agent rules in that file rather than adding a second file with overlapping `applyTo` globs, so the scope stays in one place.\nConstraints: the frontmatter keys follow GitHub's Copilot custom-instruction format; this repo's diff does not show any test or script that validates them.",
+  "applies": "Editing or adding Copilot/agent instruction files under .github/instructions/ in this repository.",
+  "tags": [
+    "copilot",
+    "agent-instructions",
+    "github",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/cloud-agent.instructions.md",
+      "hash": "sha256:1bd16499ff03df9e66f9674a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25812"
+  },
+  "created": "2026-10-11T10:32:50.259Z",
+  "verified": "2026-10-11T10:32:50.259Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Custom repository instructions are running on the automated code review bot instead of cloud assistant.",
+    "Configure repository assistant guidelines that only apply when generating pull request descriptions.",
+    "Prevent automated review agents from picking up instructions intended solely for cloud tasks.",
+    "Why do custom repository rules apply to every automated assistant across the entire codebase?"
+  ],
+  "search": "Copilot agent instructions must be scoped using frontmatter in .github/instructions/*.instructions.md rather than root instruction files. Frontmatter keys applyTo and excludeAgent control the file glob and which agent to skip, such as excluding the code-review agent. Guidance for the cloud agent belongs in .github/instructions/cloud-agent.instructions.md under pull request descriptions to keep scopes consolidated, following GitHub Copilot custom instruction formatting without repository test validation.",
+  "saysFor": "s2:952f17092e0984ef74cebda4b26e383baafea16f46e3376288d1868999d7dead"
+}

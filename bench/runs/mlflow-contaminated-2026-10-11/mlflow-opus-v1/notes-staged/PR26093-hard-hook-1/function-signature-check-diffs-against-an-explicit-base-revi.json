@@ -1,0 +1,76 @@
+{
+  "id": "function-signature-check-diffs-against-an-explicit-base-revi",
+  "title": "Function-signature check diffs against an explicit base revision, not a fetched branch or merge-base",
+  "kind": "rule",
+  "answers": [
+    "function signature check fails in PR CI with missing base branch",
+    "signature check breaks on shallow checkout or limited git history",
+    "breaking-change check cannot find merge base in CI",
+    "how does the signature check choose what to compare against"
+  ],
+  "body": "Symptom: the PR lint job's function-signature (breaking-change) check fails or cannot compare against the base branch, and the outcome depends on how much git history the checkout fetched.\nRoot cause: dev/check_function_signatures.py:get_changed_python_files fetched the base branch and ran three-dot `git diff base...HEAD` (merge-base discovery), and .github/workflows/lint.yml relied on fetch-depth 300 to hope the merge base was present locally.\nFix pattern: pass an explicit base revision and use two-dot `git diff --name-only BASE HEAD` plus `git show BASE:path` (dev/check_function_signatures.py:get_file_content_at_revision). PR CI passes `--base-revision HEAD^1` (first parent of the synthetic merge) with fetch-depth 2.\nConstraints: HEAD^1 only exists on pull_request events, so the lint step must stay guarded by `github.event_name == 'pull_request'`. Reintroducing three-dot merge-base syntax or a deep fetch-depth brings back the history dependency.",
+  "applies": "Applies to dev/check_function_signatures.py and the 'Check function signatures' step in .github/workflows/lint.yml; not to product code under mlflow/.",
+  "tags": [
+    "ci",
+    "lint",
+    "git",
+    "dev-scripts",
+    "function-signatures"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_function_signatures.py",
+      "symbol": "get_changed_python_files",
+      "hash": "sha256:56b6d52d2033fa16ef9a874d",
+      "line": 280,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:56b6d52d2033fa16ef9a874d",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "dev/check_function_signatures.py",
+      "symbol": "get_file_content_at_revision",
+      "hash": "sha256:61cca1d51e3574adb122aa5d",
+      "line": 295,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:61cca1d51e3574adb122aa5d",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25723"
+  },
+  "created": "2026-10-11T08:48:17.968Z",
+  "verified": "2026-10-11T08:48:17.968Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "run-the-function-signature-check-locally-with-base-revision"
+  ],
+  "says": [
+    "Pull request checks fail when comparing API function signatures against the target branch.",
+    "The automated pull request lint job cannot find the base branch to compare changes.",
+    "Ensure the breaking change checker can compare revisions on a shallow repository checkout.",
+    "Signature verification on pull requests breaks whenever the checkout commit history is limited."
+  ],
+  "search": "Function-signature breaking-change checks in dev/check_function_signatures.py compare against an explicit base revision using two-dot git diff and git show instead of discovering a merge base with three-dot diff. Pull request CI passes --base-revision HEAD^1 with fetch-depth 2 in the Check function signatures step of .github/workflows/lint.yml. The step must stay guarded by github.event_name == 'pull_request' because HEAD^1 exists only on pull_request events. It applies to dev/check_function_signatures.py and .github/workflows/lint.yml, not to product code under mlflow/.",
+  "saysFor": "s2:aaa6f3e525cdb807716b3116ee435ce3262ffd08a5f9c83b11c3b820fad9879d"
+}

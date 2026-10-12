@@ -1,0 +1,51 @@
+{
+  "id": "unused-media-check-runs-only-through-pre-commit",
+  "title": "Unused-media check runs only through pre-commit",
+  "kind": "map",
+  "answers": [
+    "where is the unused media check run in CI",
+    "dev/find-unused-media.sh lint step removed",
+    "how to run unused media check locally",
+    "which workflow checks for unused media files"
+  ],
+  "body": "The unused-media check (`dev/find-unused-media.sh`) is no longer a dedicated step in `.github/workflows/lint.yml`.\nIt runs as the `unused-media` hook in `.pre-commit-config.yaml`, and CI invokes it via `pre-commit run --all-files`.\nTo run it locally, use `pre-commit run unused-media --all-files` or run the script directly.\nTo change its behavior, edit the hook entry in `.pre-commit-config.yaml`, not `lint.yml`.",
+  "applies": "Anyone changing media-file linting or the CI lint workflow in this repo.",
+  "tags": [
+    "build",
+    "ci",
+    "pre-commit"
+  ],
+  "deps": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:26b4041b502f2c8ce009a05d",
+      "missing": false
+    },
+    {
+      "path": "dev/find-unused-media.sh",
+      "hash": "sha256:063c96ba0ad14df492896eec",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25815"
+  },
+  "created": "2026-10-11T08:47:13.728Z",
+  "verified": "2026-10-11T08:47:13.728Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "repo-wide-pre-commit-hooks-must-set-always-run-true"
+  ],
+  "says": [
+    "The automated check for unused media files was removed from the main linting pipeline.",
+    "How do I run the unused media scan locally on my machine before committing?",
+    "Where can I modify the configuration for detecting unused image and video assets?",
+    "Continuous integration checks failed due to unreferenced media files found in the project."
+  ],
+  "search": "The unused-media check (dev/find-unused-media.sh) runs as a pre-commit hook in .pre-commit-config.yaml rather than a standalone step in .github/workflows/lint.yml. CI invokes the check through pre-commit run --all-files, while local runs use pre-commit run unused-media --all-files or executing the script directly. Applies to edits involving media linting or CI lint workflows, requiring rule changes to be made in .pre-commit-config.yaml instead of lint.yml.",
+  "saysFor": "s2:e97c0e466173187016c4869f08463939f4646ffc7abbf201d6978ad634d4548d"
+}

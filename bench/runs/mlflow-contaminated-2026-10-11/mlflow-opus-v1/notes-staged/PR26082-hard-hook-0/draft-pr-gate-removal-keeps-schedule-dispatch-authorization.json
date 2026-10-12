@@ -1,0 +1,62 @@
+{
+  "id": "draft-pr-gate-removal-keeps-schedule-dispatch-authorization",
+  "title": "Draft-PR gate removal keeps schedule, dispatch, authorization and closed-action predicates",
+  "kind": "rule",
+  "answers": [
+    "run CI on draft pull requests without dropping the author check",
+    "ui-preview runs for draft PRs or unauthorized authors after gate removal",
+    "release note validation runs on closed pull requests"
+  ],
+  "body": "Invariant: the draft-state term is the only predicate removed from job if expressions in this change. These predicates stay where they are:\n- schedule repository checks such as `github.repository == 'mlflow/dev'` (examples.yml, slow-tests.yml, test-requirements.yml, cross-version-tests.yml)\n- dispatch inputs such as `!inputs.windows_only` (slow-tests.yml:tests)\n- author authorization (OWNER/MEMBER/COLLABORATOR or the Copilot bot) and the label check in .github/workflows/ui-preview.yml jobs; the duplicated-gate rule for this file still applies\n- the closed-action exclusion `github.event.action != 'closed'` in .github/workflows/release-note.yml:validate-labeled\nConstraints: this PR is described as adding no ready_for_review triggers, so draft PRs run only on the event types the workflow already listens to. Copilot lifecycle and authorization workflows were left unchanged on purpose. Dropping any predicate above changes which events or actors start the job; the PR description lists them as required to preserve.",
+  "applies": "Editing job if conditions in .github/workflows/ when draft-PR gates are being removed or changed; not for adding new gates.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "draft-pr",
+    "authorization",
+    "workflow-conditions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "hash": "sha256:70bd55ca7846f6523eb9c924",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/slow-tests.yml",
+      "hash": "sha256:3b4c714d6c11ca0a1af414ae",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/examples.yml",
+      "hash": "sha256:c171ccb2ff73938c717a1c12",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25668"
+  },
+  "created": "2026-10-11T08:49:08.041Z",
+  "verified": "2026-10-11T08:49:08.041Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "job-if-expressions-with-a-pull-request-alternative-strip-onl"
+  ],
+  "says": [
+    "Draft pull requests should run continuous integration tests without bypassing author permission checks.",
+    "Preview deployments are triggering unexpectedly for unauthorized contributors on draft pull requests.",
+    "Release note checks are executing on closed pull requests instead of being skipped.",
+    "Enable automated builds for draft pull requests while preserving schedule and author rules."
+  ],
+  "search": "When removing draft pull request gates from job if conditions in .github/workflows/, only the draft-state predicate may be removed. All schedule repository checks, dispatch inputs like !inputs.windows_only, author authorization and label checks in ui-preview.yml, and closed-action exclusions in release-note.yml must be preserved. The change does not add ready_for_review triggers or alter existing Copilot authorization and lifecycle workflows.",
+  "saysFor": "s2:62af8054f1680ca12577731adec3a10c5bad6b29cb9f0915697b206b59d38b95"
+}

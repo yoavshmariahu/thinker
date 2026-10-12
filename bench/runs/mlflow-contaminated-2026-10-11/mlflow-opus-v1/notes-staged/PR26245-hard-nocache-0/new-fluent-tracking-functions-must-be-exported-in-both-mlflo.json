@@ -1,0 +1,69 @@
+{
+  "id": "new-fluent-tracking-functions-must-be-exported-in-both-mlflo",
+  "title": "New fluent tracking functions must be exported in both mlflow/__init__.py import list and __all__",
+  "kind": "rule",
+  "answers": [
+    "how do I expose a new function as mlflow.something at top level",
+    "mlflow.restore_run not found after adding it to fluent.py",
+    "where do fluent API functions get registered for the mlflow namespace",
+    "add a top-level convenience function to the mlflow package"
+  ],
+  "body": "Invariant: a public fluent function defined in mlflow/tracking/fluent.py is reachable as mlflow.<name> only if it is listed in the import block of mlflow/__init__.py and in its __all__ list.\nThe two lists must be edited together; the PR added restore_experiment and restore_run to both, placed next to their delete_* siblings.\nEnforced by: mlflow/__init__.py:__all__ and the 'from mlflow.tracking.fluent import (...)' block.\nIf skipped: the function exists in fluent.py but is missing from the top-level namespace and from the public API listing.\nThe API inventory docs/api_reference/api_inventory.txt lists these names too; the PR description calls it auto-generated and says it needs regeneration (/autoformat), so prefer regenerating over hand-editing.",
+  "applies": "Any new public function added to mlflow/tracking/fluent.py that should be callable as mlflow.<name>.",
+  "tags": [
+    "tracking",
+    "fluent-api",
+    "public-api",
+    "exports"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:1cdf0cd4c5a39b92b3026736",
+      "line": 209,
+      "missing": false,
+      "fanout": {
+        "files": 96,
+        "sites": 0,
+        "refs": 111
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_run",
+      "hash": "sha256:eb0476d2c4f7f787022f6b97",
+      "line": 3168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb0476d2c4f7f787022f6b97",
+      "fanout": {
+        "files": 13,
+        "sites": 19,
+        "refs": 24
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25852"
+  },
+  "created": "2026-10-11T08:46:20.801Z",
+  "verified": "2026-10-11T08:46:20.801Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fluent-restore-delete-wrappers-are-one-line-delegations-to-m"
+  ],
+  "says": [
+    "The command to restore a deleted run is missing from the main tracking package.",
+    "Provide a top-level convenience method to restore experiments alongside existing deletion commands.",
+    "Users cannot find the action to restore runs in the public tracking interface.",
+    "Make run restoration available as a primary command in the tracking client.",
+    "The public library reference omits commands for restoring experiments and deleted runs."
+  ],
+  "search": "Public fluent tracking functions added to mlflow/tracking/fluent.py must be exported in both the mlflow/__init__.py import block and its __all__ list to be reachable in the top-level mlflow namespace. This applies to functions such as restore_experiment and restore_run placed alongside delete siblings. Omitting either export leaves the function missing from the top-level namespace and public API listings. The auto-generated API inventory docs/api_reference/api_inventory.txt must also include these names via /autoformat regeneration rather than hand-editing.",
+  "saysFor": "s2:c19f4c32193a0679fa4416e4d073cd19570c764d1c2d4731d374d5b8805ce7bd"
+}

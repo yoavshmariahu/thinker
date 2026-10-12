@@ -1,0 +1,86 @@
+{
+  "id": "enable-tracing-must-be-passed-into-vertex-ai-delegates-or-pa",
+  "title": "enable_tracing must be passed into Vertex AI delegates or passthrough span usage is lost",
+  "kind": "rule",
+  "answers": [
+    "token usage missing from trace span for Vertex AI Claude streaming passthrough",
+    "AI Gateway tracing shows no usage attribute for Vertex Claude",
+    "gateway span has no token counts for Vertex AI model"
+  ],
+  "body": "Symptom: a streaming passthrough request to a Vertex AI Claude model completes but its trace span has no token usage attribute.\nRoot cause: the delegate's streaming path accumulates usage on itself, and _set_span_token_usage is a no-op when the delegate's own _enable_tracing is False. VertexAIProvider.__init__ built the delegates without enable_tracing.\nFix pattern: accept enable_tracing in _VertexAIClaudeProvider.__init__ and _VertexAIMaaSProvider.__init__, pass it to BaseProvider.__init__, and forward the outer provider's flag when constructing the delegate.\nConstraints: non-streaming usage is read via the delegate's _extract_passthrough_token_usage for the same reason, because the Gemini extractor returns nothing for an Anthropic response. Any new delegate must take and forward the flag. Covered by test_delegate_inherits_enable_tracing.",
+  "applies": "Constructing or adding delegates in VertexAIProvider, and any change to span usage recording for Vertex passthrough.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "tracing",
+    "usage"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider.__init__",
+      "hash": "sha256:5ed321de94f2397d0060bb3e",
+      "line": 373,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5ed321de94f2397d0060bb3e",
+      "fanout": {
+        "files": 269,
+        "sites": 307,
+        "refs": 431
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider.__init__",
+      "hash": "sha256:15b29063c72c9a3d782aaabe",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:15b29063c72c9a3d782aaabe",
+      "fanout": {
+        "files": 269,
+        "sites": 307,
+        "refs": 431
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider.__init__",
+      "hash": "sha256:dc69d18dbf7a1933325fe1b8",
+      "line": 294,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dc69d18dbf7a1933325fe1b8",
+      "fanout": {
+        "files": 269,
+        "sites": 307,
+        "refs": 431
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T08:47:04.932Z",
+  "verified": "2026-10-11T08:47:04.932Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex",
+    "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta",
+    "vertex-delegates-must-always-drop-client-auth-headers-before"
+  ],
+  "says": [
+    "Streaming responses from Claude models on Vertex AI are missing token usage statistics.",
+    "Trace details in the AI Gateway dashboard do not show token counts for streaming.",
+    "Model trace spans should accurately record consumed tokens for all streamed gateway requests.",
+    "Gateway usage monitoring fails to display token metrics after streaming completions."
+  ],
+  "search": "VertexAIProvider must forward enable_tracing when instantiating _VertexAIClaudeProvider and _VertexAIMaaSProvider delegates so streaming trace spans capture token usage attributes. The delegate constructors in mlflow/gateway/providers/vertex_ai.py must accept enable_tracing and forward it to BaseProvider.__init__. Any new delegate must follow this pattern because _set_span_token_usage requires the flag to record usage and the Gemini extractor cannot parse Anthropic responses.",
+  "saysFor": "s2:80ee5920678ad85a18c2517aa84a0016ab50873b3a955c26a7e7cc93f0e3cfd0"
+}

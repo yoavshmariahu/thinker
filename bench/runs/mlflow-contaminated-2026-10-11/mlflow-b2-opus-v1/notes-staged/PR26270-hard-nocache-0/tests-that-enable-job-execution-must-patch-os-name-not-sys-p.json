@@ -1,0 +1,70 @@
+{
+  "id": "tests-that-enable-job-execution-must-patch-os-name-not-sys-p",
+  "title": "Tests that enable job execution must patch os.name, not sys.platform, to get past the Windows guard",
+  "kind": "rule",
+  "answers": [
+    "server startup test fails on Windows with 'MLflow job backend does not support Windows system'",
+    "how do I make a server test skip the Windows job backend check",
+    "why do trace rollup startup tests pass on Linux but fail on Windows",
+    "patch os.name to bypass LocalJobExecutor Windows rejection in tests"
+  ],
+  "body": "Symptom: Server startup tests that enable job execution pass on Linux/macOS but fail on Windows with \"MLflow job backend does not support Windows system.\" instead of the rollup validation error they assert on.\nRoot cause: mlflow/server/jobs/local_executor.py:LocalJobExecutor.check_requirements rejects Windows by checking `os.name == \"nt\"`. It is reached from tests/server/test_init.py via `_run_server` -> `validate_executor_config()`. Patching `sys.platform` does not affect it.\nFix pattern: In any test that reaches validate_executor_config with job execution enabled, use `mock.patch(\"os.name\", \"posix\")`. Do not use `mock.patch(\"sys.platform\", return_value=...)`: the guard does not read it, and `return_value` is the wrong form for replacing a plain string attribute.\nConstraints: Only needed when the test enables job execution and the guard is reached. If `mlflow.server.jobs.utils._check_requirements` is mocked, the `utils` module's own os.name is not the guard that fires, so a utils-scoped patch would not neutralize it. A test whose mock raises before the guard needs no os.name patch.",
+  "applies": "Tests in tests/server/ that start the server with job execution or trace rollups enabled; not production code paths.",
+  "tags": [
+    "tests",
+    "windows",
+    "server",
+    "job-execution",
+    "trace-rollups"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/jobs/local_executor.py",
+      "symbol": "LocalJobExecutor.check_requirements",
+      "hash": "sha256:b322afca6cce205fdd694e04",
+      "line": 515,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b322afca6cce205fdd694e04",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/test_init.py",
+      "symbol": "test_run_server_passes_public_store_config_to_job_runner",
+      "hash": "sha256:8144bc85b30eced2da753d05",
+      "line": 353,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8144bc85b30eced2da753d05",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26205"
+  },
+  "created": "2026-10-11T10:23:51.519Z",
+  "verified": "2026-10-11T10:23:51.519Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Server startup fails on Windows with an error that the job backend is unsupported.",
+    "Trace rollup server startup tests crash on Windows while passing on Linux.",
+    "Starting the tracking server with background job execution fails on Windows.",
+    "Allow server startup tests with job execution enabled to run on Windows.",
+    "Running the server on Windows rejects the job executor during startup."
+  ],
+  "search": "Server startup tests in tests/server/ that enable job execution or trace rollups must patch os.name to 'posix' rather than patching sys.platform to bypass the Windows check in LocalJobExecutor.check_requirements. LocalJobExecutor rejects Windows by checking os.name == 'nt' when validate_executor_config is reached from _run_server, which patching sys.platform does not affect. Only applies when job execution is enabled and does not apply if mlflow.server.jobs.utils._check_requirements is mocked or if a mock raises before the guard.",
+  "saysFor": "s2:6275c0648fd3e9e5ae674117981665b186012eeb98b519835b4e13967dbd6ae3"
+}

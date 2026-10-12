@@ -1,0 +1,56 @@
+{
+  "id": "ruff-version-must-be-bumped-in-pyproject-toml-lint-extra-and",
+  "title": "Ruff version must be bumped in pyproject.toml (lint extra and tool.ruff.required-version) and requirements/lint-requirements.txt together",
+  "kind": "rule",
+  "answers": [
+    "How do I upgrade Ruff in this repo without breaking lint?",
+    "Ruff check fails with a required-version mismatch after bumping the version",
+    "Where is the Ruff version pinned for the dev environment and CI lint?",
+    "Why does dev-env-setup install an old Ruff that rejects every run?"
+  ],
+  "body": "Invariant: the Ruff version is pinned in three places that must change together: the `lint` extra's `ruff==X` in pyproject.toml, `[tool.ruff] required-version` in pyproject.toml, and the `ruff==X` line in requirements/lint-requirements.txt.\nEnforced by: `[tool.ruff] required-version` in pyproject.toml makes any other installed Ruff version refuse to run; dev/dev-env-setup.sh installs requirements/lint-requirements.txt, so a stale line there installs the old version.\nWhat breaks if skipped: bumping only pyproject.toml leaves dev-env-setup installing the previous Ruff, and every `ruff format` / `ruff check` invocation fails the required-version check (the review on PR #26195 caught this).\nFix pattern: change all three pins to the same version in one commit, then refresh uv.lock without altering the cooldown exclusion.\nConstraints: this covers only the Ruff pin; other lint tools (pre-commit, mypy) are pinned in the same files but are not gated by required-version.",
+  "applies": "Any change to the Ruff version or other lint-tool pins in this repository's dev tooling.",
+  "tags": [
+    "build",
+    "lint",
+    "ruff",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "requirements/lint-requirements.txt",
+      "hash": "sha256:f57b9af2ca18195568eaa8b3",
+      "missing": false
+    },
+    {
+      "path": "dev/dev-env-setup.sh",
+      "hash": "sha256:ab31398ebe0ebab5902ccaa0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26195"
+  },
+  "created": "2026-10-11T10:26:48.038Z",
+  "verified": "2026-10-11T10:26:48.038Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Development environment setup installs an outdated linter that refuses to run formatting checks",
+    "Code style checks fail with a version mismatch error after updating the linter",
+    "Developer setup scripts install the wrong linter version causing pull request checks to fail",
+    "Local code formatting commands reject every file due to an unexpected tool version",
+    "Upgrade the code formatting linter across developer environments and pull request quality checks"
+  ],
+  "search": "Upgrades to Ruff must synchronize the version pin across pyproject.toml (the lint extra and [tool.ruff] required-version) and requirements/lint-requirements.txt in a single commit before refreshing uv.lock. If skipped, dev/dev-env-setup.sh installs the old pinned version from requirements/lint-requirements.txt, causing ruff format and ruff check to fail the required-version check. The requirement applies strictly to Ruff pins without changing the cooldown exclusion, and does not govern other lint tools like pre-commit or mypy.",
+  "saysFor": "s2:45f59be46efa39923c356fd0ee6a50c203a6885e9a827c9e2e71cf286cbd2f9b"
+}

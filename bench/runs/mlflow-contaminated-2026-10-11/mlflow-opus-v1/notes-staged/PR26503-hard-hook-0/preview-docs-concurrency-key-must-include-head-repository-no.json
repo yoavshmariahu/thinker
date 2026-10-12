@@ -1,0 +1,47 @@
+{
+  "id": "preview-docs-concurrency-key-must-include-head-repository-no",
+  "title": "Preview-docs concurrency key must include head repository, not only head branch",
+  "kind": "rule",
+  "answers": [
+    "docs preview for a fork PR deploys over or cancels another PR's preview",
+    "preview docs artifacts clobbered by PRs using the same branch name",
+    "why does preview-docs group include head_repository full_name",
+    "branch name master collides across forks"
+  ],
+  "body": "Symptom: A docs preview from one pull request is skipped, overwritten, or its cleanup is wrongly run when another pull request uses a common branch name such as master.\nRoot cause: .github/workflows/preview-docs.yml concurrency.group was built from `github.event.workflow_run.head_branch` alone; branch names are not unique across forks.\nFix pattern: Include `github.event.workflow_run.head_repository.full_name` in the group key alongside `github.workflow` and `head_branch`, so only successive runs for the same fork branch serialize.\nConstraints: Applies to any workflow_run-triggered workflow keyed on head_branch. Keeping cancel-in-progress false is still required; the key only chooses which runs share a queue.",
+  "applies": "Workflows triggered by workflow_run that derive concurrency or artifact naming from head_branch.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "docs",
+    "forks"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/preview-docs.yml",
+      "hash": "sha256:f7af9cdde0df3c0894c6de58",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25622"
+  },
+  "created": "2026-10-11T08:49:45.036Z",
+  "verified": "2026-10-11T08:49:45.036Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Documentation preview builds get overwritten when separate pull requests share the same branch name.",
+    "A documentation preview was unexpectedly canceled while another contributor submitted changes from their fork.",
+    "Prevent pull request documentation previews from conflicting when external authors use default branch names.",
+    "Merging or updating one pull request prematurely deleted the documentation preview of another pull request.",
+    "Isolate preview site generation so forked contributions do not overwrite each other's preview deployments."
+  ],
+  "search": "In .github/workflows/preview-docs.yml, concurrency.group must include github.event.workflow_run.head_repository.full_name alongside github.workflow and head_branch. This prevents documentation preview runs from different forks colliding, cancelling, or overwriting artifacts when pull requests share identical branch names such as master. This rule applies to any workflow_run-triggered workflow keyed on head_branch, while cancel-in-progress must remain false.",
+  "saysFor": "s2:98077dad6509ceeff97d6139b28cf3bc5ae609ea4d4bf1592b9cc99a50501345"
+}

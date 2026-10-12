@@ -1,0 +1,70 @@
+{
+  "id": "session-token-sums-keep-undefined-when-every-trace-lacks-a-c",
+  "title": "Session token sums keep undefined when every trace lacks a count",
+  "kind": "rule",
+  "answers": [
+    "session token total shows dash or zero incorrectly",
+    "how are missing token counts summed across traces",
+    "why does session total differ from sum of visible values",
+    "token usage aggregation with missing fields"
+  ],
+  "body": "TraceCell.tsx:SessionTokensCell sums input_tokens, output_tokens and total_tokens field by field; a field stays undefined only if every trace lacks it, otherwise missing values count as 0.\nTraceCell.tsx:TokenUsageCell renders the shared display for both the per-trace cell (TraceTokensCell) and the session cell, and shows the empty value when total_tokens is falsy.\nConstraints: Changing the token display in TokenUsageCell changes both row and session headers together; changing the sum rule changes what a fully-unreported session shows (dash rather than 0). Usage comes from getTraceTokenUsage, which can return undefined and must be guarded with ?? {}.",
+  "applies": "Token and other numeric usage aggregation in the traces table cells.",
+  "tags": [
+    "traces-table",
+    "tokens",
+    "aggregation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TraceCell.tsx",
+      "symbol": "SessionTokensCell",
+      "hash": "sha256:85037667614c54e7b7bbede6",
+      "line": 654,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7d631c69483eb8b5f1cc529f",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TraceCell.tsx",
+      "symbol": "TokenUsageCell",
+      "hash": "sha256:85abdbce8aecd4f437089b70",
+      "line": 616,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:85abdbce8aecd4f437089b70",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25608"
+  },
+  "created": "2026-10-11T08:43:25.094Z",
+  "verified": "2026-10-11T08:43:25.094Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "register-session-header-aggregates-per-column-via-rendersess"
+  ],
+  "says": [
+    "Session token summary shows a dash instead of zero when traces have no counts.",
+    "The total tokens column in the traces table displays zero for missing session data.",
+    "Aggregated session token usage displays empty when individual trace token counts are omitted.",
+    "Make the traces table session header display a dash when no tokens are recorded.",
+    "Session token counts do not match the sum of visible trace token values."
+  ],
+  "search": "TraceCell.tsx:SessionTokensCell sums input_tokens, output_tokens, and total_tokens field by field, remaining undefined only if every trace lacks the field while otherwise treating missing values as 0. TraceCell.tsx:TokenUsageCell renders the shared token display for both row cells (TraceTokensCell) and session headers, showing the empty value when total_tokens is falsy. Token usage comes from getTraceTokenUsage, which can return undefined and must be guarded with ?? {}. This guidance applies to token and numeric usage aggregation in traces table cells, where modifying TokenUsageCell affects row and session headers together.",
+  "saysFor": "s2:cdba0b76818f9365aefedabc9bc3aa1c36a4904a955ba73763740939f76c6e10"
+}

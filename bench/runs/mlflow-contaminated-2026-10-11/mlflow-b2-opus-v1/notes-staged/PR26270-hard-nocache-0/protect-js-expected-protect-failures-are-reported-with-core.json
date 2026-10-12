@@ -1,0 +1,73 @@
+{
+  "id": "protect-js-expected-protect-failures-are-reported-with-core",
+  "title": "protect.js: expected Protect failures are reported with core.setFailed and return, not thrown",
+  "kind": "rule",
+  "answers": [
+    "Protect check shows a stack trace instead of a clear error message",
+    "Protect job retries or crashes when no workflow runs are found or checks fail",
+    "How do I make the protect workflow fail gracefully with a readable Actions error?",
+    "Why does the approval/protect job throw an Error instead of calling core.setFailed?"
+  ],
+  "body": "Symptom: The Protect check fails with a raw exception (or appears to retry) when a required check fails, no workflow runs are found, or the wait times out, instead of a clear Actions error message.\nRoot cause: .github/workflows/protect.js:module.exports (the async handler) used `throw new Error(...)` for expected outcomes (missing runs, a failed sibling check, timeout).\nFix pattern: For expected outcomes call `core.setFailed(message)` then `return`; keep the polling loop and status reporting unchanged. Null-check the value returned by `fetchChecks` (`if (!checks) return;`) so an expected failure inside the helper exits cleanly.\nConstraints: Only expected failures move to setFailed. Unexpected GitHub API errors must still propagate as thrown errors. Keep the script timeout shorter than the job's `timeout-minutes` (reviewer noted the runner would otherwise cancel the job before the script could report \"Timeout\"); the PR's final value for that constant is not confirmed by the diff.",
+  "applies": "Applies to .github/workflows/protect.js and similar actions/github-script handlers that gate merges; does not apply to genuine programming or API errors.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "ci",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "fetchChecks",
+      "hash": "sha256:c53f120dfbed9078c51e87bc",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c53f120dfbed9078c51e87bc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "fetchChecks",
+      "hash": "sha256:c53f120dfbed9078c51e87bc",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c53f120dfbed9078c51e87bc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26196"
+  },
+  "created": "2026-10-11T10:26:39.046Z",
+  "verified": "2026-10-11T10:26:39.046Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-receives-core-only-through-the-github-script-call",
+    "renaming-the-rerun-workflows-requires-updating-three-differe",
+    "protect-js-check-log-order-is-the-key-order-of-state-so-new",
+    "protect-js-every-workflow-run-attempt-link-must-carry-pr-num"
+  ],
+  "says": [
+    "The merge protection check shows an unhandled crash stack trace instead of a clear error.",
+    "Pull request protection job should fail gracefully with a readable message when checks fail.",
+    "Protection check crashes on timeout instead of reporting an expired waiting period.",
+    "Display user-friendly failure explanations in the merge gate when required validations fail."
+  ],
+  "search": "Expected merge-gate failures in .github/workflows/protect.js must be reported using core.setFailed and a return rather than throwing an Error. Applies to actions/github-script merge gate handlers handling missing runs, sibling check failures, and timeouts, requiring null-checks on fetchChecks. Unexpected GitHub API errors must still propagate as thrown errors, and script timeouts must remain shorter than the runner timeout-minutes.",
+  "saysFor": "s2:a2ea70a48f4f70dc95d89d58ead36435132ab957b7a4eb3d5cffde73574c72c5"
+}

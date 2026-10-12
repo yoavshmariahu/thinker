@@ -1,0 +1,66 @@
+{
+  "id": "legacy-2-11-wheel-is-built-from-the-source-tree-before-the-s",
+  "title": "Legacy 2.11 wheel is built from the source tree before the sdist, not from the sdist",
+  "kind": "howto",
+  "answers": [
+    "how do I build the 2.11 wheel with setup.py package_data included",
+    "build mlflow 2.11 wheel and sdist locally",
+    "why build wheel with python -m build --wheel instead of from sdist",
+    "run dev/build.py skinny or release locally"
+  ],
+  "body": "Run `python dev/build.py --package-type skinny` or `--package-type release` from the repository root; it calls `python -m build --wheel` first, then `python -m build --sdist`, both through dev/build.py:build.\nThe wheel is built directly from the tree so setup.py package_data (UI for release; alembic and recipes data for skinny) is bundled; the sdist is built second.\nThe release path needs mlflow/server/js/build populated first (see dev/build.py:main guard).\nConstraints: the module docstring says a sdist-to-wheel build would drop these assets, but a review comment reported the built sdist containing them; treat the sdist contents as unverified and keep the direct tree wheel build. Do not use `python -m build` with no flags as a substitute, since it does the sdist-to-wheel path.",
+  "applies": "Local or CI packaging of branch-2.11 via the legacy setup.py layout.",
+  "tags": [
+    "build",
+    "packaging",
+    "wheel",
+    "sdist",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "wheel",
+      "hash": "sha256:e2542fea3452b87125f7be0e",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 0,
+        "refs": 58
+      }
+    },
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26073"
+  },
+  "created": "2026-10-11T10:28:06.042Z",
+  "verified": "2026-10-11T10:28:06.042Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "branch-2-13-package-builds-go-through-dev-build-sh-dev-build",
+    "release-build-must-explicitly-clear-mlflow-skinny-so-an-ambi",
+    "release-package-requires-the-pre-built-js-ui-dev-build-py-gu"
+  ],
+  "says": [
+    "Built release package is missing the user interface static assets when installed.",
+    "The lightweight package distribution fails to bundle database migration files during build.",
+    "How do I create complete distribution packages containing the web user interface locally?",
+    "Release builds are missing front end web assets after installing from packaged archives."
+  ],
+  "search": "Packaging branch-2.11 with dev/build.py builds the wheel directly from the source tree before the sdist so setup.py package_data assets are included. The script runs python -m build --wheel followed by python -m build --sdist for skinny or release package types, with release requiring mlflow/server/js/build to be populated first. Bare python -m build without flags must not be used because it executes the unverified sdist-to-wheel sequence.",
+  "saysFor": "s2:034eeb48a76b292198c63f5bd918ba19713194e5d80153cd344fe38e64e379ff"
+}

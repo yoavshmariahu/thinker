@@ -1,0 +1,60 @@
+{
+  "id": "PR26291-hard-late-0",
+  "task": "PR26291-hard",
+  "area": "mlflow/store",
+  "arm": "late",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "91af51e2-c55e-4e6a-99f4-7c48218e0a3f",
+  "turns": 11,
+  "wall_ms": 44950,
+  "api_ms": 33372,
+  "cost": 0.2056402,
+  "in_tokens": 195752,
+  "out_tokens": 3457,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 9,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "callsBeforeFirstEdit": 7,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "istry/test_sqlalchemy_store.py::test_search_model_versions[workspace-enabled]\n0.08s call     tests/store/model_registry/test_sqlalchemy_store.py::test_search_registered_model_pagination[workspace-disabled]\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                  | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ----------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/store/model_registry/test_sqlalchemy_store.py` | 5.04s    | 222   | 0.004s | 0.751s | 0.023s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m222 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 5.48s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "result": "The `@latest` alias now resolves to the highest version number of the model, so it matches the `/latest` path form in every case, including when that version is archived. The new tests pass on the SQL store. The file-store tests I added are skipped repo-wide (\"FileStore is no longer supported\"), so the file-store change was never actually run.\n\n**Cause:** both registry stores answered `@latest` with the first entry of `get_latest_versions(name)`. That call returns one latest version per stage, in no particular order, so the first entry is often not the newest. The path form takes the highest version from the same list (`mlflow/store/artifact/utils/models.py:48`).\n\n**Changes:**\n- **`mlflow/store/model_registry/sqlalchemy_store.py`**: `get_model_version_by_alias` now returns the highest version across all stages instead of the first one.\n- **`mlflow/store/model_registry/file_store.py`**: the same fix. It also now raises a \"Latest version not found\" `MlflowException` when the model has no versions, where it used to crash with a bare `StopIteration`.\n- **Tests:** the two tests already staged in `tests/store/model_registry/test_sqlalchemy_store.py` cover a model spread across several stages and the case where an older version is moved to Production. I added the same two tests to `tests/store/model_registry/test_file_store.py`.\n\nModels without stages, such as prompts, keep their current behaviour: all their versions sit in one stage, so the list has a single entry. The alias- and latest-related tests in both files give 18 passed and 8 skipped.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/store/model_registry/file_store.py b/mlflow/store/model_registry/file_store.py\nindex 54693b5ad..a19a48afa 100644\n--- a/mlflow/store/model_registry/file_store.py\n+++ b/mlflow/store/model_registry/file_store.py\n@@ -1070,7 +1070,14 @@ class FileStore(AbstractStore):\n             A single :py:class:`mlflow.entities.model_registry.ModelVersion` object.\n         \"\"\"\n         if alias.lower() == _REGISTERED_MODEL_ALIAS_LATEST:\n-            latest_version = next(v for v in self.get_latest_versions(name) if v is not None)\n+            # `get_latest_versions` returns the latest version of each stage, so pick the\n+            # highest version across stages to match the `models:/<name>/latest` URI form.\n+            versions = [v for v in self.get_latest_versions(name) if v is not None]\n+            if not versions:\n+                raise MlflowException(\n+                    f\"Latest version not found for model {name}.\", RESOURCE_DOES_NOT_EXIST\n+                )\n+            latest_version = max(versions, key=lambda v: int(v.version))\n             return self.get_model_version(name, latest_version.version)\n \n         alias_path = self._get_registered_model_alias_path(name, alias)\ndiff --git a/mlflow/store/model_registry/sqlalchemy_store.py b/mlflow/store/model_registry/sqlalchemy_store.py\nindex 32577cd9e..9b9fdafce 100644\n--- a/mlflow/store/model_registry/sqlalchemy_store.py\n+++ b/mlflow/store/model_registry/sqlalchemy_store.py\n@@ -1571,8 +1571,10 @@ class SqlAlchemyStore(AbstractStore):\n         _validate_model_alias_name(alias)\n \n         if alias.lower() == _REGISTERED_MODEL_ALIAS_LATEST:\n+            # `get_latest_versions` returns the latest version of each stage, so pick the\n+            # highest version across stages to match the `models:/<name>/latest` URI form.\n             if versions := self.get_latest_versions(name):\n-                return versions[0]\n+                return max(versions, key=lambda v: int(v.version))\n             else:\n                 raise MlflowException(\n                     f\"Latest version not found for model {name}.\", RESOURCE_DOES_NOT_EXIST\ndiff --git a/tests/store/model_registry/test_file_store.py b/tests/store/model_registry/test_file_store.py\nindex 96016e542..bbb782802 100644\n--- a/tests/store/model_registry/test_file_store.py\n+++ b/tests/store/model_registry/test_file_store.py\n@@ -1532,6 +1532,31 @@ def test_get_model_version_by_alias(store):\n     assert mv.aliases == [\"test_alias\"]\n \n \n+def test_get_model_version_by_alias_latest_picks_highest_version(store):\n+    model_name = \"GetModelVersionByAliasLatest_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(4):\n+        _create_model_version(store, model_name)\n+    store.transition_model_version_stage(model_name, 1, \"Archived\", False)\n+    store.transition_model_version_stage(model_name, 2, \"Production\", False)\n+    store.transition_model_version_stage(model_name, 3, \"Staging\", False)\n+    store.transition_model_version_stage(model_name, 4, \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 4\n+\n+\n+def test_get_model_version_by_alias_latest_after_promoting_older_version(store):\n+    model_name = \"GetModelVersionByAliasLatestPromoteOlder_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(3):\n+        _create_model_version(store, model_name)\n+    store.transition_model_version_stage(model_name, 1, \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 3\n+\n+\n def test_delete_model_version_deletes_alias(store):\n     model_name = \"DeleteModelVersionDeletesAlias_TestMod\"\n     _setup_and_test_aliases(store, model_name)\ndiff --git a/tests/store/model_registry/test_sqlalchemy_store.py b/tests/store/model_registry/test_sqlalchemy_store.py\nindex a687802eb..3b00105d1 100644\n--- a/tests/store/model_registry/test_sqlalchemy_store.py\n+++ b/tests/store/model_registry/test_sqlalchemy_store.py\n@@ -1941,6 +1941,34 @@ def test_get_model_version_by_alias(store):\n     assert mv.aliases == [\"test_alias\"]\n \n \n+def test_get_model_version_by_alias_latest_picks_highest_version(store):\n+    model_name = \"GetModelVersionByAliasLatest_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(4):\n+        store.create_model_version(model_name, \"path/to/source\", uuid.uuid4().hex)\n+    # `get_latest_versions` returns the latest version of each stage, keyed by the\n+    # stage of the lowest version that reached it, so the highest version is neither\n+    # the first nor the last element here.\n+    store.transition_model_version_stage(model_name, \"1\", \"Archived\", False)\n+    store.transition_model_version_stage(model_name, \"2\", \"Production\", False)\n+    store.transition_model_version_stage(model_name, \"3\", \"Staging\", False)\n+    store.transition_model_version_stage(model_name, \"4\", \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 4\n+\n+\n+def test_get_model_version_by_alias_latest_after_promoting_older_version(store):\n+    model_name = \"GetModelVersionByAliasLatestPromoteOlder_TestMod\"\n+    store.create_registered_model(model_name)\n+    for _ in range(3):\n+        store.create_model_version(model_name, \"path/to/source\", uuid.uuid4().hex)\n+    store.transition_model_version_stage(model_name, \"1\", \"Production\", False)\n+\n+    mv = store.get_model_version_by_alias(model_name, \"latest\")\n+    assert int(mv.version) == 3\n+\n+\n @pytest.mark.parametrize(\"version\", [2, \"2\"])\n def test_delete_model_version_deletes_alias(store, version):\n     model_name = \"DeleteModelVersionDeletesAlias_TestMod\"\n",
+  "distill": null,
+  "cache_read_tokens": 183261,
+  "cache_write_tokens": 12471,
+  "fresh_in_tokens": 20,
+  "goldTouched": {
+    "goldSrc": 2,
+    "touched": 2,
+    "missing": []
+  }
+}

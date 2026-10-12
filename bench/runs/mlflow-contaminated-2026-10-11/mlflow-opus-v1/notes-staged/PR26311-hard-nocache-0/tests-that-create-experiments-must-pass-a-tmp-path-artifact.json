@@ -1,0 +1,82 @@
+{
+  "id": "tests-that-create-experiments-must-pass-a-tmp-path-artifact",
+  "title": "Tests that create experiments must pass a tmp_path artifact_location",
+  "kind": "rule",
+  "answers": [
+    "test experiment artifacts written to repo-root mlruns directory",
+    "xdist test run races with mlruns cleanup",
+    "flaky artifacts from tests creating experiments without artifact location",
+    "isolate test experiment artifact path to tmp_path"
+  ],
+  "body": "Symptom: Parallel test runs leave run artifacts in the shared repo-root mlruns/ folder, and cleanup races with them, so artifact tests fail intermittently.\nRoot cause: Experiments created without an explicit artifact_location fall back to the default ./mlruns location (tests/tracking/test_client.py:test_log_model_artifact and tests/tracking/fluent/test_fluent.py:test_create_external_model both called create_experiment with no location).\nFix pattern: Pass artifact_location=(tmp_path / \"exp-artifacts\").as_uri() to every create_experiment call a test makes, so artifacts go under that test's tmp_path.\nConstraints: Applies to tests that create experiments through mlflow.create_experiment or MlflowClient.create_experiment. Does not cover tests that only read existing experiments.",
+  "applies": "Test code under tests/ that creates experiments.",
+  "tags": [
+    "testing",
+    "xdist",
+    "artifacts",
+    "mlruns",
+    "test-isolation"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "test_log_model_artifact",
+      "hash": "sha256:54981d6fa2923677fc41db80",
+      "line": 3032,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54981d6fa2923677fc41db80",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "test_log_model_artifacts_with_artifact_path",
+      "hash": "sha256:5afce35baf890fc3bcb87af8",
+      "line": 3100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5afce35baf890fc3bcb87af8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_create_external_model",
+      "hash": "sha256:c88f18d63ac5ba3930c802ec",
+      "line": 1915,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c88f18d63ac5ba3930c802ec",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25763"
+  },
+  "created": "2026-10-11T08:42:28.154Z",
+  "verified": "2026-10-11T08:42:28.154Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Parallel test runs intermittently fail due to conflicting experiment artifact folders.",
+    "Leftover experiment run artifacts pollute the workspace after running automated tests.",
+    "Isolate artifact storage paths whenever tests create new tracking experiments."
+  ],
+  "search": "Tests creating experiments via mlflow.create_experiment or MlflowClient.create_experiment must pass an explicit artifact_location using tmp_path. Omitting artifact_location defaults to the shared repo-root mlruns/ directory, causing race conditions and flaky artifact failures during parallel test runs. Tests should pass artifact_location=(tmp_path / 'exp-artifacts').as_uri(); tests only reading existing experiments are exempt.",
+  "saysFor": "s2:7fd98f3f1cab47d5797a4ed3bcaea63d2b910a6676d3157bb4a4dfac5309a012"
+}

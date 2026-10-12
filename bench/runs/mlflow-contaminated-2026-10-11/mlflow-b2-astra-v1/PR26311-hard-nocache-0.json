@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12c65-e6ef-7431-8ba7-280d7ca4fb7e",
+  "turns": 1,
+  "in_tokens": 170416,
+  "cached_tokens": 155520,
+  "out_tokens": 1300,
+  "wall_ms": 44509,
+  "result": "I’ll locate the dataset hashing code and add a regression test for varying-length lists of dictionaries. I’ll use the repository’s Python style skill and won’t install dependencies.\nThe failure comes from the path that hashes an array of NumPy arrays: it tries to make them rectangular before hashing. I’ll catch that conversion error and use the existing recursive hasher, with tests for repeatable hashes and successful evaluation-dataset conversion.\nAdded a fallback to recursive, item-by-item hashing when nested arrays cannot form a rectangular array.\n\nAdded regression coverage for varying-length dictionary arrays, consistent hashes, content changes, and evaluation-dataset conversion.\n\n`git diff --check` passed. Tests could not start because the available Python 3.9 cannot parse the repository’s newer Python syntax. No dependencies were installed.",
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "command_execution": 7,
+      "file_change": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 5,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": null,
+  "arm": "nocache",
+  "task": "PR26311-hard",
+  "rep": 0,
+  "area": "mlflow/data",
+  "id": "PR26311-hard-nocache-0",
+  "session": "01a12c65-e6ef-7431-8ba7-280d7ca4fb7e",
+  "cost": 0.36948,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..0fa0cbbe6 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -145,7 +145,10 @@ def _hash_array_like_obj_as_bytes(data):\n     elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n-        hashable = np.array(data.tolist())\n+        try:\n+            hashable = np.array(data.tolist())\n+        except ValueError:\n+            return _hash_array_of_dict_as_bytes(data)\n         return _hash_ndarray_as_bytes(hashable)\n     elif isinstance(data, np.ndarray):\n         return _hash_ndarray_as_bytes(data)\ndiff --git a/tests/artifacts/test_artifacts.py b/tests/artifacts/test_artifacts.py\nindex 9e86efffc..b45e0d5a4 100644\n--- a/tests/artifacts/test_artifacts.py\n+++ b/tests/artifacts/test_artifacts.py\n@@ -1,3 +1,5 @@\n+import builtins\n+import json\n import os\n import pathlib\n import uuid\n@@ -142,6 +144,45 @@ def test_load_dict(run_with_json_artifact):\n     assert mlflow.artifacts.load_dict(artifact.uri) == artifact.content\n \n \n+def test_load_text_and_dict_read_utf8_regardless_of_default_encoding(monkeypatch):\n+    text = \"café 台北 🚀\"\n+    data = {\"城市\": \"台北\"}\n+    with mlflow.start_run() as run:\n+        mlflow.log_text(text, \"text.txt\")\n+        mlflow.log_text(json.dumps(data, ensure_ascii=False), \"data.json\")\n+    base = pathlib.PurePosixPath(run.info.artifact_uri)\n+\n+    # Make text-mode `open` in mlflow.artifacts default to cp1252, as it does on Windows\n+    # with a legacy code page, so the test does not depend on the runner's locale.\n+    def open_with_cp1252_default(file, mode=\"r\", *args, encoding=None, **kwargs):\n+        if \"b\" not in mode and encoding is None:\n+            encoding = \"cp1252\"\n+        return builtins.open(file, mode, *args, encoding=encoding, **kwargs)\n+\n+    monkeypatch.setattr(mlflow.artifacts, \"open\", open_with_cp1252_default, raising=False)\n+    assert mlflow.artifacts.load_text(str(base / \"text.txt\")) == text\n+    assert mlflow.artifacts.load_dict(str(base / \"data.json\")) == data\n+\n+\n+@pytest.mark.parametrize(\n+    (\"load\", \"file_name\", \"content\"),\n+    [\n+        (mlflow.artifacts.load_text, \"text.txt\", \"café\"),\n+        (mlflow.artifacts.load_dict, \"data.json\", '{\"city\": \"café\"}'),\n+    ],\n+)\n+def test_load_text_and_dict_explain_non_utf8_artifacts(tmp_path, load, file_name, content):\n+    path = tmp_path / file_name\n+    path.write_bytes(content.encode(\"cp1252\"))\n+    with mlflow.start_run() as run:\n+        mlflow.log_artifact(path)\n+    uri = str(pathlib.PurePosixPath(run.info.artifact_uri) / file_name)\n+\n+    with pytest.raises(MlflowException, match=\"is not valid UTF-8\") as exc_info:\n+        load(uri)\n+    assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)\n+\n+\n def test_load_json_invalid_json(run_with_text_artifact):\n     artifact = run_with_text_artifact\n     with pytest.raises(mlflow.exceptions.MlflowException, match=\"Unable to form a JSON object\"):\ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..84769eff5 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,7 +1,12 @@\n import numpy as np\n+import pandas as pd\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+from mlflow.data.evaluation_dataset import (\n+    _hash_array_like_obj_as_bytes,\n+    _hash_array_of_dict_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n@@ -36,3 +41,23 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+@pytest.mark.parametrize(\"row_lengths\", [(1, 2), (2, 1), (2, 2), (0, 2)])\n+def test_hash_nested_arrays_of_dicts(row_lengths):\n+    data = np.empty(len(row_lengths), dtype=object)\n+    for i, length in enumerate(row_lengths):\n+        data[i] = np.array([{\"value\": j} for j in range(length)])\n+\n+    hashed = _hash_array_like_obj_as_bytes(data)\n+\n+    assert hashed == _hash_array_of_dict_as_bytes(data)\n+    assert hashed == _hash_array_like_obj_as_bytes(data.copy())\n+\n+    frame = pd.DataFrame({\"input\": [\"first\", \"second\"], \"target\": data})\n+    dataset = convert_data_to_mlflow_dataset(frame, targets=\"target\")\n+    evaluation_dataset = dataset.to_evaluation_dataset()\n+    assert evaluation_dataset.hash == dataset.to_evaluation_dataset().hash\n+\n+    data[-1][-1][\"value\"] = 42\n+    assert hashed != _hash_array_like_obj_as_bytes(data)\n",
+  "grade": {
+    "tests": "fail",
+    "testTail": "::endgroup::\n\n========================= command to run failed tests ==========================\npytest 'tests/data/test_evaluation_dataset.py::test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]'\n\n\u001b[36m\u001b[1m=========================== short test summary info ============================\u001b[0m\n\u001b[31mFAILED | MEM 7.3/16.0 GB | DISK 12.4/460.4 GB\u001b[0m tests/data/test_evaluation_dataset.py::\u001b[1mtest_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]\u001b[0m - AssertionError: assert b'\\xc1\\x99\\x9aE@W\\xbf\\xd0\\x00\\x00\\x00\\x00\\x00\\x00\\x0...\n\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m\n\u001b[31m==================== \u001b[31m\u001b[1m1 failed\u001b[0m, \u001b[32m5 passed\u001b[0m, \u001b[33m1 warning\u001b[0m\u001b[31m in 1.62s\u001b[0m\u001b[31m ====================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 14896,
+  "costBasis": "list price from token classes"
+}

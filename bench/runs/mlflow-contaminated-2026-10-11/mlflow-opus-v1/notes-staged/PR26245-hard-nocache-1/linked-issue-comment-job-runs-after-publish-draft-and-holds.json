@@ -1,0 +1,44 @@
+{
+  "id": "linked-issue-comment-job-runs-after-publish-draft-and-holds",
+  "title": "Linked-issue comment job runs after publish-draft and holds its own narrow permissions",
+  "kind": "rule",
+  "answers": [
+    "why does the linked issue comment job depend on publish-draft",
+    "which permissions does the copilot-agent comment job need",
+    "order of jobs in copilot-agent workflow"
+  ],
+  "body": "Invariant: comment-on-linked-issues is ordered behind publish-draft via 'needs: publish-draft', so issues are notified only after the Copilot PR has been marked ready for review.\nEnforced: .github/workflows/copilot-agent.yml, job comment-on-linked-issues (needs: and job-level permissions block).\nPermissions are declared per job: issues: write to post comments, pull-requests: read for the closingIssuesReferences query. Add new grants to this job rather than workflow-wide.\nWhat breaks: removing needs lets notifications run without the draft-publish step having completed; widening permissions at workflow level gives publish-draft write scope it does not use.",
+  "applies": "Jobs in .github/workflows/copilot-agent.yml; applies to any new job that depends on the publish step or writes to issues.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "job-ordering",
+    "copilot"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25645"
+  },
+  "created": "2026-10-11T08:49:33.997Z",
+  "verified": "2026-10-11T08:49:33.997Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Linked issues receive comments before the assistant pull request is published and ready for review.",
+    "Stop posting comments on linked tickets while the generated pull request is still a draft.",
+    "Only notify referenced issues once the automated pull request has been marked ready for review.",
+    "Subscribed issue owners are alerted too early before the bot pull request is ready."
+  ],
+  "search": "In `.github/workflows/copilot-agent.yml`, the `comment-on-linked-issues` job must depend on `publish-draft` via `needs: publish-draft` so issues are only notified after the Copilot pull request is marked ready for review. Job-level permissions must be declared directly on `comment-on-linked-issues` (`issues: write` and `pull-requests: read`) rather than workflow-wide, preventing `publish-draft` from receiving unneeded write scope.",
+  "saysFor": "s2:21c08337c25fdc53524dc8c8b6257667ef13c31ad6b2053407fe131c81cdca1e"
+}

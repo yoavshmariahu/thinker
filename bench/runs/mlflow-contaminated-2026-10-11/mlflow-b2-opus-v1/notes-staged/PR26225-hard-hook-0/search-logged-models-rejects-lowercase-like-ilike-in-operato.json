@@ -1,0 +1,90 @@
+{
+  "id": "search-logged-models-rejects-lowercase-like-ilike-in-operato",
+  "title": "search_logged_models rejects lowercase like/ilike/in operators on SQL stores",
+  "kind": "rule",
+  "answers": [
+    "search_logged_models rejects lowercase like operator",
+    "logged models filter string lowercase in or ilike fails with Invalid comparison operator",
+    "why does search_logged_models only accept uppercase LIKE ILIKE IN",
+    "SQL backend logged model filter operator case sensitivity"
+  ],
+  "body": "Symptom: Filtering logged models on a SQL tracking backend with `name like 'x'`, `name ilike 'x'` or `name in (...)` fails with \"Invalid comparison operator ... Expected one of ('=', '!=', 'LIKE', 'ILIKE', 'IN', 'NOT IN')\".\nRoot cause: mlflow/utils/search_logged_model_utils.py:parse_filter_string passed the raw operator token to Entity.validate_op and SearchUtils.get_sql_comparison_func, which only accept uppercase forms. Lowercase `not in` worked only because the in-comparison token joiner rewrites it to \"NOT IN\".\nFix pattern: Normalize the operator token once, right after splitting a comparison into its three non-whitespace tokens and before any validation or lookup (`op = op.upper()`), so every downstream consumer sees the canonical form.\nConstraints: Applies to operator handling in parse_filter_string. Keep the normalization before Entity.validate_op. Do not uppercase identifiers or values, which are case-sensitive (names, tag keys, string literals). The test test_search_logged_models_accepts_lowercase_operators in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py covers attributes, params, tags and not in.",
+  "applies": "Filter-string parsing for search_logged_models; any new operator added to Entity.validate_op must also be recognized in uppercase after this normalization.",
+  "tags": [
+    "tracking",
+    "search",
+    "logged-models",
+    "filter-string",
+    "sql-store"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/search_logged_model_utils.py",
+      "symbol": "parse_filter_string",
+      "hash": "sha256:7c110a6bcf0b5989affcc5fd",
+      "line": 80,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7c110a6bcf0b5989affcc5fd",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "name",
+      "hash": "sha256:48537c5ea7cfd5c35627bca1",
+      "line": 1102,
+      "missing": false
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_search_logged_models_accepts_lowercase_operators",
+      "hash": "sha256:91c2a0d39c66f0e009181f06",
+      "line": 4099,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:91c2a0d39c66f0e009181f06",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/utils/search_logged_model_utils.py",
+      "symbol": "Entity.validate_op",
+      "hash": "sha256:5b48ed32e396cd2f2f1d08f1",
+      "line": 63,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5b48ed32e396cd2f2f1d08f1",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26249"
+  },
+  "created": "2026-10-11T10:26:23.779Z",
+  "verified": "2026-10-11T10:26:23.779Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Searching logged models with lowercase filter operators fails with an invalid comparison error.",
+    "Model search filter rejects queries using lowercase pattern matching or list membership conditions.",
+    "Filtering logged models by tag or parameter fails when operators are not typed in uppercase.",
+    "Allow model search queries to accept lowercase matching keywords without breaking tag case sensitivity."
+  ],
+  "search": "Filter parsing for search_logged_models must normalize comparison operator tokens to uppercase. In mlflow/utils/search_logged_model_utils.py:parse_filter_string, normalize the operator token via op = op.upper() before calling Entity.validate_op and SearchUtils.get_sql_comparison_func on SQL tracking backends. Identifiers and literal values must not be uppercased because attribute names, parameter keys, tag keys, and string literals remain case-sensitive.",
+  "saysFor": "s2:a0e81f635bc3ef4323882480a4f5a6394263f802046237409394b2ca8be86271"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "workflow-run-steps-rely-on-bash-defaults-for-fail-fast-do-no",
+  "title": "Workflow run steps rely on bash defaults for fail-fast; do not add set -euo pipefail",
+  "kind": "rule",
+  "answers": [
+    "should run step use set -e in copilot-agent workflow",
+    "why no set -euo pipefail in workflow bash script",
+    "does a failed gh api call fail the GitHub Actions step"
+  ],
+  "body": "Convention: .github/workflows/copilot-agent.yml sets defaults.run.shell to bash. GitHub Actions runs that shell with --noprofile --norc -e -o pipefail.\nConsequence: a failed `gh api` command substitution or a failing `jq` pipeline already fails the step, so an explicit `set -euo pipefail` in run: blocks is redundant here.\nConstraints: This holds only while defaults.run.shell stays bash. If a step overrides shell (e.g. sh or a custom shell template), add explicit error handling there.",
+  "applies": "Run steps in .github/workflows/copilot-agent.yml that inherit the workflow default shell.",
+  "tags": [
+    "github-actions",
+    "bash",
+    "shell",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25652"
+  },
+  "created": "2026-10-11T08:49:17.254Z",
+  "verified": "2026-10-11T08:49:17.254Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Make sure our automated assistant workflow halts immediately when an API request fails.",
+    "The bot automation step kept running even though a command within it failed.",
+    "Ensure automated helper steps terminate right away when any pipeline command encounters an error."
+  ],
+  "search": "In .github/workflows/copilot-agent.yml, run steps inherit defaults.run.shell set to bash, which GitHub Actions automatically runs with --noprofile --norc -e -o pipefail. Because failed gh api command substitutions or failing jq pipelines already fail the step, explicit set -euo pipefail commands in run blocks are redundant. This fail-fast behavior only applies while using the default bash shell; steps that override shell, such as sh or custom templates, require explicit error handling.",
+  "saysFor": "s2:7e2f10bed3f53eed63d9d93de49583150880b233920d331363bb197932d3d6dd"
+}

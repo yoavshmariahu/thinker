@@ -1,0 +1,46 @@
+{
+  "id": "wait-for-async-test-conditions-by-bounded-polling-not-fixed",
+  "title": "Wait for async test conditions by bounded polling, not fixed sleeps",
+  "kind": "rule",
+  "answers": [
+    "How should a test wait for a server or background job to be ready?",
+    "Why is time.sleep flaky in MLflow tests?",
+    "Test fails intermittently because the server has not started yet, what to do?",
+    "Should I use time.sleep before asserting on an async result in a test?"
+  ],
+  "body": "Convention: when a test waits for an asynchronous condition (server startup, background work), poll with a monotonic deadline instead of calling time.sleep(N) once.\nPattern: deadline = time.monotonic() + 30; loop while time.monotonic() < deadline, check the condition, sleep a short interval (about 0.5s); use a while/else that raises TimeoutError with a clear message.\nWhy: a fixed sleep slows fast runs and is too short on slow CI machines, and when it fails it does not say the system was still starting.\nException: a fixed sleep is fine when elapsed time itself is the behavior under test.\nThe section lives in the testing guidance of the python-style skill; keep new test waits consistent with it.",
+  "applies": "Applies to writing or reviewing Python tests in this repository that wait on anything asynchronous; does not cover production code retry logic.",
+  "tags": [
+    "testing",
+    "python",
+    "flaky-tests",
+    "polling",
+    "sleep"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:8cc106b631c28ccb484f8b68",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26112"
+  },
+  "created": "2026-10-11T10:24:42.066Z",
+  "verified": "2026-10-11T10:24:42.066Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test suite intermittently fails during server startup on continuous integration runners.",
+    "Tests verifying background tasks fail randomly because the server has not finished starting.",
+    "Test execution is unnecessarily slow due to hardcoded wait timers between actions.",
+    "Poll for server readiness and background task completion rather than using fixed pauses."
+  ],
+  "search": "When tests wait for asynchronous conditions like server startup or background work, poll with a monotonic deadline instead of calling time.sleep once. Guidance in .claude/skills/python-style/SKILL.md specifies setting deadline = time.monotonic() + 30, checking the condition every ~0.5s, and using while/else to raise TimeoutError. This convention applies to writing and reviewing Python tests in this repository rather than production retry logic, except where elapsed time itself is tested.",
+  "saysFor": "s2:c37f49eb921d21399d94d44a39e1ab1e80a183842f955cfa52873b888010dd68"
+}

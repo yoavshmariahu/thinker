@@ -1,0 +1,46 @@
+{
+  "id": "run-the-github-actions-policy-with-regal-and-conftest-agains",
+  "title": "Run the GitHub Actions policy with regal and conftest against all workflow and action YAML",
+  "kind": "howto",
+  "answers": [
+    "how do I test the .github/policy.rego changes",
+    "run conftest on workflow files",
+    "lint the rego policy with regal",
+    "check policy against all GitHub workflows and composite actions"
+  ],
+  "body": "Lint the policy: `bin/regal lint .github/policy.rego`.\nRun pre-commit on it: `uv run --only-group lint pre-commit run --files .github/policy.rego`.\nEvaluate it: `bin/conftest test --namespace mlflow --policy .github/policy.rego <yaml files>`. The `--namespace mlflow` flag is required because the rules live in that namespace.\nPass every tracked workflow and action YAML file (the PR ran 78 files, producing 3,276 checks), not just the one you edited, since composite-action and workflow steps are both covered.\nAlso run `git diff --check` for whitespace errors.",
+  "applies": "Verifying edits to .github/policy.rego in the MLflow repository.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "conftest",
+    "regal",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T10:30:58.678Z",
+  "verified": "2026-10-11T10:30:58.678Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Validate continuous integration workflows and composite actions against repository security policies",
+    "Workflow policy validation passes locally but fails because unedited pipeline files were skipped",
+    "Test modified automation governance rules locally before submitting pull requests for pipeline changes",
+    "Policy evaluation fails to find rules when the required repository namespace is omitted"
+  ],
+  "search": "Verification of .github/policy.rego involves linting with bin/regal lint .github/policy.rego, pre-commit formatting, and policy evaluation using bin/conftest test --namespace mlflow --policy .github/policy.rego. The --namespace mlflow flag is mandatory because the policy rules reside within that namespace. Evaluation must be run against every tracked workflow and action YAML file rather than only edited files because rules cover both composite actions and workflow steps. Additional checks include uv run --only-group lint pre-commit run --files .github/policy.rego and git diff --check for whitespace errors.",
+  "saysFor": "s2:0061b65563287a1734ebadcd17f7d80997f130070e01ba49ef3f4e908c04478b"
+}

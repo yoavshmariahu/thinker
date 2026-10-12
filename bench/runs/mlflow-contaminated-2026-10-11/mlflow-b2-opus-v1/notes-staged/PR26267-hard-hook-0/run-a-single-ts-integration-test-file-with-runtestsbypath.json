@@ -1,0 +1,56 @@
+{
+  "id": "run-a-single-ts-integration-test-file-with-runtestsbypath",
+  "title": "Run a single TS integration test file with --runTestsByPath",
+  "kind": "howto",
+  "answers": [
+    "how to run only tracing tests for a TypeScript integration",
+    "run one jest test file in libs/typescript/integrations",
+    "npm test single file integration claude-code codex qwen-code",
+    "how to run opencode index test alone"
+  ],
+  "body": "Run one test file in an integration package with: npm run -C libs/typescript/integrations/<pkg> test -- --runTestsByPath tests/<file>.test.ts\nThe PR used this for claude-code (tests/tracing.test.ts), codex and qwen-code (tests/tracing.test.ts), and opencode (tests/index.test.ts). The path after --runTestsByPath is relative to the package directory, and the -- separator forwards the flag to the test runner.\nFor the shared resolver, run libs/typescript/core with tests/core/utils/index.test.ts the same way.\nFor the Python side, the PR ran uv run --with claude-agent-sdk pytest tests/claude_code/test_tracing.py.",
+  "applies": "Local iteration on individual test files in the TypeScript integration packages.",
+  "tags": [
+    "testing",
+    "npm",
+    "jest",
+    "typescript",
+    "integrations"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/tests/tracing.test.ts",
+      "hash": "sha256:384e78d48e1aa0f32a90323d",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/core/tests/core/utils/index.test.ts",
+      "hash": "sha256:a0a1a64a29f888a064aae362",
+      "missing": false
+    },
+    {
+      "path": "tests/claude_code/test_tracing.py",
+      "hash": "sha256:8cd6fb1ba96bbf21a2e7be70",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-11T10:23:59.702Z",
+  "verified": "2026-10-11T10:23:59.702Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Run automated test verification for a single coding assistant integration in isolation",
+    "Test execution runs the full integration suite instead of checking one specific assistant",
+    "Check tracing behavior on an individual agent integration without running all integration tests",
+    "Speed up verification by running tests for only one coding tool integration"
+  ],
+  "search": "Execute an individual TypeScript integration test file using npm run -C libs/typescript/integrations/<pkg> test -- --runTestsByPath tests/<file>.test.ts, passing the package-relative path after the argument forwarder. The same pattern runs shared resolver tests in libs/typescript/core using tests/core/utils/index.test.ts across integration packages such as claude-code, codex, qwen-code, and opencode. Python tracing tests are run using uv run --with claude-agent-sdk pytest tests/claude_code/test_tracing.py.",
+  "saysFor": "s2:bc2851a46ec45802be56d0202f180d1ab8d2ef184b0e5890907c68ab51c33bbe"
+}

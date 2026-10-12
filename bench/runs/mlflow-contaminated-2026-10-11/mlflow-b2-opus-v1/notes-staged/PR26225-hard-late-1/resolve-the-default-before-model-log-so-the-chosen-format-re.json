@@ -1,0 +1,84 @@
+{
+  "id": "resolve-the-default-before-model-log-so-the-chosen-format-re",
+  "title": "Resolve the default before Model.log so the chosen format reaches artifacts, dependencies and telemetry",
+  "kind": "rule",
+  "answers": [
+    "logged model telemetry shows wrong serialization format",
+    "cloudpickle requirement missing from logged model environment",
+    "log_model serialization_format None passed downstream"
+  ],
+  "body": "Invariant: log_model must turn serialization_format into a concrete value before calling Model.log, so the same resolved format drives the saved artifact, the pip/conda dependencies and the logged-model telemetry.\nEnforced in: mlflow/sklearn/__init__.py:log_model, mlflow/pytorch/__init__.py:log_model and mlflow/lightgbm/__init__.py:log_model, each resolving before the Model.log call.\nWhat breaks if skipped: per the PR description, artifacts, dependencies and telemetry would no longer reflect the serializer actually selected (e.g. cloudpickle not recorded for a cloudpickle save).\nConstraints: Resolution in save_model alone is not enough for log_model callers; both entry points need it.",
+  "applies": "Any flavor log_model that forwards a defaulted serializer choice to Model.log.",
+  "tags": [
+    "models",
+    "logging",
+    "telemetry",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/sklearn/__init__.py",
+      "symbol": "log_model",
+      "hash": "sha256:ce649f06d58463b05f586f93",
+      "line": 393,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ce649f06d58463b05f586f93",
+      "fanout": {
+        "files": 231,
+        "sites": 1119,
+        "refs": 1186
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "log_model",
+      "hash": "sha256:94dc010cb4fd38de1fbf5117",
+      "line": 160,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:94dc010cb4fd38de1fbf5117",
+      "fanout": {
+        "files": 231,
+        "sites": 1119,
+        "refs": 1186
+      }
+    },
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "log_model",
+      "hash": "sha256:7ad431e0ea02850c8f6c9a0c",
+      "line": 354,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7ad431e0ea02850c8f6c9a0c",
+      "fanout": {
+        "files": 231,
+        "sites": 1119,
+        "refs": 1186
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25992"
+  },
+  "created": "2026-10-11T10:29:35.384Z",
+  "verified": "2026-10-11T10:29:35.384Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "flavor-serialization-format-default-is-resolved-at-call-time"
+  ],
+  "says": [
+    "Logged model environment requirements are missing the necessary serializer packages.",
+    "Model details show an incorrect serialization format in logged telemetry metrics.",
+    "Saved model artifacts do not match the packaging format listed in run metadata.",
+    "Ensure default model serialization formats are recorded accurately in logged dependencies.",
+    "Default serialization choices should automatically populate package requirements during model logging."
+  ],
+  "search": "Model flavor log_model functions must resolve default serialization_format into a concrete value before invoking Model.log so the format flows to saved artifacts, pip/conda dependencies, and telemetry. This is enforced in mlflow/sklearn/__init__.py:log_model, mlflow/pytorch/__init__.py:log_model, and mlflow/lightgbm/__init__.py:log_model. Applies to any flavor log_model forwarding defaulted serializers; resolving within save_model alone is insufficient because log_model callers require resolution at both entry points.",
+  "saysFor": "s2:852211b0a14ba1fd7bfe69034468a74cd671eff7dea529b1511302f13946f3e0"
+}

@@ -1,0 +1,66 @@
+{
+  "id": "bot-pr-creation-and-reuse-paths-must-apply-the-auto-rerun-la",
+  "title": "Bot PR creation and reuse paths must apply the auto-rerun label on every path",
+  "kind": "rule",
+  "answers": [
+    "Why are Dependabot, uv.lock or model catalog PRs not auto-retried after CI failures?",
+    "How do I make an automated PR eligible for CI retries?",
+    "Where is the auto-rerun label applied to bot PRs?"
+  ],
+  "body": "Invariant: eligibility is decided by the `auto-rerun` label at the time the sweep runs, so each bot-PR path must set it both when creating a PR and when reusing an existing one.\nEnforced by: .github/dependabot.yml (labels list on the update entry), .github/workflows/update-model-catalog.yml (`gh pr create --label auto-rerun` and `gh pr edit \"$existing_pr\" --add-label auto-rerun`), .github/workflows/uv.yml (`gh pr edit \"$NUMBER\" --add-label auto-rerun` on the reuse path and `--add-label team-review --add-label auto-rerun` on the create path).\nWhat breaks: a path that creates but does not label (or only labels on create) leaves reused PRs outside the retry sweep.\nConstraints: On the uv.yml create path the label is added after the existing `sleep 5`, which keeps the delayed-labeling behavior. The reuse path adds the label without that sleep. The repository label must be created first with the description \"Automatically rerun eligible failed CI runs (up to 3 retries).\"\nApplies: Only the Dependabot, uv.lock and model-catalog automation in this repository; human-opened PRs need the label applied manually.",
+  "applies": "Bot-generated PR automation in .github/ workflows and Dependabot config; not the retry sweep itself.",
+  "tags": [
+    "ci",
+    "dependabot",
+    "labels",
+    "uv-lock",
+    "model-catalog"
+  ],
+  "deps": [
+    {
+      "path": ".github/dependabot.yml",
+      "hash": "sha256:80ab90daa638c84f83801118",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "symbol": "existing_pr",
+      "hash": "sha256:2575279d897c059d70f1fff1",
+      "line": 146,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:9b682d7da9595cfb55096299",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26065"
+  },
+  "created": "2026-10-11T10:28:20.144Z",
+  "verified": "2026-10-11T10:28:20.144Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-catalog-bot-pr-labels-and-reviewers-must-be-set-on-bot",
+    "enable-gh-api-request-logging-in-bot-workflow-steps-with-gh"
+  ],
+  "says": [
+    "Automated dependency update pull requests are not automatically retried after CI failures.",
+    "Reused bot pull requests for model catalog updates miss automated CI retry runs.",
+    "Automatically rerun failing continuous integration checks on bot-generated pull requests.",
+    "Updated lockfile pull requests lack the auto-retry tag when an existing PR is updated.",
+    "Ensure all automated bot pull requests qualify for automatic test retries on failure."
+  ],
+  "search": "Bot-generated pull request automation must apply the auto-rerun label on both PR creation and PR reuse paths to remain eligible for CI retries. This is enforced across .github/dependabot.yml, .github/workflows/update-model-catalog.yml (using gh pr create and gh pr edit), and .github/workflows/uv.yml (also adding team-review). The create path in uv.yml adds the label after a 5-second sleep while the reuse path adds it immediately; the label requires description 'Automatically rerun eligible failed CI runs (up to 3 retries)', and human PRs require manual labeling.",
+  "saysFor": "s2:1d75ecca039e69889c6f2f7f7503350d064d6c61e92e6cfe82cfd88d28d4c84a"
+}

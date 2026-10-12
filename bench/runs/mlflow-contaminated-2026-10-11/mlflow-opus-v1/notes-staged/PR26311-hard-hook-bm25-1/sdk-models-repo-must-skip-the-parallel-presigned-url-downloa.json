@@ -1,0 +1,85 @@
+{
+  "id": "sdk-models-repo-must-skip-the-parallel-presigned-url-downloa",
+  "title": "SDK models repo must skip the parallel presigned-URL download path",
+  "kind": "rule",
+  "answers": [
+    "model download with the Files API repo tries presigned URLs and fails",
+    "multipart download of UC model files breaks when SDK repo is used",
+    "why does CloudArtifactRepository._download_file special-case DatabricksSDKModelsArtifactRepository",
+    "/Models/ paths downloaded as fuse or volume paths"
+  ],
+  "body": "Invariant: DatabricksSDKModelsArtifactRepository can only download a file through the Databricks SDK, so it must never reach the presigned-URL parallel download in CloudArtifactRepository._download_file.\nEnforcement: The guard `type(self).__name__ == \"DatabricksSDKModelsArtifactRepository\"` in mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file forces the single-stream `_download_from_cloud` branch.\nRelated: mlflow/utils/uri.py:is_fuse_or_uc_volumes_uri now also treats the `/Models/` prefix as a fuse or UC volume path. This is the same single-stream routing for model paths.\nConstraints: The guard matches on the class name string, not isinstance. A renamed class or a subclass silently loses the guard and falls back to presigned downloads. If you add a subclass, either keep the exact name or switch to an isinstance check and update the test.",
+  "applies": "Changes to CloudArtifactRepository download logic or to the SDK-backed model repo class.",
+  "tags": [
+    "artifacts",
+    "download",
+    "unity-catalog",
+    "multipart"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/cloud_artifact_repo.py",
+      "symbol": "CloudArtifactRepository._download_file",
+      "hash": "sha256:77526a542c9c1a30e58a2e8d",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:77526a542c9c1a30e58a2e8d",
+      "fanout": {
+        "files": 15,
+        "sites": 31,
+        "refs": 43
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository",
+      "hash": "sha256:6b64fa9759599d9cbbfa08d5",
+      "line": 38,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b64fa9759599d9cbbfa08d5",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 22
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_fuse_or_uc_volumes_uri",
+      "hash": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "fanout": {
+        "files": 6,
+        "sites": 5,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-11T08:44:24.875Z",
+  "verified": "2026-10-11T08:44:24.875Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cloudartifactrepository-single-stream-download-guard-keyed-o"
+  ],
+  "says": [
+    "Downloading registered catalog models fails when attempting parallel multipart file transfers.",
+    "Unity Catalog model artifacts fail to download when requesting presigned storage URLs.",
+    "Catalog volume model downloads break instead of using single stream downloads.",
+    "Prevent catalog model file downloads from failing on broken presigned cloud links.",
+    "Model downloads fail during multipart file transfer from Unity Catalog storage."
+  ],
+  "search": "CloudArtifactRepository._download_file forces single-stream downloads for DatabricksSDKModelsArtifactRepository by checking type(self).__name__ to prevent presigned-URL parallel downloads. Additionally, mlflow/utils/uri.py:is_fuse_or_uc_volumes_uri treats the /Models/ prefix as a fuse or UC volume path for single-stream routing. Because the guard matches the class name string rather than isinstance, subclasses or renamed classes silently lose protection and fall back to presigned downloads. Applies to changes in CloudArtifactRepository download logic or DatabricksSDKModelsArtifactRepository.",
+  "saysFor": "s2:202231f7af40182afb0850875d728a8dc46701de441f46c5ce49c2f9c0348153"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "protect-js-check-log-order-is-derived-from-state-key-order",
+  "title": "protect.js check log order is derived from STATE key order",
+  "kind": "rule",
+  "answers": [
+    "why are failing checks listed first in the protection workflow log",
+    "how is the order of checks printed by protect.js decided",
+    "change the display priority of check statuses in the protect workflow"
+  ],
+  "body": "Invariant: the checks printed by protect.js are sorted by STATUS_ORDER = Object.values(STATE), so the log lists failure, pending, success, skipped in that order.\nEnforced by: .github/workflows/protect.js:module.exports, the checks.sort call with STATUS_ORDER.indexOf(status), placed just before the longest-name and forEach logging loop.\nKeep in sync: every status string pushed into checks must be one of the STATE values. A status missing from STATE gets indexOf -1 and sorts to the top silently.\nReordering the keys of STATE changes display priority, so change key order only on purpose.",
+  "applies": "Applies to .github/workflows/protect.js check collection and logging; does not cover other workflow scripts.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "logging",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATUS_ORDER",
+      "hash": "sha256:f01a31b0e29bdb972fab234d",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01a31b0e29bdb972fab234d",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-11T08:43:58.234Z",
+  "verified": "2026-10-11T08:43:58.234Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-attempt-links-must-carry-the-pr-number-query-para",
+    "protect-js-keeps-skipped-as-its-own-state-that-still-passes",
+    "protect-js-poll-cadence-in-getsleeplength-trades-merge-gate"
+  ],
+  "says": [
+    "Why are failed checks listed before pending and passed checks in the protection log?",
+    "Change the display priority of check statuses shown in the pull request protection summary.",
+    "Show successful test results before skipped or pending jobs in the check output.",
+    "An unrecognized status appeared unexpectedly at the very top of the protection check report."
+  ],
+  "search": "Checks printed by .github/workflows/protect.js are sorted by STATUS_ORDER = Object.values(STATE), listing failure, pending, success, and skipped in that order. Enforced in .github/workflows/protect.js:module.exports via checks.sort with STATUS_ORDER.indexOf(status) prior to the logging loop. Every status in checks must exist in STATE, as missing values evaluate to index -1 and sort to the top. Applies to .github/workflows/protect.js check collection and logging, where reordering STATE keys alters display priority.",
+  "saysFor": "s2:196a0545293239cdc8b512c6979086f07a3634bebd43e15da2d827802ce63474"
+}

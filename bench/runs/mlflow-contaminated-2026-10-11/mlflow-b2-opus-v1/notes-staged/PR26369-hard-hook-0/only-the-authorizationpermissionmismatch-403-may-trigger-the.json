@@ -1,0 +1,56 @@
+{
+  "id": "only-the-authorizationpermissionmismatch-403-may-trigger-the",
+  "title": "Only the AuthorizationPermissionMismatch 403 may trigger the proxied-upload fallback",
+  "kind": "rule",
+  "answers": [
+    "Azure upload silently falls back to proxy when authentication fails",
+    "Azure 403 error hidden during artifact upload",
+    "why does MLflow Azure upload retry through the server on auth errors"
+  ],
+  "body": "Symptom: Azure artifact uploads quietly go through the MLflow server proxy instead of failing when the real problem is authentication, account or network-policy denial, throttling, or a transient error.\nRoot cause: Converting every HttpResponseError with status 403 into _UnsupportedMultipartUploadException makes the HTTP artifact client treat it as \"multipart unsupported\" and retry the whole file through the proxy.\nFix pattern: In create_multipart_upload, catch HttpResponseError around get_user_delegation_key and convert only when e.status_code == 403 and e.error_code == \"AuthorizationPermissionMismatch\" (RBAC missing for delegation key). Re-raise everything else unchanged, preserving the original exception object.\nConstraints: Authentication (e.g. AuthenticationFailed), AuthorizationFailure, non-403 statuses and generic Azure failures must propagate. Tests assert the original error object is re-raised for AuthorizationFailure and for a 500.",
+  "applies": "Applies to any new error handling around Azure SAS or delegation-key calls in the artifact repository.",
+  "tags": [
+    "azure",
+    "artifacts",
+    "error-handling",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/azure_blob_artifact_repo.py",
+      "symbol": "AzureBlobArtifactRepository.create_multipart_upload",
+      "hash": "sha256:2cdfc0e77094544a836775b4",
+      "line": 239,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2cdfc0e77094544a836775b4",
+      "fanout": {
+        "files": 9,
+        "sites": 16,
+        "refs": 33
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26031"
+  },
+  "created": "2026-10-11T10:25:09.759Z",
+  "verified": "2026-10-11T10:25:09.759Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "azure-multipart-upload-sas-must-branch-on-credential-type-ac"
+  ],
+  "says": [
+    "Azure artifact uploads are unexpectedly routing through the server instead of failing on authentication.",
+    "Artifact uploads to cloud storage silently slow down when credentials are misconfigured.",
+    "Display the actual Azure permission error instead of quietly proxying the file upload.",
+    "Why is the system rerouting failed cloud storage uploads through the backend server?",
+    "Network policy denials during artifact upload should fail immediately without retrying through the proxy."
+  ],
+  "search": "In Azure blob artifact repository multipart uploads, only an HttpResponseError with status 403 and error code AuthorizationPermissionMismatch may trigger the proxied-upload fallback. In create_multipart_upload in mlflow/store/artifact/azure_blob_artifact_repo.py, get_user_delegation_key converts that specific error into _UnsupportedMultipartUploadException. All other exceptions, including AuthenticationFailed, AuthorizationFailure, non-403 status codes, and 500 server errors, must be re-raised preserving the original exception object.",
+  "saysFor": "s2:9fef7971076ae7604d1cbff8758e6b64a104620b2b77d54c4ea5ea8cc7eecace"
+}

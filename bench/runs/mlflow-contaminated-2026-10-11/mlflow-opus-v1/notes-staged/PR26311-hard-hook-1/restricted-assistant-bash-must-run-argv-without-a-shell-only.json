@@ -1,0 +1,72 @@
+{
+  "id": "restricted-assistant-bash-must-run-argv-without-a-shell-only",
+  "title": "Restricted Assistant Bash must run argv without a shell; only full access uses shell",
+  "kind": "rule",
+  "answers": [
+    "why does restricted bash mode split the command with shlex",
+    "Assistant bash allowlist bypass with pipes or && chaining",
+    "full access shell versus restricted argv execution in Assistant",
+    "malformed command permission denied bash assistant"
+  ],
+  "body": "Invariant: In _execute_bash_on_host, shell execution is allowed only when full_access is true. In restricted mode the command is split with shlex.split and run as argv with shell=False.\nEnforced at: mlflow/assistant/providers/tool_executor.py:_execute_bash_on_host, which sets run_args to the raw string only in the full_access branch and passes shell=full_access to subprocess.run.\nWhat breaks if skipped: the allowlist checks only argv[0], so running a restricted command through a shell would let pipes, redirects or && chaining run unlisted programs. A ValueError from shlex.split must return 'Permission denied: malformed command' and must not fall back to a shell.\nConstraints: Keep shlex splitting and the shell flag tied to the same full_access value when refactoring the execution call.",
+  "applies": "Any change to how _execute_bash_on_host builds the command or chooses shell mode.",
+  "tags": [
+    "assistant",
+    "security",
+    "permissions",
+    "shell",
+    "tool-executor"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/tool_executor.py",
+      "symbol": "_execute_bash_on_host",
+      "hash": "sha256:45d8b0af3821a8c822d4f4a8",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:45d8b0af3821a8c822d4f4a8",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/assistant/test_tool_executor.py",
+      "symbol": "test_execute_bash_on_host_without_asyncio_subprocess_support",
+      "hash": "sha256:f36fe5f84c437e31947d6ea8",
+      "line": 275,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f36fe5f84c437e31947d6ea8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25687"
+  },
+  "created": "2026-10-11T08:42:59.954Z",
+  "verified": "2026-10-11T08:42:59.954Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-bash-fails-on-windows-selector-event-loop-host-com"
+  ],
+  "says": [
+    "Assistant chat displays permission denied malformed command when entering complex terminal instructions.",
+    "Prevent restricted assistant command tool from executing unauthorized piped or chained shell instructions.",
+    "Allow shell pipeline and redirection syntax only when granting full access to terminal commands.",
+    "Restricted assistant rejects chained bash commands with ampersands instead of running the secondary program.",
+    "Require elevated permissions in assistant console before evaluating shell commands with pipes or redirects."
+  ],
+  "search": "Assistant host bash execution in _execute_bash_on_host restricts shell execution strictly to when full_access is true, splitting commands with shlex.split and running shell=False in restricted mode. Enforced in mlflow/assistant/providers/tool_executor.py:_execute_bash_on_host and tested in tests/assistant/test_tool_executor.py:test_execute_bash_on_host_without_asyncio_subprocess_support, passing shell=full_access to subprocess.run to prevent allowlist bypasses via pipes, redirects, or && chaining. If shlex.split raises ValueError, execution returns 'Permission denied: malformed command' without falling back to a shell, keeping shlex splitting and the shell flag bound to full_access.",
+  "saysFor": "s2:f7adaf9a28a2c0774ac083733f38e32a7ec41857d9f1b02a2093fb60bb5da832"
+}

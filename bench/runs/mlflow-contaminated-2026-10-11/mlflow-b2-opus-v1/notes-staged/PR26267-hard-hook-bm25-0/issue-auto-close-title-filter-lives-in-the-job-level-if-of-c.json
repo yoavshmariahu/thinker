@@ -1,0 +1,46 @@
+{
+  "id": "issue-auto-close-title-filter-lives-in-the-job-level-if-of-c",
+  "title": "Issue auto-close title filter lives in the job-level if: of close-security-issues.yml, not in the shell step",
+  "kind": "rule",
+  "answers": [
+    "why does the security issue close workflow start a runner for every issue",
+    "where is the security vulnerability title check in close-security-issues workflow",
+    "how do I change which issue titles get auto-closed as security reports",
+    "unrelated issues trigger the close-security-issues job"
+  ],
+  "body": "Symptom: Every newly opened issue in mlflow/mlflow started the security-issue auto-close job and provisioned a runner, even when the title had nothing to do with security.\nRoot cause: .github/workflows/close-security-issues.yml:close only gated on github.repository, and the title regex `security\\s+vulnerability` ran inside the shell step after the runner was already up.\nFix pattern: Put the repository check and the title terms in the job's `if:` expression (`contains(github.event.issue.title, 'security')` and `contains(github.event.issue.title, 'vulnerability')`), and keep the shell step to just the `gh issue close` call with its guidance comment.\nConstraints: Matching is now two independent substring checks, so titles like 'vulnerability ... security' match, which the old adjacent-phrase regex did not. Any new term or phrasing must be added to the `if:` expression, because the shell step no longer filters. Editing the `if:` without the repository guard removes the mlflow/mlflow-only scope.",
+  "applies": "Edits to the close-security-issues workflow or other issue-triggered workflows that need to skip runner provisioning based on the issue title.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "issues",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/close-security-issues.yml",
+      "hash": "sha256:350d18b54b0d372408c3a836",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25893"
+  },
+  "created": "2026-10-11T10:30:52.716Z",
+  "verified": "2026-10-11T10:30:52.716Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Security vulnerability auto-close automation starts a virtual runner for every newly opened bug.",
+    "Prevent non-security issue submissions from needlessly launching the issue closer workflow runner.",
+    "Wasted build minutes because every reported issue spins up the security closing pipeline.",
+    "Standard bug reports trigger automated security issue closing checks unnecessarily.",
+    "Only run security auto-close jobs when issue titles mention security vulnerabilities."
+  ],
+  "search": "In .github/workflows/close-security-issues.yml, the security vulnerability title filter belongs in the job-level if: expression rather than the runner shell step. Gating the job with github.repository and substring checks for 'security' and 'vulnerability' in github.event.issue.title avoids provisioning runners for unrelated issues. The shell step is kept to gh issue close with guidance comments, and any new terms must be added directly to the job expression. Applies to close-security-issues.yml edits and issue-triggered workflows that skip runner provisioning based on issue titles.",
+  "saysFor": "s2:6dd35912db5e9aed035c15dd428692f92aa01c37224f5b50d39b4e37cd87b07d"
+}

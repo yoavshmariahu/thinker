@@ -1,0 +1,57 @@
+{
+  "id": "long-setup-command-in-the-agent-action-card-overflows-instea",
+  "title": "Long setup command in the agent action card overflows instead of wrapping",
+  "kind": "rule",
+  "answers": [
+    "one-line setup command runs off the card",
+    "setup command not wrapping in onboarding card",
+    "code block overflows in the agent setup tab",
+    "long terminal command breaks layout in agent action card"
+  ],
+  "body": "Symptom: The one-line setup command shown in the agent action card's setup tab runs past the card edge instead of wrapping when the longer wizard command is displayed.\nRoot cause: AgentActionCard.tsx:AgentActionCard renders the command in a `<code>` flex child with `flex: 1`. Flex items default to `min-width: auto`, so the element will not shrink below its content width and the text does not break.\nFix pattern: On that flex child, set `minWidth: 0` so it can shrink, and `overflowWrap: 'anywhere'` so long unbroken command text wraps.\nConstraints: Applies to the flex row that holds the command and its copy button. Verified manually only; no test asserts the wrapping behaviour.",
+  "applies": "Any long unbroken command or code string rendered inside a flex row in the onboarding UI.",
+  "tags": [
+    "ui",
+    "css",
+    "onboarding",
+    "layout"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-11T08:41:47.750Z",
+  "verified": "2026-10-11T08:41:47.750Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "hosted-setup-wizard-url-must-be-live-and-its-copy-must-stay",
+    "setup-wizard-command-and-its-copy-are-duplicated-across-read"
+  ],
+  "says": [
+    "The setup command in the agent onboarding card runs off the edge of the box.",
+    "Long terminal commands overflow past the card boundary instead of wrapping onto new lines.",
+    "Agent setup tab code snippet breaks card layout when wizard command is very long.",
+    "Make the one line installation command wrap properly inside the agent action card."
+  ],
+  "search": "Long unbroken commands inside the agent action card setup tab overflow their container unless flex shrinking and wrapping are explicitly configured. In AgentActionCard.tsx:AgentActionCard, setting minWidth to 0 and overflowWrap to 'anywhere' on the code flex child prevents overflow past the card edge. This applies to the flex row containing the command and copy button in onboarding UI, with manual verification only.",
+  "saysFor": "s2:3cb6da946998a51682e66e28ebd6c023820bb6c37688f272ee3a49dd6b56a1f4"
+}

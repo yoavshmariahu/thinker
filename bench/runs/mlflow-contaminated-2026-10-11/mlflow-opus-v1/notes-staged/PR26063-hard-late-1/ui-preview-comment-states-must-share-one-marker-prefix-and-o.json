@@ -1,0 +1,44 @@
+{
+  "id": "ui-preview-comment-states-must-share-one-marker-prefix-and-o",
+  "title": "UI Preview comment states must share one marker prefix and one table layout",
+  "kind": "rule",
+  "answers": [
+    "Why does the UI preview comment get duplicated when it is updated?",
+    "What rows must the UI Preview PR comment table have in every state?",
+    "How is the UI preview comment found for updating"
+  ],
+  "body": "Invariant: Every UI Preview comment body (in-progress from notify, success and failure from finalize) starts with ${COMMENT_MARKER} and has the same rows: URL, Commit, Run. In-progress and failure use `N/A` for URL when no app exists.\nEnforced by: ui-preview.yml:finalize (the lookup uses `select(.body | startswith(...COMMENT_MARKER))`) and the notify \"Comment on PR\"-style body.\nWhat breaks if skipped: a body without the exact marker prefix is not found by the lookup, so a new comment is created instead of updating the old one. Dropping a row makes the states look inconsistent when the comment is patched.",
+  "applies": "Any edit to the body text or marker of the UI Preview PR comment in .github/workflows/ui-preview.yml.",
+  "tags": [
+    "ci",
+    "ui-preview",
+    "pr-comment",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25674"
+  },
+  "created": "2026-10-11T08:48:47.617Z",
+  "verified": "2026-10-11T08:48:47.617Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pull request preview bot posts duplicate comments instead of updating the existing one.",
+    "The interface preview comment table displays inconsistent rows between build states.",
+    "Update the existing preview comment on pull requests rather than posting repeated comments.",
+    "Preview deployment comments create clutter by duplicating on each workflow run."
+  ],
+  "search": "Every UI Preview pull request comment in .github/workflows/ui-preview.yml must begin with ${COMMENT_MARKER} and contain table rows for URL, Commit, and Run. This layout is required across notify and finalize workflow steps so that lookup via select(.body | startswith(...COMMENT_MARKER)) can update existing comments. Missing the prefix creates duplicate comments instead of patching the existing one, while in-progress and failure states place N/A in the URL row. Applies to any modification of UI Preview comment bodies or markers in .github/workflows/ui-preview.yml.",
+  "saysFor": "s2:2a603f20d3a391702484e64b38c73e79c1f8771f9306a46149f91e08a701e950"
+}

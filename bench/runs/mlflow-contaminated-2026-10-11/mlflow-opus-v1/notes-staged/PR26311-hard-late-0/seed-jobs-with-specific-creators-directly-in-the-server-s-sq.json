@@ -1,0 +1,71 @@
+{
+  "id": "seed-jobs-with-specific-creators-directly-in-the-server-s-sq",
+  "title": "Seed jobs with specific creators directly in the server's SQLite file for basic-auth tests",
+  "kind": "howto",
+  "answers": [
+    "how to create jobs owned by different users in an auth test",
+    "how do I test job search with a legacy job that has no creator",
+    "test fixture to insert job rows for basic-auth FastAPI server",
+    "why not submit jobs over HTTP in auth tests"
+  ],
+  "body": "In tests/server/auth/test_auth.py:test_job_search_only_returns_callers_jobs, build the server's database URI from the fastapi_client tmp_path sqlalchemy.db file, then instantiate SqlAlchemyJobStore(backend_uri) and call create_job(fn_name, params_json, creator=username). Pass creator=None to create a legacy row with no owner.\nEach create_job commits on session exit, so rows are visible to the running server and the huey worker, which already share this SQLite file.\nHTTP submission would need job execution enabled plus an allowlisted job function in the auth fixture, and cannot produce creator-less rows.\nThe URI prefix differs on Windows (sqlite:// vs sqlite:////); reuse the test's construction rather than hand-writing it.",
+  "applies": "Basic-auth FastAPI tests that need jobs with particular creators against a live server; not for unit tests of the store.",
+  "tags": [
+    "testing",
+    "auth",
+    "jobs",
+    "sqlite",
+    "basic-auth"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_job_search_only_returns_callers_jobs",
+      "hash": "sha256:5129f9eb18f34878b3b7aab5",
+      "line": 4857,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5129f9eb18f34878b3b7aab5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/jobs/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyJobStore",
+      "hash": "sha256:e102f5075369dcc05db7fa19",
+      "line": 28,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e102f5075369dcc05db7fa19",
+      "fanout": {
+        "files": 9,
+        "sites": 13,
+        "refs": 29
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T08:45:29.068Z",
+  "verified": "2026-10-11T08:45:29.068Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p"
+  ],
+  "says": [
+    "Job search results should only display background jobs created by the authenticated user.",
+    "Users report seeing background jobs belonging to other accounts in search results.",
+    "Legacy jobs without an assigned creator should remain accessible during job search.",
+    "Ensure users cannot view background tasks submitted by different team members."
+  ],
+  "search": "Basic-auth server tests in tests/server/auth/test_auth.py:test_job_search_only_returns_callers_jobs seed jobs by instantiating SqlAlchemyJobStore with the server SQLite database URI rather than submitting over HTTP. Calling create_job directly commits on session exit, making rows visible to the server and huey worker while supporting creator=None for legacy rows without an owner. HTTP submission cannot produce unowned rows and requires job execution and allowlisted job functions. Reuses the test's URI construction to handle Windows prefix differences.",
+  "saysFor": "s2:aa75ea40861e5dec13a44144ebbe861d608e6f72005cbcb336a1429a9cda56bc"
+}

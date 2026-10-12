@@ -1,0 +1,69 @@
+{
+  "id": "run-check-migration-with-pypi-mlflow-pre-migration-and-the-l",
+  "title": "Run check_migration with PyPI mlflow pre-migration and the locked env post-migration",
+  "kind": "howto",
+  "answers": [
+    "how do I run the database migration check locally",
+    "check_migration pre-migration uses latest mlflow from PyPI",
+    "how to regenerate tests/db schema after the uv.lock change"
+  ],
+  "body": "Pre-migration uses the latest PyPI mlflow with the locked drivers: export the lock with `uv export --locked --no-default-groups --extra db --group db-test --no-emit-workspace --no-hashes --output-file \"$locked\"`, then run `uv run --isolated --no-project --with mlflow --with-requirements \"$locked\" python check_migration.py pre-migration`.\nPost-migration uses the repository's mlflow in the synced project env: `uv run --no-sync mlflow db upgrade $MLFLOW_TRACKING_URI`, then `uv run --no-sync python check_migration.py post-migration`.\nFlags: `--isolated` keeps the PyPI run out of the project env, `--no-project` stops uv from reading pyproject.toml, `--no-emit-workspace` keeps the repo itself out of the exported requirements.\nSchema regeneration: tests/db/update_schemas.sh now runs `compose.sh build` with no build arguments.",
+  "applies": "Running tests/db/check_migration.sh or update_schemas.sh locally or in CI; assumes uv is installed.",
+  "tags": [
+    "database",
+    "migration",
+    "uv",
+    "howto",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/check_migration.sh",
+      "hash": "sha256:6bd7b4e41c3fa587548bd54b",
+      "missing": false
+    },
+    {
+      "path": "tests/db/update_schemas.sh",
+      "hash": "sha256:61f8484daeaed220d8f77fa3",
+      "missing": false
+    },
+    {
+      "path": "tests/db/check_migration.py",
+      "symbol": "MLFLOW_TRACKING_URI",
+      "hash": "sha256:3e45e1ec796136f027ef8c62",
+      "line": 4,
+      "missing": false,
+      "fanout": {
+        "files": 94,
+        "sites": 0,
+        "refs": 210
+      }
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26168"
+  },
+  "created": "2026-10-11T10:24:39.277Z",
+  "verified": "2026-10-11T10:24:39.277Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-db-shell-scripts-run-with-set-e-only-and-uv-steps-are"
+  ],
+  "says": [
+    "Verify tracking server database migration compatibility against the latest published version before release",
+    "Database migration verification fails when testing schema upgrades from the previous version",
+    "Regenerate stored database schema baselines after updating locked database driver dependencies",
+    "Ensure existing tracking databases upgrade cleanly to the new release without data loss"
+  ],
+  "search": "Database migration testing in tests/db/check_migration.sh evaluates pre-migration with the latest PyPI mlflow under locked requirements and post-migration using repository mlflow in the synced environment. Pre-migration exports locked dependencies with uv export omitting default groups, hashes, and workspace emissions, then invokes check_migration.py using uv run with --isolated and --no-project. Post-migration runs mlflow db upgrade $MLFLOW_TRACKING_URI followed by check_migration.py post-migration, while tests/db/update_schemas.sh regenerates schemas via compose.sh build without arguments.",
+  "saysFor": "s2:f52373a8a779cb59d62539c9f3d9f5fb1efe828e20a157dfd9594cdb77d1b138"
+}

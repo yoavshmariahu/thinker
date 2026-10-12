@@ -1,0 +1,51 @@
+{
+  "id": "raising-a-dependency-s-node-floor-requires-updating-engines",
+  "title": "Raising a dependency's Node floor requires updating engines fields and the README together",
+  "kind": "rule",
+  "answers": [
+    "npm install on Node 20 warns about engine incompatibility for @mlflow/core",
+    "why do the TypeScript package engines say node 22",
+    "which package.json engines must change when the Databricks SDK is bumped",
+    "Node version requirement for the MLflow TypeScript SDK"
+  ],
+  "body": "Symptom: Installing @mlflow/core or a TypeScript integration on a previously supported Node version (18/20) gets an engine-incompatible transitive dependency.\nRoot cause: @databricks/sdk-experimental 0.18.0 declares Node >=22, so the supported floor moved. This PR changed the `engines.node` field in libs/typescript/core/package.json and in each integration package.json (anthropic, claude-code, codex, gemini, openai, openclaw, opencode, qwen-code, vercel), plus the 'requires Node.js' note in libs/typescript/README.md.\nFix pattern: When a dependency bump raises its Node requirement, update every affected package's engines field and the README Node note in the same change.\nConstraints: A reviewer flagged that this raises the floor above the previously advertised Node 18/20 support for consumers; the diff does not show that this was resolved, so confirm the intended floor before changing these fields again.",
+  "applies": "Version bumps of runtime dependencies in libs/typescript packages that change minimum Node support.",
+  "tags": [
+    "typescript",
+    "node",
+    "engines",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/package.json",
+      "hash": "sha256:596a2b9df2aa716bfbb88d69",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/README.md",
+      "hash": "sha256:385e2f6ac5d63a897524f89a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T08:42:07.931Z",
+  "verified": "2026-10-11T08:42:07.931Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Installing the TypeScript packages on older runtime environments throws an incompatibility warning.",
+    "The documentation says version eighteen works, but the package requires a newer runtime.",
+    "Update the documented runtime prerequisites whenever minimum version requirements increase.",
+    "Confirm whether raising the minimum supported environment version breaks existing consumers.",
+    "Keep runtime compatibility declarations consistent across all client library packages."
+  ],
+  "search": "When bumping runtime dependencies like @databricks/sdk-experimental 0.18.0 that raise the minimum Node floor to >=22, update the engines.node field across libs/typescript/core/package.json and all integration package.json files alongside the 'requires Node.js' note in libs/typescript/README.md. Affected integration package manifests include anthropic, claude-code, codex, gemini, openai, openclaw, opencode, qwen-code, and vercel. Applies to runtime dependency bumps in libs/typescript packages, with the constraint to confirm the intended floor before modifying fields because raising the floor above Node 18/20 for consumers was flagged.",
+  "saysFor": "s2:b675298f67ca35e087da1a45c55da8817705f7fdbea881326a1638fb3a5b6c23"
+}

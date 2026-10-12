@@ -1,0 +1,68 @@
+{
+  "id": "codex-integration-identifies-itself-via-opentelemetry-servic",
+  "title": "Codex integration identifies itself via OpenTelemetry service.name on the root span",
+  "kind": "rule",
+  "answers": [
+    "How do I tell which agent produced a Codex trace?",
+    "Set service.name on Codex traces",
+    "Where is the Codex root span service name set?"
+  ],
+  "body": "The Codex root span is created in libs/typescript/integrations/codex/src/tracing.ts:processNotify with attributes `{ model, 'service.name': 'codex' }`.\nThe agent identity is carried by this span attribute, not by a trace tag, so new agent integrations should set service.name the same way on their root span.\nlibs/typescript/integrations/codex/tests/tracing.test.ts asserts `getRootSpan().attributes['service.name']` equals 'codex'; keep that assertion when changing root span creation.\nThe documented behavior is in libs/typescript/integrations/codex/README.md and docs/docs/genai/tracing/integrations/listing/codex.mdx.",
+  "applies": "Applies to the Codex TypeScript integration root span; other integrations are only implied to follow the same convention.",
+  "tags": [
+    "codex",
+    "tracing",
+    "opentelemetry",
+    "service-name"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "processNotify",
+      "hash": "sha256:7135c55820d0280643d69f4e",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7135c55820d0280643d69f4e",
+      "fanout": {
+        "files": 4,
+        "sites": 10,
+        "refs": 19
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/tracing.test.ts",
+      "symbol": "getRootSpan",
+      "hash": "sha256:7b8a265392d56ce9bed5cd22",
+      "line": 109,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7b8a265392d56ce9bed5cd22",
+      "fanout": {
+        "files": 4,
+        "sites": 18,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-11T08:47:07.006Z",
+  "verified": "2026-10-11T08:47:07.006Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Traces in the monitoring dashboard should identify the coding agent that produced them.",
+    "Cannot filter or distinguish Codex activity traces from other assistant sessions in the viewer.",
+    "Display the agent service identity on top-level spans within the tracing interface.",
+    "Show which autonomous assistant executed a workflow when inspecting recorded trace spans.",
+    "Label recorded execution traces with the Codex assistant name for tracking and filtering."
+  ],
+  "search": "The Codex TypeScript integration identifies itself by setting the OpenTelemetry attribute 'service.name' to 'codex' on the root span created in libs/typescript/integrations/codex/src/tracing.ts:processNotify. Agent identity is carried by this root span attribute rather than a trace tag, setting a convention for new agent integrations. Tests in libs/typescript/integrations/codex/tests/tracing.test.ts assert that getRootSpan().attributes['service.name'] equals 'codex'.",
+  "saysFor": "s2:b7b710b65905028d3221616efc89dc9ed1dd28637cd1508625fc0221689a8d6b"
+}

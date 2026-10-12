@@ -1,0 +1,45 @@
+{
+  "id": "github-install-check-in-build-wheel-yml-uses-commit-pinned-c",
+  "title": "GitHub install check in build-wheel.yml uses commit-pinned codeload tarballs, not git+ URLs",
+  "kind": "rule",
+  "answers": [
+    "How do I test that the built wheel installs from a GitHub commit in CI?",
+    "Why does the build-wheel GitHub installation step take so long or time out?",
+    "Can I use a git+https requirement in the wheel installation check?"
+  ],
+  "body": "Convention: the post-build GitHub installation check in .github/workflows/build-wheel.yml pins the tested commit with REF=$(git rev-parse HEAD) and installs from https://github.com/${REPO}/archive/${REF}.tar.gz, not a git+https:// requirement.\nReason (from the PR): uv fetches the full Git history for git+ requirements, which made the step slow (33-43s) and exposed it to transient Git backend failures. The tarball step runs in about 19-30s.\nDo not switch the check back to git+ URLs. Keep the per-attempt `timeout -k 10 120` and the 3-attempt retry loop around `uv run --isolated --no-project --with \"$URL\"`.\nThe check must keep testing the exact commit that built the wheel, so the ref must come from the checked-out HEAD, not a branch name.",
+  "applies": "Applies to the GitHub installation test step in .github/workflows/build-wheel.yml; not to PyPI-based install tests.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "build-wheel",
+    "uv",
+    "installation-test"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:e76c2567b5effc6aa95e08bd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25810"
+  },
+  "created": "2026-10-11T08:47:17.360Z",
+  "verified": "2026-10-11T08:47:17.360Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The wheel build workflow takes too long during the installation verification step.",
+    "Package installation tests in the release pipeline are timing out intermittently.",
+    "Speed up the continuous integration step that verifies installation from a commit archive.",
+    "Make package install verification faster and resilient against repository connection dropouts in build checks."
+  ],
+  "search": "The post-build GitHub installation check in .github/workflows/build-wheel.yml pins the tested commit with REF=$(git rev-parse HEAD) and installs from https://github.com/${REPO}/archive/${REF}.tar.gz rather than a git+https:// requirement. This avoids slow runs and transient Git failures caused by uv fetching full Git history, reducing step time from 33-43s to 19-30s. Do not switch back to git+ URLs, keep the checked-out HEAD ref rather than a branch name, and retain the per-attempt timeout -k 10 120 and 3-attempt retry loop around uv run --isolated --no-project --with \"$URL\". Applies to the GitHub installation test step in .github/workflows/build-wheel.yml, not to PyPI-based install tests.",
+  "saysFor": "s2:3297a4607c8660b86b2a31056d41e25a7beccd6ff00797bc809165e606ffa5ee"
+}

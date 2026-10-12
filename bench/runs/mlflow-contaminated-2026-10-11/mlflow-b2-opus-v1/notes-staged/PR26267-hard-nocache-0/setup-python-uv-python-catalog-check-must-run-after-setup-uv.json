@@ -1,0 +1,54 @@
+{
+  "id": "setup-python-uv-python-catalog-check-must-run-after-setup-uv",
+  "title": "setup-python: uv Python catalog check must run after setup-uv and before the install steps",
+  "kind": "rule",
+  "answers": [
+    "CI fails because uv cannot provision the Python version in the fixture",
+    "uv python install fails on a runner platform with no download",
+    "where do I add a check that the requested Python version is downloadable by uv",
+    "why does the setup-python composite action validate the uv Python catalog"
+  ],
+  "body": "Invariant: the \"Check uv Python support\" step in the composite action runs after `setup-uv` and after `get-python-version`, and before the uv-driven install steps.\nEnforced by: .github/actions/setup-python/action.yml (step \"Check uv Python support\"), which reads `steps.get-python-version.outputs.version` and runs `uv python list \"$PYTHON_VERSION\" --all-versions --only-downloads`.\nWhat it guards: the check queries the catalog on the actual runner platform, so an empty result means uv cannot download that Python here. It fails the job early with a `::error::` annotation instead of failing later during provisioning.\nSkipping or reordering it: moving it before `setup-uv` makes `uv` unavailable; removing it lets CI fail late with an opaque provisioning error.\nThe check only validates; it does not download, pin versions, or enumerate platforms. If it fails, the error message directs the fix to `required-version` in pyproject.toml, so keep that message consistent with where the uv pin actually lives.",
+  "applies": "Changes to the setup-python composite action or to how CI selects and provisions Python/uv versions in this repo.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "uv",
+    "python-version",
+    "setup-python"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "symbol": "downloads",
+      "hash": "sha256:a31858aab6c2c9ec8475fdca",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25968"
+  },
+  "created": "2026-10-11T10:29:46.641Z",
+  "verified": "2026-10-11T10:29:46.641Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration build fails late with an unclear error when downloading the requested Python.",
+    "Validate that the target Python version is available before running the workflow installation steps.",
+    "Pull request checks fail with an opaque error instead of catching missing Python early.",
+    "The automated build error message should clearly point developers to the version configuration setting.",
+    "Automated test runner cannot provision the requested Python release on this operating system platform."
+  ],
+  "search": "The `Check uv Python support` step in `.github/actions/setup-python/action.yml` must run after `setup-uv` and `get-python-version`, and before uv-driven install steps. It reads `steps.get-python-version.outputs.version` and runs `uv python list \"$PYTHON_VERSION\" --all-versions --only-downloads` on the runner platform, failing early with an error annotation if the requested Python version cannot be downloaded. Applies to changes to the composite action or CI Python/uv provisioning, but only validates availability without downloading, pinning versions, or enumerating platforms. Moving it before `setup-uv` fails because `uv` is unavailable, and failure messages must point to `required-version` in `pyproject.toml`.",
+  "saysFor": "s2:c7f49ec453918904427116420cb3c0b46f043994751fa8b173284f99f45ee023"
+}

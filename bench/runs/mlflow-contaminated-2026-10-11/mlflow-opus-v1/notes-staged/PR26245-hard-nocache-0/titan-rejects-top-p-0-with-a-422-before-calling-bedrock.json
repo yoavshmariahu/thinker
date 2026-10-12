@@ -1,0 +1,73 @@
+{
+  "id": "titan-rejects-top-p-0-with-a-422-before-calling-bedrock",
+  "title": "Titan rejects top_p=0 with a 422 before calling Bedrock",
+  "kind": "rule",
+  "answers": [
+    "top_p 0 error on Bedrock Titan",
+    "Titan top_p must be greater than 0",
+    "422 for top_p zero on amazon titan",
+    "why does top_p=0 fail for Titan but work for other models"
+  ],
+  "body": "Invariant: Titan requires topP strictly greater than 0, but MLflow accepts top_p=0. AWSTitanAdapter.completions_to_model raises AIGatewayException with status 422 when payload top_p == 0, before any request is built.\nEnforced by: the top_p == 0 check in mlflow/gateway/providers/bedrock.py:AWSTitanAdapter.completions_to_model, placed next to the existing 422 for n != 1.\nWhat breaks if skipped: the request goes to Bedrock with a value Titan rejects, so the caller gets a backend validation failure rather than a clear gateway error.\nTest: tests/gateway/providers/test_bedrock.py:test_bedrock_titan_rejects_top_p_zero asserts the 422 and that _request is never called. Keep Jurassic unaffected; this check is Titan-only.",
+  "applies": "Titan model requests through the Bedrock gateway provider; the check is Titan-only and does not apply to AI21 Jurassic.",
+  "tags": [
+    "bedrock",
+    "titan",
+    "top_p",
+    "validation",
+    "422"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AWSTitanAdapter.completions_to_model",
+      "hash": "sha256:f00e82083243c1ac1da6576d",
+      "line": 124,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f00e82083243c1ac1da6576d",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_bedrock.py",
+      "symbol": "test_bedrock_titan_rejects_top_p_zero",
+      "hash": "sha256:ff37b07dc1539284a58d20d5",
+      "line": 500,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ff37b07dc1539284a58d20d5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25795"
+  },
+  "created": "2026-10-11T08:42:25.348Z",
+  "verified": "2026-10-11T08:42:25.348Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-adapters-silently-drop-request-keys-that-are-not-ren",
+    "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn",
+    "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t"
+  ],
+  "says": [
+    "Setting top p to zero on Amazon Titan models returns an unprocessable entity error.",
+    "Why does setting sampling probability to zero fail on Amazon Titan through the gateway?",
+    "Amazon Titan requests through the gateway fail validation immediately when top p is zero.",
+    "Return a clear gateway validation error instead of backend provider failure when top p is zero."
+  ],
+  "search": "The Bedrock gateway provider adapter for Amazon Titan rejects requests with top_p=0 with an AIGatewayException 422 before calling Bedrock. This invariant is enforced in mlflow/gateway/providers/bedrock.py:AWSTitanAdapter.completions_to_model next to the n != 1 check to prevent backend Bedrock validation failures. Tested in tests/gateway/providers/test_bedrock.py:test_bedrock_titan_rejects_top_p_zero to assert status 422 and that _request is never called. This check applies exclusively to Titan model requests and must keep AI21 Jurassic unaffected.",
+  "saysFor": "s2:c90a6736266b3a0404c1206f359b07a96f8e5368d84db15e74abf705c54ec0a0"
+}

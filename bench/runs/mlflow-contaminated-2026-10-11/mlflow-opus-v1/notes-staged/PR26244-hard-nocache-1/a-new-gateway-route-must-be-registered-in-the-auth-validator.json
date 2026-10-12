@@ -1,0 +1,116 @@
+{
+  "id": "a-new-gateway-route-must-be-registered-in-the-auth-validator",
+  "title": "A new gateway route must be registered in the auth validator map, response filter map, and gateway-disable test together",
+  "kind": "rule",
+  "answers": [
+    "adding a new gateway endpoint and it is open to all authenticated users",
+    "what must change when adding a route under /gateway/mlflow/v1",
+    "new gateway route returns 200 when gateway is disabled",
+    "where do I register a new gateway API route for auth"
+  ],
+  "body": "Invariant: a gateway route touches several places that must stay in sync. Adding one means the following change together:\n1. The route handler in mlflow/server/gateway_api.py (decorated with gateway_router and translate_http_exception).\n2. Its import into mlflow/server/auth/__init__.py, and an entry in the validator logic in _get_gateway_validator (for list routes, the authentication-only branch).\n3. A response filter in FASTAPI_ENDPOINT_RESPONSE_FILTERS when the response leaks resources the caller may not use.\n4. Static-prefix validator assertions in tests/server/auth/test_auth.py:test_find_fastapi_validator_handles_static_prefix, plus the 501 check in tests/server/test_gateway_disable.py:test_gateway_endpoints_return_501_when_disabled.\nBreaks if skipped: the route is reachable without the intended check, or it answers when the gateway is disabled.\nApplies: any new route under the gateway_router.",
+  "applies": "New or changed routes on gateway_router in mlflow/server/gateway_api.py.",
+  "tags": [
+    "gateway",
+    "auth",
+    "routing",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 989,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/server/test_gateway_disable.py",
+      "symbol": "test_gateway_endpoints_return_501_when_disabled",
+      "hash": "sha256:5902b4f056bf3fadac45f676",
+      "line": 9,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5902b4f056bf3fadac45f676",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_find_fastapi_validator_handles_static_prefix",
+      "hash": "sha256:266bc6643fd9134b47adb9a4",
+      "line": 358,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:266bc6643fd9134b47adb9a4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-11T08:44:31.357Z",
+  "verified": "2026-10-11T08:44:31.357Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-basic-auth-admin-password-password1234-must-never-boo",
+    "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare",
+    "nested-graphql-fields-that-return-per-model-resources-must-b",
+    "model-version-read-filtering-must-use-the-prompt-aware-predi"
+  ],
+  "says": [
+    "AI gateway endpoints still respond even after the gateway service is turned off",
+    "Disabled model gateway continues serving incoming requests instead of rejecting them",
+    "Newly added gateway service allows unauthorized callers to view protected model resources",
+    "Ensure disabled gateway features properly reject calls with a not implemented error",
+    "Gateway response data leaks information that the user does not have permission to view"
+  ],
+  "search": "Adding a route to gateway_router in mlflow/server/gateway_api.py requires updating the handler, auth validator logic, response filters, and disable tests together. Handlers decorated with gateway_router and translate_http_exception must be registered in _get_gateway_validator in mlflow/server/auth/__init__.py and optionally in FASTAPI_ENDPOINT_RESPONSE_FILTERS. Tests in tests/server/auth/test_auth.py:test_find_fastapi_validator_handles_static_prefix and tests/server/test_gateway_disable.py:test_gateway_endpoints_return_501_when_disabled must be updated to prevent unauthenticated access or answering when disabled.",
+  "saysFor": "s2:56d32f82ac41091087c648ab8acf163d13f88aa77b99e423ed84e475a980e4e5"
+}

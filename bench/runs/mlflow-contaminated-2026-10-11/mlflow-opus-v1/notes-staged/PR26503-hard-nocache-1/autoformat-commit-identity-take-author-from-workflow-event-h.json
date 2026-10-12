@@ -1,0 +1,52 @@
+{
+  "id": "autoformat-commit-identity-take-author-from-workflow-event-h",
+  "title": "Autoformat commit identity: take author from workflow event, hardcode bot ID",
+  "kind": "rule",
+  "answers": [
+    "how does the autoformat workflow set git commit author name and email",
+    "why is the mlflow-app[bot] ID hardcoded in autoformat.yml",
+    "autoformat commit attributed to wrong user or bot identity",
+    "change the noreply email format for autoformat commits"
+  ],
+  "body": "Invariant: the 'Configure git' step in .github/workflows/autoformat.yml derives commit identity from `github.event.issue.user` (login, id, type), not from `gh pr view` or `gh api users/...` calls.\nBot branch: when `AUTHOR_TYPE` is `Bot`, LOGIN is `mlflow-app[bot]` and ID is the hardcoded verified value `191841109`. Keep this ID in sync with the real app identity; do not replace it with a lookup.\nEmail format: `git config user.email` must stay `${ID}+${LOGIN}@users.noreply.github.com` so commits map to the GitHub account.\nThe step's env block must carry only the `AUTHOR_*` values it reads; stale variables such as GH_TOKEN, PR_NUMBER and REPO were removed, so do not reintroduce API calls that need a token here.\nWhy: the workflow's event context already has the author, so no extra API round trip is needed, and the hardcoded bot ID is what keeps bot attribution correct.",
+  "applies": "Applies to the autoformat workflow's git identity step; not to other workflows that legitimately call the GitHub API.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "autoformat",
+    "git-identity"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/autoformat.yml",
+      "symbol": "LOGIN",
+      "hash": "sha256:dbfc9c6e1856dac7bd72af46",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25902"
+  },
+  "created": "2026-10-11T08:45:02.074Z",
+  "verified": "2026-10-11T08:45:02.074Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated formatting commits on pull requests are attributed to the wrong bot identity.",
+    "Ensure code formatting commits properly link to the verified GitHub app account.",
+    "The committer profile icon on automated formatting commits does not match our bot.",
+    "Automated cleanup commits should correctly display the pull request author as committer."
+  ],
+  "search": "The autoformat workflow configures git commit identity directly from github.event.issue.user rather than making GitHub API calls, using a hardcoded ID for bot authors. When AUTHOR_TYPE is Bot, LOGIN is set to mlflow-app[bot] with hardcoded verified ID 191841109, formatting user.email as ${ID}+${LOGIN}@users.noreply.github.com for proper account attribution. The Configure git step env block in .github/workflows/autoformat.yml must only supply AUTHOR_* variables, omitting tokens like GH_TOKEN, PR_NUMBER, and REPO. This rule applies strictly to the autoformat workflow git identity step and not to workflows legitimately calling the GitHub API.",
+  "saysFor": "s2:30fb9c4289987d761fd34c955b68e970a21ef7ea16508517d96d2ae580cb4aea"
+}

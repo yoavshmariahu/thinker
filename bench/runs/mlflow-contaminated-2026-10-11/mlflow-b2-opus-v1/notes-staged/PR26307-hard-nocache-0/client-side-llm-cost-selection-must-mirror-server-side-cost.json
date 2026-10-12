@@ -1,0 +1,87 @@
+{
+  "id": "client-side-llm-cost-selection-must-mirror-server-side-cost",
+  "title": "Client-side LLM cost selection must mirror server-side cost translation per backend",
+  "kind": "rule",
+  "answers": [
+    "which tracking backends compute LLM trace cost on the client",
+    "traces missing cost on SageMaker or Databricks MLflow",
+    "where is cost calculated for spans sent to a tracking server",
+    "add cost support for a new tracking backend"
+  ],
+  "body": "Invariant: the client computes span cost only when should_compute_cost_client_side() is True (mlflow/tracing/utils/__init__.py:should_compute_cost_client_side). It returns True for Databricks and SageMaker tracking URIs. All other backends get cost from translate_span_when_storing, called in SqlAlchemyStore._log_spans_once.\nIf a backend skips server-side cost translation, add it to this selector. Otherwise its spans get no LLM_COST.\nThe SageMaker detection lives in mlflow/utils/uri.py:is_sagemaker_mlflow_tracking_uri, but the selector decides, so new URI kinds need a change in both places.\nTests should run the real selector through LiveSpan.end() (test_sagemaker_cost_computed_when_span_ends in tests/tracing/utils/test_utils.py). Mock only the tracking URI and pricing, not the selector.",
+  "applies": "Any change to which backends compute LLM cost, or to where cost is computed in the tracing SDK or server store.",
+  "tags": [
+    "tracing",
+    "llm-cost",
+    "sagemaker",
+    "databricks",
+    "tracking-uri"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/utils/__init__.py",
+      "symbol": "should_compute_cost_client_side",
+      "hash": "sha256:267bb05816d391f3ddd8a5bd",
+      "line": 943,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:267bb05816d391f3ddd8a5bd",
+      "fanout": {
+        "files": 6,
+        "sites": 6,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_sagemaker_mlflow_tracking_uri",
+      "hash": "sha256:455a855d24e6c5e73427368f",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:455a855d24e6c5e73427368f",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_utils.py",
+      "symbol": "test_sagemaker_cost_computed_when_span_ends",
+      "hash": "sha256:da580bf13c0e5d20020a76f0",
+      "line": 706,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:da580bf13c0e5d20020a76f0",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26178"
+  },
+  "created": "2026-10-11T10:24:18.187Z",
+  "verified": "2026-10-11T10:24:18.187Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-cost-setter-must-not-overwrite-an-llm-cost-that-was-alr",
+    "tracking-uri-detectors-check-uri-shape-only-not-partition-re"
+  ],
+  "says": [
+    "LLM trace runs on SageMaker tracking servers are missing estimated cost metrics.",
+    "Spans logged to our Databricks tracking server show empty cost values.",
+    "Track LLM spend for model spans when using custom tracking server backends.",
+    "Why do trace details omit token cost when logged to Amazon SageMaker?",
+    "Calculate estimated inference costs for traces on newly configured tracking backends."
+  ],
+  "search": "Client-side LLM span cost calculation is restricted to Databricks and SageMaker tracking backends via should_compute_cost_client_side in mlflow/tracing/utils/__init__.py, while other backends rely on server-side translate_span_when_storing in SqlAlchemyStore._log_spans_once. Backends skipping server-side translation must be registered in both the client selector and mlflow/utils/uri.py:is_sagemaker_mlflow_tracking_uri to avoid missing LLM_COST. Tests in tests/tracing/utils/test_utils.py:test_sagemaker_cost_computed_when_span_ends should exercise LiveSpan.end() with real selector logic, mocking only tracking URI and pricing.",
+  "saysFor": "s2:51ca478c3a70dcacc09d39c1d79571201f39f5fab544cf5b5a98b47fc472a690"
+}

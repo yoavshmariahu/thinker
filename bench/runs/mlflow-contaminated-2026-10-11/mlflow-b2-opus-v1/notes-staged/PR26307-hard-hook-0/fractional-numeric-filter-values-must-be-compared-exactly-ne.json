@@ -1,0 +1,115 @@
+{
+  "id": "fractional-numeric-filter-values-must-be-compared-exactly-ne",
+  "title": "Fractional numeric filter values must be compared exactly, never truncated with int()",
+  "kind": "rule",
+  "answers": [
+    "Why does a filter like start_time = 1.5 match a run with start_time 1?",
+    "Do numeric search comparisons in the in-memory matcher truncate decimal values?",
+    "How should fractional values in numeric attribute filters be compared?"
+  ],
+  "body": "Invariant: Numeric attribute comparisons keep fractional values exact. Do not call `int(value)` on an already-parsed float in the in-memory matchers.\nEnforced in: mlflow/utils/search_utils.py:_does_run_match_clause, _does_model_match_clause, and _does_logged_model_match_clause, which only convert `value` when `isinstance(value, str)`.\nWhat breaks if skipped: A filter such as `start_time = 1.5` silently becomes `start_time = 1` in the file store, so a run at 1 matches when it should not. The SQL run path (_get_sqlalchemy_filter_clauses) passes the float to SQLAlchemy, which binds it as FLOAT, so the two paths would disagree.\nConstraints: Applies to run, model, and logged-model matchers. Experiments and evaluation datasets are excluded and must reject fractions (see the experiment/dataset guard note).",
+  "applies": "In-memory numeric attribute matching for run, model and logged-model search in SearchUtils and its subclasses.",
+  "tags": [
+    "search",
+    "numeric",
+    "float",
+    "filter",
+    "exact-comparison"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._does_run_match_clause",
+      "hash": "sha256:09dddd9b790845982cbb9d1a",
+      "line": 691,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09dddd9b790845982cbb9d1a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_does_run_match_clause",
+      "hash": "sha256:09dddd9b790845982cbb9d1a",
+      "line": 691,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09dddd9b790845982cbb9d1a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_does_model_match_clause",
+      "hash": "sha256:6f480f1ef64a1ab101fbcb6c",
+      "line": 740,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6f480f1ef64a1ab101fbcb6c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_does_logged_model_match_clause",
+      "hash": "sha256:225526304dfb333b1c8e01fa",
+      "line": 2519,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:225526304dfb333b1c8e01fa",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_does_run_match_clause",
+      "hash": "sha256:09dddd9b790845982cbb9d1a",
+      "line": 691,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09dddd9b790845982cbb9d1a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26180"
+  },
+  "created": "2026-10-11T10:24:10.528Z",
+  "verified": "2026-10-11T10:24:10.528Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "numeric-search-filters-fail-on-postgresql-psycopg-v3-because",
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "fractional-model-version-literals-must-be-rejected-before-in"
+  ],
+  "says": [
+    "Filtering experiment runs by decimal start time matches runs with whole number timestamps.",
+    "Search results on the runs table include mismatched items due to decimal truncation.",
+    "Numeric attribute filters in run search should match exact decimal values without rounding.",
+    "Filtering logged models by fractional numbers unexpectedly matches models with truncated values.",
+    "Searching runs with decimal attribute values should not match runs with rounded integers."
+  ],
+  "search": "In-memory numeric attribute comparisons for run, model, and logged-model search must preserve exact fractional values rather than truncating parsed floats with int(). In mlflow/utils/search_utils.py:_does_run_match_clause, _does_model_match_clause, and _does_logged_model_match_clause, conversion to integer only occurs when isinstance(value, str). Skipping exact comparison causes file store filters like start_time = 1.5 to match start_time 1, disagreeing with the SQL store where _get_sqlalchemy_filter_clauses binds floats directly. This rule applies to SearchUtils in-memory matchers for runs, models, and logged models, but excludes experiments and evaluation datasets, which reject fractions.",
+  "saysFor": "s2:324ba209063f98b6e554df77a03f223f6ce6d97d26a20e2ca7dc15ef38e1f6bc"
+}

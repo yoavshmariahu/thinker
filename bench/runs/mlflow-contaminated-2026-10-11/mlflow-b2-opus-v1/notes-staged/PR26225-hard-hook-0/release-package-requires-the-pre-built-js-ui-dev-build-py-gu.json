@@ -1,0 +1,54 @@
+{
+  "id": "release-package-requires-the-pre-built-js-ui-dev-build-py-gu",
+  "title": "Release package requires the pre-built JS UI; dev/build.py guards it before building",
+  "kind": "rule",
+  "answers": [
+    "release mlflow package missing the web UI",
+    "mlflow wheel shipped without the UI assets",
+    "why does the release build fail saying mlflow/server/js/build is missing or empty",
+    "do I need to build the frontend before packaging mlflow"
+  ],
+  "body": "Symptom: the full mlflow package installs but the tracking server UI is missing or broken.\nRoot cause: setup.py package_data bundles mlflow/server/js/build only if it exists at build time; the UI is built by the workflow, not by Python packaging.\nFix pattern: dev/build.py:main checks that JS_BUILD_DIR (mlflow/server/js/build) exists and is non-empty before the release build, and exits with the yarn build instructions otherwise. Keep this guard before any build call on the release path.\nConstraints: the guard applies only to `--package-type release`; the skinny path has no UI and must not require it. If the UI build output location changes in setup.py or the JS build, update JS_BUILD_DIR together with it.",
+  "applies": "branch-2.11 release packaging of the full mlflow package; not the skinny package.",
+  "tags": [
+    "build",
+    "release",
+    "ui",
+    "packaging"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26073"
+  },
+  "created": "2026-10-11T10:28:05.914Z",
+  "verified": "2026-10-11T10:28:05.914Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "branch-2-13-package-builds-go-through-dev-build-sh-dev-build",
+    "release-build-must-explicitly-clear-mlflow-skinny-so-an-ambi",
+    "legacy-2-11-wheel-is-built-from-the-source-tree-before-the-s"
+  ],
+  "says": [
+    "The tracking server interface is missing after installing the full release package.",
+    "Users see a blank screen instead of the web dashboard on installed servers.",
+    "Why does packaging fail when frontend assets have not been compiled beforehand?",
+    "Our released distribution shipped without the web console interface bundled inside it.",
+    "Prevent publishing packages if the user interface files were not generated first."
+  ],
+  "search": "Release packaging in dev/build.py:main must verify that JS_BUILD_DIR (mlflow/server/js/build) exists and is non-empty before initiating release builds, exiting with yarn build instructions if missing. This guard applies exclusively to branch-2.11 release packaging of the full package with --package-type release, not to the skinny package. If the frontend build destination changes in setup.py or the JavaScript build configuration, JS_BUILD_DIR must be updated accordingly.",
+  "saysFor": "s2:d3c8b5538b46105369bf2346ee6b81d3b6e229bda62bf357a8b7179bfa090e99"
+}

@@ -1,0 +1,61 @@
+{
+  "id": "style-guides-live-in-claude-skills-name-skill-md-copilot-ins",
+  "title": "Style guides live in .claude/skills/<name>/SKILL.md; Copilot instruction files must point at them",
+  "kind": "rule",
+  "answers": [
+    "where are the Python or GitHub Actions style guides now",
+    "I moved a style rule file, what else must I update",
+    "Copilot review instructions link to a missing rules file",
+    "relative links broken inside the python or actions style guide"
+  ],
+  "body": "Convention: the Python and GitHub Actions style guides are shared skills at `.claude/skills/python-style/SKILL.md` and `.claude/skills/github-actions-style/SKILL.md`, not path-scoped `.claude/rules/*.md` files.\nEach SKILL.md needs frontmatter with `name` and `description`; the description says when to use the skill.\nThe Copilot entry points `.github/instructions/python.instructions.md` and `.github/instructions/github-actions.instructions.md` must link to these SKILL.md paths and keep their `applyTo` scopes.\nMoving a guide one directory deeper adds a `../` to each relative link inside it (e.g. `../../../.github/policy.rego`, `../../../dev/clint/`).\n`.agents/skills` is a symlink to `../.claude/skills`, so skills are visible to both agent tools; do not duplicate them.\nConstraints: this is a placement convention only; skills need selection or invocation, so the rule text is not guaranteed to load automatically.",
+  "applies": "Editing or adding style guides under .claude/skills/ or the .github/instructions/ pointers in this repository.",
+  "tags": [
+    "claude-skills",
+    "copilot-instructions",
+    "style-guide",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:8cc106b631c28ccb484f8b68",
+      "missing": false
+    },
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3b83bc3660ebad3c1de394a5",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/python.instructions.md",
+      "hash": "sha256:413ede6beeaa5cd4c20557be",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/github-actions.instructions.md",
+      "hash": "sha256:5400069ea2fe0db0bf8a4ba4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26010"
+  },
+  "created": "2026-10-11T10:29:01.523Z",
+  "verified": "2026-10-11T10:29:01.523Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Copilot code review suggestions reference broken links for Python coding style conventions.",
+    "Where can I find the shared style guidelines for GitHub Actions workflows?",
+    "Fix broken relative documentation links after reorganizing repository coding style guides.",
+    "Copilot instructions cannot find the relocated style guide documents during reviews.",
+    "Ensure assistant coding rules and style documents are shared without duplicating files."
+  ],
+  "search": "Repository style guides for Python and GitHub Actions must be maintained as shared skills at .claude/skills/python-style/SKILL.md and .claude/skills/github-actions-style/SKILL.md rather than path-scoped .claude/rules/*.md files. Each SKILL.md requires frontmatter containing name and description specifying when to use the skill, and .agents/skills symlinks to ../.claude/skills so skills must not be duplicated. Copilot review pointers in .github/instructions/python.instructions.md and .github/instructions/github-actions.instructions.md must link to these SKILL.md paths while preserving their applyTo scopes. Moving guides deeper requires updating internal relative links, and because this is a placement convention, skills still require selection or invocation rather than loading automatically.",
+  "saysFor": "s2:9a4dd8aa453c06ee9c72933da9699b592e1929b1891b70f43b287018da6db3eb"
+}

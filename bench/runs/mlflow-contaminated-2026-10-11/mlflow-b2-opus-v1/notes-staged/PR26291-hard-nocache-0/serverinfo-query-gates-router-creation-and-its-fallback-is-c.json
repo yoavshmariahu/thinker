@@ -1,0 +1,73 @@
+{
+  "id": "serverinfo-query-gates-router-creation-and-its-fallback-is-c",
+  "title": "serverInfo query gates router creation and its fallback is cached for the session",
+  "kind": "rule",
+  "answers": [
+    "why does the MLflow UI wait before rendering routes",
+    "why are workspaces disabled after a slow server start",
+    "does changing the server-info query refetch options break workspace routing",
+    "what happens when server-info falls back to defaults"
+  ],
+  "body": "Invariant: MlflowRouter must not create the router until the serverInfo query settles, and it renders LegacySkeleton until then. This prevents workspace routing from running in \"workspaces off\" mode on the first render.\nEnforced by: mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:useServerInfo, which sets staleTime Infinity, refetchOnMount false and refetchOnWindowFocus false.\nWhat breaks if skipped: If the query settles with DEFAULT_RESPONSE too early against a server that has workspaces enabled, WorkspaceRouterSync clears the persisted workspace via setLastUsedWorkspace(null) when workspacesEnabled is false. The fallback is cached for the session and does not self-correct.\nAny change that adds a timeout or fallback to this query must keep settle semantics intact. Relaxing these options makes the query re-ask the server, which changes behaviour for WorkspaceRouterSync.",
+  "applies": "Changes to the serverInfo query, its options, its fallback value, or the MlflowRouter gate.",
+  "tags": [
+    "server-info",
+    "workspaces",
+    "react-query",
+    "mlflow-router",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "useServerInfo",
+      "hash": "sha256:3e48a491aaa58096e8c51d06",
+      "line": 82,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3e48a491aaa58096e8c51d06",
+      "fanout": {
+        "files": 54,
+        "sites": 14,
+        "refs": 89
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "DEFAULT_RESPONSE",
+      "hash": "sha256:4e97e11f2a3730c52386752a",
+      "line": 28,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e97e11f2a3730c52386752a",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-11T10:28:50.475Z",
+  "verified": "2026-10-11T10:28:50.475Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "a-hanging-server-info-request-leaves-the-whole-ui-on-a-skele",
+    "test-a-fetch-level-abort-by-stubbing-global-fetch-not-fetcha"
+  ],
+  "says": [
+    "Selected workspace is cleared and reset after reloading the web interface.",
+    "The web application gets stuck showing a loading skeleton on startup.",
+    "Workspaces appear disabled after opening the console against a slow server.",
+    "Prevent the application from forgetting my active workspace when server response is slow.",
+    "Workspace navigation options vanish from the navigation bar after refreshing the page."
+  ],
+  "search": "UI router creation in MlflowRouter is gated until the serverInfo query settles, displaying LegacySkeleton in the interim to avoid routing before workspace configuration is known. The useServerInfo hook in mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx caches responses for the session with infinite staleTime and disabled refetching. Settling early with DEFAULT_RESPONSE causes WorkspaceRouterSync to clear persisted workspaces via setLastUsedWorkspace(null) when workspaces are actually enabled on the server.",
+  "saysFor": "s2:37f72c219b04c18e1706f7b87d0243e812f50a2b2a2a05196f13c903d2bb9693"
+}

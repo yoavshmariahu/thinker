@@ -1,0 +1,53 @@
+{
+  "id": "warehouse-picker-drops-sql-warehouses-when-the-databricks-js",
+  "title": "Warehouse picker drops SQL warehouses when the Databricks JSON response is compact",
+  "kind": "rule",
+  "answers": [
+    "mlflow agent setup warehouse list is missing some SQL warehouses",
+    "warehouse selection menu shows fewer warehouses than Databricks returns",
+    "compact JSON response loses warehouses in setup.sh",
+    "awk JSON parsing drops entries from warehouse dropdown"
+  ],
+  "body": "Symptom: In the `mlflow agent setup` warehouse selection menu, some SQL warehouses that exist on the workspace do not appear when the API response is returned as single-line (compact) JSON.\nRoot cause: mlflow/agent/setup/setup.sh:select_warehouse used awk rules that run once per input line; with several objects on one line, only the last id/name/state match survived, so earlier warehouses were lost.\nFix pattern: Split every \"id\", \"name\" and \"state\" key onto its own line with sed before awk, then have awk emit a row via emit_if_complete() as soon as all three fields are captured, so field order and line layout no longer matter (mlflow/agent/setup/setup.sh:json_warehouse_rows).\nConstraints: Covers flat string fields of the warehouse list response only; it is not a general JSON parser and nested objects are not handled. Any new parser of Databricks JSON in setup.sh should go through the same line-normalising approach rather than per-line awk rules.",
+  "applies": "Shell-side JSON parsing in mlflow/agent/setup/setup.sh; applies to any response the wizard parses with awk.",
+  "tags": [
+    "agent-setup",
+    "shell",
+    "json-parsing",
+    "databricks"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/agent/setup/setup.sh",
+      "symbol": "emit_if_complete",
+      "hash": "sha256:1ff34e57810b80926e214cb1",
+      "line": 618,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25803"
+  },
+  "created": "2026-10-11T08:42:05.447Z",
+  "verified": "2026-10-11T08:42:05.447Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Some SQL warehouses are missing from the agent setup selection dropdown",
+    "The warehouse picker in the setup wizard shows fewer items than actually exist",
+    "Warehouses disappear from the configuration menu when the workspace returns compact responses",
+    "Ensure every available SQL warehouse appears in the agent configuration list",
+    "Setup wizard skips earlier warehouses when multiple entries are received on one line"
+  ],
+  "search": "In `mlflow/agent/setup/setup.sh`, compact single-line JSON responses caused the warehouse selection menu to drop entries because per-line `awk` parsing retained only the last match. The fix splits `id`, `name`, and `state` keys onto separate lines with `sed` before `awk` emits a row via `emit_if_complete()` in `json_warehouse_rows`. Applies to shell-side Databricks JSON parsing in `mlflow/agent/setup/setup.sh`, covering flat string fields only and excluding nested objects.",
+  "saysFor": "s2:4d942156efac8653194a02a1e408b18c7c30dbfb471dc0daabc1c75510bd4775"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "restore-reloaded-artifact-repository-registry-global-via-mon",
+  "title": "Restore reloaded artifact repository registry global via monkeypatch in tests",
+  "kind": "rule",
+  "answers": [
+    "test fails only when run after test_standard_artifact_registry",
+    "artifact file-plugin scheme missing in later tests on some CI shards",
+    "how do I isolate a test that reloads the artifact registry module",
+    "pytest reload module global leaks into other tests"
+  ],
+  "body": "Symptom: artifact-store tests that rely on installed plugin schemes (e.g. file-plugin) fail on some CI shards or only when run after another test, while passing in isolation.\nRoot cause: tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry reloads the registry module with mocked entry points; the reload replaces the module global _artifact_repository_registry, so plugin registrations are lost for the rest of the worker's session.\nFix pattern: before any reload, snapshot the global with monkeypatch.setattr(module, \"_artifact_repository_registry\", module._artifact_repository_registry). monkeypatch restores the original object at teardown, even when the test fails.\nConstraints: apply to any test that reloads or mutates a module-level registry; plain assignment without monkeypatch is not restored on failure. Reproduction in the PR was ordered (two tests, the reload first); the fix does not change production code.",
+  "applies": "Test code under tests/store/artifact/ and other tests that reload or mutate module-level registries.",
+  "tags": [
+    "testing",
+    "artifact",
+    "registry",
+    "test-isolation",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/artifact/test_artifact_repository_registry.py",
+      "symbol": "test_standard_artifact_registry",
+      "hash": "sha256:746d187beefc4465302ca77e",
+      "line": 17,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:746d187beefc4465302ca77e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26013"
+  },
+  "created": "2026-10-11T08:43:53.346Z",
+  "verified": "2026-10-11T08:43:53.346Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated continuous integration checks intermittently fail on artifact storage plugin tests across worker shards.",
+    "Storage plugin tests pass in isolation but fail when executed after registry tests in CI.",
+    "Pull request build fails because artifact storage plugin settings leak across sequential test runs.",
+    "Prevent registry test runs from breaking subsequent artifact plugin checks during continuous integration."
+  ],
+  "search": "Isolating test reloads of the artifact repository registry module using monkeypatch.setattr. Before reloading or mutating a module-level registry in tests, snapshot the global _artifact_repository_registry with monkeypatch.setattr so original plugin registrations are restored at teardown. This prevents test_standard_artifact_registry in tests/store/artifact/test_artifact_repository_registry.py from leaking into subsequent tests and losing installed plugin schemes such as file-plugin on CI shards, leaving production code unchanged.",
+  "saysFor": "s2:6df0b794e165a1b27ec82c440d6b4787d744916103abdc6ec012fb7403b0457a"
+}

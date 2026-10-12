@@ -1,0 +1,100 @@
+{
+  "id": "basic-auth-admin-bootstrap-runs-in-the-mlflow-server-cli-pro",
+  "title": "Basic-auth admin bootstrap runs in the mlflow server CLI process before workers spawn",
+  "kind": "rule",
+  "answers": [
+    "mlflow server basic-auth keeps restarting workers forever",
+    "uvicorn worker crash loop when admin password is missing",
+    "why is admin user created before the server starts",
+    "mlflow server exits with one error instead of endless restarts"
+  ],
+  "body": "Symptom: `mlflow server --app-name basic-auth` with no admin password configured keeps respawning workers in a loop instead of exiting with one clear error.\nRoot cause: The admin bootstrap ran inside create_app in every uvicorn worker, so a raised error while loading the app makes the multiprocess supervisor restart the worker endlessly.\nFix pattern: _run_server calls _bootstrap_basic_auth (which calls bootstrap_admin_user) in the CLI process before any worker is spawned. It then sets _MLFLOW_AUTH_ADMIN_BOOTSTRAPPED in env_map, so workers skip the redundant bootstrap and the PBKDF2 legacy-password checks.\nConstraints: create_app still bootstraps when used outside the CLI (the flag is absent). Put any new fail-fast auth startup check in bootstrap_admin_user so it runs in the CLI. _MLFLOW_AUTH_ADMIN_BOOTSTRAPPED is internal and must not be set by users. A missing MLFLOW_FLASK_SERVER_SECRET_KEY still crash-loops; this is pre-existing and not covered here.",
+  "applies": "The `mlflow server` CLI path for `--app-name basic-auth`, with any worker count.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "cli",
+    "workers",
+    "startup"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/__init__.py",
+      "symbol": "_bootstrap_basic_auth",
+      "hash": "sha256:9f16b2ff83d01eaa73177535",
+      "line": 330,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f16b2ff83d01eaa73177535",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/__init__.py",
+      "symbol": "_run_server",
+      "hash": "sha256:807d98887f23b7466c57dd70",
+      "line": 344,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:807d98887f23b7466c57dd70",
+      "fanout": {
+        "files": 7,
+        "sites": 11,
+        "refs": 53
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "bootstrap_admin_user",
+      "hash": "sha256:a923d60c6e0357fb9b84298c",
+      "line": 4597,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a923d60c6e0357fb9b84298c",
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "_MLFLOW_AUTH_ADMIN_BOOTSTRAPPED",
+      "hash": "sha256:60a6e397b98c8e265ce7cb6e",
+      "line": 178,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25751"
+  },
+  "created": "2026-10-11T08:42:52.074Z",
+  "verified": "2026-10-11T08:42:52.074Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare",
+    "basic-auth-pre-flight-checks-the-secret-key-before-the-admin",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo",
+    "tests-that-run-basic-auth-through-run-server-must-set-the-se"
+  ],
+  "says": [
+    "The server enters an endless worker restart loop when the administrator password is missing.",
+    "Server startup should exit immediately with an error message instead of continuously restarting workers.",
+    "Launching the server with basic authentication crashes repeatedly when required admin setup is incomplete.",
+    "Provide a clear failure message during startup rather than getting stuck in crash loops."
+  ],
+  "search": "When starting mlflow server with basic-auth, admin bootstrapping runs in the CLI process before uvicorn workers spawn to prevent endless crash loops. _run_server invokes _bootstrap_basic_auth and bootstrap_admin_user in the main CLI process and sets _MLFLOW_AUTH_ADMIN_BOOTSTRAPPED in env_map so worker processes skip duplicate bootstrap and PBKDF2 checks. create_app still bootstraps when executed outside the CLI, while new fail-fast startup checks belong in bootstrap_admin_user. The internal variable _MLFLOW_AUTH_ADMIN_BOOTSTRAPPED must not be set by users, and crash loops caused by a missing MLFLOW_FLASK_SERVER_SECRET_KEY remain unaddressed.",
+  "saysFor": "s2:3db16efbda50c0e4681cc39005783d864c1ccf302b871fc066089a8c30465d54"
+}

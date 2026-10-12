@@ -1,0 +1,63 @@
+{
+  "id": "PR26503-hard-hook-bm25-0",
+  "task": "PR26503-hard",
+  "area": "mlflow/utils",
+  "arm": "hook-bm25",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "eb9775fc-ccf1-4dd3-a791-a9fafd319c37",
+  "turns": 6,
+  "wall_ms": 21200,
+  "api_ms": 13973,
+  "cost": 0.1005494,
+  "in_tokens": 88745,
+  "out_tokens": 1327,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 4,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "callsBeforeFirstEdit": 2,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [
+      "eval-results-table-attaches-model-outputs-by-position-not-in",
+      "register-session-header-aggregates-per-column-via-rendersess"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "  tests/cli/test_scorers.py::test_create_judge_with_description\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_short_options\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_invalid_prompt\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_with_model\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                        | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/cli/test_scorers.py` | 1.52s    | 42    | 0.002s | 0.663s | 0.036s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m62 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 2.07s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "I fixed this: empty query results now print the header row and the dashed line under it instead of blank output. All 62 tests in the two test files I ran pass.\n\n**Cause:** `_create_table` in `mlflow/utils/string_utils.py` is the shared table display. It worked out column widths by pairing each data column with its header. With no rows there were no columns to pair, so it computed no widths and printed nothing, not even the headers.\n\n**Fix:** when there are no rows, each column is now treated as empty. Its width then comes from the same rule populated tables already use: the label length plus 2, with a minimum of 4. So the header looks exactly as it would above data. When there are rows, column widths come out the same as before, so populated tables are unchanged.\n\n```python\ncolumns = list(zip(*rows)) if rows else [()] * len(headers)\ncolumn_widths = [\n    max(max(map(len, col), default=0), len(header) + 2, min_column_width)\n    for col, header in zip(columns, headers)\n]\n```\n\nThis applies to every command that uses the shared table: experiments, runs, traces, datasets, scorers and eval.\n\n**Tests:** the test changes were already staged in your working tree, and I didn't change them:\n- `tests/utils/test_string_utils.py` adds `test_create_table_empty_rows_keeps_headers`.\n- `tests/cli/test_scorers.py::test_list_scorers_empty_experiment` now expects the header and dashed line rather than empty output.\n\nI also searched the other CLI tests and found none that expect empty output from an empty table.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/utils/string_utils.py b/mlflow/utils/string_utils.py\nindex f253795fa..e5326ff31 100644\n--- a/mlflow/utils/string_utils.py\n+++ b/mlflow/utils/string_utils.py\n@@ -53,9 +53,10 @@ def _create_table(\n     a     b     c\n     d     e     f\n     \"\"\"\n+    columns = list(zip(*rows)) if rows else [()] * len(headers)\n     column_widths = [\n-        max(len(max(col, key=len)), len(header) + 2, min_column_width)\n-        for col, header in zip(zip(*rows), headers)\n+        max(max(map(len, col), default=0), len(header) + 2, min_column_width)\n+        for col, header in zip(columns, headers)\n     ]\n     aligned_rows = [\n         column_sep.join(header.ljust(width) for header, width in zip(headers, column_widths)),\ndiff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py\nindex 5c1b301a5..a4656e7eb 100644\n--- a/tests/cli/test_scorers.py\n+++ b/tests/cli/test_scorers.py\n@@ -146,7 +146,7 @@ def test_list_scorers_json_output(\n @pytest.mark.parametrize(\n     (\"output_format\", \"expected_output\"),\n     [\n-        (\"table\", \"\"),\n+        (\"table\", \"Scorer Name    Description  \\n-------------  -------------\\n\"),\n         (\"json\", {\"scorers\": []}),\n     ],\n )\n@@ -164,8 +164,7 @@ def test_list_scorers_empty_experiment(\n         output_json = json.loads(result.output)\n         assert output_json == expected_output\n     else:\n-        # Empty table produces minimal output\n-        assert result.output.strip() == expected_output\n+        assert result.output == expected_output\n \n \n def test_list_scorers_with_experiment_id_env_var(\ndiff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py\nindex 20c7ac3c6..ca9ba61db 100644\n--- a/tests/utils/test_string_utils.py\n+++ b/tests/utils/test_string_utils.py\n@@ -1,6 +1,7 @@\n import pytest\n \n from mlflow.utils.string_utils import (\n+    _create_table,\n     format_table_cell_value,\n     is_string_type,\n     mslex_quote,\n@@ -9,6 +10,13 @@ from mlflow.utils.string_utils import (\n )\n \n \n+def test_create_table_empty_rows_keeps_headers():\n+    assert _create_table([], [\"Name\", \"ID\"]).splitlines() == [\n+        \"Name    ID  \",\n+        \"------  ----\",\n+    ]\n+\n+\n @pytest.mark.parametrize(\n     ((\"original\", \"prefix\", \"expected\")),\n     [(\"smoketest\", \"smoke\", \"test\"), (\"\", \"test\", \"\"), (\"\", \"\", \"\"), (\"test\", \"\", \"test\")],\n",
+  "distill": null,
+  "cache_read_tokens": 81527,
+  "cache_write_tokens": 7208,
+  "fresh_in_tokens": 10,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "id": "moving-a-skill-file-requires-fixing-its-relative-links-and-t",
+  "title": "Moving a skill file requires fixing its relative links and the .github/instructions pointers together",
+  "kind": "rule",
+  "answers": [
+    "I moved a skill file and links broke",
+    "why do relative links in SKILL.md point to ../../../",
+    "how do I rename the python-style or github-actions-style skill",
+    "what must change when relocating the style guide"
+  ],
+  "body": "Skill files sit two directories deeper than the old .claude/rules files, so relative links must use ../../../ (for example ../../../.github/policy.rego and ../../../dev/clint/) rather than ../../.\nWhen a skill path changes, update the matching .github/instructions/*.instructions.md link in the same change, since Copilot review reads those files for conventions.\nKeep the applyTo scopes in the instructions files unchanged when moving the guidance; the scope lives in the instructions front matter, not in the skill.\nThe skill's name in frontmatter should match its directory name (python-style, github-actions-style).",
+  "applies": "Any move, rename, or link edit to files under .claude/skills/ or .github/instructions/.",
+  "tags": [
+    "claude-skills",
+    "relative-links",
+    "copilot-instructions"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:79d8318ac650c575001a8a89",
+      "missing": false
+    },
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3f9674caeba76179d5820626",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/python.instructions.md",
+      "hash": "sha256:413ede6beeaa5cd4c20557be",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/github-actions.instructions.md",
+      "hash": "sha256:5400069ea2fe0db0bf8a4ba4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26010"
+  },
+  "created": "2026-10-11T08:44:04.611Z",
+  "verified": "2026-10-11T08:44:04.611Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "python-and-github-actions-style-guides-live-in-claude-skills"
+  ],
+  "says": [
+    "Moving our style guidelines broke relative links pointing to repository policies.",
+    "Automated code reviews cannot find coding conventions after moving assistant skill documents.",
+    "Relative links in relocated style guides lead to missing repository files.",
+    "Ensure instruction pointers match the new location when relocating coding guidelines.",
+    "Renaming a coding style guide causes broken documentation links in review settings."
+  ],
+  "search": "Moving or renaming skill files under .claude/skills/ requires updating relative links to use ../../../ instead of ../../ because skills sit two directories deeper than legacy .claude/rules. Any path change to files like .claude/skills/python-style/SKILL.md or .claude/skills/github-actions-style/SKILL.md must be updated together with matching pointers in .github/instructions/python.instructions.md or .github/instructions/github-actions.instructions.md for Copilot reviews. The applyTo scopes in instructions front matter must remain unchanged when moving guidance, and the skill name frontmatter must match its directory name.",
+  "saysFor": "s2:f0e768e555324da23dfd002e255b4503398f071cb066772ee08e6ce2d653af7b"
+}

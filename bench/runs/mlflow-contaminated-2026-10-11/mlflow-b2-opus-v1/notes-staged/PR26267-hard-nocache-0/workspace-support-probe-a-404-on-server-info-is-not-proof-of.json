@@ -1,0 +1,69 @@
+{
+  "id": "workspace-support-probe-a-404-on-server-info-is-not-proof-of",
+  "title": "Workspace support probe: a 404 on server-info is not proof of 'no workspaces'; fall back to server-features",
+  "kind": "rule",
+  "answers": [
+    "workspace support detection falls back to server-features when server-info is 404",
+    "Active workspace cannot be used error against a workspace-aware legacy server",
+    "how does MLflow decide the server supports workspaces when /server-info is missing"
+  ],
+  "body": "Symptom: a user with a workspace-aware legacy MLflow server (or a wrong URI path prefix) gets workspace support treated as off, or sees 'Active workspace ... cannot be used' with no hint about the URI.\nRoot cause: mlflow/store/workspace_rest_store_mixin.py:WorkspaceRestStoreMixin._probe_workspace_support used to return False on any 404 from SERVER_INFO_ENDPOINT and never queried the legacy SERVER_FEATURES_ENDPOINT.\nFix pattern: on a 404 from server-info, query server-features via mlflow/utils/server_info.py:_fetch_server_features. Only if that is also 404 raise INVALID_PARAMETER_VALUE with the 'verify configured MLflow URI and path prefix' guidance.\nConstraints: only an explicit workspaces_enabled=false keeps the FEATURE_DISABLED path. Non-404 errors from either endpoint raise (TEMPORARILY_UNAVAILABLE / INTERNAL_ERROR), not fall back. _fetch_server_features is not cached; only fetch_server_info goes through _SERVER_INFO_CACHE.",
+  "applies": "Workspace capability probing in the REST tracking and model-registry stores; not for non-workspace server-info consumers.",
+  "tags": [
+    "workspace",
+    "rest-store",
+    "server-info",
+    "compatibility"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/workspace_rest_store_mixin.py",
+      "symbol": "WorkspaceRestStoreMixin._probe_workspace_support",
+      "hash": "sha256:214b78dec9c1dbb784149906",
+      "line": 72,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:214b78dec9c1dbb784149906",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/utils/server_info.py",
+      "symbol": "_fetch_server_features",
+      "hash": "sha256:fddba543b3102851dd4eb43f",
+      "line": 118,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fddba543b3102851dd4eb43f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25979"
+  },
+  "created": "2026-10-11T10:29:53.950Z",
+  "verified": "2026-10-11T10:29:53.950Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "capability-endpoints-share-one-fetch-path-in-utils-server-in"
+  ],
+  "says": [
+    "Connecting to our older server displays an error saying the active workspace cannot be used.",
+    "Legacy servers with workspaces enabled are incorrectly detected as not supporting workspace features.",
+    "Workspaces appear disabled when connecting to an older backend deployment.",
+    "Entering an incorrect server URL path prefix shows no hint about checking the address."
+  ],
+  "search": "Workspace capability probing in WorkspaceRestStoreMixin._probe_workspace_support must query server-features via mlflow/utils/server_info.py:_fetch_server_features when SERVER_INFO_ENDPOINT returns a 404, rather than treating workspace support as disabled. If server-features also returns 404, raise INVALID_PARAMETER_VALUE with guidance to verify the configured MLflow URI and path prefix. Only an explicit workspaces_enabled=false triggers the FEATURE_DISABLED path, non-404 errors raise TEMPORARILY_UNAVAILABLE or INTERNAL_ERROR without falling back, and _fetch_server_features is uncached unlike _SERVER_INFO_CACHE. This applies to REST tracking and model-registry stores, but not to non-workspace server-info consumers.",
+  "saysFor": "s2:9b5a70ad5def3a6037b1f8ed012878260c1c88065239ae25e4b8cc50f99b70d9"
+}

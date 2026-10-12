@@ -1,0 +1,56 @@
+{
+  "id": "do-not-list-github-s-default-pull-request-activity-types-in",
+  "title": "Do not list GitHub's default pull_request activity types in workflow triggers",
+  "kind": "rule",
+  "answers": [
+    "workflow runs twice or the trigger types are redundant after my edit",
+    "why does conftest deny types: opened synchronize reopened on pull_request",
+    "how do I declare pull_request types in a GitHub workflow in this repo",
+    "can I write types for pull_request_target that match the defaults"
+  ],
+  "body": "Invariant: a `pull_request` or `pull_request_target` trigger must not declare `types` equal to GitHub's defaults {opened, synchronize, reopened}; omit `types` so GitHub applies them implicitly.\nEnforced by .github/policy.rego:deny_redundant_default_pull_request_types, which compares the set of listed types to `default_pull_request_types` for each of the two events and emits a message naming the trigger.\nThe check is exact set equality: omitted `types`, a subset (e.g. only `opened`), or a superset with extra types such as `labeled` are all allowed and not flagged.\nWhat breaks if skipped: conftest fails the workflow check. Behavior is unchanged either way, since the listed types equal the defaults.\nConstraints: keep `paths`, `paths-ignore` and branch filters when removing `types`; the PR removed only the `types` block from 16 workflows. Adding a non-default type is the way to keep an explicit `types` list.",
+  "applies": "`on:` pull_request and pull_request_target triggers in .github/workflows/*.yml; does not cover other events such as push or issue triggers.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "pull-request",
+    "triggers"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25669"
+  },
+  "created": "2026-10-11T08:48:54.172Z",
+  "verified": "2026-10-11T08:48:54.172Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-workflow-file-must-declare-a-top-level-concurrency-key",
+    "workflow-concurrency-block-placement-and-the-per-run-placeho",
+    "job-level-permissions-shorthand-read-all-write-all-is-denied",
+    "actions-policy-lives-in-one-file-its-line-1-regal-directive"
+  ],
+  "says": [
+    "Continuous integration policy check fails when pull request triggers specify default activity types.",
+    "Why is our automated workflow linting failing on default pull request event configurations?",
+    "Automated pull request checks fail validation because standard trigger events were explicitly listed.",
+    "Omit standard pull request activity types so workflow policy verification passes during builds.",
+    "Prevent policy compliance failures by removing default event triggers from automation workflows."
+  ],
+  "search": "GitHub workflow triggers for pull_request and pull_request_target must omit the types filter if it exactly matches GitHub's default set of opened, synchronize, and reopened. This policy is enforced by conftest via .github/policy.rego:deny_redundant_default_pull_request_types, which flags exact set equality against default_pull_request_types while permitting omitted types, subsets like opened alone, or supersets including non-default types such as labeled. When removing redundant types blocks, existing paths, paths-ignore, and branch filters must be retained. The rule applies specifically to on: pull_request and pull_request_target triggers in .github/workflows/*.yml, without covering push or issue triggers.",
+  "saysFor": "s2:723b49c02048c6a0b9eb0dfe48818516687af25ce341b1191e59cef0290bfec7"
+}

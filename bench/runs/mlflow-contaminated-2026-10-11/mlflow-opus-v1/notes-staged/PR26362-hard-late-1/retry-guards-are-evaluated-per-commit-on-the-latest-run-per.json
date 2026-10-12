@@ -1,0 +1,68 @@
+{
+  "id": "retry-guards-are-evaluated-per-commit-on-the-latest-run-per",
+  "title": "Retry guards are evaluated per commit on the latest run per workflow and event",
+  "kind": "rule",
+  "answers": [
+    "when does the CI retry script refuse to rerun a commit",
+    "how many times are failed workflows retried",
+    "why was a rerun skipped even though it failed once",
+    "retry budget for failed GitHub Actions runs"
+  ],
+  "body": "Invariant: a commit is retried only if every relevant run is COMPLETED, and no failed run has exhausted its budget. Latest run is picked per path/event.\nEnforced in .github/workflows/retry.sh:suites: group_by([resourcePath, event]) then max_by([createdAt, databaseId]). Pending check is `any(.[]; .status != \"COMPLETED\")` in the same file.\nBudget is enforced in retry.sh:runs with `attempt == null or attempt - 1 >= MAX_RETRIES`, which skips the whole commit. MAX_RETRIES is set to 3 in .github/workflows/retry.yml:rerun.\nWhat breaks if skipped: unbounded reruns on flaky workflows, and reruns of runs still in progress. Manual reruns also count, since they increment runAttempt.",
+  "applies": "Any change to how retry.sh selects runs, counts attempts, or decides to skip a commit.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "suites",
+      "hash": "sha256:15eb7d4fbc98cd5f6a123682",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "runs",
+      "hash": "sha256:fe0dbc2a377b9e230fa58700",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T08:43:56.959Z",
+  "verified": "2026-10-11T08:43:56.959Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scheduled-ci-retry-must-ignore-github-managed-dynamic-runs-b",
+    "protect-rerun-is-submitted-last-after-all-other-reruns-finis"
+  ],
+  "says": [
+    "Automated continuous integration rerun does not trigger while other workflow checks are still in progress.",
+    "Pull request checks stopped automatically retrying after failing three consecutive workflow attempts.",
+    "Manually clicking rerun on a failed GitHub Actions job consumed the automated retry budget.",
+    "Only rerun failed workflows once all checks for the commit have completely finished running.",
+    "Failed build commit was not retried because an earlier workflow attempt exceeded maximum retries."
+  ],
+  "search": "Automated CI workflow retry logic in .github/workflows/retry.sh reruns a commit only when every relevant run is COMPLETED and no failed run has exhausted its budget. In .github/workflows/retry.sh:suites, the latest run is selected by grouping on resourcePath and event and picking the maximum createdAt and databaseId, skipping commits if any status is not COMPLETED. In retry.sh:runs, attempt == null or attempt - 1 >= MAX_RETRIES (set to 3 in .github/workflows/retry.yml:rerun) skips the commit, with manual reruns counting against the budget via runAttempt.",
+  "saysFor": "s2:b011d02b2ecf705167b125a0117c0ea6bd1daf802548605f249b336e7f52709d"
+}

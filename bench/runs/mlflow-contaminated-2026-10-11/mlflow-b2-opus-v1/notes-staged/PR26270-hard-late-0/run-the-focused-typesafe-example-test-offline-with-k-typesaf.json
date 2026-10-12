@@ -1,0 +1,61 @@
+{
+  "id": "run-the-focused-typesafe-example-test-offline-with-k-typesaf",
+  "title": "Run the focused TypeSafe example test offline with -k typesafe",
+  "kind": "howto",
+  "answers": [
+    "how do I run the TypeSafe example test",
+    "run typesafe judge example tests without an API key",
+    "pytest typesafe examples uv frozen",
+    "verify TypeSafe judge docs example"
+  ],
+  "body": "Command: `UV_FROZEN=1 uv run pytest -q tests/examples/test_examples.py -k typesafe`.\nThe test sets TYPESAFE_API_KEY with monkeypatch, so no real key is needed.\nIt patches mlflow.genai.judges.typesafe._get_http_response_with_retries and runs examples/typesafe_judges/evaluate.py via runpy, so no network call is made.\nIt expects 4 HTTP calls (2 rows x 2 judges) and checks that each trace carries typesafe.probability and typesafe.probabilities assessment metadata.\nThe test must use the db_uri fixture; a fresh tmp_path SQLite DB makes it slow.",
+  "applies": "Local and CI verification of the TypeSafe judge example and docs.",
+  "tags": [
+    "testing",
+    "typesafe",
+    "examples",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/examples/test_examples.py",
+      "symbol": "test_typesafe_judges_example",
+      "hash": "sha256:5697ce46756f3b4b6208b939",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5697ce46756f3b4b6208b939",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "examples/typesafe_judges/evaluate.py",
+      "hash": "sha256:3b62b620dbad24dbf13deefa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-11T10:27:24.210Z",
+  "verified": "2026-10-11T10:27:24.210Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "example-tests-must-reuse-the-shared-pre-migrated-db-uri-fixt"
+  ],
+  "says": [
+    "Verify the AI judge documentation example locally without requiring an external service key",
+    "Running the automated assessment sample fails when offline or without account credentials configured",
+    "Ensure evaluation traces record expected judge confidence and probability scores during sample execution",
+    "Speed up evaluation example verification by avoiding fresh database creation for each run"
+  ],
+  "search": "Running tests/examples/test_examples.py:test_typesafe_judges_example offline uses UV_FROZEN=1 uv run pytest -q tests/examples/test_examples.py -k typesafe without requiring network access or an API key. The test monkeypatches TYPESAFE_API_KEY, patches mlflow.genai.judges.typesafe._get_http_response_with_retries, and executes examples/typesafe_judges/evaluate.py through runpy. It verifies four HTTP responses across two rows and two judges, asserting that traces record typesafe.probability and typesafe.probabilities assessment metadata. The test must use the db_uri fixture because a fresh tmp_path SQLite database causes slow execution.",
+  "saysFor": "s2:202b08c0f9868e4d0830845a5d1f5d1130224957751e45f570f971eac92576ed"
+}

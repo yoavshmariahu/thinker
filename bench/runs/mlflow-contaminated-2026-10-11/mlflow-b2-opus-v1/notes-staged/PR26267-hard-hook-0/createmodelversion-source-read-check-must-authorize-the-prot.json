@@ -1,0 +1,157 @@
+{
+  "id": "createmodelversion-source-read-check-must-authorize-the-prot",
+  "title": "CreateModelVersion source-read check must authorize the proto-bound runId/modelId, not raw body keys",
+  "kind": "rule",
+  "answers": [
+    "authenticated user reads artifacts of a run they cannot access by creating a model version with runId",
+    "model version create skips the source run permission check when the body uses camelCase keys",
+    "basic-auth lets a registered model version point at a logged model or run without READ on it",
+    "CreateModelVersion camelCase alias bypasses the source READ check"
+  ],
+  "body": "Symptom: a user with no READ on a run or logged model creates a model version from it, using a camelCase body key, and can then read that run's artifacts through their own registered model.\nRoot cause: mlflow/server/auth/__init__.py:validate_can_create_model_version checked raw Flask body keys `run_id` / `model_id`. The handler parses the body through the CreateModelVersion proto, which also binds `runId` / `modelId`, so the READ check was skipped for camelCase-only bodies.\nFix pattern: parse the body with `_get_request_message(CreateModelVersion())`, test presence with `msg.HasField(...)`, and authorize the bound value through `_get_run_permission` / `_get_model_permission` (via the `_can_read_model_version_source` helper). This is the same proto-first approach as validate_can_log_metric and validate_can_log_batch.\nConstraints: HasField keeps the rule that an explicitly empty id is denied, not treated as absent. A non-dict body yields an empty message and falls through to handler validation. Tests should parametrize both the snake_case and camelCase spellings.\nApplies: any basic-auth validator that anchors a new resource to a source run or model from the request body (model version create and similar routes).",
+  "applies": "Authorization validators in mlflow/server/auth/__init__.py that read run_id or model_id from a request body.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "model-registry",
+    "security",
+    "protobuf"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:9eae272ce33b91870100198a",
+      "line": 1415,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9eae272ce33b91870100198a",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:9eae272ce33b91870100198a",
+      "line": 1415,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9eae272ce33b91870100198a",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "run_id",
+      "hash": "sha256:1692f60c080da49deeb0c673",
+      "line": 2257,
+      "missing": false,
+      "fanout": {
+        "files": 186,
+        "sites": 1,
+        "refs": 1988
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_run_permission",
+      "hash": "sha256:76bc5a944abd834fcb9acbea",
+      "line": 947,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:76bc5a944abd834fcb9acbea",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_model_permission",
+      "hash": "sha256:98adb73d298a0ba2fe2ed07b",
+      "line": 969,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:98adb73d298a0ba2fe2ed07b",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_run_permission",
+      "hash": "sha256:76bc5a944abd834fcb9acbea",
+      "line": 947,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:76bc5a944abd834fcb9acbea",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_model_permission",
+      "hash": "sha256:98adb73d298a0ba2fe2ed07b",
+      "line": 969,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:98adb73d298a0ba2fe2ed07b",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_create_model_version_camelcase_alias_requires_read_on_source",
+      "hash": "sha256:a4be043dfc66fbd3d18b5620",
+      "line": 1992,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a4be043dfc66fbd3d18b5620",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25892"
+  },
+  "created": "2026-10-11T10:31:07.189Z",
+  "verified": "2026-10-11T10:31:07.189Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fastapi-response-filters-are-opted-in-by-endpoint-function-n",
+    "model-version-create-denies-a-nonexistent-source-run-model-w",
+    "authorization-validators-must-parse-the-route-s-own-request",
+    "issue-detection-invoke-must-require-use-on-the-gateway-secre"
+  ],
+  "says": [
+    "Unauthorized users can access restricted run artifacts by creating a new registered model version.",
+    "Users without read permissions on an experiment run can link it to registered models.",
+    "Block users from creating model versions from runs they do not have permission to view.",
+    "Creating a model version bypasses read permission checks on the source experiment run.",
+    "Prevent unauthorized artifact access when registering a model version from another user's run."
+  ],
+  "search": "In mlflow/server/auth/__init__.py:validate_can_create_model_version, authorization checks must validate protobuf-bound runId and modelId instead of inspecting raw Flask request body keys. Parsing request bodies with _get_request_message(CreateModelVersion()) and checking msg.HasField(...) prevents authorization bypasses when camelCase keys are submitted without read permissions on the source run or model. Bound identifiers are authorized using _get_run_permission and _get_model_permission via _can_read_model_version_source, ensuring explicitly empty identifiers are denied rather than treated as absent. This applies to basic-auth validators that anchor resources to source runs or models, and tests must cover both snake_case and camelCase forms.",
+  "saysFor": "s2:c1056cb9d5c3406c0f42e1cb1f7dee7afaf4c497f0fcc3ae20ef7973d2d7d58e"
+}

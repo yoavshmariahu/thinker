@@ -1,0 +1,69 @@
+{
+  "id": "the-hosted-mlflow-setup-wizard-connects-and-launches-an-agen",
+  "title": "The hosted MLflow setup wizard connects and launches an agent for tracing only; it does not install skills or write eval code",
+  "kind": "rule",
+  "answers": [
+    "does the MLflow setup wizard install the MLflow skills",
+    "why are regression tests not written after running the setup wizard",
+    "what does curl mlflow.org/wizard/setup.sh do",
+    "where should I link skills installation instructions in onboarding copy"
+  ],
+  "body": "Invariant: onboarding copy must describe the hosted shell wizard (curl -LsSf https://mlflow.org/wizard/setup.sh | sh) as connecting to an MLflow server or Databricks workspace and launching an installed coding agent (Claude Code, Codex, or OpenCode) to add tracing.\nThe wizard does not install MLflow skills and does not write evaluation code. Copy that promises skills or regression-test generation from the wizard is wrong.\nRegression-testing guidance links to the separate skills installation instructions (github.com/mlflow/skills#installation) instead of attributing skills to the wizard. The older `mlflow agent setup` wording ('installs the MLflow skills') was removed from these entry points.\nThe same scoping applies to the AgentActionCard description and to the README callout.",
+  "applies": "Documentation and UI copy for the agent setup entry points in MLflow tracing, quickstart, README, and onboarding.",
+  "tags": [
+    "docs",
+    "onboarding",
+    "skills",
+    "tracing",
+    "agent-setup"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/genai/eval-monitor/regression-testing.mdx",
+      "hash": "sha256:3c3b3538ca9077a780b994a5",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/tracing/quickstart/index.mdx",
+      "hash": "sha256:5b8787df5df4e471cc9aa96c",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-11T10:25:28.361Z",
+  "verified": "2026-10-11T10:25:28.361Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "onboarding-setup-command-is-copied-into-generated-readme-doc",
+    "verify-the-hosted-wizard-installer-url-is-live-before-mergin"
+  ],
+  "says": [
+    "Onboarding card incorrectly states that the setup wizard installs coding agent skills.",
+    "Running the setup script did not generate any regression tests or evaluation code.",
+    "Update quickstart documentation to clarify that the wizard only configures tracing.",
+    "Add links to separate skill installation instructions instead of promising wizard installation.",
+    "Clarify that the hosted setup command only launches coding agents for tracing."
+  ],
+  "search": "Onboarding copy, README callouts, and AgentActionCard must describe the hosted setup wizard as connecting to an MLflow server or Databricks workspace and launching an installed coding agent for tracing only. The wizard does not install MLflow skills and does not write evaluation code, so regression testing guidance must link to github.com/mlflow/skills#installation instead. Applies to agent setup entry points in docs/docs/genai/eval-monitor/regression-testing.mdx, docs/docs/genai/tracing/quickstart/index.mdx, and AgentActionCard.tsx.",
+  "saysFor": "s2:fa2700c8a688e9e7ec4fef238b59708456db36a4533cbdf24083d4129122e474"
+}

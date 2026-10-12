@@ -1,0 +1,67 @@
+{
+  "id": "tests-asserting-the-oss-trace-truncation-limit-must-clear-th",
+  "title": "Tests asserting the OSS trace truncation limit must clear the _get_max_length cache",
+  "kind": "rule",
+  "answers": [
+    "trace truncation test fails with 1021 == 1000 depending on test order",
+    "smart truncation limit wrong after a Databricks tracking URI test runs",
+    "preview length stays 10000 characters in later tests",
+    "flaky trace preview truncation test when run with other files"
+  ],
+  "body": "Symptom: Trace request/response preview is cut at 10,000 characters instead of the OSS 1,000 limit, so truncation assertions fail only when a Databricks-URI test ran earlier in the same session.\nRoot cause: mlflow/tracing/utils/truncation.py:_get_max_length caches whether the active tracking URI uses the OSS or Databricks limit. The test teardown restores the tracking URI but does not reset this cache, so the stale value leaks into later tests.\nFix pattern: In tests that depend on the OSS limit, use a function-scoped fixture that calls `_get_max_length.cache_clear()` before the test and again after it (yield in between), and request that fixture by name. Do not change the production cache to fix test ordering.\nConstraints: Applies to any test in tests/entities/test_trace.py or elsewhere that asserts a truncation length tied to the tracking URI. Not needed for tests that never touch the Databricks path or that do not assert the length.",
+  "applies": "Test code for trace preview/truncation in the tracing area; the production cache behavior stays unchanged.",
+  "tags": [
+    "tracing",
+    "testing",
+    "test-isolation",
+    "truncation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/utils/truncation.py",
+      "symbol": "_get_max_length",
+      "hash": "sha256:80f2b46c9fa013fc0cf100ad",
+      "line": 59,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80f2b46c9fa013fc0cf100ad",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/entities/test_trace.py",
+      "symbol": "clear_truncation_max_length_cache",
+      "hash": "sha256:204282b6649104a5e18ab3e7",
+      "line": 384,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:204282b6649104a5e18ab3e7",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25724"
+  },
+  "created": "2026-10-11T08:48:03.502Z",
+  "verified": "2026-10-11T08:48:03.502Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace request preview displays ten thousand characters instead of one thousand.",
+    "Open source trace preview text exceeds the expected character truncation limit.",
+    "Trace response preview should truncate at one thousand characters."
+  ],
+  "search": "Tests asserting the open-source trace truncation limit must clear the mlflow/tracing/utils/truncation.py:_get_max_length cache via a function-scoped fixture. Because _get_max_length caches whether the tracking URI uses the OSS (1,000) or Databricks (10,000) character limit, running a Databricks-URI test earlier leaks stale truncation limits into later tests. The fixture must call _get_max_length.cache_clear() both before and after the test, without modifying production caching behavior. This applies to tests asserting URI-tied truncation lengths, but not to tests omitting length assertions or Databricks paths.",
+  "saysFor": "s2:80bec6c45eb08bfc8ea06cd61c0267ecb2f668ea4457f4236d36bf96a7f3f5b1"
+}

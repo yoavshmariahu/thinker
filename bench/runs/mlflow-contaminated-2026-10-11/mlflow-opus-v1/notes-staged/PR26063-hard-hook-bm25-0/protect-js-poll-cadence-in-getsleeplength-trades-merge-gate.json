@@ -1,0 +1,57 @@
+{
+  "id": "protect-js-poll-cadence-in-getsleeplength-trades-merge-gate",
+  "title": "protect.js poll cadence in getSleepLength trades merge-gate latency against GitHub API quota",
+  "kind": "rule",
+  "answers": [
+    "How often does protect.js poll checks while waiting for CI?",
+    "Why does the Protect workflow fail early or use a 15 second retry?",
+    "Changing the protect workflow polling interval and rate limit impact"
+  ],
+  "body": "Invariant: getSleepLength(iterationCount, numPendingJobs) is the only place that sets the wait between Protect sweeps. Its first two post-sweep sleeps are 15s regardless of pending job count, then 30s (<=7 pending) or 5 min.\nEnforced by: .github/workflows/protect.js:getSleepLength.\nWhat breaks if skipped: each sweep runs fetchChecks, which can make several paginated GitHub API calls (workflow runs and jobs per run). Shortening early intervals raises API pressure on busy PRs and makes rate-limit exhaustion more likely; lengthening them delays failure detection on an already-completed check.\nConstraints: the 15s early cadence is intended to surface early failures before the 30s/5min backoff. Review flagged rate-limit risk for this tradeoff; any further change to early intervals should be weighed against that cost.",
+  "applies": "Applies to poll timing in .github/workflows/protect.js only; not to other workflow scripts.",
+  "tags": [
+    "build",
+    "github-actions",
+    "protect",
+    "polling",
+    "rate-limit"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "getSleepLength",
+      "hash": "sha256:8cbb87c34baee8bbbd0eabd4",
+      "line": 1,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8cbb87c34baee8bbbd0eabd4",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25656"
+  },
+  "created": "2026-10-11T08:49:18.360Z",
+  "verified": "2026-10-11T08:49:18.360Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-check-log-order-is-derived-from-state-key-order"
+  ],
+  "says": [
+    "The pull request protection workflow hits API rate limits during busy development periods.",
+    "Branch protection checks take several minutes to notice when pending builds have completed.",
+    "Speed up how frequently the merge gate checks for completed or failed test suites.",
+    "Why does the pull request status take five minutes to refresh between checks?",
+    "Detect early build failures faster without exhausting our platform request quota on pull requests."
+  ],
+  "search": "Polling cadence in .github/workflows/protect.js:getSleepLength sets wait intervals between Protect sweeps to 15s for the first two iterations, then 30s (<=7 pending jobs) or 5 minutes. Each sweep calls fetchChecks, performing paginated GitHub API queries for workflow runs and jobs. Shortening early intervals raises API rate-limit risk on busy pull requests, whereas lengthening them delays failure detection. Applies strictly to poll timing in .github/workflows/protect.js.",
+  "saysFor": "s2:aa10faeb57ee3ff85539343f09af559509994bc6b73a89293e527e7e078f8aab"
+}

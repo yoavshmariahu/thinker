@@ -1,0 +1,116 @@
+{
+  "id": "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ",
+  "title": "LogMetric/LogBatch metric routing to a LoggedModel also requires UPDATE on each referenced model_id",
+  "kind": "rule",
+  "answers": [
+    "user with run UPDATE writes metrics onto another user's logged model",
+    "log_metric or log_batch returns 403 for a model_id I do not own",
+    "basic-auth LogMetric LogBatch model_id permission bypass (GHSA-j6gw-m35q-8j63)",
+    "metrics routed to logged model without model permission check"
+  ],
+  "body": "Symptom: a user who can update their own run can write metric records onto any LoggedModel in the instance by passing a per-metric model_id to log-metric or log-batch.\nRoot cause: mlflow/server/auth/__init__.py:validate_can_update_run resolves permission from run_id only, and LogMetric/LogBatch were mapped to it, so model_id was never authorized.\nFix pattern: map LogMetric to validate_can_log_metric and LogBatch to validate_can_log_batch. Each parses its own proto (LogMetric() / LogBatch()), collects the model_ids, and calls _validate_can_update_run_and_models, which requires run UPDATE plus UPDATE on every distinct model_id via _get_model_permission(model_id).\nConstraints: a nonexistent model_id (RESOURCE_DOES_NOT_EXIST) returns a uniform deny, so the response is not an existence oracle; other MlflowExceptions propagate. An empty model_id is treated as absent (truthiness), unlike HasField-based checks. Any new route that writes to a logged model from a body-supplied id needs the same model UPDATE check.\nApplies: basic-auth LogMetric and LogBatch routes (/api/2.0/mlflow/runs/log-metric, /log-batch) and any new endpoint that accepts a logged model_id alongside a run.",
+  "applies": "Basic-auth server; LogMetric and LogBatch validators and any route that routes data onto a LoggedModel by body id.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "tracking",
+    "logged-model",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_metric",
+      "hash": "sha256:43c8b13e1d7cccd82fe297a1",
+      "line": 1254,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:43c8b13e1d7cccd82fe297a1",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_batch",
+      "hash": "sha256:a053f43883fb6b8bda406d67",
+      "line": 1263,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a053f43883fb6b8bda406d67",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_validate_can_update_run_and_models",
+      "hash": "sha256:869a4caf2e232bbc3225f6b4",
+      "line": 1233,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:869a4caf2e232bbc3225f6b4",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_model_permission",
+      "hash": "sha256:98adb73d298a0ba2fe2ed07b",
+      "line": 965,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:98adb73d298a0ba2fe2ed07b",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_run",
+      "hash": "sha256:421a339fb38e27159d8ab027",
+      "line": 1229,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:421a339fb38e27159d8ab027",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25664"
+  },
+  "created": "2026-10-11T08:49:05.466Z",
+  "verified": "2026-10-11T08:49:05.466Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "body-gating-auth-validators-must-authorize-on-the-proto-boun",
+    "createmodelversion-camelcase-runid-modelid-aliases-must-get",
+    "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker",
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p"
+  ],
+  "says": [
+    "Users can attach training metrics to logged models they do not have permission to edit.",
+    "Prevent members from modifying metric history on another team's saved model during runs.",
+    "Logging metrics fails with an access denied error for models without update rights.",
+    "Block unauthorized experiment runs from writing batches of metrics onto protected models."
+  ],
+  "search": "On basic-auth servers, metric routing in LogMetric and LogBatch endpoints requires UPDATE permissions on both the run and every referenced model_id. Handlers map to validate_can_log_metric and validate_can_log_batch, which call _validate_can_update_run_and_models using _get_model_permission across mlflow/server/auth/__init__.py. A nonexistent model_id uniformly returns RESOURCE_DOES_NOT_EXIST to prevent existence oracles, while empty model IDs are treated as absent. This check applies to /api/2.0/mlflow/runs/log-metric, /log-batch, and any endpoint accepting a logged model_id alongside a run.",
+  "saysFor": "s2:53340159101df131832b9d417a2981b3dff8c4de344cd82ab07ab94dd34a761c"
+}

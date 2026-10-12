@@ -1,0 +1,61 @@
+{
+  "id": "chained-workflow-events-need-a-github-app-token-github-token",
+  "title": "Chained workflow events need a GitHub App token; GITHUB_TOKEN-created events do not start other workflows",
+  "kind": "rule",
+  "answers": [
+    "Copilot PR stays draft after review request, Copilot review never starts",
+    "gh pr ready with GITHUB_TOKEN does not trigger the next workflow",
+    "how to chain a workflow that publishes a PR to another workflow listening for ready_for_review",
+    "why does my workflow's PR edit not start the pull_request_target workflow"
+  ],
+  "body": "Symptom: A Copilot coding-agent PR stays a draft after the agent requests review, and the Copilot review request never runs.\nRoot cause: Events created with secrets.GITHUB_TOKEN do not trigger other workflow runs. A `gh pr ready` that uses GITHUB_TOKEN therefore cannot start copilot-review.yml on `ready_for_review`. See .github/workflows/copilot-agent.yml:publish-draft.\nFix pattern: Run the publish in its own workflow. Create a token with actions/create-github-app-token (APP_CLIENT_ID / APP_PRIVATE_KEY), pass it as GH_TOKEN to `gh pr ready`, and let the downstream workflow listen for `ready_for_review`. Alternative when no downstream event is needed: keep the publish step and the review request in one job, so `gh pr ready` and `gh pr edit --add-reviewer @copilot` run in the same invocation (.github/workflows/copilot-review.yml:request-review).\nConstraints: Needed only when the emitted event must start another workflow. The app token needs both permission-contents: write and permission-pull-requests: write, because the in-code comment says markPullRequestReadyForReview rejects pull-requests: write alone (cli/cli#8910). Prefer the app token over widening GITHUB_TOKEN. The same-job alternative fails if the consumer must be a separate workflow that listens for `ready_for_review`.",
+  "applies": "Any step in .github/workflows that must emit an event consumed by another workflow in this repo.",
+  "tags": [
+    "github-actions",
+    "github-token",
+    "copilot",
+    "workflow-chaining"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25534"
+  },
+  "created": "2026-10-11T08:49:42.341Z",
+  "verified": "2026-10-11T08:51:43.218Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-draft-hand-off-copilot-agent-yml-publishes-copilot-r",
+    "copilot-review-workflow-holds-only-pull-requests-write-write"
+  ],
+  "history": [
+    {
+      "at": "2026-10-11T08:51:43.229Z",
+      "reason": "extended by a new session",
+      "prevBody": "Symptom: A Copilot coding-agent PR stays a draft after the agent requests review, and the Copilot review request never runs.\nRoot cause: Events created with secrets.GITHUB_TOKEN do not trigger other workflow runs. A `gh pr ready` that uses GITHUB_TOKEN therefore cannot start copilot-review.yml on `ready_for_review`. See .github/workflows/copilot-agent.yml:publish-draft.\nFix pattern: Run the publish in its own workflow. Create a token with actions/create-github-app-token (APP_CLIENT_ID / APP_PRIVATE_KEY), pass it as GH_TOKEN to `gh pr ready`, and let the downstream workflow listen for `ready_for_review`.\nConstraints: Needed only when the emitted event must start another workflow. The app token needs both permission-contents: write and permission-pull-requests: write, because the in-code comment says markPullRequestReadyForReview rejects pull-requests: write alone (cli/cli#8910). Prefer the app token over widening GITHUB_TOKEN."
+    }
+  ],
+  "says": [
+    "Automated coding agent pull requests remain stuck in draft mode without requesting reviews.",
+    "Subsequent automation workflows never trigger when a pull request is marked ready for review.",
+    "Automated code review pipelines do not run after the agent marks its pull request ready.",
+    "Ensure automated pull request publication successfully initiates downstream code review checks.",
+    "Draft pull requests published by automated jobs fail to launch subsequent review actions."
+  ],
+  "search": "Workflow events generated with secrets.GITHUB_TOKEN do not trigger downstream workflows, requiring a GitHub App token to chain events across workflows. In .github/workflows/copilot-agent.yml:publish-draft, executing gh pr ready with GITHUB_TOKEN prevents .github/workflows/copilot-review.yml from triggering on ready_for_review. To chain workflows, generate a token via actions/create-github-app-token with APP_CLIENT_ID and APP_PRIVATE_KEY, passing it as GH_TOKEN to gh pr ready. The token requires permission-contents: write and permission-pull-requests: write, though combining pr ready and reviewer assignment into one job is an alternative when downstream events are unneeded.",
+  "saysFor": "s2:c4ab16d924c2120f38826af60acbde503742c278717a820cfc7b8e2c4ffe47ba"
+}

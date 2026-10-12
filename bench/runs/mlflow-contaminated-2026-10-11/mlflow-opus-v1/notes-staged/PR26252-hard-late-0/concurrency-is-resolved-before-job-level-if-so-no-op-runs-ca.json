@@ -1,0 +1,50 @@
+{
+  "id": "concurrency-is-resolved-before-job-level-if-so-no-op-runs-ca",
+  "title": "Concurrency is resolved before job-level if, so no-op runs can replace pending runs in a shared group",
+  "kind": "rule",
+  "answers": [
+    "a notification never appears after a second label was added",
+    "a review request was dropped by a later event",
+    "why does a skipped run cancel a useful run",
+    "workflow concurrency applied before the job condition"
+  ],
+  "body": "Symptom: A PR does not get its expected bot action, such as the autoformat guidance comment or the Copilot review request, because a later unrelated event ran first.\nRoot cause: Workflow-level `concurrency` is resolved before the job-level `if`. A run whose job will skip still occupies the group slot, and a pending run in the same group is replaced by it. cancel-in-progress: false protects only the running run.\nFix pattern: Choose the group key so that events sharing it take the same code path. Do not add a compound key such as label name or event action to a shared group; the PR review chose to switch those workflows to `group: ${{ github.run_id }}` instead.\nConstraints: This matters only when the job `if` filters events the group does not, such as label names or review_requested on non-draft PRs. Workflows that use the PR-number group must have no such filtered jobs.",
+  "applies": "Choosing or editing a concurrency group in a workflow whose job-level `if` filters on event details such as action, label name or draft state.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/autoformat-label-notify.yml",
+      "hash": "sha256:bd02874a8ffebac90074f557",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25614"
+  },
+  "created": "2026-10-11T08:50:05.834Z",
+  "verified": "2026-10-11T08:50:05.834Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The pull request did not receive the automated code formatting comment after applying a label.",
+    "Automated Copilot review request never triggered when the pull request was marked ready.",
+    "Adding a second label caused the bot notification comment to be skipped completely.",
+    "Ensure automated pull request bot feedback is posted even when other events occur simultaneously.",
+    "Reviewer bot request dropped when an unrelated change was made to the pull request."
+  ],
+  "search": "Workflow concurrency resolution occurs before job-level if conditions, allowing a pending run in a shared group to be replaced by a run whose job skips. To prevent no-op runs from cancelling pending bot actions like autoformat comments or Copilot review requests, workflows switch to group: ${{ github.run_id }} instead of compound keys containing label names or event actions. This constraint applies when job-level if conditions filter events like label names or review_requested on non-draft PRs, whereas PR-number groups require jobs with no such event filtering. Setting cancel-in-progress: false protects only the active running job, applying to .github/workflows/autoformat-label-notify.yml and .github/workflows/copilot-review.yml.",
+  "saysFor": "s2:b9045b9b20c2995d43d494994be3d6d5be84c44f6048ecb0dbe1e28bcafb5644"
+}

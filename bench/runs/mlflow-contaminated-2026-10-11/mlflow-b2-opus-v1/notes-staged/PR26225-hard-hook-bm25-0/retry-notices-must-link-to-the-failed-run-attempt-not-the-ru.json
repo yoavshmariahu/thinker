@@ -1,0 +1,45 @@
+{
+  "id": "retry-notices-must-link-to-the-failed-run-attempt-not-the-ru",
+  "title": "Retry notices must link to the failed run attempt, not the run's latest attempt",
+  "kind": "rule",
+  "answers": [
+    "retry notice links point to the wrong attempt",
+    "rerun failed jobs notice link goes to latest attempt instead of the failed one",
+    "how do I link a GitHub Actions run attempt in retry.sh notices",
+    "dry-run rerun URL missing attempts segment"
+  ],
+  "body": "Symptom: The \"Rerun failed jobs\" notice (and dry-run output) links to the run's latest attempt, which may not be the failed attempt that triggered the retry.\nRoot cause: .github/workflows/retry.sh:rerun built the URL from the run id only (actions/runs/$1), so the attempt number from the runs JSON was dropped.\nFix pattern: Select .attempt in the jq TSV row (`[.id, .workflow, .attempt]`), read it as a third variable in the `while IFS=$'\\t' read` loop, pass it through every rerun call (including the deferred protect.yml call), and append `/attempts/$3` to both the dry-run line and the ::notice line.\nConstraints: Any new column added to the jq TSV must be matched by an extra variable in the read loop and passed positionally to rerun(); a mismatch silently shifts fields. The protect.yml row is handled separately after `wait`, so it must carry its attempt in protect_attempt too.",
+  "applies": "Applies to .github/workflows/retry.sh rerun handling and the notices it prints; does not cover how gh run rerun selects which attempt to rerun.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26169"
+  },
+  "created": "2026-10-11T10:27:01.177Z",
+  "verified": "2026-10-11T10:27:01.177Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The rerun failed jobs notice links to the latest run instead of the failed attempt",
+    "Clicking the retry notification takes users to the wrong run attempt",
+    "Dry run logs for workflow retries link to the overall run rather than the attempt",
+    "Make the rerun notice link directly to the specific attempt that failed"
+  ],
+  "search": "Rerun handling and notices in .github/workflows/retry.sh must link to the specific failed attempt by selecting .attempt in the jq TSV and appending /attempts/$3 to dry-run and ::notice URLs. The attempt variable must be passed through every rerun call, including protect_attempt for the deferred protect.yml run. Any new column added to the jq TSV must have a corresponding variable in the while read loop to avoid silent field shifting. This guidance applies to notices and rerun handling in .github/workflows/retry.sh, without covering how gh run rerun selects which attempt to rerun.",
+  "saysFor": "s2:36385fe4b39e58981a13e591be7447d5e58b8354a518b4446dfdfba846bf73c0"
+}

@@ -1,0 +1,58 @@
+{
+  "id": "skops-format-sklearn-models-must-be-blocked-by-mlflow-allow",
+  "title": "skops-format sklearn models must be blocked by MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false like pickle",
+  "kind": "rule",
+  "answers": [
+    "skops model loads even though MLFLOW_ALLOW_PICKLE_DESERIALIZATION is false",
+    "sklearn skops format bypasses the pickle deserialization guard",
+    "how do I stop mlflow loading a model that can run arbitrary code when deserialization is disallowed",
+    "skops trusted types allow-list read from MLmodel lets crafted model execute code"
+  ],
+  "body": "Symptom: a user sets MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, follows the error's advice to save the model in skops format, and a crafted sklearn/lightgbm model still executes code on load.\nRoot cause: mlflow/sklearn/__init__.py:_load_model_from_local_file wrapped the deserialization guard in `if serialization_format != SERIALIZATION_FORMAT_SKOPS`, so skops skipped it. skops' `trusted` allow-list comes from the model's own MLmodel, so it cannot be trusted.\nFix pattern: run the MLFLOW_ALLOW_PICKLE_DESERIALIZATION check once, before any per-format branch in _load_model_from_local_file, and do not exempt any serialization format. Reword the raised error so it does not recommend skops as a safe alternative.\nConstraints: default flag is true, so default behavior is unchanged. The is_in_databricks_runtime / is_in_databricks_model_serving_environment carve-outs are pre-existing and shared with pickle/cloudpickle; keep them consistent across formats. Loading from an untrusted source stays unsafe in any format.",
+  "applies": "Any model-loading path in mlflow/sklearn (and flavors that reuse its loader) that reads a serialized artifact; not for save-time behavior.",
+  "tags": [
+    "security",
+    "sklearn",
+    "skops",
+    "deserialization",
+    "pickle"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/sklearn/__init__.py",
+      "symbol": "_load_model_from_local_file",
+      "hash": "sha256:f419815e85d47f8c4c07a8c6",
+      "line": 505,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f419815e85d47f8c4c07a8c6",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25686"
+  },
+  "created": "2026-10-11T08:48:30.974Z",
+  "verified": "2026-10-11T08:48:30.974Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "deserialization-guard-is-a-single-funnel-in-sklearn-loader-t"
+  ],
+  "says": [
+    "Untrusted model files still execute code even when unsafe deserialization is disabled.",
+    "Prevent model loading from running arbitrary code when deserialization protection is turned on.",
+    "Disabling deserialization fails to block untrusted models saved in the alternative format.",
+    "Model loading error message incorrectly recommends an alternative format that remains unsafe.",
+    "Block all unsafe model formats when the setting to disallow deserialization is active."
+  ],
+  "search": "In mlflow/sklearn/__init__.py:_load_model_from_local_file, the MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false security check must execute before any format-specific branching and apply to skops format rather than exempting it. The skops format trusted allow-list comes from the model's MLmodel file and cannot be trusted against arbitrary code execution. The error message must be updated to avoid recommending skops as a safe alternative, while preserving existing Databricks runtime and model serving environment carve-outs. This applies to all model-loading paths in mlflow/sklearn and derivative flavors reading serialized artifacts, leaving the default enabled flag unchanged.",
+  "saysFor": "s2:ffedb868ed1dc9da97ad7606c1057f335fc1b8961968c75bd02c41af51cbc2b7"
+}

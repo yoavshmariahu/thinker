@@ -1,0 +1,113 @@
+{
+  "id": "schema-merge-must-accept-anytype-on-the-right-hand-side-so-i",
+  "title": "Schema _merge must accept AnyType on the right-hand side so infer_signature is order-independent",
+  "kind": "rule",
+  "answers": [
+    "infer_signature fails when a None value appears after a concrete value in a list of dicts",
+    "Expected all values in the list to be of the same type error with None in a list of messages",
+    "logged model loses input validation because the signature fell back to AnyType for chat history with content None",
+    "merge concrete type with AnyType depends on element order in schema inference"
+  ],
+  "body": "Symptom: infer_signature on a list of records (e.g. OpenAI-style chat history) either raises \"Expected all values in the list to be of the same type\" or silently falls back to a generic AnyType schema with no input validation, when a field is None in a later element but not in the first.\nRoot cause: mlflow/types/schema.py:Property._merge, Array._merge and Map._merge only merged when the other side had an identical DataType, so a concrete-vs-AnyType merge succeeded only when AnyType was on the left (AnyType._merge already accepted any concrete type).\nFix pattern: In each of those _merge methods, treat an AnyType on the other side as compatible with a concrete self dtype (e.g. `self.dtype == other.dtype or isinstance(other.dtype, AnyType)`) and return the concrete self type. Keep required as the conjunction of both sides.\nConstraints: Applies only when self holds a concrete DataType. Incompatible concrete types (long vs string) must still raise MlflowException. Covered by tests/types/test_schema.py:test_merge_with_anytype_is_order_independent and test_infer_schema_with_anytype.",
+  "applies": "Schema type merging in mlflow/types/schema.py used by infer_signature and ColSpec/Object/Array/Map inference.",
+  "tags": [
+    "schema",
+    "infer_signature",
+    "merge",
+    "anytype"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Property._merge",
+      "hash": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "line": 262,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Array._merge",
+      "hash": "sha256:dfaeb7e77c436928902eef5a",
+      "line": 552,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfaeb7e77c436928902eef5a",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Map._merge",
+      "hash": "sha256:4bf2335686efb362d82263fd",
+      "line": 666,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4bf2335686efb362d82263fd",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "AnyType._merge",
+      "hash": "sha256:a60ac04c0bf1f935bc2a775d",
+      "line": 715,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a60ac04c0bf1f935bc2a775d",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_merge_with_anytype_is_order_independent",
+      "hash": "sha256:95b14ae3a341c09867be205e",
+      "line": 1444,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:95b14ae3a341c09867be205e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26260"
+  },
+  "created": "2026-10-11T10:26:25.569Z",
+  "verified": "2026-10-11T10:26:25.569Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nested-dataclass-schema-must-enumerate-fields-via-dataclasse",
+    "schema-merge-results-must-not-depend-on-which-side-holds-any"
+  ],
+  "says": [
+    "Inferring model signature fails with type mismatch when missing values appear later in message history.",
+    "Logged chat model loses input validation because sample records have empty fields in subsequent turns.",
+    "Model schema detection should work consistently regardless of where null values appear in sample records.",
+    "Saving conversational models crashes when later entries in chat history contain null message content."
+  ],
+  "search": "Schema merging in mlflow/types/schema.py must accept AnyType on the right-hand side so that infer_signature is order-independent. When merging schemas in Property._merge, Array._merge, and Map._merge, treat a right-hand AnyType as compatible with a concrete self.dtype and return the concrete type while keeping required as the conjunction of both sides. This rule applies when self holds a concrete DataType, whereas incompatible concrete types must still raise an MlflowException.",
+  "saysFor": "s2:b793d7ab603c0365e6cb7178cd54ad82f0801bb97e2d1f0d594ceaa2b39bca1c"
+}

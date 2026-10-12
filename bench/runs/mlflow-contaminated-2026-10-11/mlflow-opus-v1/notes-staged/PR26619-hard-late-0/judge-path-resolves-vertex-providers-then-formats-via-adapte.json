@@ -1,0 +1,91 @@
+{
+  "id": "judge-path-resolves-vertex-providers-then-formats-via-adapte",
+  "title": "Judge path resolves Vertex providers then formats via adapter_class",
+  "kind": "map",
+  "answers": [
+    "How does a judge send a request to a gateway provider",
+    "Where does the judge path pick the provider for vertex_ai",
+    "Which code formats judge requests before posting"
+  ],
+  "body": "Judge requests flow: GatewayAdapter._invoke_and_handle_tools (mlflow/genai/judges/adapters/gateway_adapter.py) resolves the provider with _get_provider_instance(\"vertex_ai\", model_name) (mlflow/metrics/genai/model_utils.py), then calls provider.adapter_class.chat_to_model and posts with send_chat_request.\nSo provider hooks such as _prepare_payload are skipped here; anything the provider needs on the wire must be done in the adapter.\nTests for this seam: tests/gateway/providers/test_vertex_ai.py covers adapter-only formatting and provider resolution via _get_provider_instance.",
+  "applies": "Debugging judge or scorer failures against gateway providers, especially Vertex AI.",
+  "tags": [
+    "judges",
+    "gateway",
+    "vertex-ai",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/judges/adapters/gateway_adapter.py",
+      "symbol": "GatewayAdapter._invoke_and_handle_tools",
+      "hash": "sha256:e27fef0d8bbf7e8eb44a1772",
+      "line": 518,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e27fef0d8bbf7e8eb44a1772",
+      "fanout": {
+        "files": 8,
+        "sites": 13,
+        "refs": 44
+      }
+    },
+    {
+      "path": "mlflow/metrics/genai/model_utils.py",
+      "symbol": "_get_provider_instance",
+      "hash": "sha256:93ea6ee760eb9e0b8edef01e",
+      "line": 319,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:93ea6ee760eb9e0b8edef01e",
+      "fanout": {
+        "files": 18,
+        "sites": 15,
+        "refs": 61
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider.adapter_class",
+      "hash": "sha256:e4cad341771eb064b8318876",
+      "line": 209,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e4cad341771eb064b8318876",
+      "fanout": {
+        "files": 15,
+        "sites": 1,
+        "refs": 67
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "hash": "sha256:171e502088f722a3f8dfcdb5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25556"
+  },
+  "created": "2026-10-11T08:43:39.212Z",
+  "verified": "2026-10-11T08:43:39.212Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "vertex-ai-maas-raw-proxy-must-post-to-the-endpoints-openapi",
+    "vertex-delegates-must-always-drop-client-auth-headers-before"
+  ],
+  "says": [
+    "Automated judge evaluation fails when scoring outputs through the Vertex AI gateway.",
+    "Scorer requests sent to Vertex AI model providers are missing required payload formatting.",
+    "Evaluation benchmarks crash when connecting to generative models hosted on Vertex AI.",
+    "Support proper chat request formatting when running evaluation judges against Vertex AI.",
+    "Model quality judge fails to send chat evaluation prompts to gateway providers."
+  ],
+  "search": "In GenAI judge evaluations, GatewayAdapter._invoke_and_handle_tools resolves providers with _get_provider_instance(\"vertex_ai\", model_name) and formats requests via provider.adapter_class.chat_to_model before posting with send_chat_request. Because provider hooks like _prepare_payload are skipped in this path, all wire-level formatting must be handled inside the adapter. This applies when debugging judge or scorer failures against gateway providers like Vertex AI, with tests in tests/gateway/providers/test_vertex_ai.py.",
+  "saysFor": "s2:ab69c2377d0617b86f85901742d985f24dbd3cc591ab37190bcb252d951c250e"
+}

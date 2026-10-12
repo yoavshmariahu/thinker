@@ -1,0 +1,87 @@
+{
+  "id": "parallel-tests-lose-artifacts-when-a-bare-sqlite-tracking-ur",
+  "title": "Parallel tests lose artifacts when a bare SQLite tracking URI falls back to shared ./mlruns",
+  "kind": "rule",
+  "answers": [
+    "tests fail randomly under pytest-xdist because artifacts disappear",
+    "artifacts from one test worker deleted by another worker",
+    "default experiment artifact location points to ./mlruns in tests",
+    "flaky SQLite tracking store tests with missing artifact files"
+  ],
+  "body": "Symptom: Under parallel (xdist) test runs, a test's logged artifacts vanish or fail to write because another worker's cleanup removed them.\nRoot cause: tests/conftest.py:cached_db used to bake a Default experiment with an artifact location into the cache, and a bare SQLite tracking URI without an explicit artifact root fell back to the repo-root ./mlruns, which the autouse clean-up fixture deletes after each test.\nFix pattern: Keep the session cache schema-only (initialize via _initialize_tables and dispose the engine in finally). In tests/conftest.py:db_uri, insert the Default experiment into each per-test copy with an artifact location under that test's tmp_dir, including timestamps and the default workspace.\nConstraints: Applies to tests that open a SQLite copy through the db_uri fixture. Does not cover tests that pass an explicit artifact root to the store. Do not reintroduce a Default experiment row into cached_db.",
+  "applies": "Test fixtures in tests/conftest.py that build SQLite tracking databases; tracing-only and missing-dependency guards still apply.",
+  "tags": [
+    "tests",
+    "pytest",
+    "xdist",
+    "sqlite",
+    "artifacts",
+    "fixtures"
+  ],
+  "deps": [
+    {
+      "path": "tests/conftest.py",
+      "symbol": "cached_db",
+      "hash": "sha256:3ca091a168cf4ad1113b81a7",
+      "line": 1292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca091a168cf4ad1113b81a7",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "db_uri",
+      "hash": "sha256:2fa2ab2ccfeccaeea50ee964",
+      "line": 1321,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ce4229f3643edf24dc560030",
+      "fanout": {
+        "files": 53,
+        "sites": 0,
+        "refs": 293
+      }
+    },
+    {
+      "path": "mlflow/store/db/utils.py",
+      "symbol": "_initialize_tables",
+      "hash": "sha256:3a599ab34bd6b6a609b95492",
+      "line": 86,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3a599ab34bd6b6a609b95492",
+      "fanout": {
+        "files": 9,
+        "sites": 8,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25753"
+  },
+  "created": "2026-10-11T08:47:54.060Z",
+  "verified": "2026-10-11T08:47:54.060Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t",
+    "store-test-session-cache-lives-only-in-tests-conftest-py-not"
+  ],
+  "says": [
+    "Automated test runs fail intermittently with missing artifact errors when executed in parallel",
+    "Logged experiment outputs randomly disappear during concurrent test suite execution",
+    "Parallel test workers delete shared artifact files created by other running tests",
+    "Ensure each parallel test worker saves logged files to an isolated temporary folder"
+  ],
+  "search": "In tests/conftest.py, SQLite tracking test fixtures must keep the cached_db session cache schema-only and assign Default experiment artifact locations to per-test temporary directories in db_uri. This prevents parallel pytest-xdist workers from falling back to repo-root ./mlruns and deleting logged artifacts during per-test cleanups. Tables are initialized via _initialize_tables with engines disposed in finally blocks, while per-test Default experiment rows include timestamps and default workspaces; this does not cover tests providing an explicit artifact root.",
+  "saysFor": "s2:7f854627814ee2fd2c3df31d2a23c64c1980a589f8d9f9d5315e9868b28e0380"
+}

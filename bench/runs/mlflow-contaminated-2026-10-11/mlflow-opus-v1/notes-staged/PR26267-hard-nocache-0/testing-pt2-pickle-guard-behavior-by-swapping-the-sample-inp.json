@@ -1,0 +1,67 @@
+{
+  "id": "testing-pt2-pickle-guard-behavior-by-swapping-the-sample-inp",
+  "title": "Testing pt2 pickle-guard behavior by swapping the sample-inputs record for a crafted payload",
+  "kind": "howto",
+  "answers": [
+    "how to test pt2 archive pickle rejection",
+    "write a test that a malicious pt2 payload is refused",
+    "test pytorch pt2 model with marker file payload",
+    "replace serialized_example_inputs record in pt2 test"
+  ],
+  "body": "Use _replace_pt2_sample_inputs_record in tests/pytorch/test_pytorch_model_export.py. It saves a payload with torch.save into the archive's sample-inputs record, which torch.export.load unpickles with weights_only=False. Use a payload whose __reduce__ creates a marker file (_FileCreatingPayload), then assert that mlflow.pytorch.load_model and mlflow.pyfunc.load_model both raise with match on the record name and that the marker does not exist.\nFor the allowlist case, register the function with torch.serialization.safe_globals and assert the caller's allowlist is unchanged afterwards.\nGate these tests with skipif below torch 2.10. The helper finds the record by name suffix or the /sample_inputs/ path, since the name depends on the torch version.",
+  "applies": "Tests of pt2 model loading with MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false in tests/pytorch.",
+  "tags": [
+    "testing",
+    "pytorch",
+    "pt2",
+    "pickle"
+  ],
+  "deps": [
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "_replace_pt2_sample_inputs_record",
+      "hash": "sha256:02abade161c7ec05b7b9b9ca",
+      "line": 1168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:02abade161c7ec05b7b9b9ca",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "_FileCreatingPayload",
+      "hash": "sha256:63d19c20b8eb9303f4b55cef",
+      "line": 1158,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:63d19c20b8eb9303f4b55cef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T08:46:42.958Z",
+  "verified": "2026-10-11T08:46:42.958Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Block arbitrary code execution when loading exported PyTorch models with pickle disabled.",
+    "Loading a suspicious PyTorch model archive should be rejected for security.",
+    "Untrusted sample inputs inside a PyTorch model execute code during loading."
+  ],
+  "search": "Testing pt2 pickle-guard behavior under MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false uses _replace_pt2_sample_inputs_record in tests/pytorch/test_pytorch_model_export.py to insert a crafted payload into the archive's sample-inputs record. Using a payload like _FileCreatingPayload, tests assert that mlflow.pytorch.load_model and mlflow.pyfunc.load_model raise matching the record name and that the marker file is not created. For safe-globals testing, register the function with torch.serialization.safe_globals and assert the caller's allowlist is unchanged. Tests must be gated with skipif for PyTorch versions below 2.10.",
+  "saysFor": "s2:daa9dcc77a22097da5cb1cae7ae31815dfec2797e6f601ae3fc8d216a446f6aa"
+}

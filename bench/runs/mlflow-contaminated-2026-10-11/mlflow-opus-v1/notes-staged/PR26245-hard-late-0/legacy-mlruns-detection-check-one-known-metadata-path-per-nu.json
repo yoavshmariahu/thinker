@@ -1,0 +1,96 @@
+{
+  "id": "legacy-mlruns-detection-check-one-known-metadata-path-per-nu",
+  "title": "Legacy mlruns detection: check one known metadata path per numeric experiment, return False on OSError",
+  "kind": "rule",
+  "answers": [
+    "How does MLflow detect existing legacy mlruns data when no tracking URI is set?",
+    "Why does MLflow fall back to the file store or SQLite when mlruns exists?",
+    "Why is the legacy mlruns check slow with many experiment files?",
+    "What counts as legacy experiment metadata in mlruns?"
+  ],
+  "body": "Invariant: `_has_existing_mlruns_data()` must only look at top-level numeric directories in `mlruns` and test the fixed path `<experiment>/meta.yaml` with `os.path.lexists`, not walk experiment contents.\nWhy: the old version ran `iterdir()` over every child of every numeric experiment, which cost O(files) per call. The new version is O(experiments).\nKeep: `lexists` (not `exists`) so a directory or symlink named `meta.yaml` still counts as existing data, matching the prior behavior.\nMissing or unreadable `mlruns` is handled by `os.scandir` raising `OSError` (including `FileNotFoundError`), which must still return `False`; there is no separate `exists()` pre-check anymore.\nIf you change the metadata filename, change `FileStore.META_DATA_FILE_NAME` rather than hard-coding the string.",
+  "applies": "Applies to `mlflow/tracking/_tracking_service/utils.py` backward-compat detection of legacy file-based `mlruns` data. Does not cover the file store's own experiment listing.",
+  "tags": [
+    "tracking",
+    "file-store",
+    "mlruns",
+    "performance",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/_tracking_service/utils.py",
+      "symbol": "_has_existing_mlruns_data",
+      "hash": "sha256:4a929ddf0d4133f84b8cb7de",
+      "line": 32,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a929ddf0d4133f84b8cb7de",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/file_store.py",
+      "symbol": "FileStore",
+      "hash": "sha256:583fa6d673916e8895867370",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:583fa6d673916e8895867370",
+      "fanout": {
+        "files": 50,
+        "sites": 21,
+        "refs": 453
+      }
+    },
+    {
+      "path": "tests/tracking/_tracking_service/test_utils.py",
+      "symbol": "test_has_existing_mlruns_data",
+      "hash": "sha256:9d85d002f872ef2c2893157f",
+      "line": 95,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d85d002f872ef2c2893157f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/file_store.py",
+      "symbol": "FileStore.META_DATA_FILE_NAME",
+      "hash": "sha256:233fbfa8ec1881e18baf1545",
+      "line": 202,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 48
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25726"
+  },
+  "created": "2026-10-11T08:48:02.326Z",
+  "verified": "2026-10-11T08:48:02.326Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Starting the tracking server is extremely slow when many local experiments exist.",
+    "The tracking dashboard hangs on launch while checking for existing local runs.",
+    "Falling back to local file storage takes several minutes on large experiment directories.",
+    "Optimize server startup speed when scanning for previous experiment data on disk.",
+    "Unreadable local experiment folders prevent the tracking server from initializing properly."
+  ],
+  "search": "Legacy data detection in _has_existing_mlruns_data checks only top-level numeric directories in mlruns for <experiment>/meta.yaml using os.path.lexists rather than walking experiment contents. This maintains O(experiments) scaling instead of O(files), while lexists ensures symlinks and directories named meta.yaml still count as existing data. Missing or unreadable directories raising OSError or FileNotFoundError from os.scandir must return False, and any metadata filename changes should update FileStore.META_DATA_FILE_NAME.",
+  "saysFor": "s2:8bda410ff0709178b5d6592aea30b02914fc135f612fbed6ee6584313fc31579"
+}

@@ -1,0 +1,74 @@
+{
+  "id": "component-tests-assert-visible-output-and-mock-hooks-with-th",
+  "title": "Component tests assert visible output and mock hooks with the full return shape",
+  "kind": "rule",
+  "answers": [
+    "how to test a source model link fallback",
+    "enzyme test mock for useGetLoggedModelQuery",
+    "test selects description row by position fails",
+    "test waits on react-query cache internals"
+  ],
+  "body": "Convention from review of this PR: test what the user sees, not library internals.\n- For fetch states, use msw handlers (ctx.delay for loading, ctx.status(404) for error) and wait on visible test IDs such as source-model-link or source-model-id. Do not read `getQueryCache()` state.\n- In ModelVersionView.enzyme.test.tsx, mock the hook with a value typed `ReturnType<typeof useGetLoggedModelQuery>` that includes isLoading, isFetching, error and refetch. Do not cast a partial `{ data }` as any.\n- Pick Descriptions rows by their label text (filterWhere on descriptions-item-label), not by positional .at(n), so inserting a row above does not break the test.\nFiles: mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.test.tsx and ModelVersionView.enzyme.test.tsx.",
+  "applies": "Jest/enzyme and msw tests for model registry version page components.",
+  "tags": [
+    "testing",
+    "jest",
+    "enzyme",
+    "msw",
+    "model-registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx",
+      "symbol": "ModelVersionSourceModelLink",
+      "hash": "sha256:d051c4bb25826067ad8337f3",
+      "line": 7,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d051c4bb25826067ad8337f3",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionView.tsx",
+      "symbol": "ModelVersionViewImpl.renderSourceModelDescription",
+      "hash": "sha256:4ec2a737d215bcd828241e36",
+      "line": 391,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4ec2a737d215bcd828241e36",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-11T08:48:15.786Z",
+  "verified": "2026-10-11T08:48:15.786Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-version-source-uri-shape-decides-which-source-row-rend",
+    "query-backed-model-links-must-show-loading-error-and-missing",
+    "new-link-componentids-and-version-page-strings-must-be-regis"
+  ],
+  "says": [
+    "The model version page does not display the link to the source model.",
+    "The source model link displays an error state when the model cannot be found.",
+    "Add a fallback link when the source model cannot be found or loaded.",
+    "Insert a new metadata row above existing rows on the model version screen.",
+    "Show a loading indicator instead of blank text while fetching source model details."
+  ],
+  "search": "Component tests for model registry version pages must assert visible DOM output and mock hooks with full return types rather than inspecting react-query cache internals or casting partial data. For fetch states, use msw handlers with ctx.delay for loading and ctx.status(404) for error, waiting on visible test IDs such as source-model-link or source-model-id instead of getQueryCache(). In ModelVersionView.enzyme.test.tsx, mock the hook with ReturnType<typeof useGetLoggedModelQuery> containing isLoading, isFetching, error, and refetch, without casting partial data as any. Select Descriptions rows by label text via filterWhere on descriptions-item-label instead of positional .at(n) indexing, applying to ModelVersionSourceModelLink.test.tsx and ModelVersionView.enzyme.test.tsx.",
+  "saysFor": "s2:2b1601214a8802b683faedfbaca2284bbf7bedce9cb69bd50cda1a77a342d386"
+}

@@ -1,0 +1,131 @@
+{
+  "id": "workspace-default-artifact-root-must-be-a-uri-or-an-absolute",
+  "title": "Workspace default_artifact_root must be a URI or an absolute path",
+  "kind": "rule",
+  "answers": [
+    "workspace artifacts logged to my local directory instead of the server",
+    "relative default artifact root rejected when creating a workspace",
+    "create or update workspace default_artifact_root validation",
+    "experiments in a workspace have artifact location with no scheme"
+  ],
+  "body": "Symptom: a workspace saved with a relative default_artifact_root such as 'team-a' is accepted, but experiments in it log artifacts to the client's current directory. The artifact browser stays empty and no error is raised.\nRoot cause: mlflow/server/handlers.py:_validate_workspace_default_artifact_root delegated only to _validate_optional_workspace_storage_location, which checks fragments, runs:/ URIs and length but not scheme or absoluteness. SqlAlchemyWorkspaceStore persists the value and resolve_artifact_root returns it unchanged.\nFix pattern: in the default_artifact_root wrapper, after the shared helper, raise MlflowException.invalid_parameter_value when get_uri_scheme(value) is empty and os.path.isabs(value) is false. The message reads \"Expected a URI (for example 's3://bucket/prefix' or 'mlflow-artifacts:/prefix') or an absolute path\".\nConstraints: None, '' and whitespace keep their current meaning (no override / clear the override). Absolute local paths stay valid, mirroring the server-level --default-artifact-root. Keep the check in the wrapper, not the shared helper, so the trace_archival_config.location error text and experiment artifact_location are unchanged. get_uri_scheme treats single-letter schemes such as 'C:team-a' and 'a:b' as local paths, so those are rejected too.\nApplies: Workspace create and update validation of default_artifact_root in mlflow/server/handlers.py; not experiment-level artifact_location.",
+  "applies": "Workspace create and update validation of default_artifact_root in mlflow/server/handlers.py; does not change experiment-level artifact_location.",
+  "tags": [
+    "workspaces",
+    "artifact-root",
+    "validation",
+    "server-handlers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_workspace_default_artifact_root",
+      "hash": "sha256:2bb5654f556bcbd56b714de7",
+      "line": 1507,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2bb5654f556bcbd56b714de7",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_optional_workspace_storage_location",
+      "hash": "sha256:236bcbec00dfa64af99669e1",
+      "line": 1496,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:236bcbec00dfa64af99669e1",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "get_uri_scheme",
+      "hash": "sha256:8f0b4cfbd208fe9751a66186",
+      "line": 276,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f0b4cfbd208fe9751a66186",
+      "fanout": {
+        "files": 11,
+        "sites": 14,
+        "refs": 26
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_trace_archival_location",
+      "hash": "sha256:66cda454c74733452c69c652",
+      "line": 191,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:66cda454c74733452c69c652",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/store/workspace/sqlalchemy_store.py",
+      "symbol": "default_artifact_root",
+      "hash": "sha256:cf9ffca50501f6edb9877b35",
+      "line": 139,
+      "missing": false,
+      "fanout": {
+        "files": 43,
+        "sites": 0,
+        "refs": 233
+      }
+    },
+    {
+      "path": "mlflow/store/workspace/sqlalchemy_store.py",
+      "symbol": "resolve_artifact_root",
+      "hash": "sha256:a5ad838533f3f8812934b758",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a5ad838533f3f8812934b758",
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25700"
+  },
+  "created": "2026-10-11T08:48:29.540Z",
+  "verified": "2026-10-11T08:48:29.540Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+    "every-serialized-scorer-entry-point-must-run-validate-serial",
+    "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+    "request-bodies-that-spell-one-protobuf-field-both-snake-case"
+  ],
+  "says": [
+    "Experiment artifacts are saved to my local machine instead of the workspace storage.",
+    "The artifact browser stays empty after logging outputs from runs in our workspace.",
+    "Reject relative folder paths when configuring the default storage location for a workspace.",
+    "Require a complete storage destination or full cloud bucket link when creating workspaces."
+  ],
+  "search": "Validation of default_artifact_root during workspace creation and updates in mlflow/server/handlers.py:_validate_workspace_default_artifact_root requires either a URI with a scheme or an absolute path. Saving relative paths causes experiments to log files to the client's current directory leaving the artifact browser empty, so MlflowException.invalid_parameter_value is raised when get_uri_scheme is empty and os.path.isabs is false. The check belongs in the default_artifact_root wrapper rather than _validate_optional_workspace_storage_location to avoid altering experiment-level artifact_location or trace_archival_config.location error messages. Empty strings, None, and whitespace remain valid to represent no override, while single-letter prefixes like C:team-a are treated as relative local paths and rejected.",
+  "saysFor": "s2:b9980b53c8a6bb9f9be3b4dd06e37e667918bec99dcdc66d9bf864dee8e0c8d2",
+  "lastUsed": "2026-10-11T09:35:41.712Z",
+  "servedIn": [
+    "f5784bef-1e29-4bd1-a7aa-bd75eeba0d18"
+  ]
+}

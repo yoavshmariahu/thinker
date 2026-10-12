@@ -1,0 +1,166 @@
+{
+  "id": "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+  "title": "Gateway model listing must be filtered per endpoint by USE permission, not just authenticated",
+  "kind": "rule",
+  "answers": [
+    "users see gateway endpoints they cannot use in the OpenAI models list",
+    "client.models.list() shows endpoints from other workspaces or without USE permission",
+    "how is access to /gateway/mlflow/v1/models restricted when auth is on",
+    "why does the gateway models endpoint return endpoints a user has no USE grant for"
+  ],
+  "body": "Symptom: with MLflow auth enabled, a user who lacks USE permission on a gateway endpoint still sees its name in GET /gateway/mlflow/v1/models (or client.models.list()).\nRoot cause: mlflow/server/gateway_api.py:list_models returns every named endpoint from store.list_gateway_endpoints(); it has no authorization of its own.\nFix pattern: mlflow/server/auth/__init__.py:_get_gateway_validator returns the authentication-only validator for this path, and mlflow/server/auth/__init__.py:_filter_list_gateway_models drops each item whose id fails _validate_gateway_use_permission. The filter is registered in FASTAPI_ENDPOINT_RESPONSE_FILTERS keyed by the imported list_models function.\nConstraints: the per-endpoint check keeps administrator access and workspace isolation, as tested by test_list_models_filters_by_use_permission and test_list_models_isolates_workspaces in tests/server/auth/test_auth.py. The PR accepts O(n) checks because discovery is infrequent. Any new gateway route that lists resources needs the same post-filter, or it leaks.\nApplies: auth-enabled servers (basic-auth) serving gateway listing routes.",
+  "applies": "Any new or edited gateway route that returns a list of endpoints or models under auth.",
+  "tags": [
+    "gateway",
+    "auth",
+    "permissions",
+    "openai-compatible"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 989,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_list_gateway_models",
+      "hash": "sha256:60410ca3d2c81358f6924608",
+      "line": 5935,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:60410ca3d2c81358f6924608",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_list_gateway_models",
+      "hash": "sha256:60410ca3d2c81358f6924608",
+      "line": 5935,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:60410ca3d2c81358f6924608",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_validate_gateway_use_permission",
+      "hash": "sha256:7b5c87ead9efd99c18bf462b",
+      "line": 5434,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7b5c87ead9efd99c18bf462b",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_validate_gateway_use_permission",
+      "hash": "sha256:7b5c87ead9efd99c18bf462b",
+      "line": 5434,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7b5c87ead9efd99c18bf462b",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_list_models_filters_by_use_permission",
+      "hash": "sha256:45cc5030d5acfa5fee3edbd9",
+      "line": 3579,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:45cc5030d5acfa5fee3edbd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_list_models_isolates_workspaces",
+      "hash": "sha256:63b189a734f8af2e9da2835e",
+      "line": 3608,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:63b189a734f8af2e9da2835e"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-11T08:44:30.622Z",
+  "verified": "2026-10-11T08:44:30.622Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-body-supplied-gateway-secret-id-must-be-authorized-thr",
+    "plain-flask-ui-routes-need-an-explicit-authenticated-only-va",
+    "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker",
+    "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ"
+  ],
+  "says": [
+    "Users can see AI gateway endpoints in the model list without permission to use them.",
+    "The available models list displays endpoints belonging to other isolated workspaces.",
+    "Filter out unauthorized gateway models so users only see endpoints they have access to.",
+    "Restricted gateway endpoints are still visible when browsing available models under basic authentication."
+  ],
+  "search": "Gateway model listings under basic-auth must filter endpoints by USE permission to enforce workspace isolation and access control. Because mlflow/server/gateway_api.py:list_models lacks authorization, mlflow/server/auth/__init__.py registers _filter_list_gateway_models in FASTAPI_ENDPOINT_RESPONSE_FILTERS to drop endpoints failing _validate_gateway_use_permission. Authentication is handled by _get_gateway_validator, and any new gateway route listing resources requires the same post-filter to avoid leaks.",
+  "saysFor": "s2:ffcacf311fec0d5fd0eea82c47185a9ecc23eec982ccbba9bbd5f9fe8b92c402"
+}

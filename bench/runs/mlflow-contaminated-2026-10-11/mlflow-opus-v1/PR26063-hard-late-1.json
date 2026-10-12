@@ -1,0 +1,60 @@
+{
+  "id": "PR26063-hard-late-1",
+  "task": "PR26063-hard",
+  "area": "mlflow/tracing",
+  "arm": "late",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "058e2aab-686c-4b80-b78c-767d75f9ef5e",
+  "turns": 10,
+  "wall_ms": 39715,
+  "api_ms": 30548,
+  "cost": 0.1584474,
+  "in_tokens": 177979,
+  "out_tokens": 3314,
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "Bash": 7,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "callsBeforeFirstEdit": 2,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 2,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "an_attributes\n0.01s call     tests/tracing/processor/test_uc_table_processor.py::test_on_end_does_not_set_user_session_attributes_when_missing\n\n(4 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                 | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ---------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/tracing/processor/test_uc_table_processor.py` | 1.09s    | 11    | 0.002s | 0.930s | 0.100s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m11 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.13s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "If adding user and session info to a Unity Catalog trace's root span fails, the span is now still exported, exactly once, and the failure is logged at debug level. All 12 tests in `tests/tracing/processor/test_uc_table_processor.py` pass.\n\n**Code change (`mlflow/tracing/processor/uc_table.py`, `on_end`):** only the call that adds user and session info (`_set_user_session_span_attributes`) is wrapped in `try/except Exception`. On failure it logs \"Failed to set user and session attributes on root span: <error>\" at debug level with the traceback, then carries on to the normal export path. The export call itself is outside the `try`, so the new handling can't hide or downgrade exporter failures.\n\n**One thing that differs from what you might expect:** exporter errors don't reach the caller as exceptions. OpenTelemetry's own span processor already catches them and logs them at ERROR level with the traceback; this was already the case before my change. So \"still surface as errors\" means that ERROR log stays as it is. I first wrote a test expecting an exception, it failed for this reason, and I changed it to check the log instead.\n\n**Tests:**\n- The test that was already staged covers the enrichment failure: the span is exported once and the debug log includes the error and traceback.\n- I added `test_on_end_does_not_hide_exporter_errors`. It checks that an exporter failure is still logged at ERROR level with the original exception, and that it isn't mistaken for an enrichment failure.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/tracing/processor/uc_table.py b/mlflow/tracing/processor/uc_table.py\nindex 7a6e25026..8834987e7 100644\n--- a/mlflow/tracing/processor/uc_table.py\n+++ b/mlflow/tracing/processor/uc_table.py\n@@ -85,7 +85,15 @@ class DatabricksUCTableSpanProcessor(BaseMlflowSpanProcessor):\n \n     def on_end(self, span: OTelReadableSpan) -> None:\n         if span._parent is None:\n-            self._set_user_session_span_attributes(span)\n+            # Enrichment is best-effort: a failure here must not prevent the root span\n+            # from being exported. Exporter errors below are intentionally not caught.\n+            try:\n+                self._set_user_session_span_attributes(span)\n+            except Exception as e:\n+                _logger.debug(\n+                    f\"Failed to set user and session attributes on root span: {e}\",\n+                    exc_info=True,\n+                )\n         super().on_end(span)\n \n     def _set_user_session_span_attributes(self, root_span: OTelReadableSpan) -> None:\ndiff --git a/tests/tracing/processor/test_uc_table_processor.py b/tests/tracing/processor/test_uc_table_processor.py\nindex 8fe41a934..01d9edd5f 100644\n--- a/tests/tracing/processor/test_uc_table_processor.py\n+++ b/tests/tracing/processor/test_uc_table_processor.py\n@@ -132,6 +132,54 @@ def test_on_end():\n     mock_exporter.export.assert_called_once_with((otel_span,))\n \n \n+def test_on_end_exports_root_span_when_user_session_enrichment_fails(caplog):\n+    otel_span = create_mock_otel_span(trace_id=\"trace_id\", span_id=1, parent_id=None)\n+    mock_exporter = mock.MagicMock()\n+    processor = DatabricksUCTableSpanProcessor(span_exporter=mock_exporter)\n+\n+    with mock.patch.object(\n+        processor,\n+        \"_set_user_session_span_attributes\",\n+        side_effect=RuntimeError(\"enrichment failed\"),\n+    ) as mock_set_user_session_span_attributes:\n+        with caplog.at_level(\"DEBUG\", logger=\"mlflow.tracing.processor.uc_table\"):\n+            processor.on_end(otel_span)\n+\n+    mock_set_user_session_span_attributes.assert_called_once_with(otel_span)\n+    mock_exporter.export.assert_called_once_with((otel_span,))\n+    assert any(\n+        record.levelname == \"DEBUG\"\n+        and record.exc_info is not None\n+        and \"Failed to set user and session attributes\" in record.getMessage()\n+        and \"enrichment failed\" in record.getMessage()\n+        for record in caplog.records\n+    )\n+\n+\n+def test_on_end_does_not_hide_exporter_errors(caplog):\n+    otel_span = create_mock_otel_span(trace_id=\"trace_id\", span_id=1, parent_id=None)\n+    mock_exporter = mock.MagicMock()\n+    mock_exporter.export.side_effect = RuntimeError(\"export failed\")\n+    processor = DatabricksUCTableSpanProcessor(span_exporter=mock_exporter)\n+\n+    with caplog.at_level(\"DEBUG\"):\n+        processor.on_end(otel_span)\n+\n+    mock_exporter.export.assert_called_once_with((otel_span,))\n+    # Exporter failures are reported at ERROR level by the OTel span processor rather than\n+    # being downgraded by the best-effort user/session enrichment handling.\n+    assert any(\n+        record.levelname == \"ERROR\"\n+        and record.exc_info is not None\n+        and \"export failed\" in str(record.exc_info[1])\n+        for record in caplog.records\n+    )\n+    assert not any(\n+        \"Failed to set user and session attributes\" in record.getMessage()\n+        for record in caplog.records\n+    )\n+\n+\n def test_on_end_sets_user_session_span_attributes():\n     trace_manager = InMemoryTraceManager.get_instance()\n     with mock.patch.object(trace_manager, \"pop_trace\", return_value=None):\n",
+  "distill": null,
+  "cache_read_tokens": 170717,
+  "cache_write_tokens": 7244,
+  "fresh_in_tokens": 18,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

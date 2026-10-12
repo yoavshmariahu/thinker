@@ -1,0 +1,60 @@
+{
+  "id": "PR26130-hard-hook-0",
+  "task": "PR26130-hard",
+  "area": "mlflow/store",
+  "arm": "hook",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "a2bf113e-c305-49cb-b7af-aa730cff4e0a",
+  "turns": 18,
+  "wall_ms": 116768,
+  "api_ms": 67505,
+  "cost": 0.40039559999999996,
+  "in_tokens": 401801,
+  "out_tokens": 6507,
+  "tools": {
+    "calls": 17,
+    "byTool": {
+      "Bash": 16,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 16,
+    "callsBeforeFirstEdit": 14,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "                                                               | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ----------------------------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py` | 27.12s   | 598   | 0.002s | 3.071s | 0.045s |\n\n::endgroup::\n\n\u001b[33m============================= Resource-heavy tests =============================\u001b[0m\ntests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py::test_search_traces_with_feedback_filters_excludes_invalid_assessments[workspace-enabled]: MEM: +0.6 (7.3 -> 7.9) GB\n\u001b[33m================== \u001b[32m591 passed\u001b[0m, \u001b[33m\u001b[1m7 skipped\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 27.78s\u001b[0m\u001b[33m ==================\u001b[0m\n"
+  },
+  "result": "Searching trace text for non-ASCII terms (accents, CJK, emoji) now finds the matching traces on SQLite, PostgreSQL and MySQL. On SQL Server, span content is still stored escaped. I ran the new test on SQLite only; I didn't run it against PostgreSQL, MySQL or SQL Server.\n\n**Cause:** when `_log_spans_once` in `mlflow/store/tracking/sqlalchemy_store.py` saved a span, it converted the span to JSON with Python's default setting. That default rewrites every non-ASCII character as an escape code, so `\"España\"` was stored as `\"Espa\\u00f1a\"`. A `LIKE`/`ILIKE` search for `%España%` could never match. Span attribute values were already saved with their characters intact, so this outer conversion was the only place escaping happened.\n\n**Fix:** span content is now stored with its original characters (`ensure_ascii=False`), except when the database is SQL Server, where the escaped form is kept so characters don't turn into `?`. Only spans logged from now on are affected; existing rows aren't migrated. Old escaped rows and new ones both load the same way, so inputs and outputs come back unchanged.\n\n**Tests:**\n- **Test helper:** `create_test_span` in `tests/store/tracking/sqlalchemy_store/conftest.py` now serializes attributes with `ensure_ascii=False`, matching what real tracing does. Otherwise the helper would have escaped the text before the store ever saw it.\n- **New test:** `test_search_traces_with_full_text_filter_non_ascii` in `test_sqlalchemy_store_traces.py` logs traces with Spanish, Chinese, English and emoji inputs. It checks that `LIKE` and `ILIKE` searches each return exactly the right trace, and that `get_trace` returns the inputs unchanged. It skips on SQL Server.\n- **Results:** the new test fails without the fix and passes with it. The whole traces test file passes (577 passed, 7 skipped).\n\nYour already-staged change to `tests/tracing/processor/test_uc_table_processor.py` is untouched.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py\nindex cc73e9220..c993363e0 100644\n--- a/mlflow/store/tracking/sqlalchemy_store.py\n+++ b/mlflow/store/tracking/sqlalchemy_store.py\n@@ -5322,6 +5322,11 @@ class SqlAlchemyStore(SqlAlchemyMCPServerRegistryMixin, SqlAlchemyGatewayStoreMi\n \n         all_trace_ids = list(spans_by_trace.keys())\n \n+        # Store non-ASCII characters as-is so that full-text search (LIKE / ILIKE on the span\n+        # content) can match them. MSSQL is the exception: its `Text` column cannot reliably\n+        # store raw non-Latin characters (they'd become \"?\"), so keep the escaped form there.\n+        ensure_ascii = self.db_type == MSSQL\n+\n         # Pre-compute per-trace aggregates outside the DB session (pure Python, no I/O)\n         trace_aggregates: dict[str, _TraceAggregate] = {}\n         all_span_rows = []\n@@ -5370,7 +5375,9 @@ class SqlAlchemyStore(SqlAlchemyMCPServerRegistryMixin, SqlAlchemyGatewayStoreMi\n                     # Get cost for span metrics\n                     span_cost = span_attributes.get(SpanAttributeKey.LLM_COST)\n \n-                content_json = json.dumps(span_dict, cls=TraceJSONEncoder)\n+                content_json = json.dumps(\n+                    span_dict, cls=TraceJSONEncoder, ensure_ascii=ensure_ascii\n+                )\n \n                 # Prepare dimension attributes with model name and provider if available\n                 dimension_attribute_keys = [\ndiff --git a/tests/store/tracking/sqlalchemy_store/conftest.py b/tests/store/tracking/sqlalchemy_store/conftest.py\nindex b6e5c7076..c58c879c4 100644\n--- a/tests/store/tracking/sqlalchemy_store/conftest.py\n+++ b/tests/store/tracking/sqlalchemy_store/conftest.py\n@@ -315,7 +315,10 @@ def create_test_span(\n         attributes={\n             \"mlflow.traceRequestId\": json.dumps(trace_id),\n             \"mlflow.spanType\": json.dumps(span_type, cls=TraceJSONEncoder),\n-            **{k: json.dumps(v, cls=TraceJSONEncoder) for k, v in attributes.items()},\n+            **{\n+                k: json.dumps(v, cls=TraceJSONEncoder, ensure_ascii=False)\n+                for k, v in attributes.items()\n+            },\n         },\n         start_time=start_ns,\n         end_time=end_ns,\ndiff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py\nindex 34c4e1e6d..c1c0b7f92 100644\n--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py\n+++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py\n@@ -686,6 +686,44 @@ def test_search_traces_with_full_text_filter(store: SqlAlchemyStore):\n     assert traces[0].trace_id == trace3_id\n \n \n+def test_search_traces_with_full_text_filter_non_ascii(store: SqlAlchemyStore):\n+    if store.db_type == MSSQL:\n+        pytest.skip(\"MSSQL keeps non-ASCII characters escaped in span content\")\n+\n+    exp_id = store.create_experiment(\"test_non_ascii_text_search\")\n+    inputs = {\n+        \"trace1\": {\"question\": \"¿Cuál es la capital de España?\"},\n+        \"trace2\": {\"question\": \"什么是MLflow?\"},\n+        \"trace3\": {\"question\": \"What is MLflow?\"},\n+        \"trace4\": {\"question\": \"Hello 👋\"},\n+    }\n+    for i, (trace_id, trace_inputs) in enumerate(inputs.items()):\n+        _create_trace(store, trace_id, exp_id)\n+        span = create_test_span(\n+            trace_id,\n+            span_id=111 + i,\n+            attributes={SpanAttributeKey.INPUTS: trace_inputs},\n+        )\n+        store.log_spans(exp_id, [span])\n+\n+    for comparator in [\"LIKE\", \"ILIKE\"]:\n+        for term, expected in [\n+            (\"España\", \"trace1\"),\n+            (\"什么\", \"trace2\"),\n+            (\"What is\", \"trace3\"),\n+            (\"👋\", \"trace4\"),\n+        ]:\n+            traces, _ = store.search_traces(\n+                [exp_id], filter_string=f'trace.text {comparator} \"%{term}%\"'\n+            )\n+            assert [t.trace_id for t in traces] == [expected]\n+\n+    # Inputs round-trip unchanged\n+    for trace_id, trace_inputs in inputs.items():\n+        trace = store.get_trace(trace_id)\n+        assert trace.data.spans[0].inputs == trace_inputs\n+\n+\n def test_search_traces_with_invalid_span_attribute(store: SqlAlchemyStore):\n     exp_id = store.create_experiment(\"test_span_error\")\n \ndiff --git a/tests/tracing/processor/test_uc_table_processor.py b/tests/tracing/processor/test_uc_table_processor.py\nindex 8fe41a934..9942fd9b5 100644\n--- a/tests/tracing/processor/test_uc_table_processor.py\n+++ b/tests/tracing/processor/test_uc_table_processor.py\n@@ -132,6 +132,30 @@ def test_on_end():\n     mock_exporter.export.assert_called_once_with((otel_span,))\n \n \n+def test_on_end_exports_root_span_when_user_session_enrichment_fails(caplog):\n+    otel_span = create_mock_otel_span(trace_id=\"trace_id\", span_id=1, parent_id=None)\n+    mock_exporter = mock.MagicMock()\n+    processor = DatabricksUCTableSpanProcessor(span_exporter=mock_exporter)\n+\n+    with mock.patch.object(\n+        processor,\n+        \"_set_user_session_span_attributes\",\n+        side_effect=RuntimeError(\"enrichment failed\"),\n+    ) as mock_set_user_session_span_attributes:\n+        with caplog.at_level(\"DEBUG\", logger=\"mlflow.tracing.processor.uc_table\"):\n+            processor.on_end(otel_span)\n+\n+    mock_set_user_session_span_attributes.assert_called_once_with(otel_span)\n+    mock_exporter.export.assert_called_once_with((otel_span,))\n+    assert any(\n+        record.levelname == \"DEBUG\"\n+        and record.exc_info is not None\n+        and \"Failed to set user and session attributes\" in record.getMessage()\n+        and \"enrichment failed\" in record.getMessage()\n+        for record in caplog.records\n+    )\n+\n+\n def test_on_end_sets_user_session_span_attributes():\n     trace_manager = InMemoryTraceManager.get_instance()\n     with mock.patch.object(trace_manager, \"pop_trace\", return_value=None):\n",
+  "distill": null,
+  "cache_read_tokens": 377438,
+  "cache_write_tokens": 24329,
+  "fresh_in_tokens": 34,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "download-target-filename-require-path-and-script-name-must-s",
+  "title": "Download target filename, require() path, and script name must stay in sync in workflow YAML",
+  "kind": "rule",
+  "answers": [
+    "github-script cannot find module after download step",
+    "require of downloaded workflow script fails",
+    "which path should I load the fetched js file from",
+    "renaming a workflow bot script breaks the job"
+  ],
+  "body": "Symptom: A workflow bot job fails at its github-script step with a module-not-found error even though the download step succeeded.\nRoot cause: The curl step writes to a file (-o <name>.js) in the workspace root, and the github-script step loads it with require('./<name>.js'). These are two separate strings in the same YAML file and nothing ties them together.\nFix pattern: When renaming or adding a script, change the URL path, the -o filename and the require() argument together in the same job. Reviewers asked that the require use the absolute path ${process.env.GITHUB_WORKSPACE}/<name>.js rather than a relative one, so verify the load path against the workspace before merging.\nConstraints: The reviewer-requested absolute form and the merged relative './' form both appear in this PR; treat the path style as an open convention. The URL path must point at the same file that is downloaded.",
+  "applies": "Any workflow YAML that downloads a .js file and loads it inside actions/github-script.",
+  "tags": [
+    "github-actions",
+    "github-script",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/patch.yml",
+      "hash": "sha256:42b25d290dee00ebdc71c499",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/approval.yml",
+      "hash": "sha256:6e2b36e9fe16d316e1281fa8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "hash": "sha256:70bd55ca7846f6523eb9c924",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25705"
+  },
+  "created": "2026-10-11T08:48:32.354Z",
+  "verified": "2026-10-11T08:48:32.354Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.5,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lightweight-api-workflows-fetch-their-script-with-curl-at-gi",
+    "curl-flags-for-fetching-workflow-scripts-f-bounded-retries-t",
+    "draft-pr-gate-in-workflow-jobs-is-pull-request-draft-false-w"
+  ],
+  "says": [
+    "Automated pull request bot fails with a missing module error during workflow execution.",
+    "Workflow bot crashes because it cannot find the helper script that was downloaded.",
+    "Renaming an automation script causes GitHub pull request bot jobs to fail unexpectedly.",
+    "Make sure automated workflow jobs load downloaded scripts without throwing file not found errors."
+  ],
+  "search": "When downloading and executing JavaScript files within actions/github-script across workflow YAML files, the remote download URL, the curl output filename, and the require() target path must stay synchronized. This applies to workflows such as labeling.yml, patch.yml, approval.yml, and release-note.yml when renaming or adding scripts. The require call can use either relative paths or absolute paths via process.env.GITHUB_WORKSPACE.",
+  "saysFor": "s2:eda380cd0b6ef58b687c21272925a2de5de08d76b25141197b593d4beba46411"
+}

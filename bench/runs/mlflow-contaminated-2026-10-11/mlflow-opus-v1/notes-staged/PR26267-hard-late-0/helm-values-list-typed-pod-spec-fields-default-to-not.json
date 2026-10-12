@@ -1,0 +1,52 @@
+{
+  "id": "helm-values-list-typed-pod-spec-fields-default-to-not",
+  "title": "Helm values: list-typed pod-spec fields default to [] not {}",
+  "kind": "rule",
+  "answers": [
+    "helm lint warning cannot overwrite table with non table",
+    "topologySpreadConstraints helm lint warning map[]",
+    "why does helm lint complain when a values file sets a list field",
+    "default value for a list field in chart values.yaml"
+  ],
+  "body": "Symptom: running helm lint on a values file that sets a list-valued pod field (e.g. topologySpreadConstraints) prints \"warning: cannot overwrite table with non table ... (map[])\".\nRoot cause: charts/values.yaml declared the default as {} (a map), so Helm treats the key as a table and cannot replace it with a list.\nFix pattern: declare list-valued pod spec defaults as [] next to tolerations: [], and guard the template with {{- with .Values.<key> }} in charts/templates/deployment.yaml so the key is omitted when empty.\nConstraints: applies to list fields such as tolerations and topologySpreadConstraints. Map fields like nodeSelector and affinity keep {}. Rendering still works with the wrong type, so only helm lint catches it.",
+  "applies": "Any new list-valued key added to the MLflow Helm chart values and pod template.",
+  "tags": [
+    "helm",
+    "charts",
+    "values",
+    "kubernetes"
+  ],
+  "deps": [
+    {
+      "path": "charts/values.yaml",
+      "hash": "sha256:e74d01e3d2917fabad4d6045",
+      "missing": false
+    },
+    {
+      "path": "charts/templates/deployment.yaml",
+      "hash": "sha256:fa682d80dea8282ec07959a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25778"
+  },
+  "created": "2026-10-11T08:47:40.740Z",
+  "verified": "2026-10-11T08:47:40.740Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "topologyspreadconstraints-labelselector-must-match-the-chart"
+  ],
+  "says": [
+    "Validating deployment settings warns that pod scheduling rules cannot overwrite a table.",
+    "Allow administrators to configure custom pod spreading rules without deployment package warnings.",
+    "Our installation package validation reports type conflicts on custom pod toleration lists.",
+    "Deployment template checks flag warnings when setting list values for pod distribution."
+  ],
+  "search": "In the MLflow Helm chart, list-typed pod-spec fields in charts/values.yaml must default to [] instead of {}. Declaring {} causes helm lint to issue a cannot overwrite table with non table warning when setting list fields such as topologySpreadConstraints or tolerations. Templates in charts/templates/deployment.yaml must wrap the field with {{- with .Values.<key> }} to omit empty keys, whereas map fields like nodeSelector and affinity retain {}. Applies to any new list-valued key added to chart values and pod templates, which only helm lint catches since template rendering still succeeds.",
+  "saysFor": "s2:a105328952092006244928ee59958b7072f98ca071073dd87240cf39e560a72a"
+}

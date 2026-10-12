@@ -1,0 +1,71 @@
+{
+  "id": "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the",
+  "title": "Vertex proxy tests go through VertexAIProvider.proxy, not the delegate",
+  "kind": "rule",
+  "answers": [
+    "where to test Vertex AI proxy behaviour",
+    "test placement for Vertex MaaS raw proxy",
+    "why does the Vertex proxy test call the top-level provider"
+  ],
+  "body": "Convention: Tests for the Vertex raw proxy route call VertexAIProvider.proxy, not the MaaS delegate directly.\nWhy: VertexAIProvider forwards _proxy to its delegates, so going through the top-level provider exercises the full route that the gateway uses.\nThe new MaaS proxy tests (URL for chat/completions, v1/chat/completions, /v1/chat/completions, and streaming with text/event-stream) live in tests/gateway/providers/test_vertex_ai.py.\nConstraints: Stated in the PR description; no reviewer comment backs it.",
+  "applies": "Writing or updating tests for Vertex AI proxy behaviour in tests/gateway/providers/test_vertex_ai.py.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_maas_proxy_streams_when_upstream_sends_event_stream",
+      "hash": "sha256:6a192a742b3fe1005d592d1d",
+      "line": 1060,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a192a742b3fe1005d592d1d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-11T10:32:32.648Z",
+  "verified": "2026-10-11T10:32:32.648Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+    "vertex-ai-claude-passthrough-must-filter-client-anthropic-be",
+    "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the",
+    "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla"
+  ],
+  "says": [
+    "Streaming responses stall when proxying chat completions through the model gateway.",
+    "Chat completions fail when calling proxy endpoints with different URL path prefixes.",
+    "Model gateway should support real time event streaming for chat completion requests.",
+    "Chat completion requests fail to reach upstream providers through the raw proxy."
+  ],
+  "search": "Tests for the Vertex AI raw proxy route must call VertexAIProvider.proxy rather than invoking the MaaS delegate directly. Calling VertexAIProvider in mlflow/gateway/providers/vertex_ai.py forwards _proxy to its delegates, exercising the complete route used by the gateway. In tests/gateway/providers/test_vertex_ai.py, tests cover chat completions URL variants and text/event-stream streaming, as stated in the PR description.",
+  "saysFor": "s2:abfed1fb534b16df2129e3735c3abde8d488feb469cea34a905c0ef2ac2ebb55"
+}

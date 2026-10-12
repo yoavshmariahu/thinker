@@ -1,0 +1,85 @@
+{
+  "id": "register-session-header-aggregates-per-column-via-rendersess",
+  "title": "Register session header aggregates per column via renderSessionCell",
+  "kind": "rule",
+  "answers": [
+    "how to show a summary in the collapsed session header column",
+    "add a session total to a traces table column",
+    "where do session cell renderers get registered",
+    "renderSessionCell column definition"
+  ],
+  "body": "A column that needs a value in the collapsed session header declares renderSessionCell(traces) on its entry in columns.tsx:STANDARD_COLUMNS, next to its per-row cell.\nTracesTable.tsx:TracesTable collects these into sessionCellRenderers keyed by column id and calls each with all child traces of the session; columns without one render blank in the header.\nThe tokens entry is the reference: renderSessionCell: (traces) => <SessionTokensCell traces={traces} />.\nConstraints: The StandardColumnDef type in columns.tsx was widened from ColumnDef to TraceTableColumn so the extra key type-checks; keep the renderer a pure function of the traces array, since the caller decides which traces are passed (see sessionsMayBeIncomplete).",
+  "applies": "Adding or changing per-column aggregates in the shared traces table's grouped-by-session mode.",
+  "tags": [
+    "traces-table",
+    "column-registry",
+    "grouped-sessions"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/columns.tsx",
+      "symbol": "STANDARD_COLUMNS",
+      "hash": "sha256:15eaed6899b701cca1c95958",
+      "line": 63,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:15eaed6899b701cca1c95958",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TracesTable.tsx",
+      "symbol": "TracesTable",
+      "hash": "sha256:a0052e6205de0a5ab67233b1",
+      "line": 318,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a0052e6205de0a5ab67233b1",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TraceCell.tsx",
+      "symbol": "SessionTokensCell",
+      "hash": "sha256:85037667614c54e7b7bbede6",
+      "line": 654,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7d631c69483eb8b5f1cc529f",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25608"
+  },
+  "created": "2026-10-11T08:43:24.885Z",
+  "verified": "2026-10-11T08:43:24.885Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "suppress-session-level-aggregates-when-a-grouped-table-page",
+    "session-token-sums-keep-undefined-when-every-trace-lacks-a-c"
+  ],
+  "says": [
+    "Show total token counts in the collapsed session header within the traces table.",
+    "Columns in grouped session view show blank header cells instead of aggregate summaries.",
+    "Add a summary total for individual columns when grouping traces by session.",
+    "Display session metrics correctly even when session trace lists might be incomplete.",
+    "Allow specific table columns to define custom rollup values for collapsed session rows."
+  ],
+  "search": "To display per-column aggregates in the shared traces table's grouped-by-session mode, define renderSessionCell(traces) on entries in mlflow/server/js/src/shared/web-shared/traces-table/columns.tsx:STANDARD_COLUMNS alongside per-row cells, exemplified by SessionTokensCell in TraceCell.tsx. TracesTable in TracesTable.tsx aggregates these into sessionCellRenderers keyed by column id and evaluates each against all child traces of the session, leaving columns without a renderer blank in the collapsed header. StandardColumnDef was widened from ColumnDef to TraceTableColumn to support the property, and renderers must remain pure functions of the traces array because the caller determines which traces are provided under sessionsMayBeIncomplete.",
+  "saysFor": "s2:7b9c4b030514fbd7d6a5ead64e85699ad95088f707fe2f79a15c7f911c7d350f"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "deserialization-guard-is-a-single-funnel-in-sklearn-loader-t",
+  "title": "Deserialization guard is a single funnel in sklearn loader; test both flag states for each format",
+  "kind": "rule",
+  "answers": [
+    "where is the pickle deserialization check enforced for sklearn models",
+    "add a new serialization format to mlflow sklearn loader",
+    "test that the deserialization flag blocks and allows a model load",
+    "pyfunc load of skops model should respect MLFLOW_ALLOW_PICKLE_DESERIALIZATION"
+  ],
+  "body": "Invariant: every sklearn model load (mlflow.sklearn.load_model and pyfunc.load_model, which both route through the same loader) must pass the MLFLOW_ALLOW_PICKLE_DESERIALIZATION check in mlflow/sklearn/__init__.py:_load_model_from_local_file before any format-specific deserialization. Adding a format or early-return branch above this check reopens the bypass.\nWhat breaks if skipped: a model with an attacker-controlled allow-list or pickle payload executes code on load while the user believes the flag protects them.\nConvention in tests/sklearn/test_sklearn_model_export.py: a guard test should cover both the blocked state (flag 'false', asserting both mlflow.sklearn.load_model and pyfunc.load_model raise) and the allowed state (flag 'true', the same loads succeed), so an inverted condition fails the test.\nConstraints: the Databricks runtime and model-serving carve-outs intentionally skip the check; tests run outside those environments.",
+  "applies": "Changes to sklearn model loading or to new loaders in the same area; does not cover the save path.",
+  "tags": [
+    "security",
+    "sklearn",
+    "testing",
+    "deserialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/sklearn/__init__.py",
+      "symbol": "_load_model_from_local_file",
+      "hash": "sha256:f419815e85d47f8c4c07a8c6",
+      "line": 505,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f419815e85d47f8c4c07a8c6",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_skops_load_honors_pickle_deserialization_flag",
+      "hash": "sha256:dc1112d4455857b27d569e6a",
+      "line": 218,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dc1112d4455857b27d569e6a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25686"
+  },
+  "created": "2026-10-11T08:48:31.282Z",
+  "verified": "2026-10-11T08:48:31.282Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "skops-format-sklearn-models-must-be-blocked-by-mlflow-allow",
+    "python-micro-version-pins-must-move-together-across-setup-py"
+  ],
+  "says": [
+    "Untrusted model loading protection is bypassed when opening certain saved model formats.",
+    "Models still load executable code despite the security setting disabling unsafe deserialization.",
+    "Enforce the unsafe model load block consistently across all model formats.",
+    "Ensure disabling unsafe deserialization strictly blocks loading untrusted model artifacts."
+  ],
+  "search": "Every scikit-learn model load via mlflow.sklearn.load_model and pyfunc.load_model must funnel through the MLFLOW_ALLOW_PICKLE_DESERIALIZATION check in mlflow/sklearn/__init__.py:_load_model_from_local_file before format deserialization. The Databricks runtime and model-serving environments intentionally bypass this check. Tests in tests/sklearn/test_sklearn_model_export.py must verify both the blocked flag state ('false') raising errors and allowed state ('true') succeeding across formats.",
+  "saysFor": "s2:f7c93723d9bd1caf08e6730649f3714e7d3212b07dff93c06ce7a3ec965799e0"
+}

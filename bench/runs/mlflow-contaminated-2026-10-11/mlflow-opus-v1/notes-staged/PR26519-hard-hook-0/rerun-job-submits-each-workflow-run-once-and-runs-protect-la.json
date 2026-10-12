@@ -1,0 +1,74 @@
+{
+  "id": "rerun-job-submits-each-workflow-run-once-and-runs-protect-la",
+  "title": "Rerun job submits each workflow run once and runs protect last",
+  "kind": "rule",
+  "answers": [
+    "approval rerun restarts the same workflow run twice",
+    "protect check fails after maintainer approval even though other jobs were rerun",
+    "why is protect rerun after the other failed jobs in the auto-rerun"
+  ],
+  "body": "Invariant: several failed jobs can belong to one workflow run, so rows are emitted as `<workflow run databaseId> <job name>` and deduped with `sort -u -k1,1` on the run ID before submitting.\nThe `protect` job is held back and rerun only after the other reruns are submitted, because it polls the other checks and fails on the first failure it sees.\nNon-protect reruns are sent in the background (`rerun \"$id\" &`), so a bare `wait` must sit between that loop and `rerun \"$protect_id\"`; removing the `wait` lets protect be submitted before the other reruns have been submitted.\nEnforced in .github/workflows/rerun-workflow-run.yml, in the `rows=$(... | sort -u -k1,1)` pipeline, the `protect_id` loop that submits reruns, and the `wait` before `rerun \"$protect_id\"`.\nWhat breaks if skipped: without -k1,1 a run with two failed jobs is rerun twice; if protect is submitted first, or before `wait`, it can fail on checks that are about to be rerun.\nThe name must stay last in each row because job names can contain spaces (e.g. `python (1)`).",
+  "applies": "Row formatting and submission order in the approval rerun workflow only.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "rerun",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "symbol": "protect_id",
+      "hash": "sha256:00b65b6d20d2800d700737a2",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "symbol": "rows",
+      "hash": "sha256:3d19ae1622882750d3673ac6",
+      "line": 69,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25782"
+  },
+  "created": "2026-10-11T08:43:59.697Z",
+  "verified": "2026-10-11T08:47:44.556Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "guard-a-while-read-over-a-herestring-with-n-when-the-input-m",
+    "approval-gate-for-auto-rerun-is-workflow-run-conclusion-succ",
+    "read-pr-head-sha-from-github-event-workflow-run-head-sha-in"
+  ],
+  "history": [
+    {
+      "at": "2026-10-11T08:47:44.567Z",
+      "reason": "extended by a new session",
+      "prevBody": "Invariant: several failed jobs can belong to one workflow run, so rows are emitted as `<workflow run databaseId> <job name>` and deduped with `sort -u -k1,1` on the run ID before submitting.\nThe `protect` job is held back and rerun only after the other reruns are submitted, because it polls the other checks and fails on the first failure it sees.\nEnforced in .github/workflows/rerun-workflow-run.yml, in the `rows=$(... | sort -u -k1,1)` pipeline and the `protect_id` loop that submits reruns.\nWhat breaks if skipped: without -k1,1 a run with two failed jobs is rerun twice; if protect is submitted first it can fail on checks that are about to be rerun.\nThe name must stay last in each row because job names can contain spaces (e.g. `python (1)`)."
+    }
+  ],
+  "says": [
+    "Approving a rerun triggers duplicate execution of the same workflow run.",
+    "Protection check fails immediately after maintainer approval before rerun jobs finish launching.",
+    "Ensure automated workflow reruns launch once per run instead of repeating.",
+    "Hold back protection verification until all background rerun requests are dispatched."
+  ],
+  "search": "The approval rerun workflow in .github/workflows/rerun-workflow-run.yml must deduplicate workflow run IDs and delay the protect job until all other reruns are submitted. Emitted rows format run IDs before job names to allow deduplication with sort -u -k1,1, preventing multiple reruns for runs with multiple failed jobs. Non-protect jobs run asynchronously in the background, requiring a wait command before submitting rerun $protect_id so protect does not fail against checks queued for rerun. Job names remain last in row formatting to accommodate spaces in job titles.",
+  "saysFor": "s2:6b535c50e619a28d723c67e4cf10f2cd932a520630b953f91804f850b4819ce9"
+}

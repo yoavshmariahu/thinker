@@ -1,0 +1,94 @@
+{
+  "id": "gemini-candidates-can-mix-text-and-functioncall-parts-in-any",
+  "title": "Gemini candidates can mix text and functionCall parts in any order",
+  "kind": "rule",
+  "answers": [
+    "Gemini tool call missing when the response also has text",
+    "AI Gateway Gemini returns 500 KeyError functionCall on mixed response",
+    "text before function call dropped from Gemini chat response",
+    "Gemini streaming tool call lost leading text"
+  ],
+  "body": "Symptom: A Gemini chat response through the AI Gateway drops the tool call, or fails with a 500, when the model answers with text plus a function call in the same candidate. The leading text (e.g. \"Let me look that up.\") is also lost.\nRoot cause: mlflow/gateway/providers/gemini.py:GeminiAdapter.model_to_chat and GeminiAdapter.model_to_chat_streaming only tested parts[0] for functionCall, so a text-first candidate took the text-only path. GeminiAdapter._convert_function_call_to_openai_choice read part[\"functionCall\"] on every part, so a text part raised KeyError.\nFix pattern: Choose the tool-call path with any(part.get(\"functionCall\") for part in parts). In _convert_function_call_to_openai_choice, read text parts into a list, skip parts without functionCall via part.get, and set content=\"\".join(text_parts) or None on both the message and the stream delta.\nConstraints: Text-only candidates must keep the original path. Do not go back to parts[0] or part[\"functionCall\"] indexing on the mixed path. _VertexGeminiAdapter inherits these methods, so the same change covers Vertex AI.\nApplies: Any change to Gemini (or Gemini-shaped, including Vertex) response parsing in the AI Gateway providers, for both chat and streaming.",
+  "applies": "Gemini and Vertex AI response conversion in mlflow/gateway/providers/gemini.py.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "tool-calling",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.model_to_chat",
+      "hash": "sha256:b16b27ff30fbb9f483dbfd65",
+      "line": 384,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b16b27ff30fbb9f483dbfd65",
+      "fanout": {
+        "files": 19,
+        "sites": 24,
+        "refs": 28
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.model_to_chat_streaming",
+      "hash": "sha256:1b1701d96c24016f94be280d",
+      "line": 443,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1b1701d96c24016f94be280d",
+      "fanout": {
+        "files": 10,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter._convert_function_call_to_openai_choice",
+      "hash": "sha256:fca45739f1840d76dbaa5af1",
+      "line": 267,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fca45739f1840d76dbaa5af1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26109"
+  },
+  "created": "2026-10-11T10:27:47.830Z",
+  "verified": "2026-10-11T10:27:47.830Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on",
+    "gemini-parallel-functionresponse-parts-must-share-one-user-t",
+    "gemini-tool-message-content-must-be-coerced-to-a-json-object"
+  ],
+  "says": [
+    "Gemini chat crashes with an error when answering with both text and tools.",
+    "Introductory text is missing when a Gemini model triggers a tool call.",
+    "Tool calls are dropped from the response if the assistant writes text first.",
+    "Streaming chat responses from Gemini lose the explanation before running a tool.",
+    "Preserve both message text and function calls in Gemini and Vertex AI responses."
+  ],
+  "search": "Gemini and Vertex AI response parsing in mlflow/gateway/providers/gemini.py must support candidates mixing text and functionCall parts in any order for chat and streaming. The tool-call path must be chosen using any(part.get('functionCall') for part in parts) in GeminiAdapter.model_to_chat and GeminiAdapter.model_to_chat_streaming rather than inspecting only parts[0]. In GeminiAdapter._convert_function_call_to_openai_choice, text parts are joined into content, skipping parts without functionCall via part.get to avoid KeyError. Text-only candidates must keep the original path, and changes apply to _VertexGeminiAdapter through inheritance.",
+  "saysFor": "s2:5cabdf18e8d392765900f0fb590606d12ccae4a5d3a92825ce9777ab7170bf9e",
+  "lastUsed": "2026-10-11T18:45:55.007Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26270-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26269-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26270-hard-1",
+    "codex-mlflow-b2-astra-v1-PR26269-hard-1"
+  ]
+}

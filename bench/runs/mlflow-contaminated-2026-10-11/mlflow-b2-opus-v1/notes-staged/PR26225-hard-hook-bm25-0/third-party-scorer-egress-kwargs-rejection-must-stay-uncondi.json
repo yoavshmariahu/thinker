@@ -1,0 +1,131 @@
+{
+  "id": "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi",
+  "title": "Third-party scorer egress kwargs rejection must stay unconditional, independent of MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS",
+  "kind": "rule",
+  "answers": [
+    "third-party scorer kwargs api_base SSRF on the server",
+    "judge custom endpoint api_base or base_url rejected with 400 on scorer register or invoke",
+    "completion_kwargs base_url blocked in a trulens scorer payload"
+  ],
+  "body": "Invariant: Third-party scorer kwargs that steer the judge's outbound requests (api_base, base_url, completion_kwargs and similar) are always rejected on register, invoke, stored-scorer reads and genai evaluate, including inside ensemble sub-scorers (any depth) and MemAlign base_judge.\nEnforced by: mlflow/utils/validation.py:_validate_third_party_scorer_data, which walks every third_party_scorer_data via _iter_third_party_scorer_data and finds keys via _find_destination_keys; called from mlflow/server/handlers.py:_validate_serialized_scorer_payload.\nWhat breaks if skipped: Unauthenticated SSRF (GHSA-2wqp-q3c6-ccj5, CWE-918/470) where attacker-controlled api_base or completion_kwargs redirect the server's litellm calls.\nConstraints: Do not wire MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS or any other operator opt-in into this validator. The flag only governs the call_source exec() guard in mlflow/genai/scorers/scorer_utils.py:custom_scorer_execution_blocked. Existing rejection tests in tests/server/test_handlers.py must keep passing unchanged.\nConstraints: kwargs must be a JSON object or null; any other shape is a 400. A list of two-item pairs is also a key carrier because dict() accepts it, so pair lists in nested options are scanned as well.\nApplies: Any change to scorer payload validation or to the server's scorer judge configuration on the handler side.",
+  "applies": "Any change to scorer payload validation or to the server's scorer judge configuration on the handler side.",
+  "tags": [
+    "security",
+    "scorer",
+    "ssrf",
+    "handlers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_third_party_scorer_data",
+      "hash": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "line": 1174,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_iter_third_party_scorer_data",
+      "hash": "sha256:a0c035d554dcf11c443caa34",
+      "line": 1156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a0c035d554dcf11c443caa34",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_find_destination_keys",
+      "hash": "sha256:3714088a6d18c0c4d4353c07",
+      "line": 1138,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3714088a6d18c0c4d4353c07",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "custom_scorer_execution_blocked",
+      "hash": "sha256:158076d82a28d7a4f10e4099",
+      "line": 435,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:158076d82a28d7a4f10e4099",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "hash": "sha256:50ddc98da0d813288b4da9d3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25890"
+  },
+  "created": "2026-10-11T10:29:28.015Z",
+  "verified": "2026-10-11T10:31:26.287Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "server-side-decorator-call-source-scorers-are-blocked-unless",
+    "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the",
+    "trace-ids-input-contract-shared-by-the-three-invoke-handlers",
+    "scorer-signature-with-parentheses-in-defaults-fails-to-reloa"
+  ],
+  "history": [
+    {
+      "at": "2026-10-11T10:31:26.300Z",
+      "reason": "extended by a new session",
+      "prevBody": "Invariant: Third-party scorer kwargs that steer the judge's outbound requests (api_base, completion_kwargs and similar) are always rejected on register, invoke, and stored-scorer reads, including inside ensemble sub-scorers.\nEnforced by: mlflow/server/handlers.py:_validate_third_party_scorer_data, called from _validate_serialized_scorer_payload.\nWhat breaks if skipped: Unauthenticated SSRF (GHSA-2wqp-q3c6-ccj5, CWE-918/470) where attacker-controlled api_base or completion_kwargs redirect the server's litellm calls.\nConstraints: Do not wire MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS or any other operator opt-in into this validator. The flag only governs the call_source exec() guard in mlflow/genai/scorers/scorer_utils.py:custom_scorer_execution_blocked. Existing rejection tests in tests/server/test_handlers.py must keep passing unchanged."
+    }
+  ],
+  "says": [
+    "Registering or invoking a custom scorer with a custom endpoint URL returns a bad request.",
+    "Evaluation runs reject third-party judge parameters that specify outbound service addresses.",
+    "Enabling custom scorers still blocks custom judge base URLs during model evaluation.",
+    "Prevent third-party evaluation metrics from redirecting outbound server calls to arbitrary destinations.",
+    "Custom scorer registration fails when providing endpoint configuration inside nested evaluation judges."
+  ],
+  "search": "Third-party scorer kwargs steering outbound judge requests (such as api_base, base_url, and completion_kwargs) must be unconditionally rejected on registration, invocation, reads, and evaluation to prevent unauthenticated SSRF. Payload validation in mlflow/utils/validation.py scans kwargs at any depth, including ensemble sub-scorers and MemAlign base_judge, and rejects non-object or non-null shapes with a 400 status. This rejection must remain independent of MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS, which only controls the exec() guard in mlflow/genai/scorers/scorer_utils.py.",
+  "saysFor": "s2:f23806b01822a39f8e6b673b95fe368cd86b631363f106c8cd157cdf8fed1722",
+  "lastUsed": "2026-10-11T18:17:57.818Z",
+  "servedIn": [
+    "cb50c2cb-0704-4d58-a2b0-a33dcaba3119"
+  ]
+}

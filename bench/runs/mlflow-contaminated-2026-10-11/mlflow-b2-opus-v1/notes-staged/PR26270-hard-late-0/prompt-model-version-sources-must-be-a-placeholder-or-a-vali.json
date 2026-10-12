@@ -1,0 +1,113 @@
+{
+  "id": "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+  "title": "Prompt model version sources must be a placeholder or a validated remote URI, never a schemeless local path",
+  "kind": "rule",
+  "answers": [
+    "register a prompt with a local path as the model version source",
+    "model version get-artifact serves files from the server filesystem for a prompt",
+    "why does CreateModelVersion reject a relative source for prompt tags",
+    "Windows drive letter source accepted for a registered prompt"
+  ],
+  "body": "Symptom: a prompt registered with a schemeless local path (e.g. \"mlflow\", \"etc/passwd\", \"C:/Windows\") is stored as the model version's artifact location, and the model-version get-artifact endpoint then serves files from the server's local filesystem.\nRoot cause: mlflow/server/handlers.py:_create_model_version prompt branch only rejected file:// and leading-\"/\" sources and ran the traversal check only when urlparse found a scheme; a Windows drive letter parses as scheme \"c\" and took the schemed path with no local rejection.\nFix pattern: send every prompt source through mlflow/server/handlers.py:_validate_prompt_source. Classify with mlflow/utils/uri.py:get_uri_scheme; schemed non-file sources get _validate_non_local_source_contains_relative_paths; schemeless sources must exactly equal a value in mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS, otherwise 400.\nConstraints: do not classify with urlparse (single-letter drive scheme). Do not loosen the allowlist to prefix or case-insensitive matching. Which remote schemes a model version may use is a separate question; this rule only closes the local-path route.",
+  "applies": "Any server-side validation of model version sources when the request is prompt-tagged (mlflow/server/handlers.py).",
+  "tags": [
+    "model-registry",
+    "prompts",
+    "security",
+    "path-validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_prompt_source",
+      "hash": "sha256:96927c193f87ff04d9cce28d",
+      "line": 3150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:96927c193f87ff04d9cce28d",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_create_model_version",
+      "hash": "sha256:92e16071a077643fdce0cab2",
+      "line": 3361,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:92e16071a077643fdce0cab2",
+      "fanout": {
+        "files": 7,
+        "sites": 54,
+        "refs": 72
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_non_local_source_contains_relative_paths",
+      "hash": "sha256:7002fee8f0c5c4be158240dd",
+      "line": 3112,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7002fee8f0c5c4be158240dd",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "get_uri_scheme",
+      "hash": "sha256:8f0b4cfbd208fe9751a66186",
+      "line": 292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f0b4cfbd208fe9751a66186",
+      "fanout": {
+        "files": 12,
+        "sites": 14,
+        "refs": 26
+      }
+    },
+    {
+      "path": "mlflow/prompt/constants.py",
+      "symbol": "_PROMPT_SOURCE_PLACEHOLDERS",
+      "hash": "sha256:06f280c80f4dfdda26fb2acb",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-11T10:31:40.621Z",
+  "verified": "2026-10-11T10:31:40.621Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor",
+    "prompt-code-path-is-selected-only-by-an-effective-is-prompt",
+    "prompt-placeholder-source-strings-are-a-shared-contract-betw",
+    "protobuf-request-parsers-must-reject-bodies-that-spell-one-f"
+  ],
+  "says": [
+    "Downloading prompt artifacts exposes local server files when registered with relative paths.",
+    "Block users from registering prompt model versions using local filesystem locations.",
+    "Prompt artifact downloads should never read or serve internal host operating system files.",
+    "Reject prompt creation requests containing Windows drive letters or relative file paths."
+  ],
+  "search": "Prompt model version sources must be validated to strictly require recognized placeholder strings or validated remote URIs, disallowing schemeless local paths. In mlflow/server/handlers.py:_validate_prompt_source, sources are classified using mlflow/utils/uri.py:get_uri_scheme rather than urlparse to prevent Windows drive letters from bypassing local path checks. Schemed non-file sources require _validate_non_local_source_contains_relative_paths, while schemeless sources must match an exact value in mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS or return status 400.",
+  "saysFor": "s2:1997f076d9324c0cad11f8756e98287519a87a5d18654f78e339ff6e844f8efc"
+}

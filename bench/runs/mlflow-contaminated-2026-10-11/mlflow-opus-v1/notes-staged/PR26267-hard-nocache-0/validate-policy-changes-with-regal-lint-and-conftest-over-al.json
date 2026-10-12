@@ -1,0 +1,45 @@
+{
+  "id": "validate-policy-changes-with-regal-lint-and-conftest-over-al",
+  "title": "Validate policy changes with regal lint and conftest over all workflow and action YAML",
+  "kind": "howto",
+  "answers": [
+    "how do I test changes to the github actions policy",
+    "run conftest against workflow files",
+    "how to lint policy.rego",
+    "verify policy.rego against all workflows"
+  ],
+  "body": "Lint first: `bin/regal lint .github/policy.rego`, then `uv run --only-group lint pre-commit run --files .github/policy.rego` and `git diff --check`.\nRun conftest with the mlflow namespace, since the rules live under it: `bin/conftest test --namespace mlflow --policy .github/policy.rego <files>`.\nTo cover the repo, pass every tracked workflow and composite action YAML (the PR checked 78 files, 3,276 checks); include composite action.yml files, not only .github/workflows, because step-level rules now apply to them.\nThe `--namespace mlflow` flag is required; omitting it evaluates no rules.",
+  "applies": "Editing .github/policy.rego or verifying workflow and action policy compliance.",
+  "tags": [
+    "github-actions",
+    "conftest",
+    "regal",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T08:45:19.108Z",
+  "verified": "2026-10-11T08:45:19.108Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Workflow policy validation fails silently and runs zero checks when omitting the namespace.",
+    "Policy checks only evaluate top-level workflows and miss rules for composite automation steps.",
+    "Verify all repository workflow files and composite actions against the security compliance policy.",
+    "How do I test and lint automation rule changes before publishing the policy?"
+  ],
+  "search": "Policy changes in .github/policy.rego must be validated by running bin/regal lint, pre-commit linting, and bin/conftest test with the required --namespace mlflow flag. Conftest evaluation requires --namespace mlflow because rules live under the mlflow namespace, and omitting it evaluates no rules. To fully cover the repository, tests must run against all tracked workflow files and composite action.yml files where step-level rules now apply. Applies when editing .github/policy.rego or verifying workflow and action policy compliance across the repository.",
+  "saysFor": "s2:9a5e50e21d205205e498564ea320295b090acae5736df502ed8eae2aef44db57"
+}

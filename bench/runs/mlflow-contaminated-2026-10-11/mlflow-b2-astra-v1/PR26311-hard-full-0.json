@@ -1,0 +1,55 @@
+{
+  "session_id": "01a12c66-e359-7b02-a934-62455f4975c9",
+  "turns": 1,
+  "in_tokens": 266617,
+  "cached_tokens": 233728,
+  "out_tokens": 3037,
+  "wall_ms": 94610,
+  "result": "I’ll check the dataset hashing code and add a regression test for ragged lists of dictionaries. I’ll use the repository’s Python style skill for the change.\n\nThere are already staged regression tests for this bug, including hash stability and row boundaries; I’ll preserve them. The failure comes from the array-of-arrays hashing path. I’ll add a recursive fallback that preserves row boundaries and handles missing rows, while keeping the existing path for regular arrays.\n\nThe fallback is in place, and I extended the regression test to cover Python lists as well as NumPy arrays. Pytest is blocked by the local environment: the installed pytest uses Python 3.9, and Python 3.13 has no pytest. I’ll check the hashing helpers in isolation using the installed NumPy and pandas packages.\n\nImplemented recursive hashing for ragged nested arrays, preserving row boundaries and deterministic results. Regular arrays retain their existing hashes. Extended regression coverage to Python lists.\n\nValidation: 8 isolated regression cases passed; 3 regular-array hashes were unchanged. Full targeted pytest execution was blocked by local Python/pytest compatibility. No dependencies were installed.",
+  "tools": {
+    "calls": 12,
+    "byTool": {
+      "command_execution": 9,
+      "mcp_tool_call": 1,
+      "file_change": 2
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "cache": {
+      "injected": [],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 5,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": 3,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26311-hard",
+  "rep": 0,
+  "area": "mlflow/data",
+  "id": "PR26311-hard-full-0",
+  "session": "01a12c66-e359-7b02-a934-62455f4975c9",
+  "cost": 0.714468,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..36a579eb1 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -70,7 +70,10 @@ def _hash_array_of_dict_as_bytes(data):\n \n def _hash_ndarray_as_bytes(nd_array):\n     if not isinstance(nd_array, np.ndarray):\n-        nd_array = np.array(nd_array)\n+        try:\n+            nd_array = np.array(nd_array)\n+        except ValueError:\n+            return _hash_ragged_array_as_bytes(nd_array)\n \n     if _is_array_has_dict(nd_array):\n         return _hash_array_of_dict_as_bytes(nd_array)\n@@ -80,6 +83,18 @@ def _hash_ndarray_as_bytes(nd_array):\n     ) + _hash_uint64_ndarray_as_bytes(np.array(nd_array.shape, dtype=\"uint64\"))\n \n \n+def _hash_ragged_array_as_bytes(data):\n+    result = b\"\"\n+    for value in data:\n+        if isinstance(value, (list, np.ndarray)):\n+            hashed = _hash_ragged_array_as_bytes(value)\n+        else:\n+            hashed = _hash_data_as_bytes(value)\n+        # Preserve boundaries so redistributing the same values across rows changes the hash.\n+        result += struct.pack(\">Q\", len(hashed)) + hashed\n+    return result\n+\n+\n def _hash_data_as_bytes(data):\n     try:\n         if isinstance(data, (list, np.ndarray)):\n@@ -142,15 +157,18 @@ def _hash_array_like_obj_as_bytes(data):\n         # because lists are not hashable\n         hashable = np.array(str(val) for val in data)\n         return _hash_ndarray_as_bytes(hashable)\n-    elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n+    elif isinstance(data, np.ndarray) and any(isinstance(row, np.ndarray) for row in data):\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n-        hashable = np.array(data.tolist())\n+        try:\n+            hashable = np.array(data.tolist())\n+        except ValueError:\n+            return _hash_ragged_array_as_bytes(data)\n         return _hash_ndarray_as_bytes(hashable)\n     elif isinstance(data, np.ndarray):\n         return _hash_ndarray_as_bytes(data)\n     elif isinstance(data, list):\n-        return _hash_ndarray_as_bytes(np.array(data))\n+        return _hash_ndarray_as_bytes(data)\n     else:\n         raise ValueError(\"Unsupported data type.\")\n \ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..1e0d5c8c5 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,10 +1,21 @@\n import numpy as np\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+import mlflow\n+from mlflow.data.evaluation_dataset import (\n+    _hash_array_like_obj_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n+def _ragged_array(rows):\n+    # np.array() can't build an object array of uneven-length arrays directly.\n+    arr = np.empty(len(rows), dtype=object)\n+    arr[:] = [np.array(row) for row in rows]\n+    return arr\n+\n+\n @pytest.mark.parametrize(\"data\", [[[1], [2], [3]], [1, 2, 3]])\n def test_convert_list_data_with_numpy_targets(data):\n     targets = np.array([1, 2, 3])\n@@ -36,3 +47,40 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+@pytest.mark.parametrize(\n+    (\"rows_a\", \"rows_b\"),\n+    [\n+        ([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]], [[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]]),\n+        ([[1, 2], [3]], [[1], [2, 3]]),\n+    ],\n+)\n+@pytest.mark.parametrize(\"array_factory\", [list, _ragged_array])\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays(rows_a, rows_b, array_factory):\n+    hash_a = _hash_array_like_obj_as_bytes(array_factory(rows_a))\n+\n+    assert hash_a == _hash_array_like_obj_as_bytes(array_factory(rows_a))\n+    assert hash_a != _hash_array_like_obj_as_bytes(array_factory(rows_b))\n+\n+\n+@pytest.mark.parametrize(\"missing_idx\", [0, 1])\n+@pytest.mark.parametrize(\"missing\", [None, float(\"nan\")])\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows(\n+    missing, missing_idx\n+):\n+    data = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    data[missing_idx] = missing\n+\n+    assert _hash_array_like_obj_as_bytes(data) == _hash_array_like_obj_as_bytes(data.copy())\n+\n+\n+def test_from_numpy_with_ragged_nested_targets():\n+    features = np.array([[1], [2]])\n+    targets_a = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    targets_b = _ragged_array([[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]])\n+\n+    eval_dataset_a = mlflow.data.from_numpy(features, targets=targets_a).to_evaluation_dataset()\n+    eval_dataset_b = mlflow.data.from_numpy(features, targets=targets_b).to_evaluation_dataset()\n+\n+    assert eval_dataset_a.hash != eval_dataset_b.hash\ndiff --git a/tests/data/test_huggingface_dataset_and_source.py b/tests/data/test_huggingface_dataset_and_source.py\nindex 36bd0cea5..53012b667 100644\n--- a/tests/data/test_huggingface_dataset_and_source.py\n+++ b/tests/data/test_huggingface_dataset_and_source.py\n@@ -275,6 +275,44 @@ def test_to_evaluation_dataset():\n     assert np.array_equal(evaluation_dataset.labels_data, dataset.ds.to_pandas()[\"label\"].values)\n \n \n+def test_to_evaluation_dataset_with_nested_variable_length_arrays():\n+    data = {\n+        \"id\": [\"1\", \"2\"],\n+        \"expected_results\": [\n+            [\n+                {\n+                    \"id\": \"1\",\n+                    \"text\": (\n+                        \"The main idea of the document is to provide an overview of the project.\"\n+                    ),\n+                },\n+                {\n+                    \"id\": \"2\",\n+                    \"text\": (\n+                        \"The expected outcomes of the project were to gain insights and \"\n+                        \"develop a robust solution.\"\n+                    ),\n+                },\n+            ],\n+            [\n+                {\n+                    \"id\": \"3\",\n+                    \"text\": \"Another result.\",\n+                }\n+            ],\n+        ],\n+    }\n+\n+    ds = datasets.Dataset.from_dict(data)\n+    dataset = mlflow.data.from_huggingface(ds, targets=\"expected_results\")\n+\n+    evaluation_dataset = dataset.to_evaluation_dataset()\n+    evaluation_dataset_2 = dataset.to_evaluation_dataset()\n+\n+    assert isinstance(evaluation_dataset, EvaluationDataset)\n+    assert evaluation_dataset.hash == evaluation_dataset_2.hash\n+\n+\n def test_from_huggingface_dataset_with_sample_source():\n     source_uri = \"test:/my/test/uri\"\n     source = SampleDatasetSource._resolve(source_uri)\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "| Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/data/test_huggingface_dataset_and_source.py` | 10.99s   | 13    | 0.006s | 4.453s | 0.845s |\n| 2    | `tests/data/test_evaluation_dataset.py`             | 1.25s    | 12    | 0.003s | 1.207s | 0.104s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6116962304)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=40502, name='python3.12', status='running', started='12:20:01')\n\u001b[33m======================= \u001b[32m25 passed\u001b[0m, \u001b[33m\u001b[1m20 warnings\u001b[0m\u001b[33m in 12.49s\u001b[0m\u001b[33m =======================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 32889,
+  "costBasis": "list price from token classes"
+}

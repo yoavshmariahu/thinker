@@ -1,0 +1,74 @@
+{
+  "id": "do-not-override-chat-streaming-to-model-on-the-vertex-claude",
+  "title": "Do not override chat_streaming_to_model on the Vertex Claude adapter",
+  "kind": "rule",
+  "answers": [
+    "Vertex Claude streaming payload applies anthropic_version twice",
+    "Should _VertexAIClaudeAdapter override chat_streaming_to_model",
+    "Double application of Vertex fields in chat_streaming_to_model"
+  ],
+  "body": "Invariant: _VertexAIClaudeAdapter (mlflow/gateway/providers/vertex_ai.py) must override only chat_to_model, not chat_streaming_to_model.\nEnforced by: AnthropicAdapter.chat_streaming_to_model (mlflow/gateway/providers/anthropic.py) delegates to cls.chat_to_model, so the inherited streaming method already gets the Vertex fields via the override.\nWhat breaks if skipped: a second override applies the transformation twice. The current _apply_vertex_fields is idempotent, so output stays correct, but the redundant pass becomes a bug if the transform ever stops being idempotent (review comment on this PR).\nIf a new Anthropic-family adapter needs streaming-only changes, check first whether the base streaming method already calls chat_to_model.",
+  "applies": "Subclasses of AnthropicAdapter and any adapter overriding chat_to_model/chat_streaming_to_model.",
+  "tags": [
+    "gateway",
+    "adapter",
+    "anthropic",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "AnthropicAdapter.chat_streaming_to_model",
+      "hash": "sha256:afd65b71d4fc0df508898397",
+      "line": 444,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:afd65b71d4fc0df508898397",
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeAdapter.chat_to_model",
+      "hash": "sha256:c0c68ddc45496320be1b3e28",
+      "line": 136,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c0c68ddc45496320be1b3e28",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25556"
+  },
+  "created": "2026-10-11T08:43:38.931Z",
+  "verified": "2026-10-11T08:43:38.931Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta"
+  ],
+  "says": [
+    "Streaming chat requests to Claude on Google Cloud apply parameters twice during execution.",
+    "Why are request payload fields duplicated when streaming chat completions through Vertex AI?",
+    "Claude streaming responses on Vertex AI perform redundant request transformations before forwarding.",
+    "Ensure streaming chat completions for Claude on Vertex AI transform request parameters only once.",
+    "Prevent duplicated provider payload fields when streaming chat interactions through the gateway."
+  ],
+  "search": "The Vertex AI Claude adapter must override only chat_to_model and not chat_streaming_to_model because the base Anthropic adapter delegates streaming calls to chat_to_model. In mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeAdapter, an unnecessary override of chat_streaming_to_model causes transformations from _apply_vertex_fields to execute twice. Although _apply_vertex_fields is currently idempotent, avoiding duplicate execution prevents defects if the transform logic changes in the future. This rule applies to subclasses of AnthropicAdapter in mlflow/gateway/providers/anthropic.py, requiring developers creating Anthropic-family adapters to verify whether base streaming methods delegate to chat_to_model before adding overrides.",
+  "saysFor": "s2:e6bc94ce40d4ef57bee03facd312012afc0582040e474c106f0556df0fe69928",
+  "servedIn": [
+    "6419a48d-de4e-4157-8dbf-6f7b00ac6325"
+  ]
+}

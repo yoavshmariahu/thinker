@@ -1,0 +1,53 @@
+{
+  "id": "repo-wide-filename-independent-pre-commit-hooks-must-set-alw",
+  "title": "Repo-wide, filename-independent pre-commit hooks must set always_run: true and pass_filenames: false",
+  "kind": "rule",
+  "answers": [
+    "unused media check skipped on deletion-only commit",
+    "pre-commit hook not running when I only delete a file",
+    "how do I make a pre-commit hook run on every commit regardless of changed files",
+    "why does dev/find-unused-media.sh not run locally after deleting a doc"
+  ],
+  "body": "Invariant: a hook that checks the whole repo rather than the staged files (`dev/find-unused-media.sh`, hook id `unused-media`) is declared with `always_run: true` and `pass_filenames: false`, plus `require_serial: true`.\nEnforced by: .pre-commit-config.yaml hook `unused-media` (entry dev/find-unused-media.sh, language: system, stages: [pre-commit]).\nWhat breaks if skipped: pre-commit builds its candidate file list from the commit's changed paths, and deleted paths are excluded. Without always_run, a commit that only deletes the last reference to a media file never triggers the hook, so the media is left unused without any error.",
+  "applies": "Any new hook in .pre-commit-config.yaml that does not depend on the filenames it is passed.",
+  "tags": [
+    "pre-commit",
+    "ci",
+    "lint",
+    "media"
+  ],
+  "deps": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:26b4041b502f2c8ce009a05d",
+      "missing": false
+    },
+    {
+      "path": "dev/find-unused-media.sh",
+      "hash": "sha256:063c96ba0ad14df492896eec",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25815"
+  },
+  "created": "2026-10-11T10:32:53.202Z",
+  "verified": "2026-10-11T10:32:53.202Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unused-media-check-runs-through-the-pre-commit-config-not-a"
+  ],
+  "says": [
+    "Unused asset validation fails to run when a commit only deletes documentation.",
+    "Removing file references leaves orphaned media because local commit checks get skipped.",
+    "How do we force repository health checks to run on deletion-only commits?",
+    "Pre-commit checks ignore commits that only delete files instead of modifying them.",
+    "Ensure full repository validation triggers every time code or content is deleted."
+  ],
+  "search": "Repository-wide pre-commit hooks in .pre-commit-config.yaml that do not depend on passed filenames must specify always_run: true, pass_filenames: false, and require_serial: true. Applies to any filename-independent hook, such as unused-media running dev/find-unused-media.sh during the pre-commit stage. Because pre-commit excludes deleted paths from candidate lists, omitting always_run skips the hook on deletion-only commits and allows unused media to persist undetected.",
+  "saysFor": "s2:b9a5b92b9fbee0bfc38199d76d22ace5f38e232cd0a78007c94d378c08f48d43"
+}

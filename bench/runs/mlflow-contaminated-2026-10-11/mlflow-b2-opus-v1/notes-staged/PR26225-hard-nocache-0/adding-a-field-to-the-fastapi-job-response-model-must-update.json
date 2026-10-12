@@ -1,0 +1,79 @@
+{
+  "id": "adding-a-field-to-the-fastapi-job-response-model-must-update",
+  "title": "Adding a field to the FastAPI Job response model must update exact-dict job assertions",
+  "kind": "rule",
+  "answers": [
+    "job endpoint tests fail after adding a new field to the job response",
+    "test_job_submit exact dictionary mismatch",
+    "add a field to the jobs REST response",
+    "job wire shape changed tests"
+  ],
+  "body": "Convention: mlflow/server/job_api.py:Job is serialized verbatim by the FastAPI jobs routes, and tests/server/jobs/test_endpoint.py:test_job_submit and test_job_cancel compare the whole response dict.\nWhen a field is added to Job (for example creator), add it to both expected dicts with its value for creator-less jobs (creator: None) rather than dropping it from the comparison.\nNullable fields still serialize as None, as the existing status_details: None entries show.",
+  "applies": "Changes to the mlflow/server/job_api.py Job response model and the jobs endpoint tests in tests/server/jobs/.",
+  "tags": [
+    "jobs",
+    "tests",
+    "api-response",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "Job",
+      "hash": "sha256:db4b0dc5a1b9248a818b511a",
+      "line": 39,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:db4b0dc5a1b9248a818b511a"
+    },
+    {
+      "path": "tests/server/jobs/test_endpoint.py",
+      "symbol": "test_job_submit",
+      "hash": "sha256:7041f5ccb7626535b8f9e3ad",
+      "line": 162,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7041f5ccb7626535b8f9e3ad",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/jobs/test_endpoint.py",
+      "symbol": "test_job_cancel",
+      "hash": "sha256:116d99c87753c9886698f3fb",
+      "line": 188,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:116d99c87753c9886698f3fb",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T10:31:04.568Z",
+  "verified": "2026-10-11T10:31:04.568Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "job-search-under-basic-auth-must-be-narrowed-to-the-caller-s"
+  ],
+  "says": [
+    "Include creator information in the response returned when submitting or canceling jobs.",
+    "Show who initiated each background job in the job status details.",
+    "Add new metadata fields to the background job management response.",
+    "Display the job author in the execution status summary."
+  ],
+  "search": "Adding a field to the FastAPI Job response model in mlflow/server/job_api.py requires updating exact-dict assertions in tests/server/jobs/test_endpoint.py:test_job_submit and test_job_cancel. Because Job is serialized verbatim and nullable fields serialize as None (such as status_details: None), new fields like creator must be added to expected test dictionaries with None values rather than dropped from comparisons.",
+  "saysFor": "s2:512408c4b59862f65509a1a73b5f8bc399592bbe510dd77185c0531447b7fe4b"
+}

@@ -1,0 +1,73 @@
+{
+  "id": "invoke-handler-tests-must-stub-batch-get-trace-infos-for-the",
+  "title": "Invoke-handler tests must stub batch_get_trace_infos for the trace-binding lookup",
+  "kind": "rule",
+  "answers": [
+    "scorer invoke tests fail after adding trace ownership check",
+    "mock tracking store trace lookup in invoke handler tests",
+    "why does test_invoke_scorer_submits_jobs return wrong trace experiment",
+    "how to test scorer invoke with trace_ids"
+  ],
+  "body": "Convention: _invoke_scorer_handler now calls tracking_store.batch_get_trace_infos before submitting a job, so every invoke test that reaches submission must stub it.\nSet mock_tracking_store.batch_get_trace_infos.return_value to TraceInfo objects whose trace_location is EntityTraceLocation.from_experiment_id(<the request experiment_id>); otherwise the mock returns a MagicMock and the binding check behaves unpredictably.\nAssert the lookup with assert_called_once_with on the de-duplicated trace id list, and assert the forwarded experiment via mock_submit.call_args.kwargs[\"params\"][\"experiment_id\"].\nFor foreign-trace cases, use a trace from another experiment and assert status 403 and the generic message without the victim experiment id.",
+  "applies": "Tests under tests/server/test_handlers.py that exercise /ajax-api/3.0/mlflow/scorer/invoke or sibling invoke handlers with trace_ids.",
+  "tags": [
+    "tests",
+    "invoke",
+    "scorer",
+    "mocking"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/test_handlers.py",
+      "symbol": "test_invoke_scorer_submits_jobs",
+      "hash": "sha256:e162f6e2ac0a6b442a5906f8",
+      "line": 5545,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e162f6e2ac0a6b442a5906f8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25721"
+  },
+  "created": "2026-10-11T08:42:41.731Z",
+  "verified": "2026-10-11T08:42:41.731Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "the-three-invoke-handlers-share-one-trace-ids-input-contract",
+    "trace-experiment-binding-lookup-must-be-unscoped-generic-on",
+    "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+    "every-serialized-scorer-entry-point-must-run-validate-serial"
+  ],
+  "says": [
+    "Automated tests for scoring evaluation traces are failing after adding trace ownership checks.",
+    "Scorer execution test cases fail unexpectedly during background job submission validation.",
+    "Trace evaluation tests are breaking because mock experiment lookups return unexpected values.",
+    "Ensure trace scoring tests verify that unauthorized traces from other experiments are forbidden."
+  ],
+  "search": "Invoke-handler tests under tests/server/test_handlers.py exercising /ajax-api/3.0/mlflow/scorer/invoke or sibling endpoints with trace_ids must stub batch_get_trace_infos. Because _invoke_scorer_handler calls tracking_store.batch_get_trace_infos prior to job submission, mock_tracking_store.batch_get_trace_infos.return_value must be set to TraceInfo objects with EntityTraceLocation matching the request experiment_id. Tests must assert deduplicated trace lookup calls via assert_called_once_with and verify forwarded experiment IDs in mock_submit.call_args.kwargs['params']['experiment_id']. Foreign-trace test cases must supply a trace from a different experiment and assert HTTP 403 with a generic error message omitting the foreign experiment ID.",
+  "saysFor": "s2:6624664e59978523ab9a5245d731ff141bc40281d07c07b8a6a46080a60d0631"
+}

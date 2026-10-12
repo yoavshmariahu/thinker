@@ -1,0 +1,58 @@
+{
+  "id": "lightweight-api-workflows-fetch-their-script-with-curl-at-gi",
+  "title": "Lightweight API workflows fetch their script with curl at GITHUB_SHA instead of actions/checkout",
+  "kind": "rule",
+  "answers": [
+    "why does the approval workflow spend seconds on actions/checkout before the bot runs",
+    "replace sparse actions/checkout with curl to fetch a single workflow script",
+    "fetch one .js file from the repo at the event commit in a GitHub Actions workflow"
+  ],
+  "body": "Symptom: Label, PR-size, patch, advice, team-review, release-note and approval-gate bot jobs spend noticeable time and occasionally stall before the bot logic runs.\nRoot cause: .github/workflows/labeling.yml, pr-size.yml, patch.yml, advice.yml, team-review.yml, release-note.yml and approval.yml each used actions/checkout with sparse-checkout of .github just to read one script; the checkout action download dominated job time.\nFix pattern: Replace the checkout step with a named 'Fetch script' step that curls https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/workflows/<name>.js into the workspace root, then require('./<name>.js') from actions/github-script. approval.yml instead runs mkdir -p .github/workflows and writes approval.js there, passing REPO and SHA through env from github.repository and github.sha.\nConstraints: Fetch by $GITHUB_SHA, not a branch, so the script matches the commit that fired the event. Only applies to workflows that need just one script file; workflows that need a full checkout are unaffected. .claude/rules/github-actions.md prefers sparse-checkout for subsets; the curl path is a deliberate exception, and reviewers flagged that it adds an unauthenticated raw-content download. approval.yml keeps its pull-requests: read permissions and concurrency unchanged.\nApplies: Workflows under .github/workflows that run API-only logic via actions/github-script and need no repository tree, including the approval gate workflow.",
+  "applies": "Workflows under .github/workflows that run API-only logic via actions/github-script and need no repository tree, including the approval gate workflow.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "workflow",
+    "curl",
+    "checkout"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/approval.yml",
+      "hash": "sha256:6e2b36e9fe16d316e1281fa8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/approval.js",
+      "hash": "sha256:bc3299a29df169739c802d40",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25657"
+  },
+  "created": "2026-10-11T08:48:32.335Z",
+  "verified": "2026-10-11T08:49:19.486Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-11T08:49:19.495Z",
+      "reason": "extended by a new session",
+      "prevBody": "Symptom: Label, PR-size, patch, advice, team-review and release-note bot jobs spend noticeable time and occasionally stall before the bot logic runs.\nRoot cause: .github/workflows/labeling.yml, pr-size.yml, patch.yml, advice.yml, team-review.yml and release-note.yml each used actions/checkout with sparse-checkout of .github just to read one script.\nFix pattern: Replace the checkout step with a named 'Fetch script' step that curls https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/workflows/<name>.js into the workspace root, then require('./<name>.js') from actions/github-script.\nConstraints: Fetch by $GITHUB_SHA, not a branch, so the script matches the commit that fired the event. Only applies to workflows that need just one script file; workflows that need a full checkout are unaffected."
+    }
+  ],
+  "says": [
+    "Pull request automation bots take too long to start before running their tasks.",
+    "Automated pull request review and approval checks stall during initial setup steps.",
+    "Speed up pull request labeling and size calculation bots on every new commit.",
+    "Bot checks on pull requests waste time downloading repository files before running scripts.",
+    "Reduce the delay before automated bot checks begin processing new pull requests."
+  ],
+  "search": "Lightweight API workflows under .github/workflows fetch their execution script via curl at $GITHUB_SHA instead of running actions/checkout. In workflows like approval.yml, labeling.yml, and team-review.yml, replacing actions/checkout with a 'Fetch script' step eliminates checkout download delays before running actions/github-script. Scripts must be fetched by $GITHUB_SHA rather than a branch, which is a deliberate exception to .claude/rules/github-actions.md that applies only to workflows requiring a single script.",
+  "saysFor": "s2:f49294889d09f1c73bc6990e47ead70c918ac5de1ec0bef276b47c836cef1b73"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "symlink-guard-in-libs-skinny-setup-py-and-libs-tracing-setup",
+  "title": "Symlink guard in libs/skinny/setup.py and libs/tracing/setup.py must be changed together",
+  "kind": "rule",
+  "answers": [
+    "update the skinny build guard",
+    "change the tracing setup.py check",
+    "keep skinny and tracing build checks in sync",
+    "mlflow symlink guard message wording"
+  ],
+  "body": "The two guard files are near-identical copies that differ only in the directory name in the error text (libs/skinny vs libs/tracing) and the docstring package name.\nWhen changing the check condition, the error message, or the git clone hint, apply the same edit to both libs/skinny/setup.py and libs/tracing/setup.py.\nBoth point at the same repo-level mlflow package, so the clone instruction must stay identical in both files.\nThe mechanism is duplication with no shared module, so divergence is silent; no test or CI job builds either variant on Windows to catch it.",
+  "applies": "Edits to either libs/skinny or libs/tracing build guard.",
+  "tags": [
+    "build",
+    "duplication",
+    "mlflow-skinny",
+    "mlflow-tracing"
+  ],
+  "deps": [
+    {
+      "path": "libs/skinny/setup.py",
+      "hash": "sha256:6b1a0cc1abfde77a0996411d",
+      "missing": false
+    },
+    {
+      "path": "libs/tracing/setup.py",
+      "hash": "sha256:d8b199a1ba470c7d5a0a4451",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25713"
+  },
+  "created": "2026-10-11T08:48:19.269Z",
+  "verified": "2026-10-11T08:48:19.269Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "build-time-guard-lives-in-setup-py-never-in-the-generated-py",
+    "windows-checkout-without-symlink-support-builds-an-empty-mlf"
+  ],
+  "says": [
+    "The repository clone advice shown during lightweight package build errors is inconsistent.",
+    "Update the build validation error message and clone hint for lightweight client packages.",
+    "Lightweight client and tracing package build checks display differing clone guidance on failure.",
+    "Synchronize the source clone instructions shown when lightweight package builds fail."
+  ],
+  "search": "Any changes to check conditions, error messages, or git clone hints in the symlink build guards must be applied identically to both libs/skinny/setup.py and libs/tracing/setup.py. Because the duplicated files share no common module and differ only in package and directory names, divergence is silent and undetected by CI Windows builds.",
+  "saysFor": "s2:d337fc9ff72d6841a349745a4e20594bc0df526777896e867c174e082a7ae536"
+}

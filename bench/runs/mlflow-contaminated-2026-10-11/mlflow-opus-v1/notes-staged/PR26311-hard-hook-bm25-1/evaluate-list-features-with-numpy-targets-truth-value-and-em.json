@@ -1,0 +1,75 @@
+{
+  "id": "evaluate-list-features-with-numpy-targets-truth-value-and-em",
+  "title": "evaluate list features with NumPy targets: truth-value and empty-list crashes",
+  "kind": "rule",
+  "answers": [
+    "mlflow.models.evaluate fails with 'truth value of an array is ambiguous' when features are a list and targets are a NumPy array",
+    "evaluate with an empty list as evaluation data raises IndexError",
+    "list features with multi-element numpy targets crash in evaluate",
+    "convert_data_to_mlflow_dataset list input IndexError or ValueError"
+  ],
+  "body": "Symptom: mlflow.models.evaluate with list features and multi-element NumPy targets fails with \"The truth value of an array with more than one element is ambiguous\"; empty list evaluation data fails with IndexError.\nRoot cause: mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset indexes data[0] without checking for an empty list, and tests `targets` for truthiness, which is ambiguous for a multi-element np.ndarray.\nFix pattern: guard the first-element check with `data and not isinstance(data[0], ...)` and test `targets is not None` before calling np.array(targets).\nConstraints: this covers only the list branch of convert_data_to_mlflow_dataset; the np.ndarray branch is untouched. Empty data is not special-cased as valid. It falls through to the standard evaluation-dataset validation (the '2-dimensional' error), as tests/data/test_evaluation_dataset.py:test_convert_empty_list_uses_standard_evaluation_dataset_validation asserts.",
+  "applies": "Input normalization in mlflow/data/evaluation_dataset.py for list-typed data and targets; any new list-handling branch there should follow the same guards.",
+  "tags": [
+    "evaluation",
+    "numpy",
+    "data",
+    "list-input"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/data/evaluation_dataset.py",
+      "symbol": "convert_data_to_mlflow_dataset",
+      "hash": "sha256:e0fd548686ce6dc0e0f79f06",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0fd548686ce6dc0e0f79f06",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/data/test_evaluation_dataset.py",
+      "symbol": "test_convert_empty_list_uses_standard_evaluation_dataset_validation",
+      "hash": "sha256:1ce4e617a6911053c10e6219",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1ce4e617a6911053c10e6219",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25623"
+  },
+  "created": "2026-10-11T08:43:14.750Z",
+  "verified": "2026-10-11T08:43:14.750Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "targets-presence-is-decided-by-is-not-none-never-by-truthine"
+  ],
+  "says": [
+    "Evaluating a model crashes with an ambiguous truth value error when targets contain multiple elements.",
+    "Running model evaluation on an empty dataset causes an unexpected index crash.",
+    "Model evaluation should handle list formatted inputs alongside multi dimensional target arrays cleanly.",
+    "Model evaluation fails with an error instead of standard validation when input data is empty."
+  ],
+  "search": "In mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset, list-typed inputs must guard data[0] against empty lists and check targets is not None before converting targets with np.array. This prevents truth-value ambiguity errors on multi-element numpy targets and index errors on empty input lists during mlflow.models.evaluate. The rule applies strictly to the list-handling branch without altering the np.ndarray branch, allowing empty inputs to fall through to standard evaluation dataset validation.",
+  "saysFor": "s2:be036ac8fc90513111408681f17c11982ae501c6daf68a4a4d48b5cb4f4ee094",
+  "lastUsed": "2026-10-11T10:34:01.197Z",
+  "servedIn": [
+    "codex-mlflow-astra-v1-PR26519-hard-0",
+    "af1366c3-d3f1-4760-9ce7-ae107e3ed318"
+  ]
+}

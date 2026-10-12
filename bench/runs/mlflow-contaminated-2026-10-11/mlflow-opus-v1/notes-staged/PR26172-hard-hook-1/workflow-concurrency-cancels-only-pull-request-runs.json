@@ -1,0 +1,44 @@
+{
+  "id": "workflow-concurrency-cancels-only-pull-request-runs",
+  "title": "Workflow concurrency cancels only pull_request runs",
+  "kind": "rule",
+  "answers": [
+    "why was my model catalog publish run cancelled",
+    "can a newer catalog run cancel an in-progress publish",
+    "why does concurrency differ for pull_request and push in the catalog workflow"
+  ],
+  "body": "Invariant: in .github/workflows/update-model-catalog.yml, `concurrency.cancel-in-progress` is true only for `pull_request` events. Runs on schedule, workflow_dispatch and push must not be cancelled.\nEnforced by `concurrency` at the top of the workflow (`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`); the comment there states that `create-pr` and `publish` push changes and tags and are skipped on `pull_request`.\nBreaks if skipped: cancelling an in-flight `create-pr` or `publish` run can interrupt tag movement or asset upload and leave the release partially updated.\nIf you add a job that pushes or publishes, update that comment and keep it out of the cancellable set.",
+  "applies": "Any edit to the concurrency block or to jobs that push branches, tags or release assets in the catalog workflow.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "model-catalog"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25689"
+  },
+  "created": "2026-10-11T08:48:33.915Z",
+  "verified": "2026-10-11T08:48:33.915Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Our model catalog publishing run was cancelled halfway through and left release assets missing.",
+    "Prevent scheduled or manual catalog releases from being aborted by newer automated jobs.",
+    "A fresh build stopped an ongoing catalog publish before release tags could finish moving.",
+    "Ensure only pull request checks get cancelled when new changes are pushed to branches."
+  ],
+  "search": "In .github/workflows/update-model-catalog.yml, the top-level concurrency block enforces cancel-in-progress only for pull_request events via ${{ github.event_name == 'pull_request' }}. This invariant protects scheduled, workflow_dispatch, and push runs from cancellation so that create-pr and publish jobs do not interrupt tag movement or asset upload. When editing concurrency or adding jobs that push branches, tags, or release assets, keep them out of the cancellable set and update the accompanying comment.",
+  "saysFor": "s2:2f968467198f5c88af8ac8fb782b7c2926a7e214cf6e2a0a300ad18044d05aa2"
+}

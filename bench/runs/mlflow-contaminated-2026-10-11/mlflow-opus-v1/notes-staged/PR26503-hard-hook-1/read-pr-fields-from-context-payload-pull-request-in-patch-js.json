@@ -1,0 +1,55 @@
+{
+  "id": "read-pr-fields-from-context-payload-pull-request-in-patch-js",
+  "title": "Read PR fields from context.payload.pull_request in patch.js instead of re-fetching them",
+  "kind": "rule",
+  "answers": [
+    "why does patch.js not call pulls.get anymore",
+    "how do I get the PR body, author or labels in a github-script workflow",
+    "avoid redundant GitHub API calls in workflow scripts",
+    "patch release label bot still runs after removing API lookups"
+  ],
+  "body": "Convention: in `.github/workflows/patch.js` the PR body, author (`user`), `labels` and `number` come from `context.payload.pull_request`, destructured at the top of `module.exports`.\nDo not add `github.rest.pulls.get` or `github.rest.issues.listLabelsOnIssue` calls to re-read data the triggering `pull_request` event already carries.\nLabel lookups use the payload `labels` array (`labels.find(...)` against `versionLabelPattern`), and `addLabels` uses `issue_number: pull_number`.\nBot filtering (`user.type` equal to bot, except `Copilot`) and the early return for `branch-X.Y` bases are kept on the payload fields.\nConstraint: the payload is a snapshot taken when the event fired, so a label added or edited afterwards will not be seen; this is inferred from the event model, not stated in the PR.\nRelease listing still needs an API call; only PR and label reads were removed.",
+  "applies": "Applies to github-script workflow files for pull_request-triggered jobs that only need PR metadata; not to events that lack the payload field.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "patch-release",
+    "github-script"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/patch.js",
+      "symbol": "versionLabelPattern",
+      "hash": "sha256:ac4bad05f6509ab2c4fe711b",
+      "line": 86,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2d9d38c992b74858be45f9d",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25904"
+  },
+  "created": "2026-10-11T08:44:55.258Z",
+  "verified": "2026-10-11T08:44:55.258Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The patch release bot is making redundant API requests to inspect pull requests.",
+    "Speed up pull request automation by reading metadata directly from the event payload.",
+    "The automated release labeler ignored labels that were added after the workflow triggered.",
+    "Ensure pull request labeling bots ignore automated accounts except for Copilot.",
+    "Skip patch release checks automatically for maintenance branch pull requests."
+  ],
+  "search": "In .github/workflows/patch.js, read pull request fields including body, author, labels, and number directly from context.payload.pull_request rather than re-fetching them with github.rest.pulls.get or github.rest.issues.listLabelsOnIssue. Use the payload labels array against versionLabelPattern for label matching, use issue_number: pull_number for addLabels, and retain bot filtering (except Copilot) and branch-X.Y early returns on payload fields. Applies to github-script workflows triggered by pull_request events needing PR metadata, with the constraint that the payload snapshot does not reflect subsequent label edits and release listing still requires an API call.",
+  "saysFor": "s2:36d96d80463cb195e74e127adf0ffed11e89032f8857b03579391eefc5e5f0e5"
+}

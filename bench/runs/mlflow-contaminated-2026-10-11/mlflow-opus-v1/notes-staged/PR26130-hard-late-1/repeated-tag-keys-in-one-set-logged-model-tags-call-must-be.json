@@ -1,0 +1,76 @@
+{
+  "id": "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be",
+  "title": "Repeated tag keys in one set_logged_model_tags call must be deduplicated before the bulk upsert",
+  "kind": "rule",
+  "answers": [
+    "set_logged_model_tags fails on PostgreSQL when the same tag key appears twice",
+    "logging duplicate tag keys on a logged model gives CardinalityViolation",
+    "ON CONFLICT DO UPDATE command cannot affect row a second time in logged model tags",
+    "why does setting logged model tags with a repeated key error out on Postgres but not SQLite"
+  ],
+  "body": "Symptom: Setting logged model tags with the same key more than once in one call fails on PostgreSQL with \"ON CONFLICT DO UPDATE command cannot affect row a second time\" (CardinalityViolation). SQLite and MySQL accept it, and the last value wins.\nRoot cause: SqlAlchemyStore.set_logged_model_tags (mlflow/store/tracking/sqlalchemy_store.py) built one row per input tag and passed them to _bulk_upsert, so a single INSERT ... ON CONFLICT (model_id, tag_key) statement touched the same row twice.\nFix pattern: Collapse the input into a dict keyed by tag.key (last value wins) before building the rows list passed to _bulk_upsert, as the current code does with `deduped = {tag.key: tag.value for tag in tags}`.\nConstraints: The dedupe preserves the old session.merge loop semantics, where the last duplicate kept its value. It must happen before rows are built, not after the upsert. The same guard applies to any bulk upsert keyed on a composite primary key.\nApplies: Any change to set_logged_model_tags or to another caller of _bulk_upsert that upserts on a composite key from user-supplied lists.",
+  "applies": "Logged model tag writes in the SQLAlchemy tracking store and any new _bulk_upsert caller with user-supplied rows.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "logged-model",
+    "postgresql",
+    "upsert"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2752,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_bulk_upsert",
+      "hash": "sha256:78ae8ec905be5c44d79d4106",
+      "line": 10344,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78ae8ec905be5c44d79d4106",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-11T08:46:22.414Z",
+  "verified": "2026-10-11T08:46:22.414Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va",
+    "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py",
+    "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex"
+  ],
+  "says": [
+    "Saving model tags with duplicate keys crashes when using Postgres tracking.",
+    "Allow updating a model tag multiple times in one request without database errors.",
+    "Attaching duplicate tag names to a logged model triggers an internal server error.",
+    "Make duplicate model tag entries keep the latest value instead of failing."
+  ],
+  "search": "Input tags in mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.set_logged_model_tags must be deduplicated by tag key prior to bulk upserting rows. Deduplication keeps the last value to prevent PostgreSQL CardinalityViolation errors when an INSERT ON CONFLICT statement encounters duplicate composite primary keys. Applies to logged model tag writes in the SQLAlchemy tracking store and any caller of mlflow/store/tracking/sqlalchemy_store.py:_bulk_upsert handling user-supplied lists on composite primary keys.",
+  "saysFor": "s2:74c2d84a9258a468775c210dd6d54b3dd1fbcb3bf0017a746cf1d097bfe23bf4",
+  "servedIn": [
+    "93be3689-d014-4889-bc65-4d6c4f0762f0"
+  ]
+}

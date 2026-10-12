@@ -1,0 +1,55 @@
+{
+  "session_id": "01a12a64-3673-7811-bc93-73b661500150",
+  "turns": 1,
+  "in_tokens": 293381,
+  "cached_tokens": 260352,
+  "out_tokens": 1045,
+  "wall_ms": 83036,
+  "result": "I’ll find the payload conversion code, fix dictionary handling, and run focused tests for named inputs and serialization errors. I’ll use the repository’s Python style skill for the code and test changes.\nThe dictionary branch is unpacking input names instead of name/value pairs. The regression tests already staged in the workspace cover the requested cases; all four reproduce the bug. I’ll preserve those tests and change the loop to use `data.items()`.\nFixed `dump_input_data` to iterate over `data.items()`, preserving each input name alongside its serialized array.\n\nThe existing staged regression tests cover 1D/multidimensional arrays, custom input keys with parameters, and clear errors for unsupported values.\n\nAll 34 tests in `tests/utils/test_proto_json_utils.py` passed, though pytest’s summary hook subsequently hit a sandbox `PermissionError`. No dependencies were installed.",
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "command_execution": 7,
+      "mcp_tool_call": 1,
+      "file_change": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "cache": {
+      "injected": [],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 6,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26519-hard",
+  "rep": 0,
+  "area": "mlflow/utils",
+  "id": "PR26519-hard-full-0",
+  "session": "01a12a64-3673-7811-bc93-73b661500150",
+  "cost": 0.642892,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/utils/proto_json_utils.py b/mlflow/utils/proto_json_utils.py\nindex abd8ef259..e1bfcb71a 100644\n--- a/mlflow/utils/proto_json_utils.py\n+++ b/mlflow/utils/proto_json_utils.py\n@@ -712,7 +712,7 @@ def dump_input_data(data, inputs_key=\"inputs\", params: dict[str, Any] | None = N\n     if isinstance(data, pd.DataFrame):\n         post_data = {\"dataframe_split\": data.to_dict(orient=\"split\")}\n     elif isinstance(data, dict):\n-        post_data = {inputs_key: {k: get_jsonable_input(k, v) for k, v in data}}\n+        post_data = {inputs_key: {k: get_jsonable_input(k, v) for k, v in data.items()}}\n     elif isinstance(data, np.ndarray):\n         post_data = {inputs_key: data.tolist()}\n     elif isinstance(data, list):\ndiff --git a/tests/utils/test_proto_json_utils.py b/tests/utils/test_proto_json_utils.py\nindex c60c3c131..4f23d9016 100644\n--- a/tests/utils/test_proto_json_utils.py\n+++ b/tests/utils/test_proto_json_utils.py\n@@ -22,6 +22,7 @@ from mlflow.utils.proto_json_utils import (\n     cast_df_types_according_to_schema,\n     dataframe_from_parsed_json,\n     dataframe_from_raw_json,\n+    dump_input_data,\n     message_to_json,\n     parse_dict,\n     parse_tf_serving_input,\n@@ -30,6 +31,35 @@ from mlflow.utils.proto_json_utils import (\n from tests.protos.test_message_pb2 import SampleMessage\n \n \n+@pytest.mark.parametrize(\n+    (\"data\", \"expected\"),\n+    [\n+        ({\"x\": np.array([1, 2])}, {\"inputs\": {\"x\": [1, 2]}}),\n+        (\n+            {\"ab\": np.array([[1, 2], [3, 4]]), \"column\": np.array([5.0])},\n+            {\"inputs\": {\"ab\": [[1, 2], [3, 4]], \"column\": [5.0]}},\n+        ),\n+    ],\n+)\n+def test_dump_input_data_dict(data, expected):\n+    assert json.loads(dump_input_data(data)) == expected\n+\n+\n+def test_dump_input_data_dict_with_custom_key_and_params():\n+    data = {\"x\": np.array([1, 2])}\n+    assert json.loads(\n+        dump_input_data(data, inputs_key=\"instances\", params={\"temperature\": 0.5})\n+    ) == {\n+        \"instances\": {\"x\": [1, 2]},\n+        \"params\": {\"temperature\": 0.5},\n+    }\n+\n+\n+def test_dump_input_data_dict_rejects_unsupported_value():\n+    with pytest.raises(MlflowException, match=\"Incompatible input type:.* for input x\"):\n+        dump_input_data({\"x\": [1, 2]})\n+\n+\n def test_message_to_json():\n     json_out = message_to_json(Experiment(\"123\", \"name\", \"arty\", \"active\").to_proto())\n     assert json.loads(json_out) == {\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "st_dump_input_data_dict_rejects_unsupported_value\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                   | Duration | Tests | Min    | Max     | Avg    |\n| ---- | -------------------------------------- | -------- | ----- | ------ | ------- | ------ |\n| 1    | `tests/utils/test_proto_json_utils.py` | 22.22s   | 34    | 0.005s | 20.131s | 0.654s |\n\n::endgroup::\n\n\u001b[33m============================= Resource-heavy tests =============================\u001b[0m\ntests/utils/test_proto_json_utils.py::test_dump_input_data_dict[data0-expected0]: MEM: +0.5 (5.8 -> 6.4) GB\n\u001b[33m======================== \u001b[32m34 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 22.87s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 33029,
+  "costBasis": "list price from token classes"
+}

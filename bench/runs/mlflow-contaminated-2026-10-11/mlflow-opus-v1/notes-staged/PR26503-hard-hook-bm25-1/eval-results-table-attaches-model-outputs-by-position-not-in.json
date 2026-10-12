@@ -1,0 +1,70 @@
+{
+  "id": "eval-results-table-attaches-model-outputs-by-position-not-in",
+  "title": "Eval results table attaches model outputs by position, not index label",
+  "kind": "rule",
+  "answers": [
+    "eval results table predictions land on wrong rows when input DataFrame has a custom index",
+    "evaluation table shows nulls for predictions with non-default index",
+    "mlflow evaluate eval_results_table misaligned predictions",
+    "permuted index on model output ignored in evaluation table"
+  ],
+  "body": "Symptom: In the evaluation results table, predictions (or auxiliary output columns) appear on the wrong rows or as nulls when the input data has a non-default index, even though the metrics are computed correctly.\nRoot cause: mlflow/models/evaluation/default_evaluator.py:DefaultEvaluator.log_eval_table assigned pandas Series outputs into a table, so pandas aligned them by index label against the dataset's index.\nFix pattern: Convert Series outputs to positional arrays before assigning (`y_pred.array` for the prediction, and `other_output_columns[column].array` for each auxiliary column). `.array` keeps the extension dtype and drops only the Series index.\nConstraints: Metric computation already aligns positionally, so the table must too. After this change a length mismatch raises in `.assign()` instead of filling nulls, and a permuted output index is ignored (returned order wins). Do not reintroduce Series assignment for any new output column in this method.",
+  "applies": "Applies to log_eval_table in the default evaluator when model outputs are pandas Series or DataFrame columns; does not cover other evaluators.",
+  "tags": [
+    "evaluation",
+    "pandas",
+    "eval-table",
+    "alignment"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "symbol": "y_pred",
+      "hash": "sha256:2fa54e71fc0b28425cff30ca",
+      "line": 67,
+      "missing": false,
+      "fanout": {
+        "files": 23,
+        "sites": 0,
+        "refs": 224
+      }
+    },
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "symbol": "other_output_columns",
+      "hash": "sha256:279a97702bd55414f65c1732",
+      "line": 68,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25799"
+  },
+  "created": "2026-10-11T08:42:09.103Z",
+  "verified": "2026-10-11T08:42:09.103Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i"
+  ],
+  "says": [
+    "Predictions in the evaluation table are misaligned and show up on the wrong rows.",
+    "The model evaluation results screen displays blank or null values for predictions.",
+    "Model predictions should match their corresponding input rows even with custom table indices.",
+    "Output columns in the evaluation view are shifted when evaluating custom indexed datasets."
+  ],
+  "search": "In mlflow/models/evaluation/default_evaluator.py:DefaultEvaluator.log_eval_table, model predictions and auxiliary columns must be assigned as positional arrays via .array rather than pandas Series. This prevents index label misalignment and nulls when input data uses non-default indices, aligning table rows positionally like metric computations. Length mismatches will raise an error in .assign(), permuted output indices are ignored, and this rule applies strictly to the default evaluator's log_eval_table method.",
+  "saysFor": "s2:05e7f7bd2bb5194793972dbc9dca6a7f9571886f9f1afb4c805e2156afa64c4c",
+  "lastUsed": "2026-10-11T10:53:11.714Z",
+  "servedIn": [
+    "abeefa59-b540-45b7-ae1d-30906aa9f324"
+  ]
+}

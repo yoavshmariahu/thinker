@@ -1,0 +1,67 @@
+{
+  "id": "workspace-create-validators-are-listed-in-the-two-workspace",
+  "title": "Workspace create validators are listed in the two workspace USE tests",
+  "kind": "rule",
+  "answers": [
+    "where to add tests for a new workspace create validator",
+    "how workspace USE grants are tested for create routes",
+    "which test checks resource-type USE does not allow creates"
+  ],
+  "body": "Convention: each workspace create validator (validate_can_create_experiment, validate_can_create_registered_model, validate_can_create_gateway_secret, and similar) is asserted in both role-based and resource-type tests in tests/server/auth/test_auth_workspace.py.\nPositive assertions go in test_role_grant_workspace_use_allows_create; negative assertions go in test_role_grant_resource_type_use_does_not_allow_create.\nA no-permission check for the new validator belongs in test_no_permissions_blocks_create, with a dedicated grant/revoke test as in test_gateway_secret_create_requires_workspace_create_grant.\nWhen adding a create validator, add it to all of these; the coverage test alone does not check the workspace USE behavior.",
+  "applies": "Tests for any new create validator that depends on workspace permission in basic-auth.",
+  "tags": [
+    "tests",
+    "auth",
+    "workspaces",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_auth_workspace.py",
+      "symbol": "test_role_grant_workspace_use_allows_create",
+      "hash": "sha256:7b529ea27379a691a89ebc5f",
+      "line": 837,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7b529ea27379a691a89ebc5f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth_workspace.py",
+      "symbol": "test_role_grant_resource_type_use_does_not_allow_create",
+      "hash": "sha256:ab608ab3173483a68039daeb",
+      "line": 857,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ab608ab3173483a68039daeb",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-11T08:45:26.716Z",
+  "verified": "2026-10-11T08:45:26.716Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Users with workspace access permissions are unable to create new experiments or models.",
+    "Resource permissions should not allow unauthorized users to create assets inside a workspace.",
+    "Ensure adding new secrets or experiments requires explicit workspace creation rights.",
+    "Users without granted workspace permissions are still able to add new gateway secrets."
+  ],
+  "search": "Testing workspace create validators in basic-auth requires adding assertions to both role-based and resource-type permission tests within tests/server/auth/test_auth_workspace.py. Positive assertions for validators like validate_can_create_experiment, validate_can_create_registered_model, and validate_can_create_gateway_secret belong in test_role_grant_workspace_use_allows_create, while negative assertions belong in test_role_grant_resource_type_use_does_not_allow_create. Developers adding a create validator must also add a check to test_no_permissions_blocks_create and a dedicated grant or revoke test, as code coverage alone does not verify workspace USE permission behavior.",
+  "saysFor": "s2:51c4dc5e3b4ca546334f86dd155538c831f2f5dcdd198d0a0191cee52af1d176"
+}

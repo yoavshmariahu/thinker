@@ -1,0 +1,76 @@
+{
+  "id": "vertex-ai-maas-raw-proxy-must-post-to-the-endpoints-openapi",
+  "title": "Vertex AI MaaS raw proxy must post to the /endpoints/openapi base URL",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI MaaS raw proxy request returns 404 or wrong URL",
+    "gateway proxy route for Llama or Mistral on Vertex builds endpoints/chat/completions",
+    "why does /gateway/proxy for vertex partner models miss /openapi",
+    "raw passthrough to Vertex MaaS deepseek model hits the wrong path"
+  ],
+  "body": "Symptom: Raw proxy calls (/gateway/proxy/{endpoint}/...) to Vertex AI MaaS models (Llama, Mistral, DeepSeek) go to .../endpoints/chat/completions instead of .../endpoints/openapi/chat/completions.\nRoot cause: _VertexAIMaaSProvider inherits the OpenAI-compatible _proxy, which calls proxy_root_url() on _api_base to strip a trailing /v1. For Vertex the stripped segment is /openapi, which is part of the API root.\nFix pattern: _VertexAIMaaSProvider._proxy posts to self._api_base unchanged, after path.lstrip(\"/\") and removeprefix(\"v1/\") on the caller's path. Keep the streaming check and the _get_headers(headers) call as in the base.\nConstraints: Applies only to the raw proxy path; the chat and embeddings adapters are not affected. Do not fix this by changing proxy_root_url or _api_base, since other OpenAI-compatible providers rely on the /v1 strip.\nInvariant: the client's authorization header must not be forwarded next to the Vertex bearer token; _get_headers replaces it (asserted in test_maas_proxy_posts_to_openapi_endpoint).",
+  "applies": "Any change to raw proxy routing or headers for Vertex AI MaaS (_VertexAIMaaSProvider) models.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "maas",
+    "proxy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._proxy",
+      "hash": "sha256:ea2edb4b8b493684478f2269",
+      "line": 327,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea2edb4b8b493684478f2269",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_maas_proxy_posts_to_openapi_endpoint",
+      "hash": "sha256:9e8bddaabb84eb2d96a13fac",
+      "line": 1021,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9e8bddaabb84eb2d96a13fac",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-11T08:46:59.161Z",
+  "verified": "2026-10-11T08:46:59.161Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "judge-path-resolves-vertex-providers-then-formats-via-adapte",
+    "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta",
+    "vertex-raw-proxy-is-dispatched-through-vertexaiprovider-to-i"
+  ],
+  "says": [
+    "Raw gateway proxy requests to partner models on Vertex AI return 404 not found errors.",
+    "Direct passthrough calls to hosted open-source models route to the wrong upstream URL path.",
+    "Fix gateway proxy routing so requests to third-party Vertex models reach the correct endpoint.",
+    "Proxying chat completions to Mistral or Llama on Vertex hits an invalid service address."
+  ],
+  "search": "The Vertex AI MaaS raw proxy implementation in mlflow/gateway/providers/vertex_ai.py:_VertexAIMaaSProvider._proxy must post directly to self._api_base without stripping the /openapi path segment. Inherited proxy logic incorrectly stripped /openapi as if it were a /v1 prefix, sending partner model calls like Llama, Mistral, and DeepSeek to invalid URLs. Fixing this requires posting to self._api_base while keeping caller path stripping, streaming checks, and header replacement via _get_headers. Applies exclusively to the raw proxy route for Vertex MaaS models; chat adapters, embeddings adapters, and generic proxy_root_url logic must not be modified.",
+  "saysFor": "s2:8bd33cfed410ca2074faf106beedb13efc55dafc416b814bae259571e2c72088",
+  "servedIn": [
+    "6419a48d-de4e-4157-8dbf-6f7b00ac6325"
+  ]
+}

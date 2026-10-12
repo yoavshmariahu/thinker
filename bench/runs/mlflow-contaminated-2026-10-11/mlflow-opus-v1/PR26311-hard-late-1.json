@@ -1,0 +1,63 @@
+{
+  "id": "PR26311-hard-late-1",
+  "task": "PR26311-hard",
+  "area": "mlflow/data",
+  "arm": "late",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "3ff9ec18-fccb-40fd-8123-2008d27b45f9",
+  "turns": 11,
+  "wall_ms": 62223,
+  "api_ms": 41069,
+  "cost": 0.22079400000000002,
+  "in_tokens": 201704,
+  "out_tokens": 4450,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 9,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "callsBeforeFirstEdit": 6,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false,
+    "injected": [
+      "evaluate-list-features-with-numpy-targets-truth-value-and-em",
+      "targets-presence-is-decided-by-is-not-none-never-by-truthine"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "fail",
+    "testTail": "::endgroup::\n\n========================= command to run failed tests ==========================\npytest 'tests/data/test_evaluation_dataset.py::test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]'\n\n\u001b[36m\u001b[1m=========================== short test summary info ============================\u001b[0m\n\u001b[31mFAILED | MEM 7.6/16.0 GB | DISK 12.4/460.4 GB\u001b[0m tests/data/test_evaluation_dataset.py::\u001b[1mtest_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0]\u001b[0m - AssertionError: assert b'\\xc1\\x99\\x9aE@W\\xbf\\xd0\\x00\\x00\\x00\\x00\\x00\\x00\\x0...\n\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m\n\u001b[31m==================== \u001b[31m\u001b[1m1 failed\u001b[0m, \u001b[32m5 passed\u001b[0m, \u001b[33m1 warning\u001b[0m\u001b[31m in 1.45s\u001b[0m\u001b[31m ====================\u001b[0m\n"
+  },
+  "result": "Converting a dataset with uneven nested arrays of dictionaries into an evaluation dataset now works, and the hash is computed from the actual contents. My reproduction raised `ValueError: ... inhomogeneous shape` before the fix and now returns a hash.\n\n**Cause:** in a Hugging Face conversion the data arrives as a pandas DataFrame, and the targets column is turned into a numpy array of per-row arrays. `_hash_array_like_obj_as_bytes` in `mlflow/data/evaluation_dataset.py` handled that case with `np.array(data.tolist())`, which tries to build a uniform 2D grid. When the rows differ in length, numpy can't build it and raises the error.\n\n**Fix:** that branch now first checks whether the array contains dictionaries (`_is_array_has_dict`). If it does, it hands off to the existing `_hash_array_of_dict_as_bytes`, which walks the elements one by one and doesn't need a uniform shape. Datasets that already worked hash the same as before:\n- For even-length arrays of dictionaries, the old path ended up in the same element-by-element hashing anyway, so the bytes are identical.\n- Arrays without dictionaries skip the new check and behave exactly as before.\n\n**Tests:** I added two tests to `tests/data/test_evaluation_dataset.py`:\n- `test_hash_ragged_nested_arrays_of_dicts`: a DataFrame whose targets column has uneven arrays of dictionaries builds an `EvaluationDataset`, and changing a dictionary value changes the hash.\n- `test_hash_uniform_nested_arrays_of_dicts_unchanged`: for even-length arrays, the new code gives the same bytes as the old conversion.\n\nBoth pass, as do the other dataset and hash tests in `tests/data/test_evaluation_dataset.py` and `tests/evaluate/test_evaluation.py`. Two Spark tests (`test_dataset_hash` and `test_dataset_from_spark_df`) didn't run because Java isn't available in this environment, so they're unverified.\n\nOne related problem I left alone: when a DataFrame column you're not using as targets holds plain Python lists of dictionaries with uneven lengths, each of those values contributes nothing to the hash (`_hash_data_as_bytes` returns `b\"\"`). That doesn't raise an error, but changes to those values don't change the hash. Fixing it would change the hashes of datasets that work today, so I didn't touch it.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..aea103e06 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -143,6 +143,10 @@ def _hash_array_like_obj_as_bytes(data):\n         hashable = np.array(str(val) for val in data)\n         return _hash_ndarray_as_bytes(hashable)\n     elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n+        if _is_array_has_dict(data):\n+            # Nested arrays of dicts may be ragged and can't be converted into a 2d array,\n+            # so hash their elements directly.\n+            return _hash_array_of_dict_as_bytes(data)\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n         hashable = np.array(data.tolist())\ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..15a5b8a9e 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,7 +1,13 @@\n import numpy as np\n+import pandas as pd\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+from mlflow.data.evaluation_dataset import (\n+    EvaluationDataset,\n+    _hash_array_like_obj_as_bytes,\n+    _hash_ndarray_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n@@ -36,3 +42,26 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+def test_hash_ragged_nested_arrays_of_dicts():\n+    df = pd.DataFrame(\n+        {\n+            \"x\": [1, 2],\n+            \"y\": [np.array([{\"a\": 1}, {\"b\": 2}]), np.array([{\"c\": 3}])],\n+        }\n+    )\n+    dataset = EvaluationDataset(data=df, targets=\"y\")\n+    other = EvaluationDataset(\n+        data=df.assign(y=[np.array([{\"a\": 1}, {\"b\": 2}]), np.array([{\"c\": 4}])]), targets=\"y\"\n+    )\n+    assert dataset.hash != other.hash\n+\n+\n+def test_hash_uniform_nested_arrays_of_dicts_unchanged():\n+    labels = np.empty(2, dtype=object)\n+    labels[0] = np.array([{\"a\": 1}, {\"b\": 2}])\n+    labels[1] = np.array([{\"c\": 3}, {\"d\": 4}])\n+    assert _hash_array_like_obj_as_bytes(labels) == _hash_ndarray_as_bytes(\n+        np.array(labels.tolist())\n+    )\n",
+  "distill": null,
+  "cache_read_tokens": 189970,
+  "cache_write_tokens": 11716,
+  "fresh_in_tokens": 18,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

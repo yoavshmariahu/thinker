@@ -1,0 +1,82 @@
+{
+  "id": "databricks-profile-uri-auth-must-pass-the-profile-to-the-sdk",
+  "title": "Databricks profile URI auth must pass the profile to the SDK Config, not only the host",
+  "kind": "rule",
+  "answers": [
+    "databricks://<profile> tracing uses the wrong Databricks CLI profile",
+    "Codex tracing authenticates with the wrong profile when several profiles share one workspace host",
+    "MLflow Databricks auth ignores my CLI profile and picks another profile for the same host"
+  ],
+  "body": "Symptom: With tracking URI `databricks://<profile>`, MLflow authenticates with a different CLI profile whenever several profiles point at the same workspace host.\nRoot cause: libs/typescript/core/src/auth/index.ts:createDatabricksAuth built `new Config({...})` with `host: options.host`, so the SDK ran `databricks auth token --host` instead of `--profile`.\nFix pattern: Pass the resolved host variable to Config, and keep `profile` set. The SDK then calls `databricks auth token --profile <profile>`. This needs @databricks/sdk-experimental 0.18.0, since 0.15.0 authenticated by host.\nConstraints: Keep `profile` in the Config alongside `host`. Covered by the regression test in libs/typescript/core/tests/core/auth.test.ts (\"passes the tracking URI profile to Databricks CLI authentication\"), which asserts the CLI args include `--profile` and not `--host`.",
+  "applies": "Any change to Databricks credential resolution in @mlflow/core auth, including Codex and other integrations that build on it.",
+  "tags": [
+    "typescript",
+    "databricks",
+    "auth",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/auth/index.ts",
+      "symbol": "createDatabricksAuth",
+      "hash": "sha256:e55654cf0343f67fd343279d",
+      "line": 217,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e55654cf0343f67fd343279d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "host",
+      "hash": "sha256:a9f5325504d3a6c869d35f70",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:44d6a24531fa813f91d1fc56",
+      "fanout": {
+        "files": 69,
+        "sites": 1,
+        "refs": 228
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "profile",
+      "hash": "sha256:34e67b0cc74a18b8baa27306",
+      "line": 167,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cd18adbdce8ad8f98fe4c46",
+      "fanout": {
+        "files": 38,
+        "sites": 1,
+        "refs": 89
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T10:26:01.487Z",
+  "verified": "2026-10-11T10:26:01.487Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Connecting with a specific profile authenticates against the wrong credentials for this workspace.",
+    "Tracking signs in using another profile when multiple accounts share one workspace host.",
+    "Ensure the configured profile is used instead of falling back to host authentication.",
+    "Workspace connection uses credentials from an unintended account sharing the same server URL.",
+    "Selecting a connection profile fails to authenticate with the chosen account credentials."
+  ],
+  "search": "Databricks tracking URI authentication in @mlflow/core must supply profile alongside host to the SDK Config object. In libs/typescript/core/src/auth/index.ts:createDatabricksAuth, passing only host causes the SDK to execute databricks auth token --host, resolving incorrect credentials when multiple CLI profiles share a workspace host. Supplying profile requires @databricks/sdk-experimental 0.18.0 so the SDK invokes databricks auth token --profile <profile>. This guidance applies to Databricks credential resolution in @mlflow/core auth and integrations like Codex, verified by libs/typescript/core/tests/core/auth.test.ts.",
+  "saysFor": "s2:e7a2d690448a96d10b227c8e6174c59926b7f37745cf1005d1425184c4f01f67"
+}

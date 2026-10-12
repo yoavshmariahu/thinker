@@ -1,0 +1,44 @@
+{
+  "id": "ui-preview-only-the-finalize-job-holds-pull-requests-write-d",
+  "title": "UI Preview: only the finalize job holds pull-requests write; deploy runs with empty permissions",
+  "kind": "rule",
+  "answers": [
+    "Why does the deploy job have no permissions in the UI preview workflow?",
+    "Which UI preview job is allowed to comment on the pull request?",
+    "Where should PR comment writes go in ui-preview workflow"
+  ],
+  "body": "Invariant: In .github/workflows/ui-preview.yml the deploy job runs with `permissions: {}` and must not post or edit PR comments.\nEnforced by: ui-preview.yml:deploy (permissions: {}) and ui-preview.yml:finalize (permissions: pull-requests: write).\nThe deploy job passes its URL to finalize via outputs (app-url), so the PR comment is written only after deploy's result is known.\nWhat breaks if skipped: deploy regains a write token and can comment on its own, which reintroduces the race with finalize and widens what the deploy job can do.",
+  "applies": "Any change to permissions or PR-comment steps in the UI Preview workflow.",
+  "tags": [
+    "ci",
+    "permissions",
+    "github-actions",
+    "ui-preview"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25674"
+  },
+  "created": "2026-10-11T08:48:47.554Z",
+  "verified": "2026-10-11T08:48:47.554Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Preview deployment tasks should not have permission to post comments on pull requests.",
+    "The preview link comment must only be posted after deployment finishes successfully.",
+    "Deployment comments are racing against final status messages on our pull requests.",
+    "Ensure all pull request preview comments come exclusively from the final reporting step."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, only the finalize job holds pull-requests: write permissions, while the deploy job runs with empty permissions: {}. Applies to changes involving workflow permissions or PR commenting steps, requiring deploy to pass app-url to finalize via outputs so comments post only after deploy results are known. Granting write tokens to deploy is prohibited because it reintroduces comment race conditions with finalize and excessively broadens job privileges.",
+  "saysFor": "s2:a9144477a9da91165ac3bf8691b639f3dc1587bcdabc3650b386f334baaa5876"
+}

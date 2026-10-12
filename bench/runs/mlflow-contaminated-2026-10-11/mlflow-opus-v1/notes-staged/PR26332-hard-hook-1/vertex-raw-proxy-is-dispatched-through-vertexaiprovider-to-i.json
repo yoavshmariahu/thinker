@@ -1,0 +1,73 @@
+{
+  "id": "vertex-raw-proxy-is-dispatched-through-vertexaiprovider-to-i",
+  "title": "Vertex raw proxy is dispatched through VertexAIProvider to its delegate providers",
+  "kind": "map",
+  "answers": [
+    "where does a Vertex AI proxy request get routed to the MaaS or Claude provider",
+    "how do I test the Vertex raw proxy route end to end",
+    "which provider handles /gateway/proxy for vertex_ai models"
+  ],
+  "body": "VertexAIProvider forwards its raw proxy call to the delegate provider chosen for the model (Claude or MaaS), so a delegate's _proxy override is reached only through VertexAIProvider.\nFlow: VertexAIProvider (proxy) -> delegate _proxy -> for MaaS, _VertexAIMaaSProvider._proxy posts to the /endpoints/openapi base.\nTests for this route go through VertexAIProvider.proxy, not the delegate directly, so the forwarding is covered.\nIf a new Vertex delegate needs different proxy URL handling, override _proxy on that delegate; the forwarding in VertexAIProvider is what makes that override live.",
+  "applies": "Debugging or adding raw proxy behaviour for Vertex AI models in the gateway.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "proxy",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._proxy",
+      "hash": "sha256:ea2edb4b8b493684478f2269",
+      "line": 327,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea2edb4b8b493684478f2269",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-11T08:46:59.364Z",
+  "verified": "2026-10-11T08:46:59.364Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-must-post-to-the-endpoints-openapi",
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta",
+    "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex"
+  ],
+  "says": [
+    "Forward raw proxy traffic to the underlying model provider for Vertex AI requests",
+    "Direct proxy requests for hosted partner models should reach their proper cloud endpoints",
+    "Gateway proxy route fails to dispatch requests to the selected Vertex model provider",
+    "Custom proxy URL handling is not applied when targeting Models as a Service endpoints",
+    "Allow raw proxy access through the gateway for newly added Vertex AI models"
+  ],
+  "search": "`VertexAIProvider` in `mlflow/gateway/providers/vertex_ai.py` dispatches raw proxy calls by forwarding to the delegate provider (Claude or MaaS) chosen for the model. For MaaS, `_VertexAIMaaSProvider._proxy` posts to the `/endpoints/openapi` base. Applies to debugging or adding raw proxy behavior for Vertex AI models; delegates needing custom proxy URL handling must override `_proxy`, and end-to-end tests must call `VertexAIProvider.proxy` rather than the delegate directly.",
+  "saysFor": "s2:be455aaf2f34f3783186e1c6893fe6a6055dc3378fdd2a0c07e1ea58f40ba28d"
+}

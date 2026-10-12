@@ -1,0 +1,73 @@
+{
+  "id": "a-hanging-server-info-request-leaves-the-whole-ui-on-a-skele",
+  "title": "A hanging server-info request leaves the whole UI on a skeleton",
+  "kind": "rule",
+  "answers": [
+    "app stuck on a blank loading skeleton forever",
+    "UI never loads and shows no error when the server is slow",
+    "server-info request never returns so the page is blank",
+    "MLflow UI hangs on startup behind a proxy that holds connections open"
+  ],
+  "body": "Symptom: The UI opens to a blank skeleton and never loads a page. No error appears and nothing is logged to the console.\nRoot cause: mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo has no bound on its request. A request that never settles never reaches its catch, so the serverInfo query never resolves and the MlflowRouter gate stays closed.\nFix pattern: Bound the request with an AbortController and setTimeout(SERVER_INFO_TIMEOUT_MS). Pass controller.signal into fetchAPI, and call clearTimeout in finally. In the existing catch, treat an AbortError as a fallback to DEFAULT_RESPONSE and emit a console.warn so the fallback is visible.\nConstraints: Use AbortController, not AbortSignal.timeout, because browserslist still resolves chrome 94 through 102, which lack it. Keep the bound generous (30s). An early timeout lands the app in the workspaces-disabled fallback, which is cached for the session. Do not copy the timeoutMs option of fetchEndpointRaw, since it never calls clearTimeout. This fix does not cover React Query pausing the query when navigator.onLine is false, because queryFn never runs in that case.",
+  "applies": "Any code path that gates UI rendering on a network query that has no timeout or abort.",
+  "tags": [
+    "server-info",
+    "react-query",
+    "timeout",
+    "abort-controller",
+    "mlflow-router"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "fetchServerInfo",
+      "hash": "sha256:458d162e4235d481dbb1f8ea",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:458d162e4235d481dbb1f8ea",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "SERVER_INFO_TIMEOUT_MS",
+      "hash": "sha256:9c060534eea1154bf17e793e",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89cb217cc433966342b037d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-11T10:28:50.214Z",
+  "verified": "2026-10-11T10:28:50.214Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "serverinfo-query-gates-router-creation-and-its-fallback-is-c",
+    "test-a-fetch-level-abort-by-stubbing-global-fetch-not-fetcha"
+  ],
+  "says": [
+    "The web interface opens to an empty placeholder layout and never finishes loading.",
+    "The tracking dashboard is completely frozen on a grey loading skeleton with no error.",
+    "Page stays blank forever on startup when the backend connection is slow or hanging.",
+    "Make the application fall back to the default view instead of stalling indefinitely.",
+    "The screen remains stuck on placeholder bars instead of showing a timeout or error."
+  ],
+  "search": "Unbounded network queries gating UI rendering must use AbortController with setTimeout(SERVER_INFO_TIMEOUT_MS) to prevent indefinite skeleton loading in mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo. The controller.signal is passed to fetchAPI, clearTimeout is called in finally, and an AbortError in catch falls back to DEFAULT_RESPONSE with a console.warn. AbortSignal.timeout must not be used due to Chrome 94 through 102 compatibility, and timeoutMs from fetchEndpointRaw must not be copied. The bound must remain generous (30s) to avoid session-cached workspaces-disabled fallbacks, and offline navigator.onLine React Query pauses are not covered.",
+  "saysFor": "s2:16bbaeeeae01cb59e9fca28f7a1132a452d3e802b0fb859281ccfe4985e0e963"
+}

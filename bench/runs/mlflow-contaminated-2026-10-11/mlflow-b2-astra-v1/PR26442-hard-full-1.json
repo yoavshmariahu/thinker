@@ -1,0 +1,59 @@
+{
+  "session_id": "01a12c6c-c749-7ce2-8413-78d329cd9186",
+  "turns": 1,
+  "in_tokens": 324253,
+  "cached_tokens": 287872,
+  "out_tokens": 2203,
+  "wall_ms": 75492,
+  "result": "I’ll trace how TypeSafe connection settings reach the Gateway provider, then update the provider, endpoint form, documentation, and focused tests. I’m using the repository’s Python style skill for the Python changes.\nThe form generates connection fields from provider metadata, so adding TypeSafe’s optional base URL there will expose it in the UI. I also found staged regression tests for this change; I’ll preserve them and add coverage for an empty URL falling back to the hosted service.\nImplemented optional TypeSafe API base URLs for proxies and self-hosted servers.\n\n- Saved connections expose the optional **API Base URL** field through provider metadata.\n- Gateway forwards the saved URL to TypeSafe; omitted or empty values retain the public default.\n- Documented configuration and expanded fallback tests.\n\nAll 18 relevant tests passed. Pytest then hit a sandbox permission error in its terminal-summary cleanup. No dependencies were installed.",
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "command_execution": 8,
+      "mcp_tool_call": 1,
+      "file_change": 2
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "typesafe-judges-are-direct-typesafe-models-not-gateway-endpo"
+    ],
+    "cache": {
+      "injected": [
+        "typesafe-judges-are-direct-typesafe-models-not-gateway-endpo"
+      ],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 6,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26442-hard",
+  "rep": 1,
+  "area": "mlflow/gateway",
+  "id": "PR26442-hard-full-1",
+  "session": "01a12c6c-c749-7ce2-8413-78d329cd9186",
+  "cost": 0.761832,
+  "api_ms": null,
+  "diff": "diff --git a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx\nindex 8db1a74b2..10a890ea3 100644\n--- a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx\n+++ b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx\n@@ -280,6 +280,8 @@ response = client.chat.completions.create(\n \n The TypeSafe passthrough exposes TypeSafe's System One API through the MLflow Gateway. The gateway endpoint name goes in the request body's `model` field; the gateway forwards the request to the configured TypeSafe model with its server-side TypeSafe API key.\n \n+To route requests through a proxy or to a self-hosted System One server, set the optional **API Base URL** field on the saved TypeSafe connection in the endpoint form. This is stored as `auth_config.api_base` and maps to `typesafe_api_base` in the Gateway provider configuration. Include the API version path in the URL, for example `https://typesafe.example.com/v1`; the Gateway appends `/systemone` when forwarding requests. If the field is omitted or empty, requests use the public hosted service at `https://api.typesafe.ai/v1`.\n+\n **Base URL:** `http://localhost:5000/gateway/typesafe/v1`\n \n **Supported Endpoints:**\ndiff --git a/mlflow/gateway/config.py b/mlflow/gateway/config.py\nindex b1ea8f73e..8c8c3f973 100644\n--- a/mlflow/gateway/config.py\n+++ b/mlflow/gateway/config.py\n@@ -83,6 +83,7 @@ class TogetherAIConfig(ConfigModel):\n \n class TypeSafeConfig(ConfigModel):\n     typesafe_api_key: str\n+    typesafe_api_base: str | None = None\n \n     @field_validator(\"typesafe_api_key\", mode=\"before\")\n     def validate_typesafe_api_key(cls, value):\ndiff --git a/mlflow/gateway/providers/typesafe.py b/mlflow/gateway/providers/typesafe.py\nindex c9faa0fba..4c72ced3c 100644\n--- a/mlflow/gateway/providers/typesafe.py\n+++ b/mlflow/gateway/providers/typesafe.py\n@@ -24,7 +24,7 @@ class TypeSafeProvider(BaseProvider):\n \n     @property\n     def base_url(self) -> str:\n-        return TYPESAFE_API_BASE_URL\n+        return self.typesafe_config.typesafe_api_base or TYPESAFE_API_BASE_URL\n \n     async def _passthrough(\n         self,\ndiff --git a/mlflow/server/gateway_api.py b/mlflow/server/gateway_api.py\nindex b3d4343a8..552a57b79 100644\n--- a/mlflow/server/gateway_api.py\n+++ b/mlflow/server/gateway_api.py\n@@ -421,6 +421,7 @@ def _build_endpoint_config(\n     elif model_config.provider == Provider.TYPESAFE:\n         provider_config = TypeSafeConfig(\n             typesafe_api_key=model_config.secret_value.get(_AuthConfigKey.API_KEY),\n+            typesafe_api_base=(model_config.auth_config or {}).get(_AuthConfigKey.API_BASE),\n         )\n     elif model_config.provider == Provider.GEMINI:\n         provider_config = GeminiConfig(\ndiff --git a/mlflow/utils/providers.py b/mlflow/utils/providers.py\nindex dc868d20c..6ef82cd8f 100644\n--- a/mlflow/utils/providers.py\n+++ b/mlflow/utils/providers.py\n@@ -825,6 +825,12 @@ _PROVIDER_AUTH_MODES: dict[str, dict[str, AuthModeDict]] = {\n                     \"secret\": True,\n                     \"required\": True,\n                 },\n+                {\n+                    \"name\": \"api_base\",\n+                    \"description\": \"TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)\",\n+                    \"secret\": False,\n+                    \"required\": False,\n+                },\n             ],\n         },\n     },\ndiff --git a/tests/gateway/providers/test_typesafe.py b/tests/gateway/providers/test_typesafe.py\nindex 8fad0bcdd..f6aa7fa2f 100644\n--- a/tests/gateway/providers/test_typesafe.py\n+++ b/tests/gateway/providers/test_typesafe.py\n@@ -6,6 +6,7 @@ from fastapi import HTTPException\n \n from mlflow.exceptions import MlflowException\n from mlflow.gateway.config import EndpointConfig, TypeSafeConfig\n+from mlflow.gateway.constants import TYPESAFE_API_BASE_URL\n from mlflow.gateway.exceptions import AIGatewayException\n from mlflow.gateway.provider_registry import provider_registry\n from mlflow.gateway.providers.base import PassthroughAction\n@@ -49,6 +50,44 @@ def test_typesafe_api_key_config(monkeypatch):\n         TypeSafeConfig(typesafe_api_key=None)\n \n \n+@pytest.mark.asyncio\n+@pytest.mark.parametrize(\n+    (\"api_base\", \"expected_base_url\"),\n+    [\n+        (None, TYPESAFE_API_BASE_URL),\n+        (\"\", TYPESAFE_API_BASE_URL),\n+        (\"https://typesafe.example.com/v1\", \"https://typesafe.example.com/v1\"),\n+    ],\n+)\n+async def test_typesafe_api_base_config(provider, api_base, expected_base_url):\n+    assert provider.base_url == TYPESAFE_API_BASE_URL\n+\n+    custom_provider = TypeSafeProvider(\n+        EndpointConfig(\n+            name=\"custom-jev-evaluator\",\n+            endpoint_type=\"llm/v1/chat\",\n+            model={\n+                \"provider\": \"typesafe\",\n+                \"name\": \"jev-1.13.0\",\n+                \"config\": {\n+                    \"typesafe_api_key\": \"typesafe-test-key\",\n+                    \"typesafe_api_base\": api_base,\n+                },\n+            },\n+        )\n+    )\n+    assert custom_provider.base_url == expected_base_url\n+\n+    with patch(\"mlflow.gateway.providers.typesafe.send_request\", return_value={}) as send:\n+        await custom_provider.passthrough(PassthroughAction.TYPESAFE_SYSTEM_ONE, {})\n+    send.assert_awaited_once_with(\n+        headers={\"Authorization\": \"Bearer typesafe-test-key\"},\n+        base_url=expected_base_url,\n+        path=\"systemone\",\n+        payload={\"model\": \"jev-1.13.0\"},\n+    )\n+\n+\n @pytest.mark.parametrize(\n     (\"question\", \"answer\"),\n     [\ndiff --git a/tests/server/test_gateway_api.py b/tests/server/test_gateway_api.py\nindex 4b595ca1c..e3511caf0 100644\n--- a/tests/server/test_gateway_api.py\n+++ b/tests/server/test_gateway_api.py\n@@ -34,6 +34,7 @@ from mlflow.gateway.config import (\n     OpenAIAPIType,\n     OpenAIConfig,\n     PortkeyConfig,\n+    TypeSafeConfig,\n     VertexAIConfig,\n )\n from mlflow.gateway.constants import MLFLOW_GATEWAY_DURATION_HEADER, MLFLOW_GATEWAY_OVERHEAD_HEADER\n@@ -170,6 +171,20 @@ def test_build_endpoint_config_vertex_ai_reads_anthropic_betas_from_auth_config(\n     assert config.model.config.vertex_anthropic_betas == expected\n \n \n+def test_build_endpoint_config_typesafe_reads_api_base_from_auth_config():\n+    model_config = GatewayModelConfig(\n+        model_definition_id=\"md-test\",\n+        provider=\"typesafe\",\n+        model_name=\"jev-1.13.0\",\n+        secret_value={\"api_key\": \"typesafe-test-key\"},\n+        auth_config={\"api_base\": \"https://typesafe.example.com/v1\"},\n+    )\n+    config = _build_endpoint_config(\"test-ep\", model_config, EndpointType.LLM_V1_CHAT)\n+\n+    assert isinstance(config.model.config, TypeSafeConfig)\n+    assert config.model.config.typesafe_api_base == \"https://typesafe.example.com/v1\"\n+\n+\n def test_create_provider_from_endpoint_name_openai(store: SqlAlchemyStore):\n     # Create test data\n     secret = store.create_gateway_secret(\ndiff --git a/tests/utils/test_providers.py b/tests/utils/test_providers.py\nindex d32558138..bc93d0092 100644\n--- a/tests/utils/test_providers.py\n+++ b/tests/utils/test_providers.py\n@@ -91,7 +91,14 @@ def test_typesafe_models_and_credentials(monkeypatch):\n     assert config[\"auth_modes\"][0][\"secret_fields\"] == [\n         {\"name\": \"api_key\", \"type\": \"string\", \"description\": \"TypeSafe API Key\", \"required\": True}\n     ]\n-    assert config[\"auth_modes\"][0][\"config_fields\"] == []\n+    assert config[\"auth_modes\"][0][\"config_fields\"] == [\n+        {\n+            \"name\": \"api_base\",\n+            \"type\": \"string\",\n+            \"description\": \"TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)\",\n+            \"required\": False,\n+        }\n+    ]\n \n     input_cost, output_cost = cost_per_token(\n         model=\"jev-preview\",\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "3: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13503475712)>\n34: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13520302080)>\n35: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13537128448)>\n36: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13553954816)>\n37: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13570781184)>\n38: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13587607552)>\n39: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13604433920)>\n40: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13621260288)>\n41: <Thread(EphemeralCacheEncryption-cleanup, started daemon 13638086656)>\n\u001b[33m======================= \u001b[32m146 passed\u001b[0m, \u001b[33m\u001b[1m2 warnings\u001b[0m\u001b[33m in 14.80s\u001b[0m\u001b[33m =======================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 5,
+    "touched": 5,
+    "missing": []
+  },
+  "fresh_in_tokens": 36381,
+  "costBasis": "list price from token classes"
+}

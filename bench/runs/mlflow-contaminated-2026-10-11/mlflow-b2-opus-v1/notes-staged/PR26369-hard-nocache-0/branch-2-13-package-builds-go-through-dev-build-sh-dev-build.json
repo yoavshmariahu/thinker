@@ -1,0 +1,54 @@
+{
+  "id": "branch-2-13-package-builds-go-through-dev-build-sh-dev-build",
+  "title": "branch-2.13 package builds go through dev/build.sh; dev/build.py only delegates",
+  "kind": "map",
+  "answers": [
+    "how are mlflow 2.13 packages built for release?",
+    "where does the python.yml release workflow build mlflow-skinny on branch-2.13?",
+    "why does dev/build.py just call dev/build.sh?",
+    "which pyproject file does mlflow-skinny use on the 2.13 branch?"
+  ],
+  "body": "- Release packaging on branch-2.13 is done by dev/build.sh, not by the v3+ dev/build.py logic.\n- dev/build.py:main is a shim: it accepts --package-type {release,skinny} (the mlflow/releases python.yml CLI) and runs `bash dev/build.sh`, adding `--skinny` for skinny.\n- mlflow is built from pyproject.toml; mlflow-skinny from pyproject.skinny.toml (both via dev/build.sh).\n- The shim exists so the build matches how 2.13.x shipped. Change package build behaviour in dev/build.sh, not in the shim.\n- dev/build.py is dev/CI-only and is not included in the shipped mlflow or mlflow-skinny packages.",
+  "applies": "Only the branch-2.13 release line; v3+ branches use their own dev/build.py.",
+  "tags": [
+    "build",
+    "release",
+    "branch-2.13",
+    "dev-tooling"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26096"
+  },
+  "created": "2026-10-11T10:27:49.614Z",
+  "verified": "2026-10-11T10:27:49.614Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "release-build-must-explicitly-clear-mlflow-skinny-so-an-ambi",
+    "release-package-requires-the-pre-built-js-ui-dev-build-py-gu",
+    "legacy-2-11-wheel-is-built-from-the-source-tree-before-the-s"
+  ],
+  "says": [
+    "Release packaging modifications on the 2.13 maintenance branch are not taking effect.",
+    "The skinny package build on the 2.13 release pipeline uses incorrect project configurations.",
+    "Update package build scripts on the 2.13 branch to match release requirements.",
+    "Changes to the build Python script are ignored during 2.13 release workflow runs.",
+    "Support building both standard and skinny distribution packages in 2.13 maintenance releases."
+  ],
+  "search": "Release packaging on branch-2.13 executes through dev/build.sh, with dev/build.py:main acting solely as a delegating CLI shim. The shim accepts --package-type {release,skinny} from the python.yml release workflow and runs bash dev/build.sh, which builds mlflow from pyproject.toml and mlflow-skinny from pyproject.skinny.toml. Package build modifications belong in dev/build.sh rather than the shim, which is restricted to development and CI on branch-2.13 and excluded from shipped packages.",
+  "saysFor": "s2:29980c6c6bfce4d49685b9027d6e2eb41747d7ca6fd014309d6429cc2ce8509b"
+}

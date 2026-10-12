@@ -1,0 +1,88 @@
+{
+  "id": "request-bodies-that-spell-one-protobuf-field-both-snake-case",
+  "title": "Request bodies that spell one protobuf field both snake_case and camelCase are rejected",
+  "kind": "rule",
+  "answers": [
+    "400 'Request specifies both secret_id and secretId' on a gateway API call",
+    "protobuf JSON body with both snake_case and camelCase keys for the same field",
+    "gateway secret update authorized against one secret but applied to another via camelCase key",
+    "conflicting duplicate field names in MLflow REST request JSON"
+  ],
+  "body": "Symptom: a gateway secret or model-definition request whose JSON carries both `secret_id` and `secretId` (or both `model_configs` and `modelConfigs`) is authorized against one id but the handler acts on the other, because the later key wins.\nRoot cause: mlflow/server/handlers.py:_get_request_message ran parse_dict, which accepts both proto and JSON names, while basic-auth validators read the raw snake_case key from the Flask body.\nFix pattern: call mlflow/server/handlers.py:_reject_conflicting_field_aliases on the normalized JSON before parse_dict. It checks each field's name and json_name, recurses into nested message fields (lists included), and raises INVALID_PARAMETER_VALUE \"Request specifies both 'x' and 'y'\".\nConstraints: map fields and google.protobuf well-known types are skipped because their keys are caller-chosen. _get_workspace_request_message calls parse_dict itself, so any new direct parse_dict of a request body in handlers.py must run the same check.\nApplies: every protobuf-backed request body parsed in mlflow/server/handlers.py, not only gateway routes.",
+  "applies": "Server-side request parsing in mlflow/server/handlers.py for any proto-backed endpoint.",
+  "tags": [
+    "security",
+    "auth",
+    "protobuf",
+    "gateway",
+    "request-parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_reject_conflicting_field_aliases",
+      "hash": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "line": 1098,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_request_message",
+      "hash": "sha256:d835807c60947d5087bb6d63",
+      "line": 1152,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d835807c60947d5087bb6d63",
+      "fanout": {
+        "files": 5,
+        "sites": 178,
+        "refs": 233
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_workspace_request_message",
+      "hash": "sha256:b824cd159fec98e0950b1d3b",
+      "line": 1551,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b824cd159fec98e0950b1d3b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-11T08:46:29.876Z",
+  "verified": "2026-10-11T08:46:29.876Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+    "the-three-invoke-handlers-share-one-trace-ids-input-contract",
+    "artifact-uris-that-make-the-server-connect-to-a-named-host-m",
+    "workspace-default-artifact-root-must-be-a-uri-or-an-absolute"
+  ],
+  "says": [
+    "Gateway secret update modifies a different secret than the authorized identifier.",
+    "API requests with mixed naming conventions cause unexpected parameter overrides.",
+    "Reject API payloads that provide conflicting aliases for the same configuration setting.",
+    "Server returns a bad request error when both casing styles are submitted."
+  ],
+  "search": "Server request parsing in mlflow/server/handlers.py must reject JSON bodies that define conflicting snake_case and camelCase field aliases before calling parse_dict. The helper mlflow/server/handlers.py:_reject_conflicting_field_aliases checks field names and json_name across nested messages and lists, raising INVALID_PARAMETER_VALUE when duplicates appear. Map fields and google.protobuf well-known types are excluded, and direct parse_dict calls in _get_workspace_request_message must also enforce this check across all protobuf-backed endpoints.",
+  "saysFor": "s2:e8768619d93f396129bc8d7aac6304dd2f2d18435c34a9870ce56bd7d4bb6439"
+}

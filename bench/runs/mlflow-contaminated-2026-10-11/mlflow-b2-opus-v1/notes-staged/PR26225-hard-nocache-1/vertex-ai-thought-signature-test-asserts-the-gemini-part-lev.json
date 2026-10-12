@@ -1,0 +1,71 @@
+{
+  "id": "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev",
+  "title": "Vertex AI thought signature test asserts the Gemini Part-level shape",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI thoughtSignature test fails after changing Gemini request format",
+    "where is the Vertex AI tool calling thought signature test",
+    "does Vertex AI share the Gemini message conversion in the gateway"
+  ],
+  "body": "Symptom: After a change to how Gemini tool calls carry thoughtSignature, the Vertex AI tool-calling test fails even though Vertex AI requests look correct.\nRoot cause: tests/gateway/providers/test_vertex_ai.py:test_chat_tool_calling_preserves_thought_signature checks the outgoing contents shape produced by the shared Gemini conversion in mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model.\nFix pattern: When changing the Gemini request shape, update this Vertex test too. It finds the Part holding functionCall and asserts that thoughtSignature is on that Part, not on the functionCall dict.\nConstraints: This note relies on the test asserting the shared shape; the diff shows the Vertex test was updated to match the Gemini fix, but it does not show the provider code path in detail.",
+  "applies": "Changes to Gemini request conversion that Vertex AI tests also exercise.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "gemini",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_chat_tool_calling_preserves_thought_signature",
+      "hash": "sha256:c58180c61333ca6b0ae4001e",
+      "line": 268,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c58180c61333ca6b0ae4001e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25865"
+  },
+  "created": "2026-10-11T10:25:50.661Z",
+  "verified": "2026-10-11T10:25:50.661Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on",
+    "gemini-parallel-functionresponse-parts-must-share-one-user-t",
+    "gemini-tool-message-content-must-be-coerced-to-a-json-object"
+  ],
+  "says": [
+    "Tool calling responses are missing model reasoning signatures when routed through the AI gateway.",
+    "Ensure model thought signatures remain attached during tool calls when using cloud models.",
+    "Model thinking traces disappear whenever assistant invokes external tools through the gateway.",
+    "Preserve reasoning metadata on outgoing function call payloads sent to cloud AI providers."
+  ],
+  "search": "When updating Gemini request conversion in mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model, update tests/gateway/providers/test_vertex_ai.py:test_chat_tool_calling_preserves_thought_signature to match the outgoing contents shape. The test asserts that thoughtSignature is placed on the Part containing functionCall rather than on the functionCall dictionary. This applies to Gemini request conversion changes exercised by Vertex AI tests, noting that the diff does not show the provider code path in detail.",
+  "saysFor": "s2:1ff4d0c3834387a65dd1e965a2d26765d5fdcb4069c9fa8233954e8c86d27881"
+}

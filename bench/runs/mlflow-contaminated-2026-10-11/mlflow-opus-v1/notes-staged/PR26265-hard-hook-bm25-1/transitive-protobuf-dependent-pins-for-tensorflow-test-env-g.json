@@ -1,0 +1,46 @@
+{
+  "id": "transitive-protobuf-dependent-pins-for-tensorflow-test-env-g",
+  "title": "Transitive protobuf-dependent pins for TensorFlow test env go in the tensorflow models requirements block",
+  "kind": "rule",
+  "answers": [
+    "TensorFlow cross-version tests fail with protobuf gencode/runtime VersionError",
+    "google.rpc error_details_pb2 import fails in tensorflow test job",
+    "why is googleapis-common-protos pinned for tensorflow tests",
+    "tensorflow models test env protobuf version mismatch"
+  ],
+  "body": "Symptom: The tensorflow cross-version test jobs (models 2.18.1 / 2.19.1) fail with \"Detected incompatible Protobuf Gencode/Runtime versions when loading google/rpc/error_details.proto\" after an upstream release.\nRoot cause: mlflow/ml-package-versions.yml:tensorflow.models.requirements (\">= 0.0.0\" selector) installs TensorFlow's protobuf<6 runtime, while a newer googleapis-common-protos regenerates gencode for protobuf 6.33, so `from google.rpc import error_details_pb2` (pulled in via pyspark.testing) fails the runtime check.\nFix pattern: Add a transitive package upper bound (here \"googleapis-common-protos<1.75.1\") to that requirements list, with a YAML comment naming the protobuf conflict. Do not change the TensorFlow maximum or protobuf pins for this.\nConstraints: Scoped to the TF test environment only; nothing user-facing changes. 1.75.0 is the last release whose gencode loads on protobuf 5.x. Remove the pin once TensorFlow allows protobuf 6.33+ or googleapis-common-protos ships protobuf-5-compatible gencode.",
+  "applies": "Test requirements under the tensorflow block of mlflow/ml-package-versions.yml when a transitive dependency breaks the protobuf runtime pin.",
+  "tags": [
+    "tensorflow",
+    "protobuf",
+    "cross-version-tests",
+    "requirements",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/ml-package-versions.yml",
+      "hash": "sha256:8b989fa833bd913db89cebfe",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25557"
+  },
+  "created": "2026-10-11T08:50:57.258Z",
+  "verified": "2026-10-11T08:50:57.258Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "TensorFlow test jobs in our continuous integration pipeline are failing after an upstream release.",
+    "Continuous integration cross-version tests fail on protocol buffer compatibility checks.",
+    "Fix runtime version incompatibility errors in automated test runs for machine learning models.",
+    "Pin conflicting test dependencies so automated model validation builds pass again."
+  ],
+  "search": "Transitive package upper bounds for TensorFlow test environments must be added directly to tensorflow.models.requirements in mlflow/ml-package-versions.yml. This addresses cross-version test failures where googleapis-common-protos gencode for protobuf 6.33 conflicts with the protobuf<6 runtime required by TensorFlow. Pins such as googleapis-common-protos<1.75.1 require a YAML comment naming the conflict without modifying TensorFlow maximum or protobuf pins. The rule is scoped strictly to the test environment and should be removed once upstream compatibility is restored.",
+  "saysFor": "s2:08b86feb0669b847c03777ce12c0f6676772cf2ba357528c0faf68eb58f1f4fc"
+}

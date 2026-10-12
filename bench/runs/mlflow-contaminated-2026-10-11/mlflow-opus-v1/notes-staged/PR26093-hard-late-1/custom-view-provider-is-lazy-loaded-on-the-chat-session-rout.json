@@ -1,0 +1,56 @@
+{
+  "id": "custom-view-provider-is-lazy-loaded-on-the-chat-session-rout",
+  "title": "Custom view provider is lazy-loaded on the chat-session route because of ESM-only @a2ui",
+  "kind": "rule",
+  "answers": [
+    "why is ExperimentCustomViewProvider lazy loaded in sessions page",
+    "a2ui ESM error in chat session route",
+    "custom view provider React.lazy import sessions"
+  ],
+  "body": "ExperimentSingleChatSessionPage.tsx imports ExperimentCustomViewProvider through React.lazy and wraps it in React.Suspense, with a comment that the custom view pulls in @a2ui (ESM-only) transitively.\nThe lazy import keeps @a2ui out of the chat-session route graph unless custom views are enabled.\nDo not replace this with a static import of ExperimentCustomViewProvider in this page; that would pull @a2ui into the route unconditionally.\nThe Suspense fallback is a GenericSkeleton sized to flex: 1 with margin 16.",
+  "applies": "Chat-session page and any other route bundle that needs the custom view provider; applies to static-import changes in that page.",
+  "tags": [
+    "tracing",
+    "custom-trace-view",
+    "lazy-loading",
+    "a2ui",
+    "bundling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "LazyExperimentCustomViewProvider",
+      "hash": "sha256:cca6c467d051288b0c641b99",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cca6c467d051288b0c641b99",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25779"
+  },
+  "created": "2026-10-11T08:42:18.591Z",
+  "verified": "2026-10-11T08:42:18.591Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "session-full-trace-drawer-loses-saved-and-new-custom-trace-v"
+  ],
+  "says": [
+    "Opening an experiment chat session page crashes with a script error.",
+    "The chat session screen should load cleanly without pulling in unused custom views.",
+    "Chat session history fails to render when custom view extensions are bundled.",
+    "Show a loading placeholder skeleton while custom experiment views are loading."
+  ],
+  "search": "ExperimentSingleChatSessionPage.tsx must lazy-load ExperimentCustomViewProvider using React.lazy and React.Suspense with a GenericSkeleton fallback to isolate the transitive ESM-only @a2ui dependency. A static import must not be used because it pulls @a2ui unconditionally into the chat-session route bundle. Applies to the chat-session page and any route bundle needing the custom view provider.",
+  "saysFor": "s2:0d6fc81b7c07620616a34bcbe6098c13369cede83522ed733bbcda596acf556e"
+}

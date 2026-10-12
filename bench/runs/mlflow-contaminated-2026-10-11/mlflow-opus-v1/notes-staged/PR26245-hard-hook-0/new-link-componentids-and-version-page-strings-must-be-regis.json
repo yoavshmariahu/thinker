@@ -1,0 +1,68 @@
+{
+  "id": "new-link-componentids-and-version-page-strings-must-be-regis",
+  "title": "New link componentIds and version-page strings must be registered together",
+  "kind": "rule",
+  "answers": [
+    "new componentId lint error model registry link",
+    "add componentId to registry for version page link",
+    "en.json missing key after adding Source Model label",
+    "which files change when adding a UI string in model registry"
+  ],
+  "body": "Invariant: a new Link componentId and any new defaultMessage/description must be added in the same change to two generated or registry files.\n- The componentId key (here mlflow.model_registry.version_view.source_model_link, value \"\") is added to mlflow/server/js/scripts/componentId-registry.js, next to the existing version_view entries.\n- Each new intl message (here the 'Source Model' label and the 'Loading source model' screen-reader label) gets a hashed entry in mlflow/server/js/src/lang/default/en.json, keyed by the message ID.\n- Both are used by mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx and ModelVersionView.tsx. Adding the component without these entries leaves the registry or extraction out of sync.",
+  "applies": "Any new componentId or user-visible string in mlflow/server/js/src/model-registry.",
+  "tags": [
+    "i18n",
+    "componentid",
+    "model-registry",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/scripts/componentId-registry.js",
+      "hash": "sha256:58e9f6ebceae2258838904aa",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:8ef7fb523a1fe42462728e43",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx",
+      "symbol": "ModelVersionSourceModelLink",
+      "hash": "sha256:d051c4bb25826067ad8337f3",
+      "line": 7,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d051c4bb25826067ad8337f3",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-11T08:48:15.971Z",
+  "verified": "2026-10-11T08:48:15.971Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "component-tests-assert-visible-output-and-mock-hooks-with-th",
+    "query-backed-model-links-must-show-loading-error-and-missing"
+  ],
+  "says": [
+    "Add a link to the source model on the model version details screen.",
+    "The model version page should display a clear label showing its source model.",
+    "Screen readers need an announcement when loading the source model for a version.",
+    "The source model link on the registered version page shows missing text translations.",
+    "Display the originating source model link when viewing a registered model version."
+  ],
+  "search": "Adding a new link componentId or user-visible string in mlflow/server/js/src/model-registry requires simultaneous registration in componentId-registry.js and the default localization dictionary en.json. The componentId key such as mlflow.model_registry.version_view.source_model_link is added to mlflow/server/js/scripts/componentId-registry.js beside version_view entries. New internationalized messages, including the 'Source Model' label and 'Loading source model' screen-reader text, receive hashed entries in mlflow/server/js/src/lang/default/en.json. Both registrations are consumed by ModelVersionSourceModelLink.tsx and ModelVersionView.tsx.",
+  "saysFor": "s2:348c5cb8f0d6b4adffcd541536fb0b58b29a74d328776e3563ce9bc955f9f58c"
+}

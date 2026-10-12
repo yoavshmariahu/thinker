@@ -1,0 +1,74 @@
+{
+  "id": "logged-model-search-must-eager-load-every-child-relationship",
+  "title": "Logged model search must eager-load every child relationship that to_mlflow_entity reads",
+  "kind": "rule",
+  "answers": [
+    "logged-models/search is slow for experiments with many logged models",
+    "search_logged_models issues hundreds of SQL queries per page",
+    "N+1 queries when listing logged models in the tracking store",
+    "why does listing logged models get slower as the page size grows"
+  ],
+  "body": "Symptom: The UI's logged-models/search call takes many seconds for one experiment with hundreds of logged models, even though the database work is about 100 ms.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.search_logged_models built its query with no loader options, while SqlLoggedModel.to_mlflow_entity reads self.tags, self.params and self.metrics. Those are lazy relationship() attributes, so each model on a page cost three extra SELECTs (3N+1 total).\nFix pattern: Pass selectinload(SqlLoggedModel.<rel>) for each relationship that to_mlflow_entity reads as options() on the main query, as the PR did for tags, params and metrics. This mirrors search_runs, which already uses selectinload for SqlRun.latest_metrics, params and tags. The result is one batched SELECT per relationship (4 queries per page).\nConstraints: selectinload is a post-load strategy, so the main statement (filters, ORDER BY, OFFSET/LIMIT) and the page token stay unchanged. Do not use joinedload here, because it wraps the LIMIT query in a subquery. If to_mlflow_entity starts reading a new child relationship, add it to these options too. The test test_search_logged_models_eager_loads_tags_params_and_metrics in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py counts statements through a before_cursor_execute listener and asserts one child SELECT per table, so extend it when adding a relationship.",
+  "applies": "SqlAlchemyStore.search_logged_models and any other store method that converts SqlLoggedModel rows to entities via to_mlflow_entity.",
+  "tags": [
+    "sqlalchemy",
+    "performance",
+    "n+1",
+    "logged-models",
+    "tracking-store"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.search_logged_models",
+      "hash": "sha256:b9fc1e0f0bb96a54b9aa2d78",
+      "line": 3775,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b9fc1e0f0bb96a54b9aa2d78",
+      "fanout": {
+        "files": 30,
+        "sites": 148,
+        "refs": 166
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_search_logged_models_eager_loads_tags_params_and_metrics",
+      "hash": "sha256:f1620465731017c01bf0813a",
+      "line": 4242,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f1620465731017c01bf0813a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25983"
+  },
+  "created": "2026-10-11T10:29:40.428Z",
+  "verified": "2026-10-11T10:29:40.428Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg",
+    "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b"
+  ],
+  "says": [
+    "Opening the logged models tab takes many seconds in experiments with hundreds of models.",
+    "Listing models in an experiment becomes very sluggish as the page size increases.",
+    "Speed up the models table when browsing experiments that contain many logged models.",
+    "Searching logged models in an experiment spins endlessly before displaying any results."
+  ],
+  "search": "Logged model search in SqlAlchemyStore.search_logged_models must eager-load child relationships (tags, params, and metrics) using selectinload for each attribute read by SqlLoggedModel.to_mlflow_entity. This prevents N+1 lazy queries per model and mirrors search_runs by batching child loading into one SELECT per relationship. Use selectinload rather than joinedload, which wraps the LIMIT query in a subquery, and keep the main statement and pagination tokens unchanged. Any new child relationship read by to_mlflow_entity must be added to options and verified in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py:test_search_logged_models_eager_loads_tags_params_and_metrics.",
+  "saysFor": "s2:5bc6b7348d3ed804b09d52f29ba01a32525ac75736401a75451ed6f1d662e0f0"
+}

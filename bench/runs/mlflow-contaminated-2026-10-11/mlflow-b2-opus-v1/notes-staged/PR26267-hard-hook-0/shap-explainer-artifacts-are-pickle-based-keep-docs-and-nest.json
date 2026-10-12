@@ -1,0 +1,77 @@
+{
+  "id": "shap-explainer-artifacts-are-pickle-based-keep-docs-and-nest",
+  "title": "SHAP explainer artifacts are pickle-based; keep docs and nested-model serialization in sync",
+  "kind": "rule",
+  "answers": [
+    "Is a SHAP explainer artifact pickle-free?",
+    "Can I use skops to make SHAP explainers safe to load?",
+    "Is load_explainer safe for untrusted sources?",
+    "How do I stop SHAP explainers loading outside Databricks with pickle disabled?"
+  ],
+  "body": "Invariant: A SHAP explainer artifact is always pickle-based, because the explainer state uses pickle regardless of serialize_model_using_mlflow. Making only the nested sklearn model skops-only or auto-trusting skops-rejected types does not make the full artifact pickle-free or safe for untrusted sources.\nEnforced in: mlflow/shap/__init__.py:save_explainer (nested sklearn uses cloudpickle) and load_explainer (docstring warning to load only trusted sources).\nWhat breaks if skipped: Docs or docstrings that call SHAP artifacts pickle-free mislead users into loading untrusted files. MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false blocks SHAP loads outside Databricks Runtime and Model Serving.\nKeep in sync: the serialize_model_using_mlflow docstrings in log_explainer and save_explainer, the load_explainer warning, and the 'SHAP explainers remain pickle-based' section of the pickle-free models guide.",
+  "applies": "Any change to SHAP explainer serialization, its docstrings, or the pickle-free models guide. Standalone mlflow.sklearn models are not covered.",
+  "tags": [
+    "shap",
+    "pickle",
+    "security",
+    "docs",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "save_explainer",
+      "hash": "sha256:abce7b96f9c639006b9bfd18",
+      "line": 387,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:abce7b96f9c639006b9bfd18",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "load_explainer",
+      "hash": "sha256:08b63cd2a55e3591dbc000cd",
+      "line": 617,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:08b63cd2a55e3591dbc000cd",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "docs/docs/classic-ml/tracking/pickle-free-models/index.mdx",
+      "hash": "sha256:5629abdae899401b044ed76c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26138"
+  },
+  "created": "2026-10-11T10:24:29.815Z",
+  "verified": "2026-10-11T10:24:29.815Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shap-explainer-logging-fails-on-sklearn-types-skops-rejects"
+  ],
+  "says": [
+    "Documentation claims model explainers are safe to load from untrusted sources.",
+    "Loading saved model explainers fails when untrusted model serialization is blocked in our environment.",
+    "Add a security warning that model explainers should only be opened from trusted authors.",
+    "Clarify in the security documentation that saved explainers still rely on unsafe serialization formats.",
+    "Explainability artifacts cannot be loaded in external environments when insecure deserialization is turned off."
+  ],
+  "search": "SHAP explainer artifacts remain pickle-based regardless of `serialize_model_using_mlflow` because the explainer state itself uses pickle, meaning artifacts are never safe for untrusted sources. In `mlflow/shap/__init__.py`, `save_explainer` serializes nested scikit-learn models using cloudpickle, while `load_explainer` docstrings must warn users to load only trusted files. Disabling pickle via `MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false` blocks loading SHAP explainers outside Databricks Runtime and Model Serving. Applies to SHAP explainer serialization, docstrings, and `docs/docs/classic-ml/tracking/pickle-free-models/index.mdx`, but does not cover standalone `mlflow.sklearn` models.",
+  "saysFor": "s2:92a2550a17862f966eff8b5084ddd19da351b2b8d4db23b3dcd3259c485e0407"
+}

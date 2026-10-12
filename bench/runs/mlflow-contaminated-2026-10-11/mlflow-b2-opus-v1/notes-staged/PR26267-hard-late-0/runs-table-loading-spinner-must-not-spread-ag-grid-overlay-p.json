@@ -1,0 +1,71 @@
+{
+  "id": "runs-table-loading-spinner-must-not-spread-ag-grid-overlay-p",
+  "title": "Runs table loading spinner must not spread ag-grid overlay params into its DOM",
+  "kind": "rule",
+  "answers": [
+    "runs table loading spinner shows stray api or context attributes",
+    "ag-grid loading overlay leaks params into the spinner element",
+    "experiment runs table loading indicator renders invalid DOM attributes",
+    "why does the runs table spinner get reactContainer or columnApi props"
+  ],
+  "body": "Symptom: The experiment runs table loading spinner renders with ag-grid internal objects (api, columnApi, context, reactContainer) and a stale showImmediately flag leaked onto its DOM element.\nRoot cause: experimentPage.column-utils.tsx:UntrackedSpinner spread all incoming props (ag-grid overlay params) into the design-system Spinner.\nFix pattern: Render the design-system Spinner with only the props it owns (e.g. `<Spinner loading={false} />`) instead of forwarding `...props`. Drop params passed through loadingOverlayComponentParams in ExperimentViewRunsTable.tsx:ExperimentViewRunsTable that no longer map to the Spinner API.\nConstraints: Applies to any ag-grid loadingOverlayComponent in this area. Do not spread grid-supplied props into a DOM component; the regression test in experimentPage.column-utils.enzyme.test.tsx renders the registered overlay with ag-grid-style params and asserts none appear as attributes.",
+  "applies": "Ag-grid loading overlay components in the experiment-tracking runs table.",
+  "tags": [
+    "ag-grid",
+    "experiment-tracking",
+    "loading-overlay",
+    "spinner",
+    "react"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx",
+      "symbol": "UntrackedSpinner",
+      "hash": "sha256:0cafa10b29fe98363f515511",
+      "line": 78,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0cafa10b29fe98363f515511",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/runs/ExperimentViewRunsTable.tsx",
+      "symbol": "ExperimentViewRunsTable",
+      "hash": "sha256:d8b4295dabe88b5bb2777122",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d8b4295dabe88b5bb2777122",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26102"
+  },
+  "created": "2026-10-11T10:24:50.954Z",
+  "verified": "2026-10-11T10:24:50.954Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grid-loadingoverlaycomponent-name-must-match-the-key-registe"
+  ],
+  "says": [
+    "The experiment runs table loading spinner leaks internal grid attributes into the page DOM",
+    "Browser console displays warnings about invalid DOM properties on the runs table loading indicator",
+    "Prevent internal table parameters from being passed to the experiment loading overlay component",
+    "Inspecting the experiment runs table loading element reveals internal table state attributes"
+  ],
+  "search": "In the experiment tracking runs table, ag-grid loading overlay components like UntrackedSpinner must not spread incoming grid parameters into design-system Spinner DOM elements. Spreading overlay props forwards internal grid objects like api, columnApi, context, reactContainer, and showImmediately onto the rendered DOM element. The fix requires rendering Spinner with only its own props, dropping unmapped parameters in ExperimentViewRunsTable loadingOverlayComponentParams, and forbidding grid-supplied prop spreading across all overlay components in this area. Regression testing in experimentPage.column-utils.enzyme.test.tsx verifies that none of the ag-grid parameters appear as rendered attributes.",
+  "saysFor": "s2:d9f11127c95e02f28fdb6d26f25cd08eac9cadebec6000190cb9b87fa6c6861b"
+}

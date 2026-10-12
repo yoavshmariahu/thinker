@@ -1,0 +1,55 @@
+{
+  "id": "approval-gate-for-auto-rerun-is-workflow-run-conclusion-succ",
+  "title": "Approval gate for auto-rerun is workflow_run.conclusion == 'success' only, since the approval artifact is gone",
+  "kind": "rule",
+  "answers": [
+    "auto rerun triggers on comments or change requests instead of approvals",
+    "why does the rerun workflow run when a review is not an approval",
+    "how does rerun-workflow-run know the PR was approved",
+    "approval-triggered rerun skipped for non-approving reviews"
+  ],
+  "body": "Invariant: rerun-workflow-run.yml must only rerun when the upstream rerun.yml run concluded `success`. The approval check lives in rerun.yml's job-level `if` (review.state == 'approved' and the allowlisted author).\nSymptom it guards: a comment, change request, or unauthorized review must not restart PR checks.\nWhy it holds: a job skipped by its `if` does not fail the run. A run whose only job is skipped concludes `skipped`, not `success`, so the `workflow_run.conclusion == 'success'` condition fails and the rerun job does not run.\nWhat breaks if skipped: the removed PR-number artifact used to be the approval marker (its download failed for non-approving runs). Without an equivalent gate, any completed rerun.yml run would trigger reruns.\nConstraints: this relies on rerun.yml having a single job. If another job is added to rerun.yml that can succeed on a non-approving review, the success gate no longer proves approval.",
+  "applies": "The approval-triggered rerun path across .github/workflows/rerun.yml and .github/workflows/rerun-workflow-run.yml only.",
+  "tags": [
+    "github-actions",
+    "workflow_run",
+    "rerun",
+    "approval",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:f09960f43d841018af6de4bb",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "hash": "sha256:1123ab8d5531b5e8f2408d10",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25592"
+  },
+  "created": "2026-10-11T08:50:22.681Z",
+  "verified": "2026-10-11T08:50:22.681Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "rerun-job-submits-each-workflow-run-once-and-runs-protect-la",
+    "read-pr-head-sha-from-github-event-workflow-run-head-sha-in"
+  ],
+  "says": [
+    "Automated test rerun triggers on review comments or change requests instead of approvals",
+    "Pull request checks restart unexpectedly when an unauthorized user submits review feedback",
+    "Only restart automated pull request tests when an authorized team member approves changes",
+    "Non-approving review activity triggers unnecessary continuous integration test reruns",
+    "Ensure automated workflow reruns only execute after an explicit pull request approval"
+  ],
+  "search": "In .github/workflows/rerun-workflow-run.yml, rerun execution must gate strictly on workflow_run.conclusion == 'success' from .github/workflows/rerun.yml. The approval check is evaluated in rerun.yml's job-level if condition (review.state == 'approved' and allowlisted author), which causes non-approving reviews to conclude as skipped. This invariant replaces the removed PR-number artifact gate and relies on rerun.yml containing only a single job.",
+  "saysFor": "s2:680c2bb6e50d130ed8f7474a8df6dd95b9f1452fe7603997b047c66ea68a6532"
+}

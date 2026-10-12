@@ -1,0 +1,101 @@
+{
+  "id": "shell-setup-tests-must-stub-commands-and-pass-fixtures-witho",
+  "title": "Shell setup tests must stub commands and pass fixtures without POSIX symlinks or argv, to run on Windows Git Bash",
+  "kind": "rule",
+  "answers": [
+    "mlflow agent setup tests fail on Windows",
+    "setup_sh unit tests break under Git Bash",
+    "how do I fake curl or sed in test_setup_sh_unit tests",
+    "why does json_escape test fail on Windows with MSYS"
+  ],
+  "body": "Symptom: The `mlflow agent setup` shell unit tests fail on Windows (Git Bash) even though the setup script works there.\nRoot cause: tests/agent/test_setup_sh_unit.py:test_json_experiment_strings_fallback_handles_compact_response and test_local_server_always_prints_mlflow_command built fake commands as symlinks or executable files in tmp_path and passed that directory as PATH. test_json_escape passed a backslash-and-quote value as a shell argument, which MSYS argument conversion rewrites.\nFix pattern: Put the fixture value inside the shell snippet (raw r\"\"\" string assigned to a variable) instead of passing it as $1. Replace PATH-dir stubs with shell functions defined in the snippet (e.g. `curl() { :; }`). When the real binary is still needed, capture it first with `sed_bin=$(command -v sed)` and then clear PATH and define `sed() { \"$sed_bin\" \"$@\"; }`.\nConstraints: The production setup script is not changed by this pattern; it applies only to the test file. Function stubs only intercept bare-name calls made by the script. Path results should be compared with `Path(result.stdout.strip()) == expected`, not string equality, because Windows separators differ.",
+  "applies": "Tests in tests/agent/test_setup_sh_unit.py that run setup.sh functions through run_shell; not for tests that must exercise real executables.",
+  "tags": [
+    "tests",
+    "windows",
+    "shell",
+    "agent-setup",
+    "git-bash"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_json_escape",
+      "hash": "sha256:15c0c5b5ac278651c03483d7",
+      "line": 50,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:04ad5e0b3bf2dcb036e090b8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_json_experiment_strings_fallback_handles_compact_response",
+      "hash": "sha256:9c155e083d31add1c1a94c4e",
+      "line": 371,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a810b4527b366619c71f532",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_local_server_always_prints_mlflow_command",
+      "hash": "sha256:e75d0147b50a5991ef23d99d",
+      "line": 571,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:79716bbee16e3cb4a7f40113",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_databricks_cli_installs_latest_release_in_user_bin",
+      "hash": "sha256:c5b10779da6f36530a9a8a5a",
+      "line": 505,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b5d78ad74fb7528c2cb05dbe",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25694"
+  },
+  "created": "2026-10-11T08:42:50.300Z",
+  "verified": "2026-10-11T08:42:50.300Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "setup-prompt-checklist-steps-must-stay-in-dependency-order",
+    "setup-prompt-wording-is-pinned-by-ordered-substring-assertio"
+  ],
+  "says": [
+    "Agent setup unit test suite fails when running on Windows developer machines.",
+    "Setup script verification tests break on Windows when using Git Bash terminal.",
+    "The setup test suite reports errors caused by Windows file path separator differences.",
+    "Make automated setup script tests run reliably across both Linux and Windows environments.",
+    "Setup command tests fail on Windows because quotes and backslashes are modified."
+  ],
+  "search": "In tests/agent/test_setup_sh_unit.py, shell setup unit tests running setup.sh via run_shell must define in-snippet shell function stubs and raw string fixtures instead of PATH symlinks or argv arguments to support Windows Git Bash. Passing fixtures as $1 triggers MSYS argument conversion bugs on backslashes and quotes, while PATH-dir stubs fail on Windows. When real binaries like sed are needed, capture them with command -v before clearing PATH, and compare paths using Path equality rather than string equality to handle Windows separators. This rule applies strictly to unit tests in test_setup_sh_unit.py intercepting bare-name calls, not to the production setup.sh script or tests requiring real executables.",
+  "saysFor": "s2:8746b4226032f73e9d5f625935597b34eaef23c1e404d69a0233a72769f72e78"
+}

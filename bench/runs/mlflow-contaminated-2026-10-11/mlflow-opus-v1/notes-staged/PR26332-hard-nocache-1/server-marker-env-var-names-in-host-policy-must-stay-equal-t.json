@@ -1,0 +1,94 @@
+{
+  "id": "server-marker-env-var-names-in-host-policy-must-stay-equal-t",
+  "title": "Server marker env var names in host_policy must stay equal to mlflow.server.constants",
+  "kind": "rule",
+  "answers": [
+    "server-side artifact host policy silently stops applying after a rename",
+    "which env var marks a process as the tracking server for artifact checks",
+    "jobs and runs:/ artifact URIs bypass host check after changing server constants"
+  ],
+  "body": "Invariant: mlflow/store/artifact/host_policy.py mirrors two env var names as _SERVER_ARTIFACT_ROOT_ENV_VAR = \"_MLFLOW_SERVER_ARTIFACT_ROOT\" and _SERVER_ARTIFACTS_DESTINATION_ENV_VAR = \"_MLFLOW_SERVER_ARTIFACT_DESTINATION\". They duplicate ARTIFACT_ROOT_ENV_VAR and ARTIFACTS_DESTINATION_ENV_VAR in mlflow/server/constants.py.\nThe duplication exists because the store layer cannot import mlflow.server (its package __init__ pulls in Flask).\nIf either name changes on only one side, host_policy.py:is_tracking_server_process returns False without any error, and registry-level enforcement stops for job subprocesses, runs:/ and models:/ URIs.\nThe test tests/store/artifact/test_host_policy.py:test_marker_env_vars_match_server_constants pins equality. Change both sides and the test together.",
+  "applies": "Any rename or edit of the server artifact-root or artifacts-destination env vars in mlflow/server/constants.py or the store layer.",
+  "tags": [
+    "server",
+    "artifacts",
+    "env-vars",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "is_tracking_server_process",
+      "hash": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACT_ROOT_ENV_VAR",
+      "hash": "sha256:29d0a68d14c5638bdd0a668a",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACTS_DESTINATION_ENV_VAR",
+      "hash": "sha256:c7d5555af6430939674e8898",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 25
+      }
+    },
+    {
+      "path": "tests/store/artifact/test_host_policy.py",
+      "symbol": "test_marker_env_vars_match_server_constants",
+      "hash": "sha256:f9b6c8df2eacf0708b718150",
+      "line": 147,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f9b6c8df2eacf0708b718150",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-11T08:45:47.052Z",
+  "verified": "2026-10-11T08:45:47.052Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "artifact-uris-that-make-the-server-connect-to-a-named-host-m"
+  ],
+  "says": [
+    "Server host verification policies are being bypassed when accessing run or model artifacts.",
+    "Security checks on artifact storage locations are silently failing during background job execution.",
+    "Enforce server artifact host restrictions for all model registry and run artifact downloads.",
+    "Unauthorized storage destinations are not blocked when accessing run artifact links.",
+    "Background worker tasks bypass artifact security rules without raising any permission errors."
+  ],
+  "search": "mlflow/store/artifact/host_policy.py duplicates the environment variable names _SERVER_ARTIFACT_ROOT_ENV_VAR and _SERVER_ARTIFACTS_DESTINATION_ENV_VAR from mlflow/server/constants.py to avoid importing Flask in the store layer. If either name changes independently, is_tracking_server_process silently returns False, disabling registry-level host checks for job subprocesses, runs:/, and models:/ URIs. Equality is pinned by tests/store/artifact/test_host_policy.py:test_marker_env_vars_match_server_constants. Applies to any rename or edit of server artifact environment variables in mlflow/server/constants.py or the store layer.",
+  "saysFor": "s2:55e58329c8644a557d846e1d2494b9035c0c4576b4aba8d4b0f97059ecd568f7"
+}

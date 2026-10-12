@@ -1,0 +1,73 @@
+{
+  "id": "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin",
+  "title": "Third-party scorer kwargs must not carry LLM endpoint destination keys",
+  "kind": "rule",
+  "answers": [
+    "server makes outbound requests to a host the user chose when running a judge",
+    "SSRF through custom api_base on a TruLens or LiteLLM scorer",
+    "why does registering a scorer with api_base return 400",
+    "judge endpoint should be configured on the server, not in the scorer payload"
+  ],
+  "body": "Symptom: a user who registers or invokes a third-party judge (TruLens, RAGAS, DeepEval, Phoenix) with a custom api_base makes the MLflow server connect to an arbitrary host when the scorer runs (SSRF).\nRoot cause: mlflow/utils/validation.py:_validate_third_party_scorer_data was missing, so third_party_scorer_data.kwargs reached the wrapped library's LLM client unchanged; the TruLens LiteLLM fallback forwards them into every litellm.completion() call.\nFix pattern: reject any key in GATEWAY_DESTINATION_KEYS (api_base, base_url, model_list, fallbacks, custom_llm_provider) at any nesting depth inside kwargs, and call the check on the server before any deserialization.\nConstraints: payloads without these keys are untouched; server-side endpoints via 'gateway:/' or provider env vars remain allowed. Do not relax this on the client side only, since the REST API can bypass the client.",
+  "applies": "Any server handler or store path that accepts or reconstructs third_party_scorer_data from a caller-supplied serialized scorer.",
+  "tags": [
+    "security",
+    "scorers",
+    "genai",
+    "ssrf",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_third_party_scorer_data",
+      "hash": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "line": 1158,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_find_destination_keys",
+      "hash": "sha256:3714088a6d18c0c4d4353c07",
+      "line": 1122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3714088a6d18c0c4d4353c07",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25890"
+  },
+  "created": "2026-10-11T08:45:44.515Z",
+  "verified": "2026-10-11T08:45:44.515Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb",
+    "destination-key-scan-must-be-shape-agnostic-walk-all-nested",
+    "basic-auth-password-policy-must-be-enforced-in-the-store-s-u"
+  ],
+  "says": [
+    "Registering an external evaluation judge with a custom address returns a bad request error.",
+    "Running an evaluation metric allows callers to force our server to contact arbitrary external networks.",
+    "Prevent external judge registration from redirecting backend server traffic to arbitrary web addresses.",
+    "Allow evaluation judges to connect through server gateway routes while blocking custom destination endpoints."
+  ],
+  "search": "Third-party scorer kwargs must be validated before deserialization on the server to reject LLM endpoint destination keys at any nesting depth and prevent SSRF. Validation is performed in mlflow/utils/validation.py:_validate_third_party_scorer_data using _find_destination_keys to reject keys in GATEWAY_DESTINATION_KEYS (api_base, base_url, model_list, fallbacks, custom_llm_provider). Applies to any server handler or store path accepting third_party_scorer_data, while server-side endpoints via 'gateway:/' or provider env vars remain allowed. Do not relax this on the client side only, since the REST API can bypass the client.",
+  "saysFor": "s2:76494e4321b67cacef4bb7dad6740667880b10240fd76ddc505e4028f480e50e"
+}

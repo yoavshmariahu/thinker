@@ -1,0 +1,88 @@
+{
+  "id": "span-getitem-hint-lookup-must-not-evaluate-attribute-getters",
+  "title": "Span.__getitem__ hint lookup must not evaluate attribute getters",
+  "kind": "rule",
+  "answers": [
+    "span['log_level'] raises ValueError instead of TypeError",
+    "subscripting a span with a bad reserved attribute value crashes",
+    "span[key] error hint crashes when a span attribute is invalid",
+    "hasattr on span property raises during error message"
+  ],
+  "body": "Symptom: a user who writes span[\"log_level\"] on a span whose reserved attribute holds an invalid value (e.g. mlflow.spanLogLevel = 999) gets a ValueError from the property instead of the guiding TypeError.\nRoot cause: mlflow/entities/span.py:Span.__getitem__ probed names with hasattr(self, item), which runs the property getter, and the getter raises while parsing the stored value.\nFix pattern: decide whether a name is a public attribute by membership in dir(self) (item.isidentifier() and not item.startswith('_') and item in dir(self)), which never calls the getter. Only read span.attributes for the dictionary-key hint.\nConstraints: any error-path helper that suggests attribute names must avoid getattr/hasattr on properties that can raise; the diagnostic must not fail with a different exception.\nTests: tests/entities/test_span.py:test_span_subscript_with_malformed_property_raises_type_error.\nApplies: Span.__getitem__ in mlflow/entities/span.py; the same probing concern applies to any similar hint code in span classes.",
+  "applies": "Diagnostic code paths in mlflow/entities/span.py that inspect span names; normal attribute access is unaffected.",
+  "tags": [
+    "tracing",
+    "entities",
+    "span",
+    "error-messages"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getitem__",
+      "hash": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "line": 308,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_subscript_with_malformed_property_raises_type_error",
+      "hash": "sha256:2bb380146ad32b74f202b09f",
+      "line": 1519,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2bb380146ad32b74f202b09f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "attributes",
+      "hash": "sha256:840ccb008aacf972454c4747",
+      "line": 252,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c85684310b1b00baf98c4436",
+      "fanout": {
+        "files": 226,
+        "sites": 8,
+        "refs": 1843
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26008"
+  },
+  "created": "2026-10-11T10:29:14.118Z",
+  "verified": "2026-10-11T10:29:14.118Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-get-must-stay-an-unresolved-attribute-hint-via-getattr",
+    "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss",
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "span-classes-that-define-getitem-must-also-set-iter-none"
+  ],
+  "says": [
+    "Accessing trace fields with square brackets crashes with a value error on invalid properties.",
+    "Diagnostic hints crash unexpectedly when indexing a trace step containing a malformed log level.",
+    "Show the proper bracket indexing guidance even if the trace contains corrupted metadata attributes.",
+    "Bracket lookup on a trace fails with an internal parsing crash instead of clean guidance.",
+    "The error message suggesting trace attribute names should not crash when inspecting invalid values."
+  ],
+  "search": "When generating diagnostic hints for bracket access in `Span.__getitem__`, public attribute names must be checked via `dir(self)` rather than `hasattr`. Using `hasattr` triggers property getters, which can raise exceptions like `ValueError` when stored values such as `mlflow.spanLogLevel` are malformed. Error-path helpers must avoid calling getters via `getattr` or `hasattr` on properties, reading only `span.attributes` for dictionary-key suggestions to ensure a clean `TypeError` is raised. Applies to diagnostic code in `mlflow/entities/span.py` and is verified by `tests/entities/test_span.py:test_span_subscript_with_malformed_property_raises_type_error`.",
+  "saysFor": "s2:a3ceec2f3f3c042e84339d82b592ed32cc044b855ec359ec9cd340e702f046a5"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "identity-switch-resets-the-backend-session-not-just-the-tran",
+  "title": "Identity switch resets the backend session, not just the transcript",
+  "kind": "rule",
+  "answers": [
+    "assistant next message continues previous user's session",
+    "assistant session id persists after user switch",
+    "stale session_id sent to assistant backend after login change",
+    "live user switch assistant stream still running"
+  ],
+  "body": "Invariant: When the resolved username changes while the provider stays mounted, the backend session id and any in-flight stream must be cleared, while the newly seeded transcript is kept.\nEnforced in: mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider, via resetSessionBoundary (shared with reset()) called from the identity-change effect. reset() additionally clears messages and the persisted transcript; the identity effect must not call reset().\nWhat breaks if skipped: The next send without a new-session flag includes the previous user's session_id, so the new user continues the old user's backend conversation. The stream of the old user also keeps running.\nThe effect is gated on a resolved identity, so the loading-to-resolved transition does not tear down a session started during loading.",
+  "applies": "Changes to session lifecycle, reset, or identity handling in the Assistant provider.",
+  "tags": [
+    "assistant",
+    "session",
+    "auth",
+    "state"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "AssistantProvider",
+      "hash": "sha256:e53277cf544973312743edd7",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e53277cf544973312743edd7",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "reset",
+      "hash": "sha256:588fc7a1e8dc664ba50abdc2",
+      "line": 894,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:588fc7a1e8dc664ba50abdc2",
+      "fanout": {
+        "files": 178,
+        "sites": 108,
+        "refs": 403
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26009"
+  },
+  "created": "2026-10-11T10:29:11.004Z",
+  "verified": "2026-10-11T10:29:11.004Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-transcript-persist-write-must-be-gated-on-the-seed",
+    "mlflow-assistant-transcript-leaked-between-users-sharing-a-b"
+  ],
+  "says": [
+    "The AI assistant continues the previous user conversation after switching accounts.",
+    "Switching logins leaves the former user assistant chat stream still generating responses.",
+    "Logging in as a different user should start a fresh assistant conversation.",
+    "Messages sent after account change are appended to the previous person chat history.",
+    "Clear active assistant sessions and ongoing streams immediately when a new user signs in."
+  ],
+  "search": "When the resolved username changes in AssistantProvider, the backend session ID and active streams must be cleared without wiping the seeded transcript. This is handled in mlflow/server/js/src/assistant/AssistantContext.tsx by calling resetSessionBoundary instead of reset(), which would wipe messages and persisted transcripts. The identity effect is gated on resolved identity to prevent tearing down sessions initialized during the loading state.",
+  "saysFor": "s2:9dc5dc639f43efaf2c3f10dfa1aab700f73a4af29abf480fc2db945b4d07c366"
+}

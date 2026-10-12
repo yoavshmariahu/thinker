@@ -1,0 +1,55 @@
+{
+  "id": "scheduled-ci-retry-must-ignore-github-managed-dynamic-runs-b",
+  "title": "Scheduled CI retry must ignore GitHub-managed dynamic runs before pending and budget checks",
+  "kind": "rule",
+  "answers": [
+    "Copilot PR CI never gets retried by the scheduled job",
+    "retry job skips my PR because a Copilot review run is still pending",
+    "why does the auto-retry bot keep saying workflows are pending on a Copilot PR",
+    "exclude dynamic workflow runs from the CI retry rollup"
+  ],
+  "body": "Symptom: Scheduled CI retries for a Copilot PR are skipped every time (\"workflows are pending\" or \"retry budget exhausted\"), even though its real CI is fine.\nRoot cause: .github/workflows/retry.sh:suites builds the per-commit rollup from every github-actions check suite. GitHub-managed runs (event \"dynamic\", e.g. copilot-swe-agent and Copilot review) share that app, so a pending or failed dynamic run was treated as ordinary CI.\nFix pattern: Filter out workflowRun.event == \"dynamic\" in the same select as the github-actions app filter, before group_by, the COMPLETED status check, and the runs/attempt budget evaluation.\nConstraints: Only dynamic runs are excluded; ordinary pending or failed github-actions runs must still block retries. Do not move the filter after the status or budget checks.",
+  "applies": "Edits to the retry.sh rollup or any code that reads check suites for retry or merge decisions in this repo.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "copilot",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "suites",
+      "hash": "sha256:15eb7d4fbc98cd5f6a123682",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T08:43:56.823Z",
+  "verified": "2026-10-11T08:43:56.823Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-guards-are-evaluated-per-commit-on-the-latest-run-per"
+  ],
+  "says": [
+    "Scheduled retry bot skips pull requests claiming review workflows are still pending.",
+    "Automated retries never run on pull requests that have assistant code reviews.",
+    "Pull request test retries fail because the bot claims retry budget is exhausted.",
+    "Make the scheduled pull request retry job ignore background automated review checks.",
+    "CI auto-retry bot reports pending checks on pull requests despite tests being completed."
+  ],
+  "search": "The scheduled CI retry rollup in .github/workflows/retry.sh:suites must exclude GitHub-managed dynamic workflow runs before evaluating completion status and retry budgets. Runs with workflowRun.event == 'dynamic', such as copilot-swe-agent and Copilot review, share the github-actions app and must be filtered out in the initial app selection before group_by. This applies to retry.sh and check suite rollup code, while ordinary pending or failed github-actions runs must still block retries.",
+  "saysFor": "s2:472abbd34cca1ba0f943a0379cb9c52660d3ef9b430dbf9405f60b62d8994fd9"
+}

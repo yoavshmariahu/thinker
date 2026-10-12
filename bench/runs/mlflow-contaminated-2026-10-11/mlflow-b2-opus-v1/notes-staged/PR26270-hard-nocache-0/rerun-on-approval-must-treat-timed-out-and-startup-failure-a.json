@@ -1,0 +1,48 @@
+{
+  "id": "rerun-on-approval-must-treat-timed-out-and-startup-failure-a",
+  "title": "Rerun-on-approval must treat TIMED_OUT and STARTUP_FAILURE as failures, using one predicate for eligibility and duration",
+  "kind": "rule",
+  "answers": [
+    "approval rerun reruns slow sibling jobs even though only one job failed fast",
+    "why does the rerun workflow rerun a timed-out job after approval",
+    "rerun-workflow-run only checks FAILURE conclusions, what about TIMED_OUT",
+    "startup failure not triggering or blocking the rerun of failed workflow"
+  ],
+  "body": "Symptom: after approval, the rerun workflow rereruns a slow sibling job when only one job failed quickly, so the slow job's time is wasted.\nRoot cause: .github/workflows/rerun-workflow-run.yml jq filter selected only conclusion == \"FAILURE\", so a fast FAILURE plus a slow TIMED_OUT job passed eligibility and `gh run rerun --failed` reran the slow sibling.\nFix pattern: define one `failed` predicate (FAILURE, TIMED_OUT, STARTUP_FAILURE) and use it both for the \"at least one failure\" check and for the duration check over every non-skipped job.\nConstraints: SKIPPED jobs are ignored by the duration check; the Protect job is exempt from the 60-second limit; a slow timed-out or startup-failed sibling must block the rerun.\nThe same three conclusions are treated as failures by retry.sh, so keep the sets aligned if either changes.",
+  "applies": "Edits to the rerun-on-approval eligibility logic in the GitHub Actions workflow.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "rerun",
+    "workflow-run"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26023"
+  },
+  "created": "2026-10-11T10:28:48.593Z",
+  "verified": "2026-10-11T10:28:48.593Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last"
+  ],
+  "says": [
+    "Approving a rerun triggers lengthy sibling tasks instead of only the fast failure.",
+    "Approval reruns restart slow jobs when another task in the build timed out.",
+    "Initial startup errors in CI jobs are not recognized when triggering approval retries.",
+    "Prevent approval retries from wasting time rerunning long jobs after timeout failures.",
+    "Treat pipeline timeouts and startup aborts as failed runs during approval reruns."
+  ],
+  "search": "GitHub Actions rerun-on-approval logic in .github/workflows/retry.sh must unify FAILURE, TIMED_OUT, and STARTUP_FAILURE under a single failed predicate for both eligibility and duration checks. This prevents .github/workflows/rerun-workflow-run.yml and gh run rerun --failed from rerunning slow sibling jobs when a fast failure accompanies a slow timed-out job. Applies to workflow rerun-on-approval eligibility edits: SKIPPED jobs are omitted from duration checks, the Protect job bypasses the 60-second limit, and retry.sh failure sets must remain aligned.",
+  "saysFor": "s2:a2f6b10c19fc327462cbb9aaa756eacca3babd27fb875ac073d5420cdf8613a1"
+}

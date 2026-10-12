@@ -1,0 +1,68 @@
+{
+  "id": "test-langgraph-interrupt-resume-tracing-and-lifecycle-manage",
+  "title": "Test LangGraph interrupt/resume tracing and lifecycle managers with version-gated skips",
+  "kind": "howto",
+  "answers": [
+    "how to test langgraph interrupt tracing in mlflow",
+    "test langgraph callback manager without tracer",
+    "skip langgraph test on old python or langgraph version",
+    "where are langgraph autolog tests"
+  ],
+  "body": "Langgraph autolog tests live in tests/langgraph/test_langgraph_autolog.py. The interrupt test (test_langgraph_interrupt_and_resume_do_not_log_tracer_errors) is parametrized sync/async; the async case is skipped with sys.version_info < (3, 11) because interrupt() does not work with ainvoke before 3.11.\nCheck for tracer errors by capturing logs with caplog.at_level(logging.WARNING) and filtering records containing \"MlflowLangchainTracer\", then assert traces with get_traces() have OK status.\nLifecycle-manager tests use pytest.importorskip(\"langgraph.callbacks\") because that module exists only in langgraph >= 1.1.8; they call the public get_sync/async_graph_callback_manager_for_config helpers and assert no MlflowLangchainTracer in handlers.\nThe tests were verified across langgraph 1.2.11, 1.1.8, 1.1.6 and 0.6.7, so keep version gates rather than pinning one version.",
+  "applies": "Writing or running tests under tests/langgraph/ that depend on LangGraph interrupt or callback-manager behavior.",
+  "tags": [
+    "testing",
+    "langgraph",
+    "pytest",
+    "version-gating"
+  ],
+  "deps": [
+    {
+      "path": "tests/langgraph/test_langgraph_autolog.py",
+      "symbol": "test_langgraph_lifecycle_manager_does_not_get_tracer",
+      "hash": "sha256:8a36766bb7c6ecb03a67f432",
+      "line": 354,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8a36766bb7c6ecb03a67f432",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/langgraph/test_langgraph_autolog.py",
+      "symbol": "test_langgraph_interrupt_and_resume_do_not_log_tracer_errors",
+      "hash": "sha256:7036d9a5c72e386244a8bed0",
+      "line": 329,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7036d9a5c72e386244a8bed0",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26136"
+  },
+  "created": "2026-10-11T10:27:29.971Z",
+  "verified": "2026-10-11T10:27:29.971Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pausing and resuming interactive workflows produces tracer error messages in the execution logs.",
+    "Interrupted workflow runs do not display an OK status on the trace details page.",
+    "Tracing breaks when human-in-the-loop agents resume asynchronous execution after an interrupt.",
+    "Ensure graph workflow traces complete cleanly without logging tracer warnings on resume."
+  ],
+  "search": "Testing LangGraph interrupt/resume tracing and callback lifecycle managers in tests/langgraph/test_langgraph_autolog.py requires version-gated skips across Python and LangGraph versions. Interrupt tests verify warning logs lack MlflowLangchainTracer errors and traces from get_traces() have OK status, skipping async cases on Python below 3.11. Lifecycle manager tests use pytest.importorskip('langgraph.callbacks') for versions 1.1.8 and above, asserting no MlflowLangchainTracer exists in callback manager handlers.",
+  "saysFor": "s2:1e176e141279866a587c9e533610409de9b86d204db8084d26c588b0e6df2f1a"
+}

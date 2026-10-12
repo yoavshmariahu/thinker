@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12a67-672e-79a3-841f-0718af50e48c",
+  "turns": 1,
+  "in_tokens": 176950,
+  "cached_tokens": 157312,
+  "out_tokens": 1990,
+  "wall_ms": 63977,
+  "result": "I’ll check the Anthropic and Vertex request converters, apply the translation, and add focused tests. I’m using the repository’s Python style skill for this change.\nClaude on Vertex shares Anthropic’s request conversion, so one fix covers both providers. I’ll always remove `parallel_tool_calls` and add `disable_parallel_tool_use: true` only when it is explicitly `false` and the converted tool choice is `tool`, `auto`, or `any`.\nThe fix and regression tests are in place. Both provider test files failed to collect because the supplied environment lacks `slowapi`. I’ll check the adapter conversions directly without installing dependencies.\nUpdated the shared Anthropic/Claude-on-Vertex converter to always remove `parallel_tool_calls`. When explicitly false, it adds `disable_parallel_tool_use: true` for named, automatic, or required tool choices. Disabled or absent choices retain their existing behavior.\n\nAdded regression coverage for both adapters and streaming modes. All 80 direct conversion checks passed. Provider pytest files could not collect because `slowapi` is missing; no dependencies were installed.",
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "command_execution": 6,
+      "file_change": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": null,
+  "arm": "nocache",
+  "task": "PR26523-hard",
+  "rep": 0,
+  "area": "mlflow/gateway",
+  "id": "PR26523-hard-nocache-0",
+  "session": "01a12a67-672e-79a3-841f-0718af50e48c",
+  "cost": 0.453192,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py\nindex e2918bfb1..650b9fdd9 100644\n--- a/mlflow/gateway/providers/anthropic.py\n+++ b/mlflow/gateway/providers/anthropic.py\n@@ -288,6 +288,12 @@ class AnthropicAdapter(ProviderAdapter):\n                 case {\"type\": \"function\", \"function\": {\"name\": name}}:\n                     payload[\"tool_choice\"] = {\"type\": \"tool\", \"name\": name}\n \n+        parallel_tool_calls = payload.pop(\"parallel_tool_calls\", None)\n+        if parallel_tool_calls is False:\n+            match payload.get(\"tool_choice\"):\n+                case {\"type\": \"tool\" | \"auto\" | \"any\"} as choice:\n+                    choice[\"disable_parallel_tool_use\"] = True\n+\n         # Transform response_format for Anthropic structured outputs\n         # Anthropic uses output_config.format with {\"type\": \"json_schema\", \"schema\": {...}}\n         if response_format := payload.pop(\"response_format\", None):\ndiff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py\nindex bcc88ec50..e9fbd5ca8 100644\n--- a/tests/cli/test_traces.py\n+++ b/tests/cli/test_traces.py\n@@ -158,6 +158,19 @@ def test_delete_command(runner):\n         assert \"Deleted 5 trace(s)\" in result.output\n \n \n+def test_delete_command_strips_spaces_in_trace_ids(runner):\n+    with mock.patch(\"mlflow.cli.traces.TracingClient\") as mock_client:\n+        mock_client.return_value.delete_traces.return_value = 2\n+        result = runner.invoke(\n+            commands,\n+            [\"delete\", \"--experiment-id\", \"1\", \"--trace-ids\", \"tr-1, tr-2\"],\n+        )\n+\n+    assert result.exit_code == 0\n+    _, kwargs = mock_client.return_value.delete_traces.call_args\n+    assert kwargs[\"trace_ids\"] == [\"tr-1\", \"tr-2\"]\n+\n+\n def test_field_validation_error(runner):\n     trace_location = TraceLocation(\n         type=TraceLocationType.MLFLOW_EXPERIMENT,\ndiff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py\nindex 24cd52cff..9ded3345b 100644\n--- a/tests/gateway/providers/test_anthropic.py\n+++ b/tests/gateway/providers/test_anthropic.py\n@@ -19,6 +19,7 @@ from mlflow.gateway.providers.anthropic import (\n     _UnsupportedSchemaError,\n )\n from mlflow.gateway.providers.base import PassthroughAction, _client_provides_auth\n+from mlflow.gateway.providers.vertex_ai import _VertexAIClaudeAdapter\n from mlflow.gateway.schemas import chat, completions, embeddings\n \n from tests.gateway.tools import MockAsyncResponse, MockAsyncStreamingResponse, mock_http_client\n@@ -555,6 +556,42 @@ async def test_chat_function_calling_with_tool_choice(openai_tool_choice, anthro\n         assert call_kwargs[\"json\"][\"tool_choice\"] == anthropic_tool_choice\n \n \n+@pytest.mark.parametrize(\"adapter\", [AnthropicAdapter, _VertexAIClaudeAdapter])\n+@pytest.mark.parametrize(\"streaming\", [False, True])\n+@pytest.mark.parametrize(\"parallel_tool_calls\", [False, True, None, \"omitted\"])\n+@pytest.mark.parametrize(\n+    (\"tool_choice\", \"expected_choice\"),\n+    [\n+        (None, None),\n+        (\"none\", {\"type\": \"none\"}),\n+        (\"auto\", {\"type\": \"auto\"}),\n+        (\"required\", {\"type\": \"any\"}),\n+        (\n+            {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+            {\"type\": \"tool\", \"name\": \"get_weather\"},\n+        ),\n+    ],\n+)\n+def test_parallel_tool_calls(adapter, streaming, parallel_tool_calls, tool_choice, expected_choice):\n+    payload = chat_function_calling_payload()\n+    if tool_choice is not None:\n+        payload[\"tool_choice\"] = tool_choice\n+    if parallel_tool_calls != \"omitted\":\n+        payload[\"parallel_tool_calls\"] = parallel_tool_calls\n+\n+    convert = adapter.chat_streaming_to_model if streaming else adapter.chat_to_model\n+    result = convert(payload, EndpointConfig(**chat_config()))\n+\n+    assert \"parallel_tool_calls\" not in result\n+    if expected_choice is None:\n+        assert \"tool_choice\" not in result\n+    else:\n+        expected_choice = expected_choice.copy()\n+        if parallel_tool_calls is False and tool_choice != \"none\":\n+            expected_choice[\"disable_parallel_tool_use\"] = True\n+        assert result[\"tool_choice\"] == expected_choice\n+\n+\n def test_model_to_chat_content_normalization():\n     config = chat_config()\n     provider = AnthropicProvider(EndpointConfig(**config))\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "ed_tool_choice0]\n0.01s setup    tests/gateway/providers/test_anthropic_adapter.py::test_chat_parallel_tool_calls[auto-True-expected_tool_choice3]\n\n(8 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/gateway/providers/test_anthropic_adapter.py` | 1.10s    | 6     | 0.003s | 1.074s | 0.183s |\n\n::endgroup::\n\n\u001b[33m========================= \u001b[32m6 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.14s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 19638,
+  "costBasis": "list price from token classes"
+}

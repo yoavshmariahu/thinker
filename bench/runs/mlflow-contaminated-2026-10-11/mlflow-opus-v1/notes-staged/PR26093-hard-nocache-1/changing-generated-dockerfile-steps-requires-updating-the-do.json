@@ -1,0 +1,56 @@
+{
+  "id": "changing-generated-dockerfile-steps-requires-updating-the-do",
+  "title": "Changing generated Dockerfile steps requires updating the Dockerfile fixtures in tests/resources/dockerfile",
+  "kind": "rule",
+  "answers": [
+    "why do dockerfile tests fail after changing generate_dockerfile",
+    "update expected Dockerfile test fixtures",
+    "add a RUN step to generated serving Dockerfile",
+    "Dockerfile_default fixture mismatch"
+  ],
+  "body": "Symptom: Dockerfile generation tests fail after the generated output changes, even though the generator logic is correct.\nRoot cause: The tests compare output of mlflow/models/docker_utils.py:generate_dockerfile against static files in tests/resources/dockerfile (Dockerfile_default, Dockerfile_conda, Dockerfile_java_flavor, Dockerfile_sagemaker_*, etc.), so each generator change has to be mirrored in every fixture it affects.\nFix pattern: When a shared step string such as SETUP_APT_TIMEOUTS is added to generate_dockerfile, update all affected fixture files in the same change so the rendered text matches byte-for-byte, including the same RUN ordering and comment lines.\nConstraints: Fixtures for custom base images are unaffected when the generator branch does not emit the step; check each fixture's FROM line to see which branch it exercises.",
+  "applies": "Any change to the text emitted by generate_dockerfile in mlflow/models/docker_utils.py.",
+  "tags": [
+    "docker",
+    "tests",
+    "fixtures"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "generate_dockerfile",
+      "hash": "sha256:11eeecec3437c71784a70b14",
+      "line": 92,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eeecec3437c71784a70b14",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25800"
+  },
+  "created": "2026-10-11T08:42:04.280Z",
+  "verified": "2026-10-11T08:42:04.280Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "generated-serving-dockerfiles-must-bound-apt-timeouts-and-re",
+    "java-setup-step-in-generated-serving-dockerfiles-package-nam"
+  ],
+  "says": [
+    "Add network timeout commands when building container images for serving deployed machine learning models.",
+    "Container build hangs downloading system packages while generating the deployment image for model serving.",
+    "Include package manager timeout settings in generated container build instructions for model deployment.",
+    "Insert extra installation steps into the container specification for serving trained machine learning models."
+  ],
+  "search": "Modifying generated Dockerfile output in mlflow/models/docker_utils.py:generate_dockerfile requires updating matching static fixture files in tests/resources/dockerfile so that rendered text matches byte-for-byte. Any change to emitted text, such as adding a shared RUN step like SETUP_APT_TIMEOUTS, must be mirrored in affected fixtures including Dockerfile_default, Dockerfile_conda, Dockerfile_java_flavor, and Dockerfile_sagemaker_*. Fixtures for custom base images are unaffected when the generator branch does not emit the step, determined by each fixture's FROM line.",
+  "saysFor": "s2:e26b8c8e185c10cf16abb0ca19dfdbd4ac98968ae1241409a09344346fa873e1"
+}

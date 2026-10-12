@@ -1,0 +1,53 @@
+{
+  "id": "serving-tracing-tests-set-mlflow-experiment-id-via-monkeypat",
+  "title": "Serving tracing tests: set MLFLOW_EXPERIMENT_ID via monkeypatch and assert mock calls",
+  "kind": "rule",
+  "answers": [
+    "How to write serving tracing tests in test_provider.py",
+    "Mocking experiment id in serving tracing tests",
+    "Test convention for UC trace location serving regression tests"
+  ],
+  "body": "Convention: serving-mode tests in tests/tracing/test_provider.py set the experiment id with monkeypatch.setenv('MLFLOW_EXPERIMENT_ID', '123') and take the mock_databricks_serving_with_tracing_env fixture plus monkeypatch as arguments.\nDo not patch mlflow.tracking.fluent._get_experiment_id for these tests. The serving branch no longer calls it, so such a patch hides the real code path.\nCapture the mocks that matter (for example mock.patch on get_tracking_uri or _get_store) and assert their calls explicitly, e.g. mock_store_fn.assert_called_once_with('databricks') and get_experiment.assert_called_once_with('123'). Reviewers asked for these assertions.\nA regression test that makes _get_experiment_id raise (side_effect=MlflowException) and asserts assert_not_called() guards the serving bypass.",
+  "applies": "Tests for serving-mode tracing behaviour in tests/tracing/test_provider.py.",
+  "tags": [
+    "tracing",
+    "testing",
+    "model-serving",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/test_provider.py",
+      "symbol": "test_resolve_uc_location_in_serving_bypasses_local_experiment_validation",
+      "hash": "sha256:3258b50527c8347f4ccfaf0c",
+      "line": 1156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3258b50527c8347f4ccfaf0c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25913"
+  },
+  "created": "2026-10-11T10:30:19.281Z",
+  "verified": "2026-10-11T10:30:19.281Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Add automated test coverage ensuring model serving traces bypass local experiment lookups.",
+    "Verify with regression tests that model serving trace destination checks target catalog storage.",
+    "Model serving trace tests must verify calls to the remote tracking store succeed.",
+    "Model serving endpoints fail when attempting to validate experiments against local storage."
+  ],
+  "search": "In tests/tracing/test_provider.py, serving-mode tracing tests must set the experiment id using monkeypatch.setenv('MLFLOW_EXPERIMENT_ID', '123') with the mock_databricks_serving_with_tracing_env fixture instead of patching mlflow.tracking.fluent._get_experiment_id. Tests should explicitly assert mock calls on functions like get_tracking_uri, mock_store_fn.assert_called_once_with('databricks'), and get_experiment.assert_called_once_with('123'). A regression test making _get_experiment_id raise an MlflowException guards the serving bypass.",
+  "saysFor": "s2:832fa1c0655a0592961c6d3650c76279bc0019f2ed1eeb8adb5e122f8f685cf1"
+}

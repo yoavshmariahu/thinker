@@ -1,0 +1,74 @@
+{
+  "id": "session-user-root-span-attributes-are-uc-only-the-generic-ml",
+  "title": "Session/user root-span attributes are UC-only; the generic MLflow exporter reads them from TraceInfo metadata",
+  "kind": "rule",
+  "answers": [
+    "should session.id be added to all MLflow traces",
+    "where to set session and user attributes for TypeScript tracing",
+    "V3 trace search session user metadata vs span attributes",
+    "why not promote session to attributes in MlflowSpanProcessor"
+  ],
+  "body": "Invariant: Session and user values are promoted to session.id / user.id root-span attributes only in the Unity Catalog path (DatabricksUCTableSpanProcessor). The generic MlflowSpanProcessor does not do this.\nEnforced at: libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor (a comment before updateTraceInfo states that V3 search reads user and session from TraceInfo metadata, and that only UC-backed V4 traces need root-span attributes).\nWhat breaks if skipped: Adding the promotion to the generic processor changes span attributes for every V3 trace without being needed by search. Keep the promotion scoped to UC exports and leave session/user in traceMetadata for V3.",
+  "applies": "Changes to TypeScript exporters that set session, user, or related metadata on traces or spans.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "session",
+    "unity-catalog",
+    "exporter"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:fce56b1c93758da7e559177c",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fce56b1c93758da7e559177c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes",
+      "hash": "sha256:ee919130f7e4e7dffdf2e43c",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee919130f7e4e7dffdf2e43c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26209"
+  },
+  "created": "2026-10-11T10:26:44.829Z",
+  "verified": "2026-10-11T10:26:44.829Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-backed-typescript-traces-missing-from-session-search-prom",
+    "writing-attributes-to-an-already-ended-mlflow-span-requires",
+    "environment-provenance-is-merged-into-trace-metadata-first-i"
+  ],
+  "says": [
+    "Trace viewer shows unnecessary session and user tags on standard exported spans.",
+    "Standard trace search should filter by user without altering span attributes.",
+    "Session and user fields are missing from root spans in Unity Catalog traces.",
+    "Filter traces by session in the tracking interface using trace metadata.",
+    "Keep session and user details in trace overview instead of span attributes."
+  ],
+  "search": "In TypeScript trace exporters, session and user values are promoted to session.id and user.id root-span attributes only in DatabricksUCTableSpanProcessor for Unity Catalog exports. Generic MlflowSpanProcessor in libs/typescript/core/src/exporters/mlflow.ts must keep session and user data in TraceInfo metadata because standard V3 trace search reads metadata directly, while only UC-backed V4 traces require root-span attributes. Promoting these values in the generic processor unnecessarily alters span attributes across all standard V3 traces.",
+  "saysFor": "s2:e5c15871d1ccaf375039a8fbb9ec548653021952dee576e7fab4599f4768dff5"
+}

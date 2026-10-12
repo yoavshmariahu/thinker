@@ -1,0 +1,69 @@
+{
+  "id": "mlflow-and-llamaindex-span-contexts-must-be-attached-and-res",
+  "title": "MLflow and LlamaIndex span contexts must be attached and reset together, in a finally",
+  "kind": "rule",
+  "answers": [
+    "LlamaIndex context leaks into later spans after a streaming chunk",
+    "how to set llama_index active_span_id together with the MLflow active span",
+    "span context not restored after exception in LlamaIndex generator"
+  ],
+  "body": "Invariant: any code that sets the MLflow span context around LlamaIndex work must also set LlamaIndex's active_span_id, and reset both in finally blocks, in reverse order.\nEnforced in mlflow/llama_index/tracer.py:_stream_span_context: attach the MLflow span first (set_span_in_context), then set active_span_id only when the span ID is not None, then reset the LlamaIndex token before detaching the MLflow token.\nWhat breaks if skipped: a failed attachment or exception leaves a stale LlamaIndex span ID or MLflow span active, so later unrelated spans attach to the wrong parent. The attachment-failure case is covered by test_stream_resolver_does_not_leak_context_when_attachment_fails in tests/llama_index/test_llama_index_tracer.py.\nWhen no LlamaIndex span ID is available, leave the existing caller's LlamaIndex context unchanged rather than setting None.",
+  "applies": "Any code in mlflow/llama_index/tracer.py that switches span context around LlamaIndex callbacks or generators.",
+  "tags": [
+    "llama_index",
+    "tracing",
+    "context",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "_stream_span_context",
+      "hash": "sha256:0cb02181fb889a27ce628bc6",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0cb02181fb889a27ce628bc6",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/llama_index/test_llama_index_tracer.py",
+      "symbol": "test_stream_resolver_does_not_leak_context_when_attachment_fails",
+      "hash": "sha256:5c8ee33d1732e23b5d94a6f1",
+      "line": 920,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5c8ee33d1732e23b5d94a6f1",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26293"
+  },
+  "created": "2026-10-11T10:23:48.131Z",
+  "verified": "2026-10-11T10:23:48.131Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "llamaindex-deferred-streaming-response-loses-mlflow-parent-c"
+  ],
+  "says": [
+    "Streaming responses cause subsequent trace steps to appear nested under the wrong parent.",
+    "Trace hierarchy becomes corrupted after a stream chunk encounters an unexpected error.",
+    "Later operations in the trace view are wrongly linked to earlier generator calls.",
+    "Streaming trace context leaks across independent operations and distorts the trace tree."
+  ],
+  "search": "In mlflow/llama_index/tracer.py:_stream_span_context, span contexts for MLflow and LlamaIndex must be attached and reset together in reverse order inside finally blocks. The MLflow span is attached first using set_span_in_context, active_span_id is set only when not None, and the LlamaIndex token is reset before detaching MLflow. If no LlamaIndex span ID exists, the caller's existing context must be left unchanged instead of setting None.",
+  "saysFor": "s2:30784b442fbb732a989e7ff357f6d979239d9bafbafef07061b7a815358e242b"
+}

@@ -1,0 +1,85 @@
+{
+  "id": "archived-uc-span-links-must-be-normalized-against-the-preser",
+  "title": "Archived UC span links must be normalized against the preserved request ID",
+  "kind": "rule",
+  "answers": [
+    "After restoring an archived Unity Catalog trace, span links lose the catalog and schema",
+    "Why do links on a round-tripped UC trace no longer point to the right location?",
+    "Why does preserve_request_id strip the UC location from span links?"
+  ],
+  "body": "Symptom: after a Unity Catalog trace is archived and read back with its request ID preserved, its span links no longer carry the `trace:/catalog.schema/` location.\nRoot cause: mlflow/entities/span.py:Span.from_otel_proto with preserve_request_id=True. Without a location_id the generated `tr-...` ID is used as mlflow_trace_id, and links were normalized against that, so the UC location was stripped.\nFix pattern: resolve the effective request ID first (the serialized REQUEST_ID attribute when preserve_request_id is set, otherwise the generated ID), normalize links against that value, and reuse the same value for the span's REQUEST_ID attribute.\nConstraints: applies only on the preserve_request_id path; without it the location comes from location_id. Regression coverage is tests/entities/test_span.py:test_span_from_otel_proto_can_preserve_request_id_for_round_trip, which checks the OTLP bytes of the linked trace.",
+  "applies": "Changes to Span.from_otel_proto or any code that rebuilds spans from OTLP with a preserved request ID; not for fresh span creation from live OTel spans.",
+  "tags": [
+    "tracing",
+    "unity-catalog",
+    "span-links",
+    "otlp",
+    "archive"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.from_otel_proto",
+      "hash": "sha256:cce478985ecaa45d533f858c",
+      "line": 467,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cce478985ecaa45d533f858c",
+      "fanout": {
+        "files": 11,
+        "sites": 14,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "_normalize_link_trace_id",
+      "hash": "sha256:ac14a04a13fe5f05450f42d1",
+      "line": 52,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac14a04a13fe5f05450f42d1",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_from_otel_proto_can_preserve_request_id_for_round_trip",
+      "hash": "sha256:3a71e521b75daa2e7450bcb7",
+      "line": 643,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3a71e521b75daa2e7450bcb7",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25597"
+  },
+  "created": "2026-10-11T08:50:17.015Z",
+  "verified": "2026-10-11T08:50:17.015Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-span-links-must-stay-inside-their-source-trace-location",
+    "new-public-livespan-methods-need-a-noopspan-stub-and-an-api"
+  ],
+  "says": [
+    "Restoring an archived Unity Catalog trace strips the catalog and schema from span links",
+    "Span links on archived traces lose their destination path after being loaded back",
+    "Preserve the full catalog and schema location for links when round-tripping archived traces",
+    "Why do links between spans no longer navigate to the right catalog in saved traces"
+  ],
+  "search": "Archived Unity Catalog span links in mlflow/entities/span.py:Span.from_otel_proto must be normalized against the effective preserved request ID rather than a generated trace ID. When preserve_request_id is true, resolve the serialized REQUEST_ID attribute first, normalize links against it to retain the trace:/catalog.schema/ location, and assign it to the span REQUEST_ID. Applies to code rebuilding spans from OTLP with preserve_request_id=True, but not to fresh span creation from live OpenTelemetry spans where locations derive from location_id. Verified by tests/entities/test_span.py:test_span_from_otel_proto_can_preserve_request_id_for_round_trip on linked trace OTLP bytes.",
+  "saysFor": "s2:f8c90e2d59e0a454c061962972604920f47fe3244b2d21fa236b01abb4dc1d0b"
+}

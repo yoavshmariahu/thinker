@@ -1,0 +1,58 @@
+{
+  "id": "openai-autolog-stream-hook-must-bind-loop-variable-before-th",
+  "title": "OpenAI autolog stream hook must bind loop variable before the loop for zero-chunk streams",
+  "kind": "rule",
+  "answers": [
+    "UnboundLocalError chunk when OpenAI streaming response is empty with autolog",
+    "openai autolog streaming call crashes when the stream ends with no chunks",
+    "stream ends immediately with data: [DONE] and mlflow autolog raises",
+    "mlflow openai autolog empty streaming response trace outputs none"
+  ],
+  "body": "Symptom: With mlflow.openai.autolog() on, a streaming chat completion that ends without sending any chunk (server sends data: [DONE] right away) raises UnboundLocalError: chunk when the stream ends, so the user's loop fails even though the API call succeeded.\nRoot cause: mlflow/openai/autolog.py:_stream_output_logging_hook (sync and async variants) reads the loop variable `chunk` after the for/async for loop; if the stream yields zero items, the name is never bound.\nFix pattern: initialize `chunk = None` before the loop in both sync and async hooks, so the post-loop code (_process_last_chunk) runs with outputs=None and the span ends normally.\nConstraints: Applies to any post-loop code that reads a loop variable in these hooks. Does not cover exceptions raised mid-stream, which are handled separately. Keep the sync and async hooks in parity when editing either.",
+  "applies": "OpenAI autolog streaming hooks in mlflow/openai/autolog.py (Chat Completions and Responses API share the hook).",
+  "tags": [
+    "openai",
+    "autolog",
+    "tracing",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_stream_output_logging_hook",
+      "hash": "sha256:80def39bcaacc0fecf39ddfb",
+      "line": 345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80def39bcaacc0fecf39ddfb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26283"
+  },
+  "created": "2026-10-11T10:26:12.778Z",
+  "verified": "2026-10-11T10:26:12.778Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-openai-autolog-streaming-span-must-end-when-the-stream",
+    "openai-autolog-streaming-span-left-open-when-the-stream-rais"
+  ],
+  "says": [
+    "Streaming model responses that return no content crash the application when tracing is enabled.",
+    "Empty streaming chat completions fail with an internal error when autologging is turned on.",
+    "Streaming calls should finish successfully even when the model returns zero output tokens.",
+    "Tracing crashes if a streaming chat response ends immediately without emitting any chunks.",
+    "Allow zero-token streaming responses to complete without failing the consumer loop."
+  ],
+  "search": "In OpenAI autolog streaming hooks for Chat Completions and Responses API, the stream loop variable chunk must be initialized to None before the loop. This prevents UnboundLocalError when a stream ends with zero chunks, allowing post-loop code in _process_last_chunk to run with outputs=None and end the span normally. Enforced in both sync and async variants of _stream_output_logging_hook in mlflow/openai/autolog.py, which must maintain parity and do not handle mid-stream exceptions.",
+  "saysFor": "s2:e309c9b1f4d2b9f7bc2b1de88e14c16605cb77fea9a90055326f8561e21a0c46"
+}

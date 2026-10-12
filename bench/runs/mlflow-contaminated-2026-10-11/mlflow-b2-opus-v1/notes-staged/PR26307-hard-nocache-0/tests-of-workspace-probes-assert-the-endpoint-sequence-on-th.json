@@ -1,0 +1,52 @@
+{
+  "id": "tests-of-workspace-probes-assert-the-endpoint-sequence-on-th",
+  "title": "Tests of workspace probes assert the endpoint sequence on the mocked http_request",
+  "kind": "rule",
+  "answers": [
+    "how to test which capability endpoints were queried in workspace tests",
+    "mock http_request side_effect endpoint order assertion",
+    "test convention for multi-endpoint REST probes"
+  ],
+  "body": "Convention: when a test mocks mlflow.utils.server_info.http_request with a side_effect list for multiple capability calls, capture the mock (mock_http) and assert the endpoint order via [call.kwargs['endpoint'] for call in mock_http.call_args_list], as the neighboring capability tests do.\nWhy: a reviewer flagged a mock with no call assertion, because the test then does not prove both server-info and server-features were queried.\nFor single-endpoint paths, assert the list is just [SERVER_INFO_ENDPOINT].",
+  "applies": "Unit tests for workspace support probing in tests/store/tracking and tests/store/model_registry.",
+  "tags": [
+    "testing",
+    "workspace",
+    "mocks"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/test_rest_store_workspace.py",
+      "symbol": "test_supports_workspaces_queries_endpoint",
+      "hash": "sha256:2183f2a242093f0b768041fe",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2183f2a242093f0b768041fe",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25979"
+  },
+  "created": "2026-10-11T10:29:54.544Z",
+  "verified": "2026-10-11T10:29:54.544Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Workspace detection fails to prove both server info and feature endpoints were checked.",
+    "Ensure workspace capability tests verify the exact order of queried server endpoints.",
+    "Workspace support tests should confirm that server feature endpoints were actually called.",
+    "Validate that workspace detection queries both server information and capability flags."
+  ],
+  "search": "Tests probing workspace support across tracking and model registry stores must assert the endpoint order on mocked http_request via call.kwargs['endpoint']. This assertion verifies that multi-endpoint probes query both server-info and server-features endpoints, while single-endpoint paths assert [SERVER_INFO_ENDPOINT]. Applies to unit tests in tests/store/tracking and tests/store/model_registry that mock mlflow.utils.server_info.http_request.",
+  "saysFor": "s2:86627dd2524ae9e67423c9affadf85b63fd9be6640dba6ebd5d06c6627ede50d"
+}

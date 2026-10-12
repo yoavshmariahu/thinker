@@ -1,0 +1,55 @@
+{
+  "id": "trace-search-results-with-equal-timestamp-ms-have-no-defined",
+  "title": "Trace search results with equal timestamp_ms have no defined order; tests must not assert by position",
+  "kind": "rule",
+  "answers": [
+    "test_search_traces_with_assessments flaky assertion 1 == 3",
+    "trace search returns traces in wrong order intermittently",
+    "traces created in same millisecond come back in random order from search",
+    "how do I write a test that checks traces returned by search"
+  ],
+  "body": "Symptom: Trace search tests fail intermittently with a wrong count or wrong assessments on a trace (e.g. `assert 1 == 3`), even though the search results are correct; the failure depends on timing.\nRoot cause: tests/tracing/test_assessment.py:test_search_traces_with_assessments indexed results by position (traces[0], traces[1]) and assumed creation order. Search orders by timestamp_ms ascending, and traces created in the same millisecond are tie-broken on the random request_id, so position is not creation order.\nFix pattern: Build a dict keyed by trace_id from the returned traces (`{t.info.trace_id: t for t in traces}`) and look up each expected trace by the id of the span it was created from, then assert on that trace.\nConstraints: Applies to tests that create several traces quickly and then check search output. If a test needs a specific order, it must order by a key that is unique per trace (not timestamp_ms alone). The fix is test-only; do not change the store's tie-break to make tests pass.",
+  "applies": "Tests in tests/tracing/ that assert on the results of trace search with order_by=timestamp_ms or similar time-based ordering.",
+  "tags": [
+    "tracing",
+    "tests",
+    "flaky",
+    "search",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/test_assessment.py",
+      "symbol": "test_search_traces_with_assessments",
+      "hash": "sha256:0d012be9546c152c7312bc8c",
+      "line": 761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0d012be9546c152c7312bc8c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25644"
+  },
+  "created": "2026-10-11T08:43:05.943Z",
+  "verified": "2026-10-11T08:43:05.943Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace search returns simultaneously created traces in an unpredictable order instead of creation sequence.",
+    "Traces logged at the exact same millisecond appear in random order in search results.",
+    "Trace assessment test suite intermittently fails when checking evaluation results across search.",
+    "Evaluation assessment checks on trace search fail randomly when multiple traces share timestamps."
+  ],
+  "search": "Trace search results ordered by timestamp_ms have no defined tie-break order for traces created in the same millisecond, so tests must not assert by position. In tests/tracing/test_assessment.py:test_search_traces_with_assessments, tests should construct a dictionary keyed by trace_id from search results rather than indexing by position. Applies to tests in tests/tracing/ asserting on time-ordered trace search results, which must order by a unique key if a specific sequence is required. This fix is strictly test-only and the underlying store tie-break behavior must not be changed.",
+  "saysFor": "s2:fee99dc9b9545a64136e5996064acba0114b5fde119a4a8055938d1e23642263"
+}

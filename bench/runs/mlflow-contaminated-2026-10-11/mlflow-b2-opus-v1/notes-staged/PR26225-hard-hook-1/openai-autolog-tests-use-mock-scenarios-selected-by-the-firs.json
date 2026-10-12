@@ -1,0 +1,58 @@
+{
+  "id": "openai-autolog-tests-use-mock-scenarios-selected-by-the-firs",
+  "title": "OpenAI autolog tests use mock scenarios selected by the first message content",
+  "kind": "rule",
+  "answers": [
+    "how to add a mock OpenAI streaming error case for tests",
+    "where to add a fake OpenAI server response scenario",
+    "test OpenAI autolog stream error without calling the real API"
+  ],
+  "body": "Convention: tests/openai/mock_openai.py serves fake OpenAI responses. A scenario is a module-level constant (e.g. EMPTY_STREAM, ERROR_MID_STREAM) and a matching elif branch in the chat() endpoint that keys on payload.messages[0].content.\nAdd new scenarios as a constant plus a branch there, then import the constant in tests/openai/test_openai_autolog.py.\nStreaming tests in test_openai_autolog.py run against both sync and async clients; use client._is_async to choose between list(stream) and async iteration, and wrap the consume step in pytest.raises for error cases.",
+  "applies": "Tests for the OpenAI autolog integration under tests/openai/.",
+  "tags": [
+    "openai",
+    "testing",
+    "mock-server",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "tests/openai/mock_openai.py",
+      "symbol": "chat",
+      "hash": "sha256:b89a84751a500c1eaba6b0bb",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b89a84751a500c1eaba6b0bb",
+      "fanout": {
+        "files": 310,
+        "sites": 93,
+        "refs": 1992
+      }
+    },
+    {
+      "path": "tests/openai/test_openai_autolog.py",
+      "hash": "sha256:37ea77dc975ed21920831c44",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26305"
+  },
+  "created": "2026-10-11T10:26:04.655Z",
+  "verified": "2026-10-11T10:26:04.655Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Add automated tests for streaming chat errors without calling the real model service.",
+    "Verify that empty chat streams are tested using simulated server responses.",
+    "Test streaming autologging failure scenarios without making live external calls.",
+    "Ensure test coverage for interrupted chat completions using mock response scenarios."
+  ],
+  "search": "OpenAI autolog test conventions use mock scenarios in tests/openai/mock_openai.py dispatched by the content of the first message in the chat endpoint. New fake server scenarios are added as module-level constants and elif branches matching payload.messages[0].content, then imported into tests/openai/test_openai_autolog.py. Streaming tests exercise both sync and async clients using client._is_async to toggle between list(stream) and async iteration, wrapping consumption in pytest.raises for error cases.",
+  "saysFor": "s2:d2c4a51e7975b08c84401cdf6bdb166d808f3e4ec9bd8a15f2ca0b4dae89d51d"
+}

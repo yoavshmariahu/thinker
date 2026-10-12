@@ -1,0 +1,89 @@
+{
+  "id": "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+  "title": "Invoke handlers must bind caller-supplied trace_ids to the authorized experiment",
+  "kind": "rule",
+  "answers": [
+    "issue detection runs on traces from another experiment",
+    "GenAI evaluation scores traces the user cannot read",
+    "trace_ids not checked against experiment_id on invoke endpoints",
+    "broken object authorization on evaluate/invoke or issues/invoke"
+  ],
+  "body": "Symptom: a user with permission on their own experiment could run issue detection or GenAI evaluation over traces from an experiment they cannot read, and the results were written into their own run.\nRoot cause: mlflow/server/handlers.py:_invoke_issue_detection_handler and _invoke_genai_evaluate_handler. The route validator (validate_can_update_experiment) only checks the request's experiment_id, so caller-supplied trace_ids were never bound to it.\nFix pattern: call _validate_trace_ids_in_experiment(store, trace_ids, experiment_id) before credentials are fetched, before scorer resolution, and before any run or job is created, so a rejected request leaves no run and no job.\nConstraints: the helper does not reject missing traces (they fail later in the job). The check lives in the handler, not the auth validator, so it also protects deployments that mount the handlers without the basic-auth app.",
+  "applies": "Any handler that accepts trace_ids and submits work under a different caller-supplied experiment_id.",
+  "tags": [
+    "security",
+    "authorization",
+    "trace-ids",
+    "invoke",
+    "handlers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_issue_detection_handler",
+      "hash": "sha256:b04751cfe36d29c0005098d7",
+      "line": 5380,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04751cfe36d29c0005098d7",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-11T08:41:50.887Z",
+  "verified": "2026-10-11T08:41:50.887Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-branch-selection-must-use-the-effective-is-prompt-tag",
+    "request-bodies-that-spell-one-protobuf-field-both-snake-case",
+    "workspace-default-artifact-root-must-be-a-uri-or-an-absolute",
+    "server-must-re-read-the-stored-registered-scorer-by-name-and"
+  ],
+  "says": [
+    "Users can run issue detection on evaluation traces belonging to other restricted experiments.",
+    "Evaluation scoring allows unauthorized members to inspect and assess private traces from other projects.",
+    "Prevent users from evaluating traces that do not belong to their selected experiment.",
+    "Running assessments against unauthorized trace identifiers still logs evaluation results into personal experiments.",
+    "Stop unauthorized analysis jobs immediately before creating evaluation runs in the tracking system."
+  ],
+  "search": "Invoke handlers accepting trace_ids and an experiment_id must bind caller-supplied trace_ids to the authorized experiment using _validate_trace_ids_in_experiment. In _invoke_issue_detection_handler and _invoke_genai_evaluate_handler, route validation only checks experiment permissions, allowing users to run issue detection or GenAI evaluation over unauthorized traces and log results to their own run. _validate_trace_ids_in_experiment must be called before fetching credentials, resolving scorers, or creating any run or job so rejected requests leave no artifacts. The check resides in the handler rather than the auth validator to protect deployments without basic-auth, and missing traces are not rejected here but fail later in the job.",
+  "saysFor": "s2:77a7e1df7e8fbfbcc6de4cad242cb9a5d0c1931eeb97e3230d8f1317025cdd78"
+}

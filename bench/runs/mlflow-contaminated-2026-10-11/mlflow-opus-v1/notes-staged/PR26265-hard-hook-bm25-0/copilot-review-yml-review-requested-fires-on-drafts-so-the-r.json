@@ -1,0 +1,47 @@
+{
+  "id": "copilot-review-yml-review-requested-fires-on-drafts-so-the-r",
+  "title": "copilot-review.yml: review_requested fires on drafts, so the request-review if-guard must split by action",
+  "kind": "rule",
+  "answers": [
+    "Copilot publishes a maintainer's draft PR automatically",
+    "Copilot review requested on draft PR by mistake",
+    "why does the review_requested trigger need its own condition in copilot-review.yml",
+    "restrict draft PR auto-publish to Copilot bot"
+  ],
+  "body": "Invariant: In copilot-review.yml request-review `if`, the review_requested branch must require draft == true AND author login 'Copilot' with type 'Bot'. The other branch (opened, ready_for_review) must keep draft == false and the OWNER/MEMBER/COLLABORATOR or Copilot Bot author check.\nEnforced at: .github/workflows/copilot-review.yml:request-review (job-level if).\nWhat breaks: Without the Copilot-bot check on the draft branch, a maintainer's draft PR gets published when review is requested. Without draft == false on the other branch, drafts take the non-draft review path.\nThe 'Mark ready for review' step repeats the same Copilot-draft predicate in its own step-level if; change both together.\nConstraints: Describes the file as this PR left it. Later notes say the draft publish moved to copilot-agent.yml, so confirm which file owns the publish step before editing.",
+  "applies": "Triggers and if-guards of the Copilot automation workflows under .github/workflows that run on pull_request_target.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "pull-request-target",
+    "draft-pr",
+    "permissions-gating"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25534"
+  },
+  "created": "2026-10-11T08:51:43.267Z",
+  "verified": "2026-10-11T08:51:43.267Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Asking the automated reviewer to check my draft pull request accidentally published it.",
+    "Maintainer draft pull requests are being marked ready for review whenever someone requests review.",
+    "Prevent the code review assistant from automatically publishing draft pull requests opened by maintainers.",
+    "A draft pull request was taken out of draft status after requesting a review.",
+    "Stop auto-publishing draft pull requests when requesting review from the automated bot."
+  ],
+  "search": "In .github/workflows/copilot-review.yml, the request-review job if condition must require draft == true and author login 'Copilot' with type 'Bot' for review_requested, while the other branch requires draft == false alongside member or bot author checks. The step-level if in the 'Mark ready for review' step repeats this draft predicate and must be updated together. Without these guards, maintainer draft pull requests are published on review requests or take the non-draft path. Later notes indicate draft publishing may have moved to copilot-agent.yml, requiring verification of file ownership before editing.",
+  "saysFor": "s2:2275d489846c95e259fc642fecd8a8796784a419c0d2a3a7b20d1bf2a1288318"
+}

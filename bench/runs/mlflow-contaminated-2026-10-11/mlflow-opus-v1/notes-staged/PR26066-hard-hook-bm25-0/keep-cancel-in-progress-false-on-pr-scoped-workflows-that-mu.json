@@ -1,0 +1,60 @@
+{
+  "id": "keep-cancel-in-progress-false-on-pr-scoped-workflows-that-mu",
+  "title": "Keep cancel-in-progress false on PR-scoped workflows that mutate state mid-run",
+  "kind": "rule",
+  "answers": [
+    "team-review label added but reviewers never assigned",
+    "cancelling a bot workflow strands routing",
+    "why cancel-in-progress is false in workflow concurrency",
+    "in-flight label routing gets interrupted"
+  ],
+  "body": "Symptom: A PR gets the team-review label but no reviewers are assigned, and no label-added follow-up fires.\nRoot cause: .github/workflows/route-ready-issue-pr.yml runs route-ready-issue-pr.js, which adds the team-review label with GITHUB_TOKEN and then runs runTeamReview. Cancelling the run between those two steps leaves the label in place. A replacement run whose payload already has the label exits early, and GITHUB_TOKEN label writes do not emit a new label event.\nFix pattern: Set `cancel-in-progress: false` in the concurrency block of every workflow that the PR-scoped group covers, so an in-flight run always finishes. The group still coalesces pending runs.\nConstraints: cancel-in-progress only protects a running run; a pending run in the same group is still replaced by a later event. Cancelling is acceptable only for idempotent, low-cost jobs, as the PR argued for the ubuntu-slim gated workflows.",
+  "applies": "Any workflow with a concurrency group that performs non-idempotent side effects such as label writes or review requests, and that could be superseded mid-run.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/route-ready-issue-pr.yml",
+      "hash": "sha256:4a7c3a381362bab1fa10769e",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/route-ready-issue-pr.js",
+      "symbol": "runTeamReview",
+      "hash": "sha256:b38925dd48f214a73d6361c9",
+      "line": 2,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b38925dd48f214a73d6361c9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25614"
+  },
+  "created": "2026-10-11T08:50:05.784Z",
+  "verified": "2026-10-11T08:50:05.784Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Pull requests get marked for team review but reviewers are never assigned.",
+    "Automated pull request review assignment stops when subsequent commits cancel running workflows.",
+    "Pull requests remain stranded with review labels without notifying any team members.",
+    "Review routing bot adds the label but never requests reviews on updated pull requests.",
+    "Prevent new code pushes from interrupting automated reviewer assignment on open pull requests."
+  ],
+  "search": "Workflows with concurrency groups that perform non-idempotent side effects must set cancel-in-progress: false so in-flight runs are not cancelled mid-execution. In .github/workflows/route-ready-issue-pr.yml, cancelling route-ready-issue-pr.js between adding the team-review label and running runTeamReview strands the PR without assigned reviewers. While cancel-in-progress: false protects active runs, pending runs are still coalesced, and cancelling remains acceptable only for low-cost idempotent jobs.",
+  "saysFor": "s2:094c6a7996fa6698dabe3f69ba85e98724804f09b58bb8aa1243c7687dc6a28e"
+}

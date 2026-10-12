@@ -1,0 +1,77 @@
+{
+  "id": "new-public-livespan-methods-need-a-noopspan-stub-and-an-api",
+  "title": "New public LiveSpan methods need a NoOpSpan stub and an API inventory entry",
+  "kind": "rule",
+  "answers": [
+    "I added a method to LiveSpan, why does it fail when tracing is off",
+    "which files must list a new span method",
+    "NoOpSpan missing method when tracing is disabled",
+    "api reference inventory for span methods"
+  ],
+  "body": "Invariant: every public method added to `LiveSpan` must also exist on `NoOpSpan` as a no-op, so callers work when tracing is disabled or a span is not recording.\nEnforcement: mlflow/entities/span.py:NoOpSpan.set_description (a `pass` stub) paired with mlflow/entities/span.py:LiveSpan.set_description.\nAlso list the new method in docs/api_reference/api_inventory.txt, in sorted position among the `mlflow.entities.LiveSpan.*` and `mlflow.entities.NoOpSpan.*` entries; this PR added both `set_description` lines there.\nWhat breaks if skipped: code calling the method raises AttributeError when tracing is off, and the new API is missing from the API reference inventory.",
+  "applies": "Public methods added to LiveSpan in mlflow/entities/span.py; not for read-only properties.",
+  "tags": [
+    "tracing",
+    "span",
+    "noop",
+    "api-reference"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LiveSpan.set_description",
+      "hash": "sha256:c5507bc65d68077a9e42867c",
+      "line": 695,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5507bc65d68077a9e42867c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "NoOpSpan.set_description",
+      "hash": "sha256:c042bb6dfa84663446f6c716",
+      "line": 1465,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c042bb6dfa84663446f6c716",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "docs/api_reference/api_inventory.txt",
+      "hash": "sha256:208ffee71bd42edf1587e081",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25548"
+  },
+  "created": "2026-10-11T08:51:07.975Z",
+  "verified": "2026-10-11T08:51:07.975Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-span-links-must-stay-inside-their-source-trace-location",
+    "archived-uc-span-links-must-be-normalized-against-the-preser"
+  ],
+  "says": [
+    "Setting a span description crashes our application whenever tracing is turned off.",
+    "Allow updating span descriptions safely even when active trace recording is disabled.",
+    "Applications fail with missing method errors on trace spans when disabled in configuration.",
+    "Ensure custom span description updates work seamlessly whether tracing is enabled or disabled.",
+    "The public documentation is missing the command to set trace span descriptions."
+  ],
+  "search": "Every public method added to LiveSpan in mlflow/entities/span.py must be paired with a no-op stub on NoOpSpan so calls succeed when tracing is disabled or not recording. This requirement applies to public methods such as set_description, but excludes read-only properties. New methods must also be added in sorted alphabetical order to docs/api_reference/api_inventory.txt under both LiveSpan and NoOpSpan entries. Omitting the stub causes AttributeError when tracing is turned off and leaves the method missing from API reference inventory.",
+  "saysFor": "s2:051441868b3fe53db199dad99fdb0ba26ac10d5461b1521fb8fb40b6c6784192"
+}

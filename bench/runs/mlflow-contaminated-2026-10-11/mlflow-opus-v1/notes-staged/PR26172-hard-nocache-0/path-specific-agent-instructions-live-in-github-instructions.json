@@ -1,0 +1,45 @@
+{
+  "id": "path-specific-agent-instructions-live-in-github-instructions",
+  "title": "Path-specific agent instructions live in .github/instructions and are scoped by applyTo/excludeAgent frontmatter",
+  "kind": "map",
+  "answers": [
+    "where do Copilot cloud agent instructions go?",
+    "how do I scope repository instructions to certain files or agents?",
+    "why does the code-review agent ignore my instruction file?",
+    "where are PR description rules for the cloud agent defined?"
+  ],
+  "body": "Agent-specific repository instructions are files named `*.instructions.md` under `.github/instructions/` (example: `.github/instructions/cloud-agent.instructions.md`).\nThe YAML frontmatter controls scope: `applyTo` takes a glob (the added file uses `\"**\"`, so it applies to all paths).\n`excludeAgent` names an agent to skip; the added file sets `excludeAgent: \"code-review\"`, so it applies to the cloud agent but not to code review.\nThe body holds the rules. The current file has one section, \"Pull request descriptions\", which requires descriptions to explain motivation and keep task references (issues, PRs, Actions run/job URLs, docs, upstream changes, measurements or logs) when the description is later updated.\nWhen changing these rules, edit this file and keep the frontmatter scope intact; a change to `applyTo` or `excludeAgent` changes which agent sees the rules.",
+  "applies": "Repository-level Copilot/agent instruction files under .github/instructions; does not cover general contributor docs or the PR template.",
+  "tags": [
+    "copilot",
+    "agent-instructions",
+    "pr-description",
+    "github"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/cloud-agent.instructions.md",
+      "hash": "sha256:1bd16499ff03df9e66f9674a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25812"
+  },
+  "created": "2026-10-11T08:47:14.810Z",
+  "verified": "2026-10-11T08:47:14.810Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated cloud assistant does not follow repository guidelines for pull request descriptions",
+    "Code review agent incorrectly receives instructions meant only for the cloud development agent",
+    "Automated assistant overwrites pull request descriptions without retaining required task and issue links",
+    "Configure repository assistant rules to restrict specific guidance to designated automated agents"
+  ],
+  "search": "Repository agent instructions are placed in *.instructions.md files under .github/instructions/ and scoped using applyTo and excludeAgent YAML frontmatter. In .github/instructions/cloud-agent.instructions.md, applyTo uses '**' across all paths while excludeAgent: 'code-review' restricts instructions to the cloud agent. The file mandates that pull request descriptions explain motivation and preserve task references such as issues, PRs, workflow run URLs, docs, upstream changes, measurements, or logs, without applying to general contributor docs or PR templates.",
+  "saysFor": "s2:206008cf097f147045afd1dbef40ee36ac3226827739e5d543a944dec4246d6a"
+}

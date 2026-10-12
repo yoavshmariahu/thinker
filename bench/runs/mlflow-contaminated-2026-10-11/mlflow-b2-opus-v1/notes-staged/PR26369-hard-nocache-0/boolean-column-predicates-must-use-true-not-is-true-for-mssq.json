@@ -1,0 +1,59 @@
+{
+  "id": "boolean-column-predicates-must-use-true-not-is-true-for-mssq",
+  "title": "Boolean column predicates must use == true(), not .is_(True), for MSSQL-compatible SQL",
+  "kind": "rule",
+  "answers": [
+    "label schema questions fail to load on MSSQL 2022",
+    "review queue question loading error on SQL Server tracking backend",
+    "MSSQL syntax error IS 1 in default label schema lookup",
+    "how to filter boolean column in SQLAlchemy for MSSQL compatibility"
+  ],
+  "body": "Symptom: On MLflow with Microsoft SQL Server 2022 or older as the tracking backend, label-schema and review-queue question loading fails.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:_ensure_default_label_schema filtered `SqlLabelSchema.is_default.is_(True)`, which compiles to `is_default IS 1`. MSSQL rejects `IS` with a numeric literal.\nFix pattern: write boolean column comparisons as equality, `SqlLabelSchema.is_default == sqlalchemy.true()`, which compiles to `= 1` on MSSQL and is valid on other backends.\nConstraints: Applies to SQL predicates on boolean columns that run on MSSQL-supported stores. The PR only changed this one call site; other `.is_(True)` uses were not checked in the diff, so audit them before assuming they are safe.\nApplies: SQLAlchemy tracking store filter predicates on boolean columns (for example SqlLabelSchema.is_default).",
+  "applies": "Any SQLAlchemy boolean-column filter executed by the tracking store against an MSSQL backend.",
+  "tags": [
+    "mssql",
+    "sqlalchemy",
+    "label-schema",
+    "boolean-predicate"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_ensure_default_label_schema",
+      "hash": "sha256:0816b496bb26bff206065962",
+      "line": 9273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0816b496bb26bff206065962",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26093"
+  },
+  "created": "2026-10-11T10:24:52.278Z",
+  "verified": "2026-10-11T10:24:52.278Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg"
+  ],
+  "says": [
+    "Review queue questions fail to load when using Microsoft SQL Server tracking backend.",
+    "Opening the evaluation review screen shows a database syntax error on SQL Server.",
+    "Allow label schema and review questions to load properly on SQL Server 2022.",
+    "Default label schema lookups crash on databases that do not accept boolean IS syntax.",
+    "Make review queue question loading compatible with Microsoft SQL Server databases."
+  ],
+  "search": "SQLAlchemy boolean column filters in the tracking store must use equality with sqlalchemy.true() rather than .is_(True) for MSSQL compatibility. In mlflow/store/tracking/sqlalchemy_store.py:_ensure_default_label_schema, filtering SqlLabelSchema.is_default.is_(True) compiles to IS 1, which Microsoft SQL Server rejects with a syntax error. Comparisons written as SqlLabelSchema.is_default == sqlalchemy.true() compile to = 1 on MSSQL; this guidance applies to tracking store boolean predicates on MSSQL, though only this single call site was updated.",
+  "saysFor": "s2:41ee03f82e398b6160b03663dfb7ee57a12abe6b3903d2c5fad33869e0efe0d5"
+}

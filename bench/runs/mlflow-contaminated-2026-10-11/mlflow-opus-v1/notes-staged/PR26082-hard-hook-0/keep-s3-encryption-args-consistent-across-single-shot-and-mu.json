@@ -1,0 +1,84 @@
+{
+  "id": "keep-s3-encryption-args-consistent-across-single-shot-and-mu",
+  "title": "Keep S3 encryption args consistent across single-shot and multipart upload paths",
+  "kind": "rule",
+  "answers": [
+    "add a new S3 upload option that must apply to large files too",
+    "which S3 upload args are forwarded to multipart uploads",
+    "why small artifacts encrypt but large artifacts do not"
+  ],
+  "body": "Invariant: any server-side encryption argument honored by the single-request upload path must also reach the multipart path, because files above the threshold take _multipart_upload while smaller files take _upload_file.\nEnforced by: the allow-list inside OptimizedS3ArtifactRepository._get_multipart_upload_encryption_args, which is the only place that decides what create_multipart_upload receives.\nWhat breaks if skipped: uploads succeed for small files but fail with access denied for files above the multipart threshold on SSE-enforcing buckets.\nWhen adding a key, add it to that allow-list and add a parametrized case in the multipart encryption test. Do not add SSE-C keys without also propagating them to upload_part and complete_multipart_upload.",
+  "applies": "Any change to which S3 upload extra args are sent by OptimizedS3ArtifactRepository.",
+  "tags": [
+    "s3",
+    "artifact-repo",
+    "encryption",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/optimized_s3_artifact_repo.py",
+      "symbol": "OptimizedS3ArtifactRepository._get_multipart_upload_encryption_args",
+      "hash": "sha256:cff3e4b8204f43b66fe48d88",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cff3e4b8204f43b66fe48d88",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/optimized_s3_artifact_repo.py",
+      "symbol": "OptimizedS3ArtifactRepository._upload_file",
+      "hash": "sha256:85bfd3992f672f721a8f8e17",
+      "line": 180,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:85bfd3992f672f721a8f8e17",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/store/artifact/test_optimized_s3_artifact_repo.py",
+      "symbol": "test_multipart_upload_does_not_pass_non_encryption_upload_args",
+      "hash": "sha256:1fffd2cfe8328a484311169e",
+      "line": 298,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1fffd2cfe8328a484311169e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25772"
+  },
+  "created": "2026-10-11T08:42:23.588Z",
+  "verified": "2026-10-11T08:42:23.588Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "s3-multipart-artifact-upload-ignores-configured-sse-s3-sse-k"
+  ],
+  "says": [
+    "Uploading large model artifacts fails with access denied on encrypted cloud storage buckets.",
+    "Small artifact uploads succeed but large files fail when saving to cloud storage.",
+    "Multi-gigabyte model artifacts fail to upload while small configuration files upload normally.",
+    "Large file uploads get rejected by cloud storage buckets requiring server side encryption.",
+    "Ensure custom encryption settings apply to large file uploads as well as small files."
+  ],
+  "search": "Server-side encryption arguments supported by single-request uploads must also reach multipart uploads in OptimizedS3ArtifactRepository. Files exceeding the size threshold switch from _upload_file to _multipart_upload, and omissions in the allow-list within _get_multipart_upload_encryption_args cause access-denied errors on SSE-enforcing buckets. New encryption keys must be added to that allow-list with parametrized tests in test_multipart_upload_does_not_pass_non_encryption_upload_args, and SSE-C keys must also propagate to upload_part and complete_multipart_upload.",
+  "saysFor": "s2:725a74368bcef6abff67c742dc9b094f0f033dd023a006228809586c1b93f54d"
+}

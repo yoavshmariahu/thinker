@@ -1,0 +1,64 @@
+{
+  "id": "mlflow-local-test-env-python-version-test-requirements-file",
+  "title": "mlflow local test env: Python version, test requirements file, and version check",
+  "kind": "howto",
+  "answers": [
+    "How do I set up a Python environment to run mlflow tests?",
+    "Which Python version does mlflow require?",
+    "How do I check the installed mlflow version in a script?",
+    "Where are mlflow's test dependencies listed?"
+  ],
+  "body": "- Python: pyproject.toml sets `requires-python = \">=3.10\"`. A uv venv on Python 3.12 worked in this checkout (`uv venv --python 3.12 <dir>`).\n- Test deps are pinned in `requirements/test-requirements.txt` (e.g. `pytest==9.1.1`, `pytest-xdist`, `pytest-timeout`, `moto>=4.2.0,<5`, `httpx`, `filelock`).\n- Version check: `mlflow.__version__` raises AttributeError in this tree. Use `import mlflow.version as v; v.VERSION` (returned 3.16.2.dev0).\n- Run tests from the repo root with `PYTHONPATH=.` so the local package is imported. `timeout` is not available in this shell (macOS), so do not wrap pytest in it.",
+  "applies": "Local macOS dev setup for this checkout only. Not needed if a CI or devcontainer already provides the environment.",
+  "tags": [
+    "testing",
+    "setup",
+    "python",
+    "uv"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "requirements/test-requirements.txt",
+      "hash": "sha256:57de542f6907c80c31f608c4",
+      "missing": false
+    },
+    {
+      "path": "mlflow/version.py",
+      "symbol": "VERSION",
+      "hash": "sha256:849e29800ed9e15383789b67",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 112
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a2787754-b958-4885-bb39-eee3b19b4025"
+  },
+  "created": "2026-10-11T08:43:41.004Z",
+  "verified": "2026-10-11T08:43:41.004Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dev-version-strings-must-be-bumped-together-across-python-ui"
+  ],
+  "says": [
+    "How do I set up a local environment to execute automated test suites?",
+    "Which language version is required to set up and run local tests?",
+    "Checking the installed package version from a script raises a missing attribute error.",
+    "Where can developers find the list of required dependencies for test execution?"
+  ],
+  "search": "Configuring a local macOS dev test environment for mlflow requires Python 3.10 or higher specified in pyproject.toml, with Python 3.12 verified via uv venv. Pinned test dependencies reside in requirements/test-requirements.txt, including pytest, pytest-xdist, pytest-timeout, moto, httpx, and filelock. Checking the installed version requires importing VERSION from mlflow/version.py because accessing mlflow.__version__ raises AttributeError. Tests run from the repository root with PYTHONPATH=. without wrapping pytest in the timeout utility on macOS.",
+  "saysFor": "s2:147bf7407fd3cc9afad78eefae544ce08d0d4990c2f8781181baad6370ae5792"
+}

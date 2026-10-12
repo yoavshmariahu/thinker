@@ -1,0 +1,85 @@
+{
+  "id": "logged-model-trace-pages-metrics-hooks-must-receive-the-same",
+  "title": "Logged-model trace pages: metrics hooks must receive the same scope as row queries",
+  "kind": "rule",
+  "answers": [
+    "assessment counts on logged model traces page show wrong percentages",
+    "categorical assessment summary counts whole experiment instead of model",
+    "logged model traces tab shows True 50% from other model's traces",
+    "count badge on logged model Traces page includes traces from other models"
+  ],
+  "body": "Symptom: On a logged model's Traces page, categorical assessment summaries (e.g. True/False percentages) and count badges include traces from other logged models in the same experiment, even though the visible rows are filtered to the selected model.\nRoot cause: mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx:TracesV3LogsImpl passed loggedModelId to row/metadata queries but not to useAssessmentCountMetrics or useCountInfo, so the metrics endpoint ran experiment-wide.\nFix pattern: Pass loggedModelId into useCountInfo and useAssessmentCountMetrics alongside runUuid and timeRange; each hook appends a trace metadata filter on mlflow.modelId to the metrics request filters.\nConstraints: Any new scope (run, model, time range) applied to Traces V3 row queries must also be passed to every metrics-backed hook in the same component, or counts will silently diverge from visible rows. Does not apply to row search, which uses its own request_metadata filter format.",
+  "applies": "Traces V3 logs view under experiment-page/components/traces-v3, used on experiment and logged model pages.",
+  "tags": [
+    "traces",
+    "logged-model",
+    "assessments",
+    "metrics",
+    "filters"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+      "symbol": "TracesV3LogsImpl",
+      "hash": "sha256:7642b73457b40b8de73cdd84",
+      "line": 150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7642b73457b40b8de73cdd84",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:b339f6ee7246b1c39af5c5ba",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b339f6ee7246b1c39af5c5ba",
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:a2ccf04fe55796a440bc60ad",
+      "line": 23,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2ccf04fe55796a440bc60ad",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25928"
+  },
+  "created": "2026-10-11T10:30:07.020Z",
+  "verified": "2026-10-11T10:30:07.020Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "metrics-filter-lists-in-usecountinfo-and-useassessmentcountm"
+  ],
+  "says": [
+    "The traces tab for a model displays assessment percentages from other models.",
+    "Trace count badges on the model page do not match the displayed rows.",
+    "Filter assessment summary metrics to the selected model instead of the whole experiment.",
+    "Categorical evaluation counts on the model traces screen include unrelated run data."
+  ],
+  "search": "In TracesV3LogsImpl, metrics hooks useCountInfo and useAssessmentCountMetrics must receive the loggedModelId scope alongside runUuid and timeRange. Without this scope filter on mlflow.modelId, assessment percentage summaries and count badges aggregate experiment-wide traces instead of filtering to the active logged model. Every scope applied to Traces V3 row queries must also be passed to all metrics-backed hooks in the component to prevent counts from diverging from visible rows. This constraint applies to metrics requests rather than row search queries, which use their own request_metadata filter format.",
+  "saysFor": "s2:0bf6c5b43bfc35b7273c53fa89fc024cc6c0fa58b30fdbfb5f4bccf349ebdde9"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "linked-issue-copilot-notification-dedupe-marker-in-body-and",
+  "title": "Linked-issue Copilot notification dedupe: marker in body and check must match",
+  "kind": "rule",
+  "answers": [
+    "duplicate comments on linked issue when copilot-agent workflow reruns",
+    "Copilot posts 'opened #N for this issue' twice on the same issue",
+    "how to avoid repeated notification comments on linked issues for a PR"
+  ],
+  "body": "Symptom: Re-running the copilot-agent workflow on a PR posts the same \"Copilot opened #N for this issue.\" comment again on each linked issue.\nRoot cause: .github/workflows/copilot-agent.yml (run step that notifies closingIssuesReferences) posted the comment unconditionally, with no per-PR key to detect an earlier post.\nFix pattern: Build a PR-specific HTML marker (<!-- copilot-agent-pr:${PR_NUMBER} -->) and append it to the comment body. Fetch comments(last: 100) in the same GraphQL query, then drop issues where any fetched comment contains the marker (jq select(any(...; contains($marker)) | not)).\nConstraints: The marker must derive from the same PR_NUMBER used for the check, and the body must still include it. The check only sees the last 100 comments per issue, so a marker older than that window can still be re-posted. Different PRs get different markers, so they still notify the same issue independently.",
+  "applies": "Only the copilot-agent workflow's linked-issue notification step; any change to the comment text or marker format must keep both sides in sync.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "copilot-agent",
+    "dedupe",
+    "linked-issues"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25652"
+  },
+  "created": "2026-10-11T08:49:17.152Z",
+  "verified": "2026-10-11T08:49:17.152Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The bot posts duplicate notification comments on linked issues whenever a workflow is rerun.",
+    "Rerunning the pull request checks causes repeated comments on the linked issue thread.",
+    "Prevent identical pull request opening notices from spamming the linked issue activity feed.",
+    "Linked issue shows the same pull request opened message twice after a rerun."
+  ],
+  "search": "In `.github/workflows/copilot-agent.yml`, linked-issue notification deduplication appends an HTML marker `<!-- copilot-agent-pr:${PR_NUMBER} -->` to the comment body and filters out issues where `comments(last: 100)` contains that marker. The check and comment body must use the same `PR_NUMBER` marker format to stay in sync. Because only the last 100 comments are checked, older markers can still allow re-posting, while distinct pull requests use distinct markers to notify independently.",
+  "saysFor": "s2:e4a722266bf6f60d6741b3ba4ff32affa7a0387c43a625dac72a787575e607b5"
+}

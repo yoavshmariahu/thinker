@@ -1,0 +1,84 @@
+{
+  "id": "budget-amount-is-deliberately-not-part-of-window-identity",
+  "title": "Budget amount is deliberately not part of window identity",
+  "kind": "rule",
+  "answers": [
+    "why does editing budget amount not reset budget spend in redis",
+    "changing budget cap should not discard accumulated spend",
+    "should budget_amount be stored in the redis budget window",
+    "budget limit edit keeps cumulative spend"
+  ],
+  "body": "Invariant: A budget window's identity is its bounds plus the duration that produced them, not budget_amount. An edit that only changes the cap must keep the window and its cumulative_spend, so the new lower/higher limit applies to the existing window.\nEnforced in mlflow/gateway/budget_tracker/redis.py:_ENSURE_WINDOW_LUA (compares window_start, duration_unit, duration_value only) and RedisBudgetTracker.should_reject_request via _window_duration_matches (duration fields only).\nWhat breaks if skipped: adding budget_amount to the compared or stored fields rolls the window on every amount-only edit and silently discards accumulated spend, under-counting accounting without making any rejection decision more correct.\nConstraints: This applies to amount edits. Duration edits must still roll the window (see the duration-matching rule for this module).",
+  "applies": "Changes to which fields identify or roll a RedisBudgetTracker window in mlflow/gateway/budget_tracker/redis.py.",
+  "tags": [
+    "gateway",
+    "budget",
+    "redis",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "_ENSURE_WINDOW_LUA",
+      "hash": "sha256:d014675f45bd7f27876ae4d9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "_window_duration_matches",
+      "hash": "sha256:db1602f8f60f812a9c40540b",
+      "line": 97,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:db1602f8f60f812a9c40540b",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "RedisBudgetTracker.should_reject_request",
+      "hash": "sha256:da5ef606df66f3b9e8800df4",
+      "line": 305,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:da5ef606df66f3b9e8800df4",
+      "fanout": {
+        "files": 3,
+        "sites": 32,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26075"
+  },
+  "created": "2026-10-11T10:28:01.453Z",
+  "verified": "2026-10-11T10:28:01.453Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "redis-budget-window-must-carry-and-match-the-duration-that-p",
+    "test-multi-process-budget-behavior-with-two-trackers-on-one"
+  ],
+  "says": [
+    "Editing the gateway budget limit reset all accumulated spend for the current cycle.",
+    "Updating a spending cap must preserve previously recorded usage in the active period.",
+    "Changing the allowed budget amount wiped out our tracked expenses mid-window.",
+    "Lowering the gateway spending threshold should immediately apply against existing expenditures.",
+    "Window duration edits should start a new period but amount edits should not."
+  ],
+  "search": "In RedisBudgetTracker window management in mlflow/gateway/budget_tracker/redis.py, budget window identity includes only window bounds and duration fields, deliberately excluding budget_amount so edits to spending limits preserve cumulative_spend. This invariant is enforced in _ENSURE_WINDOW_LUA and RedisBudgetTracker.should_reject_request via _window_duration_matches. Adding budget_amount rolls windows on amount-only edits and discards accumulated spend, whereas duration edits must still roll the window.",
+  "saysFor": "s2:e67981672e2bfa2eda088b116a3b067184cd3df53ed95f695f3f469c06872378"
+}

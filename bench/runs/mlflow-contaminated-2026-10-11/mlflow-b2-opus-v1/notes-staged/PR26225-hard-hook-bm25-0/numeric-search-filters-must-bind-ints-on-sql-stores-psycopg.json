@@ -1,0 +1,90 @@
+{
+  "id": "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg",
+  "title": "Numeric search filters must bind ints on SQL stores (psycopg v3 VARCHAR bind)",
+  "kind": "rule",
+  "answers": [
+    "PostgreSQL search fails with 'operator does not exist: bigint > character varying' when filtering experiments, datasets or model versions by time or version number",
+    "numeric filter on creation_time or created_time errors under psycopg v3 or SQLAlchemy 2.1",
+    "searching model versions by version_number fails on postgresql+psycopg",
+    "why do time-based search filters break only on PostgreSQL with psycopg3"
+  ],
+  "body": "Symptom: On PostgreSQL with psycopg v3 (SQLAlchemy 2.1 default or postgresql+psycopg), time and version_number search filters fail with 'operator does not exist: bigint > character varying'.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:_get_search_experiments_filter_clauses and _get_search_datasets_filter_clauses, and mlflow/store/model_registry/sqlalchemy_store.py:_get_search_model_versions_filter_clauses, passed the parsed filter string straight into SearchUtils.get_sql_comparison_func. psycopg v3 binds str as VARCHAR, which PostgreSQL will not compare to an integer column.\nFix pattern: after the comparator is validated, coerce the numeric attribute with int(value) inside try/except (TypeError, ValueError) and re-raise MlflowException.invalid_parameter_value with \"Invalid value for numeric attribute '<key>': <repr>\". Do this for every integer column touched by a search, including experiment_id-style lookups where the bound value is a str such as store.DEFAULT_EXPERIMENT_ID (tests bind int(...) there).\nConstraints: Applies to SQL-backed stores only. Validate the comparator before coercing. Do not coerce string attributes such as name or run_id.",
+  "applies": "SQLAlchemy tracking and model-registry store search filter builders for integer columns (experiment times, dataset times, model version_number).",
+  "tags": [
+    "sqlalchemy",
+    "postgresql",
+    "psycopg",
+    "search",
+    "filter",
+    "tracking",
+    "model-registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_experiments_filter_clauses",
+      "hash": "sha256:89020edabf9dded58bde7923",
+      "line": 10175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89020edabf9dded58bde7923",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_datasets_filter_clauses",
+      "hash": "sha256:553b894cf7dad27acb23d27f",
+      "line": 10761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:553b894cf7dad27acb23d27f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/model_registry/sqlalchemy_store.py",
+      "symbol": "_get_search_model_versions_filter_clauses",
+      "hash": "sha256:9907ec9ccfc049483bb2fd09",
+      "line": 665,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9907ec9ccfc049483bb2fd09",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-11T10:24:37.219Z",
+  "verified": "2026-10-11T10:24:37.219Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val",
+    "trace-filter-correlation-must-pass-experiment-ids-to-trace-i",
+    "metric-comparisons-in-logged-model-filter-string-must-join-o",
+    "logged-model-search-must-eager-load-every-child-relationship"
+  ],
+  "says": [
+    "Filtering experiments or datasets by creation time fails on PostgreSQL with a type error.",
+    "Searching model versions by version number crashes when connected to a Postgres database.",
+    "Allow numeric comparisons on model version numbers in the model registry search bar.",
+    "Dataset time filter queries fail because the database rejects comparing numbers to text."
+  ],
+  "search": "SQL store search filter builders in mlflow/store/tracking/sqlalchemy_store.py and mlflow/store/model_registry/sqlalchemy_store.py must coerce numeric attribute values with int(value) after validating the comparator. Without coercion, psycopg v3 binds strings as VARCHAR, causing PostgreSQL to fail with 'operator does not exist: bigint > character varying' when comparing against integer columns such as time or version_number. The conversion must catch TypeError and ValueError and re-raise MlflowException.invalid_parameter_value, applying to every integer column touched by search including experiment_id lookups. This rule applies exclusively to SQL-backed stores, requires validating comparators first, and must not coerce string attributes such as name or run_id.",
+  "saysFor": "s2:ab020515c075b3bef0ce2dde6aef685d15464eb975986fcc6cefca2cf3864ce0"
+}

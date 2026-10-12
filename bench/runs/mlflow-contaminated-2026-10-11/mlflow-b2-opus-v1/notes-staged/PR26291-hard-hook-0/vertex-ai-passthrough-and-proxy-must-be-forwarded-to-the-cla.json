@@ -1,0 +1,88 @@
+{
+  "id": "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla",
+  "title": "Vertex AI passthrough and proxy must be forwarded to the Claude/MaaS delegate, with tracing passed through",
+  "kind": "rule",
+  "answers": [
+    "Anthropic passthrough /gateway/anthropic/v1/messages returns 400 for a Claude model on Vertex AI",
+    "Raw proxy route for a Vertex AI endpoint goes to the public Gemini API with a Vertex token",
+    "Vertex AI MaaS model OpenAI passthrough not working in AI Gateway",
+    "Token usage missing on span for Claude passthrough on Vertex"
+  ],
+  "body": "Symptom: On a Vertex AI endpoint serving Claude, POST /gateway/anthropic/v1/messages is rejected with 400. On a Vertex endpoint, POST /gateway/proxy/{endpoint}/v1/messages is sent to generativelanguage.googleapis.com.\nRoot cause: mlflow/gateway/providers/vertex_ai.py:VertexAIProvider forwarded only _chat, _chat_stream, _completions and get_endpoint_url. Passthrough and proxy fell through to the inherited GeminiProvider, whose passthrough actions only cover Gemini.\nFix pattern: VertexAIProvider forwards _passthrough, _proxy and _extract_passthrough_token_usage to self._delegate when a delegate exists, and keeps the Gemini implementation otherwise. Delegates are built with enable_tracing=enable_tracing, because _set_span_token_usage no-ops when the delegate's _enable_tracing is False.\nConstraints: Gemini models have no delegate and must keep the Gemini path unchanged. The delegate's own tracing flag must match the outer provider's, or streamed and non-streamed usage never reaches the span.",
+  "applies": "Changes to VertexAIProvider routing, or to delegate construction in mlflow/gateway/providers/vertex_ai.py.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "passthrough",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider",
+      "hash": "sha256:2aefcb4d2df8fff31707df5c",
+      "line": 283,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2aefcb4d2df8fff31707df5c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T10:32:46.259Z",
+  "verified": "2026-10-11T10:32:46.259Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-claude-passthrough-must-filter-client-anthropic-be",
+    "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+    "vertex-delegates-always-drop-the-client-s-auth-headers-befor",
+    "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p"
+  ],
+  "says": [
+    "Anthropic API format requests fail with a bad request error for Claude on Vertex.",
+    "Proxy requests for Vertex endpoints mistakenly route to the public Gemini service instead.",
+    "Tracing spans are missing token usage statistics for Claude calls made through Vertex.",
+    "Standard OpenAI passthrough calls fail when accessing partner models hosted on Vertex AI.",
+    "Capture token usage on traces while routing passthrough requests to the correct model delegate."
+  ],
+  "search": "VertexAIProvider in mlflow/gateway/providers/vertex_ai.py must forward _passthrough, _proxy, and _extract_passthrough_token_usage calls to self._delegate for Claude and MaaS models instead of falling through to GeminiProvider. Delegates must be instantiated with enable_tracing=enable_tracing matching the outer provider so _set_span_token_usage records token usage onto tracing spans. Gemini models use no delegate and must retain the inherited GeminiProvider routing.",
+  "saysFor": "s2:c8343c233f81395fdc38d622dac0ef5a2ef14d6181bd32dd31f048e06d398136"
+}

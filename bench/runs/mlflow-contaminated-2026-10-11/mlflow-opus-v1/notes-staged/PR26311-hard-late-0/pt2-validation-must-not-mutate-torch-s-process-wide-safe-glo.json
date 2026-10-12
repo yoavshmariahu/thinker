@@ -1,0 +1,87 @@
+{
+  "id": "pt2-validation-must-not-mutate-torch-s-process-wide-safe-glo",
+  "title": "pt2 validation must not mutate torch's process-wide safe_globals registry",
+  "kind": "rule",
+  "answers": [
+    "concurrent torch.load weights_only fails after mlflow loads a pt2 model",
+    "add_safe_globals interferes with mlflow pytorch load",
+    "allowlisted torch global executes during pt2 validation",
+    "UnpicklingError when loading checkpoint while pt2 model loads"
+  ],
+  "body": "Invariant: validation must not add to or clear torch.serialization's global registry. torch's weights_only unpickler honors globals registered with add_safe_globals, so a crafted record could invoke an allowlisted callable during validation.\nEnforced by mlflow/pytorch/__init__.py:_pickle_globals, which scans each checkpoint's data.pkl with pickletools for GLOBAL and STACK_GLOBAL references. _user_registered_safe_globals reads torch.serialization.get_safe_globals(), and a record that references one of those names, or that cannot be parsed statically, is rejected (fail closed).\nWhat breaks if skipped: an earlier revision cleared the registry around validation. A reviewer reproduced UnpicklingError in unrelated concurrent weights_only loads on PyTorch 2.8. Leaving the registry honored lets a crafted payload run allowlisted code.",
+  "applies": "Any change to pt2 record validation in mlflow/pytorch/__init__.py or any other code that calls torch.load(weights_only=True) on untrusted input.",
+  "tags": [
+    "security",
+    "pytorch",
+    "safe_globals",
+    "weights_only",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_pickle_globals",
+      "hash": "sha256:6ae281c461223894bdff9bcd",
+      "line": 772,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6ae281c461223894bdff9bcd",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_user_registered_safe_globals",
+      "hash": "sha256:ea3ef83d6e0306a2a7a7f126",
+      "line": 798,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea3ef83d6e0306a2a7a7f126",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 811,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T08:46:42.422Z",
+  "verified": "2026-10-11T08:46:42.422Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pt2-pytorch-models-must-be-validated-before-torch-export-loa",
+    "the-torch-2-10-gate-must-stay-in-sync-across-the-code-error"
+  ],
+  "says": [
+    "Simultaneous model checkpoint loads fail when another thread validates an exported model archive.",
+    "Malicious model archives invoke approved global functions during background security verification checks.",
+    "Inspect model archives safely without modifying the application's shared safe type registry.",
+    "Prevent model security scans from disrupting concurrent model loading in the same process.",
+    "Unparseable model files or references to allowlisted callables should be rejected immediately."
+  ],
+  "search": "Archive validation in mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free must not add to or clear torch.serialization's global safe registry. Clearing the registry causes UnpicklingError in concurrent weights_only loads on PyTorch 2.8, while honoring registered globals allows crafted archives to invoke allowlisted callables during validation. Enforced by _pickle_globals scanning data.pkl via pickletools for GLOBAL and STACK_GLOBAL references, while _user_registered_safe_globals checks torch.serialization.get_safe_globals() and fails closed on matches or static parse failures. Applies to pt2 record validation in mlflow/pytorch/__init__.py and code calling torch.load(weights_only=True) on untrusted input.",
+  "saysFor": "s2:16f64ab4c9942b98d96bb01289dfb31611315842a1c8b43d042bcf59d0ec6b88"
+}

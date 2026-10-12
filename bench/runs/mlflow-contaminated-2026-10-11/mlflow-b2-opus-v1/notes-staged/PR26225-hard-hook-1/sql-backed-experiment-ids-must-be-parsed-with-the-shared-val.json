@@ -1,0 +1,102 @@
+{
+  "id": "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val",
+  "title": "SQL-backed experiment IDs must be parsed with the shared validation helpers, not int()",
+  "kind": "rule",
+  "answers": [
+    "invalid experiment ID causes internal server error on search or trace delete",
+    "non-numeric experiment_id returns 500 instead of a clean invalid parameter error",
+    "how do I convert experiment IDs to int in the SQLAlchemy tracking store"
+  ],
+  "body": "Symptom: Searching datasets, runs, logged models or traces, or deleting traces, with a non-numeric experiment ID (for example \"12abc\" or \"\") returns an internal server error instead of clear invalid-parameter response.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore called bare int(experiment_id) in many methods (_search_datasets, _list_run_infos, _delete_traces, delete_experiment_tag, query_trace_metrics, and others), so ValueError/TypeError leaked. The old SqlAlchemyStore._parse_experiment_id staticmethod covered only some paths.\nFix pattern: Use mlflow/utils/validation.py:_parse_experiment_id for a single ID and _parse_experiment_ids for lists. Both raise MlflowException(INVALID_PARAMETER_VALUE). Call them where int() was used.\nConstraints: The helpers assume a non-None value; handle optional parameters before calling them. Do not add new bare int() conversions of experiment IDs in SQL store code. Gateway endpoint create/update in mlflow/store/tracking/gateway/sqlalchemy_mixin.py:create_gateway_endpoint and update_gateway_endpoint use the same helper.",
+  "applies": "Any SQLAlchemy tracking or gateway store method that turns a request experiment_id into an integer column filter.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "validation",
+    "experiment-id",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_id",
+      "hash": "sha256:3228e73fee5e5753168f8687",
+      "line": 578,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3228e73fee5e5753168f8687",
+      "fanout": {
+        "files": 4,
+        "sites": 14,
+        "refs": 18
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_ids",
+      "hash": "sha256:b81407ce29267a131d617d0f",
+      "line": 589,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b81407ce29267a131d617d0f",
+      "fanout": {
+        "files": 1,
+        "sites": 8,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore",
+      "hash": "sha256:6f95c7fbc2bc583a8920eb1c",
+      "line": 341,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6f95c7fbc2bc583a8920eb1c",
+      "fanout": {
+        "files": 71,
+        "sites": 110,
+        "refs": 1225
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+      "symbol": "create_gateway_endpoint",
+      "hash": "sha256:f3cad726ff3f7e0ee176ff50",
+      "line": 614,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f3cad726ff3f7e0ee176ff50",
+      "fanout": {
+        "files": 12,
+        "sites": 131,
+        "refs": 140
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26223"
+  },
+  "created": "2026-10-11T10:26:42.552Z",
+  "verified": "2026-10-11T10:26:42.552Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg",
+    "optional-experiment-id-must-be-checked-with-is-not-none-not"
+  ],
+  "says": [
+    "Searching runs or models with an alphanumeric experiment identifier shows an internal server error.",
+    "Deleting execution traces with an invalid experiment identifier crashes with a server fault.",
+    "Return a clear invalid parameter message when searching datasets with non-numeric experiment identifiers.",
+    "The experiment search bar crashes with error five hundred on empty experiment filter inputs.",
+    "Querying trace metrics with malformed experiment identifiers should report a clear validation error."
+  ],
+  "search": "SQL-backed tracking and gateway stores must validate request experiment IDs using mlflow/utils/validation.py:_parse_experiment_id or _parse_experiment_ids instead of bare int(). Bare int() calls in mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore methods such as _search_datasets, _list_run_infos, _delete_traces, delete_experiment_tag, and query_trace_metrics leaked ValueError and TypeError on non-numeric experiment IDs, causing internal server errors. The shared validation helpers raise MlflowException(INVALID_PARAMETER_VALUE) for single IDs or lists and are also required in mlflow/store/tracking/gateway/sqlalchemy_mixin.py:create_gateway_endpoint and update_gateway_endpoint. Optional parameters must be handled before calling the helpers because they assume a non-None value, and new bare int() conversions of experiment IDs must not be introduced.",
+  "saysFor": "s2:25add39b2089c82f52358102a196c4742e081bf6cfc76d828fce52d69f2e3f90"
+}

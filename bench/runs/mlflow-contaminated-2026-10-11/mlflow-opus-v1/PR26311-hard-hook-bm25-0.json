@@ -1,0 +1,64 @@
+{
+  "id": "PR26311-hard-hook-bm25-0",
+  "task": "PR26311-hard",
+  "area": "mlflow/data",
+  "arm": "hook-bm25",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "7510a2c0-856a-448a-bda3-922d97179ec1",
+  "turns": 12,
+  "wall_ms": 404383,
+  "api_ms": 75845,
+  "cost": 0.42687220000000003,
+  "in_tokens": 316200,
+  "out_tokens": 7828,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 10,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "callsBeforeFirstEdit": 4,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": null,
+    "greenReached": false,
+    "injected": [
+      "targets-presence-is-decided-by-is-not-none-never-by-truthine",
+      "evaluate-list-features-with-numpy-targets-truth-value-and-em",
+      "eval-results-table-attaches-model-outputs-by-position-not-in"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "| Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/data/test_huggingface_dataset_and_source.py` | 11.17s   | 13    | 0.006s | 4.438s | 0.859s |\n| 2    | `tests/data/test_evaluation_dataset.py`             | 1.13s    | 12    | 0.002s | 1.096s | 0.094s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6122827776)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=33810, name='python3.12', status='running', started='02:48:20')\n\u001b[33m======================= \u001b[32m25 passed\u001b[0m, \u001b[33m\u001b[1m20 warnings\u001b[0m\u001b[33m in 12.57s\u001b[0m\u001b[33m =======================\u001b[0m\n"
+  },
+  "result": "Converting a dataset whose rows hold uneven-length lists of dictionaries into an evaluation dataset no longer errors. The fix is in `mlflow/data/evaluation_dataset.py`. The tests you had staged in `tests/data/test_evaluation_dataset.py` and `tests/data/test_huggingface_dataset_and_source.py` now pass, along with the other data tests (53 passed; I skipped the Spark/Delta tests because Java isn't available here).\n\n**Cause:** when a column was an array of arrays, the hashing code (`_hash_array_like_obj_as_bytes`) stacked the rows into one rectangular grid with `np.array(data.tolist())`. That raises `ValueError` when the rows have different lengths. A related case also crashed: when the first row was missing (`None`/NaN), the data went to pandas' hashing, which can't hash arrays inside arrays.\n\n**Changes:**\n- **New helper `_hash_ragged_array_as_bytes`:** hashes rows one at a time using the existing `_hash_array_of_dict_as_bytes`, and adds each row's length before its contents. Without the length, `[[a1, a2], [a3]]` and `[[a1], [a2, a3]]` would get the same hash; your staged tests check that they differ.\n- **Uneven rows:** if building the grid fails with `ValueError`, the code now falls back to the new helper. This also covers uneven rows of plain values like numbers, not just dictionaries.\n- **Missing first row:** a new branch, placed after the original one, catches object arrays where any row is an array of dictionaries.\n\n**Datasets that already worked hash the same as before.** The new code only runs where hashing used to fail. I had first put the dictionary branch ahead of the original path, which would have changed hashes for rectangular arrays of dictionaries, so I moved it after.\n\n**Unrelated failures:** `tests/evaluate/test_evaluation.py` has 24 failures and 2 errors, with identical counts on the original code and on mine. The ones I saw come from the `token_count` metric and a test that runs a model server, so they look environmental. I checked this by temporarily copying the original file into place during the run; it's been restored and holds my change.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/data/evaluation_dataset.py b/mlflow/data/evaluation_dataset.py\nindex 9a2ed62b6..2371acb90 100644\n--- a/mlflow/data/evaluation_dataset.py\n+++ b/mlflow/data/evaluation_dataset.py\n@@ -68,6 +68,19 @@ def _hash_array_of_dict_as_bytes(data):\n     return result\n \n \n+def _hash_ragged_array_as_bytes(data):\n+    # Hash a numpy array of variable-length arrays element by element. Each element's length is\n+    # included so that regrouping the same values across rows produces a different hash.\n+    result = b\"\"\n+    for elm in data:\n+        if isinstance(elm, (list, np.ndarray)):\n+            result += _hash_uint64_ndarray_as_bytes(np.array([len(elm)], dtype=\"uint64\"))\n+            result += _hash_array_of_dict_as_bytes(elm)\n+        else:\n+            result += _hash_data_as_bytes(elm)\n+    return result\n+\n+\n def _hash_ndarray_as_bytes(nd_array):\n     if not isinstance(nd_array, np.ndarray):\n         nd_array = np.array(nd_array)\n@@ -145,8 +158,20 @@ def _hash_array_like_obj_as_bytes(data):\n     elif isinstance(data, np.ndarray) and len(data) > 0 and isinstance(data[0], np.ndarray):\n         # convert numpy array of numpy arrays into 2d numpy arrays\n         # because numpy array of numpy arrays are not hashable\n-        hashable = np.array(data.tolist())\n+        try:\n+            hashable = np.array(data.tolist())\n+        except ValueError:\n+            # The nested arrays have varying lengths and can't form a rectangular array\n+            return _hash_ragged_array_as_bytes(data)\n         return _hash_ndarray_as_bytes(hashable)\n+    elif (\n+        isinstance(data, np.ndarray)\n+        and data.dtype == object\n+        and any(isinstance(v, np.ndarray) and _is_array_has_dict(v) for v in data)\n+    ):\n+        # numpy array of arrays of dictionaries whose first element is missing (e.g. None),\n+        # as in a list-of-dict column of a Hugging Face dataset with missing rows\n+        return _hash_ragged_array_as_bytes(data)\n     elif isinstance(data, np.ndarray):\n         return _hash_ndarray_as_bytes(data)\n     elif isinstance(data, list):\ndiff --git a/tests/data/test_evaluation_dataset.py b/tests/data/test_evaluation_dataset.py\nindex 256bbc03a..dbb3a1af4 100644\n--- a/tests/data/test_evaluation_dataset.py\n+++ b/tests/data/test_evaluation_dataset.py\n@@ -1,10 +1,21 @@\n import numpy as np\n import pytest\n \n-from mlflow.data.evaluation_dataset import convert_data_to_mlflow_dataset\n+import mlflow\n+from mlflow.data.evaluation_dataset import (\n+    _hash_array_like_obj_as_bytes,\n+    convert_data_to_mlflow_dataset,\n+)\n from mlflow.exceptions import MlflowException\n \n \n+def _ragged_array(rows):\n+    # np.array() can't build an object array of uneven-length arrays directly.\n+    arr = np.empty(len(rows), dtype=object)\n+    arr[:] = [np.array(row) for row in rows]\n+    return arr\n+\n+\n @pytest.mark.parametrize(\"data\", [[[1], [2], [3]], [1, 2, 3]])\n def test_convert_list_data_with_numpy_targets(data):\n     targets = np.array([1, 2, 3])\n@@ -36,3 +47,39 @@ def test_convert_empty_list_uses_standard_evaluation_dataset_validation():\n \n     with pytest.raises(MlflowException, match=\"2-dimensional\"):\n         dataset.to_evaluation_dataset()\n+\n+\n+@pytest.mark.parametrize(\n+    (\"rows_a\", \"rows_b\"),\n+    [\n+        ([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]], [[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]]),\n+        ([[1, 2], [3]], [[1], [2, 3]]),\n+    ],\n+)\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays(rows_a, rows_b):\n+    hash_a = _hash_array_like_obj_as_bytes(_ragged_array(rows_a))\n+\n+    assert hash_a == _hash_array_like_obj_as_bytes(_ragged_array(rows_a))\n+    assert hash_a != _hash_array_like_obj_as_bytes(_ragged_array(rows_b))\n+\n+\n+@pytest.mark.parametrize(\"missing_idx\", [0, 1])\n+@pytest.mark.parametrize(\"missing\", [None, float(\"nan\")])\n+def test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows(\n+    missing, missing_idx\n+):\n+    data = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    data[missing_idx] = missing\n+\n+    assert _hash_array_like_obj_as_bytes(data) == _hash_array_like_obj_as_bytes(data.copy())\n+\n+\n+def test_from_numpy_with_ragged_nested_targets():\n+    features = np.array([[1], [2]])\n+    targets_a = _ragged_array([[{\"a\": 1}, {\"a\": 2}], [{\"a\": 3}]])\n+    targets_b = _ragged_array([[{\"a\": 1}], [{\"a\": 2}, {\"a\": 3}]])\n+\n+    eval_dataset_a = mlflow.data.from_numpy(features, targets=targets_a).to_evaluation_dataset()\n+    eval_dataset_b = mlflow.data.from_numpy(features, targets=targets_b).to_evaluation_dataset()\n+\n+    assert eval_dataset_a.hash != eval_dataset_b.hash\ndiff --git a/tests/data/test_huggingface_dataset_and_source.py b/tests/data/test_huggingface_dataset_and_source.py\nindex 36bd0cea5..53012b667 100644\n--- a/tests/data/test_huggingface_dataset_and_source.py\n+++ b/tests/data/test_huggingface_dataset_and_source.py\n@@ -275,6 +275,44 @@ def test_to_evaluation_dataset():\n     assert np.array_equal(evaluation_dataset.labels_data, dataset.ds.to_pandas()[\"label\"].values)\n \n \n+def test_to_evaluation_dataset_with_nested_variable_length_arrays():\n+    data = {\n+        \"id\": [\"1\", \"2\"],\n+        \"expected_results\": [\n+            [\n+                {\n+                    \"id\": \"1\",\n+                    \"text\": (\n+                        \"The main idea of the document is to provide an overview of the project.\"\n+                    ),\n+                },\n+                {\n+                    \"id\": \"2\",\n+                    \"text\": (\n+                        \"The expected outcomes of the project were to gain insights and \"\n+                        \"develop a robust solution.\"\n+                    ),\n+                },\n+            ],\n+            [\n+                {\n+                    \"id\": \"3\",\n+                    \"text\": \"Another result.\",\n+                }\n+            ],\n+        ],\n+    }\n+\n+    ds = datasets.Dataset.from_dict(data)\n+    dataset = mlflow.data.from_huggingface(ds, targets=\"expected_results\")\n+\n+    evaluation_dataset = dataset.to_evaluation_dataset()\n+    evaluation_dataset_2 = dataset.to_evaluation_dataset()\n+\n+    assert isinstance(evaluation_dataset, EvaluationDataset)\n+    assert evaluation_dataset.hash == evaluation_dataset_2.hash\n+\n+\n def test_from_huggingface_dataset_with_sample_source():\n     source_uri = \"test:/my/test/uri\"\n     source = SampleDatasetSource._resolve(source_uri)\n",
+  "distill": null,
+  "cache_read_tokens": 289641,
+  "cache_write_tokens": 26537,
+  "fresh_in_tokens": 22,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

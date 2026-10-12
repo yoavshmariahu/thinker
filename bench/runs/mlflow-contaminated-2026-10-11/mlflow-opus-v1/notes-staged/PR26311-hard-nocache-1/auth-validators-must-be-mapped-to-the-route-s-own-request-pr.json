@@ -1,0 +1,102 @@
+{
+  "id": "auth-validators-must-be-mapped-to-the-route-s-own-request-pr",
+  "title": "Auth validators must be mapped to the route's own request proto, and parse that proto",
+  "kind": "rule",
+  "answers": [
+    "attach model to gateway endpoint lets user use a model definition they cannot access",
+    "basic-auth validator skipped for camelCase modelConfig on endpoints/models/attach",
+    "which validator should guard a gateway route whose body differs from another route",
+    "gateway endpoint model link authorization bypass"
+  ],
+  "body": "Invariant: a basic-auth validator mapped to a route must parse the body through the proto of that route's own request message. Reusing a neighbour's validator is unsafe: AttachModelToGatewayEndpoint has a singular `model_config`, while UpdateGatewayEndpoint has a `model_configs` list, so mapping attach to validate_can_update_gateway_endpoint checked nothing for the attached model.\nEnforced by: mlflow/server/auth/__init__.py:validate_can_attach_model_to_gateway_endpoint (mapped under AttachModelToGatewayEndpoint), plus validate_can_create_gateway_model_definition, validate_can_update_gateway_model_definition, validate_can_create_gateway_endpoint and _model_configs_from_request, each calling _get_request_message on its own message.\nBreaks if skipped: parse_dict ignores fields the message does not define, so the wrong proto reads an empty value, the USE check is skipped, and the handler still links the referenced model.\nConstraints: these gateway validators treat an empty id as absent (truthiness, allow and let the handler fail), unlike the HasField presence rule used for model-version validators. Keep the attach route's read on model_config.model_definition_id and the endpoint UPDATE check together.\nApplies: any new or remapped basic-auth validator for a gateway route whose body shape differs from another route's.",
+  "applies": "Route-to-validator mapping in mlflow/server/auth/__init__.py for gateway endpoints and model definitions.",
+  "tags": [
+    "auth",
+    "gateway",
+    "validators",
+    "route-mapping"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_attach_model_to_gateway_endpoint",
+      "hash": "sha256:b270664322fe4b6720612ba9",
+      "line": 2201,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b270664322fe4b6720612ba9",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_model_configs_from_request",
+      "hash": "sha256:30b3497ea4811a4442339673",
+      "line": 2144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:30b3497ea4811a4442339673",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_endpoint",
+      "hash": "sha256:731e816f976ffbd6fc1ba9d6",
+      "line": 2179,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:731e816f976ffbd6fc1ba9d6",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_model_definition",
+      "hash": "sha256:28aa444f0500e58621befd09",
+      "line": 2060,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28aa444f0500e58621befd09",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-11T08:46:30.205Z",
+  "verified": "2026-10-11T08:46:30.205Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "body-gating-auth-validators-must-authorize-on-the-proto-boun",
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p",
+    "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j",
+    "nested-graphql-fields-that-return-per-model-resources-must-b"
+  ],
+  "says": [
+    "Users can attach model definitions to gateway endpoints even without access permissions.",
+    "Prevent unauthorized users from linking restricted model definitions to a gateway endpoint.",
+    "Attaching a model to an endpoint bypasses access control checks on the model.",
+    "Access control fails when connecting a model definition to a gateway route.",
+    "Disallow linking a model definition if the user lacks use permission for it."
+  ],
+  "search": "Basic-auth route validators for gateway endpoints and model definitions must parse request bodies using the proto of their specific request message. Reusing validators across routes with different payload shapes causes parse_dict to ignore unmapped fields, skipping USE permission checks and bypassing authorization when linking models. Enforced in mlflow/server/auth/__init__.py by validate_can_attach_model_to_gateway_endpoint, validate_can_create_gateway_model_definition, validate_can_update_gateway_model_definition, validate_can_create_gateway_endpoint, and _model_configs_from_request. Unlike HasField presence rules for model versions, these gateway validators treat empty IDs as absent via truthiness and must check endpoint UPDATE alongside model_config.model_definition_id.",
+  "saysFor": "s2:fb5356c6dfe25d4769ca57662e235a95ae7a43e9dd4bb60a5abe119eb40c3412"
+}

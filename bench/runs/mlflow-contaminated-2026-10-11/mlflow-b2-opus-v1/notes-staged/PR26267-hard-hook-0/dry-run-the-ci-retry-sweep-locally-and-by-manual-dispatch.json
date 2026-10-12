@@ -1,0 +1,55 @@
+{
+  "id": "dry-run-the-ci-retry-sweep-locally-and-by-manual-dispatch",
+  "title": "Dry-run the CI retry sweep locally and by manual dispatch",
+  "kind": "howto",
+  "answers": [
+    "how do I test the retry script without rerunning CI",
+    "run retry.sh dry run for a commit",
+    "manually trigger the CI retry workflow safely",
+    "check which failed runs would be retried"
+  ],
+  "body": "Run the script directly as `.github/workflows/retry.sh --dry-run OWNER/REPO FULL_SHA`. `--dry-run` must be the first argument; the repo must be `owner/name` and the SHA a 40-hex commit. `MAX_RETRIES` (default 3 in the workflow) must be a non-negative integer. Use `--help` or `-h` alone to print usage.\nThe Retry workflow is started with workflow_dispatch; its `dry_run` input defaults to true, so a manual run only prints the \"Would rerun\" lines. Untick it to submit real reruns. The scheduled run is always real.\nThe script is downloaded at the workflow's GITHUB_SHA, so edits to retry.sh only affect scheduled runs after they are merged to the default branch.",
+  "applies": "Local and manual validation of the Retry workflow in this repository; the scheduled run has no dry-run.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "dry-run"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.yml",
+      "hash": "sha256:d7b181d8eb96458cd5beacb3",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T10:29:12.738Z",
+  "verified": "2026-10-11T10:29:12.738Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+    "retry-gating-order-in-retry-sh-dedupe-drop-dynamic-runs-then",
+    "retry-yml-log-group-titles-use-the-full-pr-url-not-the-pr-nu"
+  ],
+  "says": [
+    "Preview which failed automated test runs would be restarted without actually launching them.",
+    "Safely test the automated rerun tool before triggering real build jobs in CI.",
+    "Inspect candidate failed workflows for a specific commit without triggering unexpected test executions.",
+    "How do I manually run the retry sweep to simulate reruns using default settings?",
+    "Check which broken builds qualify for automatic restarts before submitting genuine rerun requests."
+  ],
+  "search": "To dry-run CI retries locally, execute `.github/workflows/retry.sh --dry-run OWNER/REPO FULL_SHA` where `--dry-run` is the first argument, the repository is formatted as owner/name, the commit is a 40-hex SHA, and `MAX_RETRIES` is a non-negative integer (default 3). For manual CI execution via workflow_dispatch in .github/workflows/retry.yml, the `dry_run` input defaults to true to print 'Would rerun' lines, requiring unticking to trigger real reruns. Scheduled runs are always real without dry-run support, and retry.sh changes only affect scheduled workflows once merged into the default branch because the workflow downloads the script at GITHUB_SHA.",
+  "saysFor": "s2:deb206a4dac5fff127abb5c1478b059d65430d33fdcc01e5e1458bdbe2d3dd22"
+}

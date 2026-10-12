@@ -1,0 +1,44 @@
+{
+  "id": "github-token-shorthand-check-only-matches-string-values",
+  "title": "github.token shorthand check only matches string values",
+  "kind": "rule",
+  "answers": [
+    "policy crashes on non-string with value",
+    "github.token shorthand false positive on boolean or object input",
+    "why does contains_github_token need a type guard"
+  ],
+  "body": "Symptom: the github.token shorthand policy fails or misfires when a with: or env: value is not a string (e.g. a boolean or mapping).\nRoot cause: .github/policy.rego:contains_github_token ran regex.match directly on arbitrary YAML values.\nFix pattern: guard with `is_string(value)` before the regex.match on `${{ github.token }}`.\nConstraints: any new helper that regex-matches YAML values should guard with is_string first; the same check is used for both with: and env: via deny_github_token_shorthand.",
+  "applies": "Helpers in .github/policy.rego that regex-match arbitrary workflow or action input values.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego",
+    "github-token"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T08:45:19.058Z",
+  "verified": "2026-10-11T08:45:19.058Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Workflow policy check crashes when action inputs use boolean flags or object values.",
+    "Security policy validation fails unexpectedly on non-string environment variables in pipeline files.",
+    "Prevent false token alert errors when workflow step settings contain structured YAML blocks.",
+    "Fix policy linter crash caused by evaluating non-text values in automation definitions."
+  ],
+  "search": "Workflow policy checks in .github/policy.rego matching ${{ github.token }} must guard with is_string(value) before regex.match. This prevents errors and false positives when arbitrary with: or env: values are booleans or mappings. Applies to contains_github_token and any new helper in .github/policy.rego that regex-matches arbitrary YAML values, used by deny_github_token_shorthand.",
+  "saysFor": "s2:049dab23fe6cb48dedf817f8421657853df6cdedb439ee11e2e75604849164fe"
+}

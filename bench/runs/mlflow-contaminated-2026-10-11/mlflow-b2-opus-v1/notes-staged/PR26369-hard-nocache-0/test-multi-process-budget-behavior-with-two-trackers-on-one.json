@@ -1,0 +1,70 @@
+{
+  "id": "test-multi-process-budget-behavior-with-two-trackers-on-one",
+  "title": "Test multi-process budget behavior with two trackers on one fake Redis server",
+  "kind": "howto",
+  "answers": [
+    "how to test gateway budget tracker across multiple processes",
+    "simulate two gateway processes sharing redis budget window in tests",
+    "fakeredis shared server for budget tracker tests",
+    "write regression test for stale budget policy version"
+  ],
+  "body": "To reproduce cross-process behavior, build two RedisBudgetTracker instances on one fakeredis.FakeServer, each with its own fakeredis.FakeRedis(server=server, decode_responses=True) client, via the helper _make_shared_trackers in tests/gateway/test_redis_budget_tracker.py.\nDrive one tracker with the stale policy (refresh_policies, record_cost) and assert the other tracker's should_reject_request result, so the test exercises the shared Redis window rather than in-memory state.\nUse decode_responses=True so hash values compare as strings, matching how the Lua script's stored duration fields are read back.\nThe PR also verified Lua-script changes by hand against a real Redis server, since fakeredis may not match Lua behavior exactly; do the same for changes to _ENSURE_WINDOW_LUA.",
+  "applies": "Tests for RedisBudgetTracker behavior that depends on state shared between processes.",
+  "tags": [
+    "gateway",
+    "budget",
+    "redis",
+    "testing",
+    "fakeredis"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/test_redis_budget_tracker.py",
+      "symbol": "_make_shared_trackers",
+      "hash": "sha256:2752766a53da1ac6521d4c1f",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2752766a53da1ac6521d4c1f",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "_ENSURE_WINDOW_LUA",
+      "hash": "sha256:d014675f45bd7f27876ae4d9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26075"
+  },
+  "created": "2026-10-11T10:28:01.670Z",
+  "verified": "2026-10-11T10:28:01.670Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "redis-budget-window-must-carry-and-match-the-duration-that-p",
+    "budget-amount-is-deliberately-not-part-of-window-identity"
+  ],
+  "says": [
+    "The AI gateway exceeds spending limits when multiple worker processes handle incoming requests.",
+    "Requests are not rejected after another server worker has already exhausted the budget window.",
+    "Budget limits should stay synchronized across parallel gateway instances under heavy traffic.",
+    "Outdated budget policies allow requests to pass even when total spending is capped."
+  ],
+  "search": "Testing multi-process RedisBudgetTracker behavior requires attaching two tracker instances to a single fakeredis.FakeServer using decode_responses=True clients via _make_shared_trackers. In tests/gateway/test_redis_budget_tracker.py, one tracker runs refresh_policies and record_cost with a stale policy while checking should_reject_request on the other to exercise the shared Redis window. Because fakeredis may diverge from real Redis Lua behavior, changes to _ENSURE_WINDOW_LUA in mlflow/gateway/budget_tracker/redis.py must also be verified manually against a real Redis server.",
+  "saysFor": "s2:02b3146b982e291b1302dad73c0e75ad01ea69cd9ad338a7bb3404e548f6ee4d"
+}

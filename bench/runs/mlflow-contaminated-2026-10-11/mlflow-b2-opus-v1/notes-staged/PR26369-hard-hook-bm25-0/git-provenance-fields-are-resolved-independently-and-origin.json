@@ -1,0 +1,70 @@
+{
+  "id": "git-provenance-fields-are-resolved-independently-and-origin",
+  "title": "Git provenance fields are resolved independently and origin URLs are credential-stripped",
+  "kind": "rule",
+  "answers": [
+    "Why is git branch or repo URL missing from TypeScript trace metadata in a new repo?",
+    "How does MLflow TypeScript tracing record git commit, branch and remote URL on traces?",
+    "Are credentials in a git remote URL sent to MLflow trace metadata?"
+  ],
+  "body": "Invariant: each git field (mlflow.source.git.commit, mlflow.source.git.branch, mlflow.source.git.repoURL) is resolved by its own git call. A failed commit lookup must not suppress branch or remote values.\nEnforced at: libs/typescript/core/src/core/utils/environment.ts:resolveGitMetadata, which runs each command through the injected GitCommandRunner and omits only the unavailable keys.\nWhat breaks if skipped: an unborn repository (no commits, so rev-parse HEAD fails) loses the branch and sanitized origin metadata that are available.\nSanitization: stripCredentialsFromUrl clears URL userinfo for HTTP(S) remotes and leaves SSH-style remotes unchanged. Any new remote-derived value must go through it.\nCaching: resolveEnvironmentMetadata memoizes the result for the process lifetime on purpose, because provenance is captured once per process. Tests should call resolveGitMetadata with an injected runner rather than the cached function.\nApplies: changes to git or environment metadata collection in libs/typescript/core.",
+  "applies": "Only TypeScript core tracing code that collects git or environment metadata for traces.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "git-metadata",
+    "provenance"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:28ade0c3605149d615c01a95",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28ade0c3605149d615c01a95",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-11T10:33:09.460Z",
+  "verified": "2026-10-11T10:33:09.460Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "environment-provenance-is-merged-into-trace-metadata-first-i"
+  ],
+  "says": [
+    "Trace details omit the git branch and repository link when working in a new repository.",
+    "Private tokens and credentials in git repository addresses are exposed in trace metadata.",
+    "Strip passwords and authentication tokens from repository links shown on trace inspection screens.",
+    "Traces created before the initial commit should still display the current branch name.",
+    "Repository origin information disappeared from execution traces in our uncommitted project."
+  ],
+  "search": "TypeScript trace git metadata resolution in libs/typescript/core/src/core/utils/environment.ts:resolveGitMetadata must resolve commit, branch, and remote URL independently so an unborn repository without commits does not lose branch or remote data. Remote URLs must be sanitized with stripCredentialsFromUrl, which removes userinfo from HTTP(S) remotes and leaves SSH remotes unchanged. Process-lifetime caching is handled in resolveEnvironmentMetadata, while tests should invoke resolveGitMetadata directly with an injected GitCommandRunner.",
+  "saysFor": "s2:b0575e96a031d68829ebf6e6841f1227090b45e6305a7b9e47132d3394c3494c"
+}

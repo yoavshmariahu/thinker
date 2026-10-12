@@ -1,0 +1,58 @@
+{
+  "id": "assistant-transcript-persist-write-must-be-gated-on-the-seed",
+  "title": "Assistant transcript persist write must be gated on the seeded identity",
+  "kind": "rule",
+  "answers": [
+    "why does assistant chat get overwritten on login",
+    "assistant conversation erased when identity loads",
+    "can the assistant persist effect write to the wrong user's storage key",
+    "assistant chat cleared on page load for signed-in user"
+  ],
+  "body": "Invariant: The persist effect in AssistantProvider writes the transcript only after the transcript has been seeded for the current chatStorageKey (seededChatKey === chatStorageKey).\nEnforced in: mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider (persist effect, guard on seededChatKey, and the render-time seed block gated on !isCurrentUserLoading).\nWhat breaks if skipped: During the identity-loading window the transcript is empty, so the effect would overwrite the stored conversation with []. On a live user switch, the previous user's messages would be written under the new user's key.\nKeep the dependency list of that effect including chatStorageKey and seededChatKey.",
+  "applies": "Any edit to how AssistantProvider seeds, persists, or resets the chat transcript.",
+  "tags": [
+    "assistant",
+    "localstorage",
+    "ordering",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "AssistantProvider",
+      "hash": "sha256:e53277cf544973312743edd7",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e53277cf544973312743edd7",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26009"
+  },
+  "created": "2026-10-11T10:29:10.786Z",
+  "verified": "2026-10-11T10:29:10.786Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-assistant-transcript-leaked-between-users-sharing-a-b",
+    "identity-switch-resets-the-backend-session-not-just-the-tran"
+  ],
+  "says": [
+    "The assistant chat conversation gets wiped out every time I refresh the page.",
+    "Logging into my account erases my existing conversation with the assistant.",
+    "Switching user accounts shows the previous user's chat messages in the new account.",
+    "The chat panel clears my message history while my user profile is loading.",
+    "Preserve saved chat threads so signed-in members do not lose their history on reload."
+  ],
+  "search": "In mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider, the chat transcript persist effect must be gated on seededChatKey === chatStorageKey so it only writes after the transcript has been seeded for the active user identity. The render-time seed block is gated on !isCurrentUserLoading, preventing an empty transcript from overwriting saved conversations with [] during loading or writing messages under the wrong user key on user switches. Edits to transcript seeding, persisting, or resetting must retain both chatStorageKey and seededChatKey in the persist effect's dependency list.",
+  "saysFor": "s2:3ac6454097cc03ee2a2aed15e89746791bbada18262eefbf3931296d40fe4878"
+}

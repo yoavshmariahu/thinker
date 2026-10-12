@@ -1,0 +1,72 @@
+{
+  "id": "destination-key-scan-must-be-shape-agnostic-walk-all-nested",
+  "title": "Destination-key scan must be shape-agnostic: walk all nested wrappers and count pair lists",
+  "kind": "rule",
+  "answers": [
+    "ensemble scorer bypasses api_base check",
+    "MemAlign base_judge destination kwargs not rejected",
+    "kwargs as list of pairs slips past validation",
+    "nested completion_kwargs api_base detection"
+  ],
+  "body": "Invariant: the destination-key check walks the entire serialized payload, not just the top-level third_party_scorer_data, because wrappers embed full scorers (ensemble_scorer_data.scorers, memory_augmented_judge_data.base_judge) that Scorer.model_validate rebuilds recursively.\nEnforced by: mlflow/utils/validation.py:_iter_third_party_scorer_data yields every third_party_scorer_data mapping at any depth, and _find_destination_keys treats two-item [str, value] lists as keys because dict() accepts them.\nWhat breaks if skipped: a sub-scorer with kwargs.api_base inside an ensemble or MemAlign judge is reconstructed and sent without rejection; a list-of-pairs kwargs bypasses a plain dict check.\nConstraints: kwargs must be a JSON object or null (anything else is rejected with a clear message); do not assume a fixed nesting shape when adding wrapper types.",
+  "applies": "Changes to the scorer payload validator or to any new scorer wrapper type that embeds serialized scorers.",
+  "tags": [
+    "security",
+    "scorers",
+    "validation",
+    "ensemble"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_iter_third_party_scorer_data",
+      "hash": "sha256:a0c035d554dcf11c443caa34",
+      "line": 1140,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a0c035d554dcf11c443caa34",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_find_destination_keys",
+      "hash": "sha256:3714088a6d18c0c4d4353c07",
+      "line": 1122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3714088a6d18c0c4d4353c07",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25890"
+  },
+  "created": "2026-10-11T08:45:45.021Z",
+  "verified": "2026-10-11T08:45:45.021Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin",
+    "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb",
+    "basic-auth-password-policy-must-be-enforced-in-the-store-s-u"
+  ],
+  "says": [
+    "Evaluation configs with nested judges can send requests to unapproved custom endpoints.",
+    "Ensemble scorers bypass endpoint validation when destination settings are nested inside sub-scorers.",
+    "Reject evaluation judge requests containing forbidden destination addresses inside nested configurations.",
+    "Validation fails to detect forbidden target URLs configured inside composite evaluators."
+  ],
+  "search": "Destination-key validation must recursively traverse the entire serialized payload via mlflow/utils/validation.py:_iter_third_party_scorer_data to check embedded scorers such as ensemble_scorer_data.scorers and memory_augmented_judge_data.base_judge. In _find_destination_keys, two-item [str, value] lists are checked as keys because dict() accepts them, preventing list-of-pairs kwargs from bypassing checks. The kwargs payload must be a JSON object or null, and validation must not assume a fixed nesting shape.",
+  "saysFor": "s2:97eaecfbf5c4d5b6ea151b4a01604f1e621cf6386ffe05302cd62171651663b5"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "in-tests-select-a-pre-existing-experiment-by-resolving-its-i",
+  "title": "In tests, select a pre-existing experiment by resolving its ID instead of by name",
+  "kind": "rule",
+  "answers": [
+    "evaluation run logged to Default experiment instead of the test experiment",
+    "mlflow set_experiment recreated experiment with ./mlruns fallback",
+    "compatibility test experiment not found after 2.x migration",
+    "how to activate an existing experiment in a test"
+  ],
+  "body": "Symptom: In the 2.x-to-3.x compatibility test, the evaluation run is logged to the Default experiment rather than the experiment the 2.x run created.\nRoot cause: mlflow.set_experiment(name) creates the experiment when no experiment with that name exists, and the recreated experiment falls back to the ./mlruns artifact location.\nFix pattern: Resolve the existing experiment with mlflow.get_experiment_by_name, assert it is not None so a missing experiment fails loudly, then call mlflow.set_experiment(experiment_id=experiment.experiment_id).\nConstraints: Use this when the test expects the experiment to already exist. Setting by name is fine when creating the experiment is intended.",
+  "applies": "Test code in tests/test_mlflow_version_comp.py and similar cross-version tests that reopen an earlier-created tracking store.",
+  "tags": [
+    "testing",
+    "experiments",
+    "set_experiment",
+    "compatibility",
+    "fluent-api"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_mlflow_version_comp.py",
+      "symbol": "test_mlflow_2_x_comp",
+      "hash": "sha256:2eb4db29b36092ee97a40fed",
+      "line": 107,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e4abe4b2829b026cd75721d7",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25763"
+  },
+  "created": "2026-10-11T08:42:28.358Z",
+  "verified": "2026-10-11T08:42:28.358Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "After upgrading versions, evaluation runs are being recorded under the default experiment instead.",
+    "Migrated experiments disappear and evaluation results fall back to the default artifact location.",
+    "Upgrading releases causes existing tracking experiments to be recreated rather than reused.",
+    "Ensure version upgrades preserve existing experiment associations instead of creating duplicate default experiments.",
+    "Compatibility checks log evaluation runs into the wrong experiment after migrating earlier tracking data."
+  ],
+  "search": "In cross-version compatibility tests reopening existing tracking stores, pre-existing experiments must be selected by resolving experiment_id rather than by name. Calling mlflow.set_experiment by name recreates missing experiments with a fallback ./mlruns artifact location, causing evaluation runs in test_mlflow_2_x_comp to log under the Default experiment. Tests must resolve the experiment using mlflow.get_experiment_by_name, assert it is not None to catch missing experiments loudly, and call mlflow.set_experiment(experiment_id=experiment.experiment_id). This constraint applies specifically to tests expecting an already created experiment in tests/test_mlflow_version_comp.py, while setting by name remains valid when intentionally creating an experiment.",
+  "saysFor": "s2:7d788d3d11fd25204b416ec14e5ae0dd131a4d32a8d45c8e3d05f90f2e71a7d4"
+}

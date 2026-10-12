@@ -1,0 +1,98 @@
+{
+  "id": "autolog-must-forward-trace-headers-to-mistral-groq-sdk-calls",
+  "title": "Autolog must forward trace headers to Mistral/Groq SDK calls without overwriting user headers",
+  "kind": "rule",
+  "answers": [
+    "Mistral or Groq requests through AI Gateway not joining the client trace",
+    "duplicate token usage counted for gateway requests in Mistral or Groq traces",
+    "traceparent missing from Mistral or Groq outgoing requests when autologging",
+    "user custom headers lost after enabling Groq or Mistral autologging"
+  ],
+  "body": "Symptom: Mistral or Groq calls routed through AI Gateway show up without joining the client trace, and the same token usage is counted twice.\nRoot cause: mlflow/groq/_groq_autolog.py:patched_call and mlflow/mistral/autolog.py:patched_class_call sent the SDK request without the active span's traceparent.\nFix pattern: Before calling the original SDK method, call a per-provider _inject_tracing_headers that gets headers from mlflow/tracing/distributed.py:_get_tracing_headers_from_span and merges them as `tracing_headers | dict(existing)`, so caller-supplied values win. Groq uses the `extra_headers` kwarg and Mistral uses `http_headers`.\nConstraints: Replace the kwarg mapping rather than mutating the caller's dict, so span inputs recorded earlier keep only the user's headers (the regression tests assert traceparent is absent from recorded inputs). Injection errors are logged at debug and must not fail the user's call. Gateway child spans only skip repeated usage when the traceparent is actually on the outgoing request.",
+  "applies": "Any autologging wrapper for an LLM SDK that sends requests over HTTP and accepts per-request headers; the header kwarg name differs per SDK.",
+  "tags": [
+    "tracing",
+    "autologging",
+    "mistral",
+    "groq",
+    "distributed-tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/groq/_groq_autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:0f941caca7df22c89e0d56d2",
+      "line": 61,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f941caca7df22c89e0d56d2",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/mistral/autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:9098065d257e0a24f215a5ed",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9098065d257e0a24f215a5ed",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/groq/_groq_autolog.py",
+      "symbol": "patched_call",
+      "hash": "sha256:eb158810bb21f242397f10ae",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb158810bb21f242397f10ae",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/mistral/autolog.py",
+      "symbol": "patched_class_call",
+      "hash": "sha256:e408e6e9896e32e1c8155d4d",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e408e6e9896e32e1c8155d4d",
+      "fanout": {
+        "files": 8,
+        "sites": 1,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26177"
+  },
+  "created": "2026-10-11T10:27:02.670Z",
+  "verified": "2026-10-11T10:27:02.670Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Gateway requests for language models are not linked to the client trace in the dashboard.",
+    "Token usage is being counted twice for gateway requests when automatic tracking is enabled.",
+    "Custom request headers disappear after turning on automated tracing for external language models.",
+    "Model calls routed through the gateway show disconnected spans instead of one unified trace.",
+    "Distributed traces fail to propagate across gateway calls resulting in duplicated token consumption metrics."
+  ],
+  "search": "Autologging wrappers for Mistral and Groq SDK calls must inject distributed tracing headers from the active span into outgoing HTTP requests without overwriting user headers. In mlflow/groq/_groq_autolog.py:patched_call and mlflow/mistral/autolog.py:patched_class_call, _inject_tracing_headers retrieves headers via mlflow/tracing/distributed.py:_get_tracing_headers_from_span and merges them as tracing_headers | dict(existing) so caller values prevail. Groq uses extra_headers while Mistral uses http_headers, and the mapping must be replaced rather than mutating the caller dictionary so recorded span inputs exclude traceparent.",
+  "saysFor": "s2:aca8eeafe0bdfcf9f20e8a63bae25b006e5d1c347e96dc26772fb14f4b5536bb"
+}

@@ -1,0 +1,84 @@
+{
+  "id": "modelversion-to-proto-must-assign-the-nested-deployment-job",
+  "title": "ModelVersion.to_proto must assign the nested deployment job state, not discard it",
+  "kind": "rule",
+  "answers": [
+    "deployment job state lost after get_model_version over REST",
+    "model version deployment job comes back empty when fetched from the registry",
+    "ModelVersion to_proto drops deployment_job_state silently"
+  ],
+  "body": "Symptom: A model version that has a deployment job is fetched back through the REST registry and shows a blank job (empty job id, unspecified job and run states). No error is raised.\nRoot cause: mlflow/entities/model_registry/model_version.py:ModelVersion.to_proto called ModelVersionDeploymentJobState.to_proto(...) and dropped the returned message instead of assigning it into model_version.deployment_job_state, so the field was never set.\nFix pattern: Assign the nested entity proto into the parent with CopyFrom (model_version.deployment_job_state.CopyFrom(self.deployment_job_state.to_proto())). In ModelVersion.from_proto, guard the nested read with proto.HasField(\"deployment_job_state\") and return None otherwise, so a version without a deployment job round-trips to None instead of an empty object.\nConstraints: Applies to singular message fields; repeated fields such as aliases use extend instead. Because the bug is silent, round-trip tests must assert HasField on the proto and equality after from_proto. RegisteredModel.to_proto already does this correctly and is the sibling to match.",
+  "applies": "Entity-to-proto and proto-to-entity conversion of ModelVersion in the OSS model registry entities.",
+  "tags": [
+    "model-registry",
+    "deployment-job-state",
+    "protobuf",
+    "round-trip"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/model_registry/model_version.py",
+      "symbol": "ModelVersion.to_proto",
+      "hash": "sha256:6b0be2ede72935468ddb4427",
+      "line": 223,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b0be2ede72935468ddb4427",
+      "fanout": {
+        "files": 80,
+        "sites": 422,
+        "refs": 429
+      }
+    },
+    {
+      "path": "mlflow/entities/model_registry/model_version.py",
+      "symbol": "ModelVersion.from_proto",
+      "hash": "sha256:9a80d79082db1bc09cd4c26e",
+      "line": 194,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a80d79082db1bc09cd4c26e",
+      "fanout": {
+        "files": 78,
+        "sites": 336,
+        "refs": 351
+      }
+    },
+    {
+      "path": "mlflow/entities/model_registry/model_version.py",
+      "symbol": "deployment_job_state",
+      "hash": "sha256:757e112acebba98b144b67df",
+      "line": 176,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:757e112acebba98b144b67df",
+      "fanout": {
+        "files": 15,
+        "sites": 0,
+        "refs": 96
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25635"
+  },
+  "created": "2026-10-11T08:43:18.356Z",
+  "verified": "2026-10-11T08:43:18.356Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-version-converters-must-hasfield-guard-unset-deploy"
+  ],
+  "says": [
+    "The deployment job details for a model version appear completely blank after refreshing.",
+    "Model version deployment status shows unspecified run states and missing job identifier.",
+    "Ensure deployment job status is preserved when loading registered model version details.",
+    "Fetching a deployed model version from the registry loses its active deployment job.",
+    "Model registry should display the associated deployment job instead of empty fields."
+  ],
+  "search": "In OSS model registry entity-to-proto conversion, ModelVersion.to_proto must assign the nested ModelVersionDeploymentJobState proto into model_version.deployment_job_state using CopyFrom rather than dropping it. ModelVersion.from_proto must guard the nested read with proto.HasField(\"deployment_job_state\") and return None otherwise. This rule applies to singular message fields in mlflow/entities/model_registry/model_version.py, whereas repeated fields like aliases use extend. Round-trip tests must assert HasField on the proto and equality after from_proto, matching RegisteredModel.to_proto.",
+  "saysFor": "s2:1cc355970eb2872ca6bfcc019e8fea0d360f3a0cefe0984e19d60fc229472a19"
+}

@@ -1,0 +1,69 @@
+{
+  "id": "session-full-trace-drawer-loses-saved-and-new-custom-trace-v",
+  "title": "Session full-trace drawer loses saved and new custom trace views",
+  "kind": "rule",
+  "answers": [
+    "custom trace view missing when viewing full trace from a session",
+    "Create custom view not showing in Sessions trace drawer",
+    "saved Span review view not available in session View full trace"
+  ],
+  "body": "Symptom: In Sessions, opening View full trace shows no saved custom trace views and no Create custom view option.\nRoot cause: mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx:ContextProviders rendered its children without ExperimentCustomViewProvider, so the standalone trace drawer had no custom view definitions in context.\nFix pattern: In ContextProviders, wrap children in ExperimentCustomViewProvider (keyed by experimentId) only when shouldEnableModelTraceExplorerCustomTraceView() is true and useOptionalCustomViewDefinition() returns undefined.\nConstraints: Any standalone trace-drawer route must mount the custom-view provider whenever the flag is enabled. Skip mounting when an outer CustomViewDefinitionProvider already exists, to avoid a nested provider.",
+  "applies": "Standalone trace-drawer routes (sessions and similar pages) that render the ModelTraceExplorer context when custom trace views are enabled.",
+  "tags": [
+    "tracing",
+    "custom-trace-view",
+    "sessions",
+    "trace-drawer",
+    "feature-flag"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "ContextProviders",
+      "hash": "sha256:aae8882e9c6ee1638fbe88dc",
+      "line": 63,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:aae8882e9c6ee1638fbe88dc",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "shouldEnableModelTraceExplorerCustomTraceView",
+      "hash": "sha256:e60f74c474f8eba893bc17be",
+      "line": 76,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 6,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25779"
+  },
+  "created": "2026-10-11T08:42:18.473Z",
+  "verified": "2026-10-11T08:42:18.473Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "custom-view-provider-is-lazy-loaded-on-the-chat-session-rout"
+  ],
+  "says": [
+    "Opening View full trace from chat sessions hides saved custom trace views.",
+    "The Create custom view option is missing in the session trace drawer.",
+    "Saved span review views do not appear when viewing full session traces.",
+    "Enable creating and selecting custom trace views within the session drawer.",
+    "Custom trace view controls are unavailable when inspecting full session traces."
+  ],
+  "search": "Standalone trace-drawer routes like ExperimentSingleChatSessionPage.tsx must wrap ContextProviders children in ExperimentCustomViewProvider keyed by experimentId when shouldEnableModelTraceExplorerCustomTraceView() is true. Without this provider, the full-trace drawer in Sessions lacks custom view definitions, hiding saved custom views and the Create custom view option. Mounting must be skipped if useOptionalCustomViewDefinition() already returns a defined value to avoid nesting inside an existing CustomViewDefinitionProvider. Applies to standalone trace-drawer routes rendering ModelTraceExplorer context with custom trace views enabled.",
+  "saysFor": "s2:459da22ca92b8070037349b57e71df51ace7a4737fc07fdd224eb0a239e3198f"
+}

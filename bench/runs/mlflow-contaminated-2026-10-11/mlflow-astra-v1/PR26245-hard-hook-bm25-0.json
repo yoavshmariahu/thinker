@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12a72-3d27-7980-89a8-1ec758552add",
+  "turns": 1,
+  "in_tokens": 308842,
+  "cached_tokens": 282240,
+  "out_tokens": 1486,
+  "wall_ms": 58314,
+  "result": "I’ll find where prompt creation adds internal tags, copy the caller’s dictionary before modifying it, and add a regression test. I’ll use the repository’s Python style skill for the change.\nThe mutation happens in the `PromptVersion` constructor: it uses the caller’s dictionary to store internal tags. I’ll make a shallow copy there and test that reusing tags preserves both versions’ templates and keeps model configuration from leaking.\nUpdated `PromptVersion` to copy caller-provided tags before adding internal entries. The original dictionary stays unchanged, preventing template and model configuration leakage between versions.\n\nAdded regression coverage for shared empty and populated tags, with and without model configuration.\n\nValidation: all 56 tests in `tests/entities/test_prompt.py` passed. No dependencies installed.",
+  "tools": {
+    "calls": 12,
+    "byTool": {
+      "command_execution": 10,
+      "file_change": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 7,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 2,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "hook-bm25",
+  "task": "PR26245-hard",
+  "rep": 0,
+  "area": "mlflow/entities",
+  "id": "PR26245-hard-hook-bm25-0",
+  "session": "01a12a72-3d27-7980-89a8-1ec758552add",
+  "cost": 0.62256,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/entities/model_registry/prompt_version.py b/mlflow/entities/model_registry/prompt_version.py\nindex f52f00eca..0437e50e2 100644\n--- a/mlflow/entities/model_registry/prompt_version.py\n+++ b/mlflow/entities/model_registry/prompt_version.py\n@@ -211,7 +211,7 @@ class PromptVersion(_ModelRegistryEntity):\n         self._creation_time: int = creation_timestamp or 0\n \n         # Initialize tags first\n-        tags = tags or {}\n+        tags = tags.copy() if tags is not None else {}\n \n         # Determine prompt type and set it\n         if isinstance(template, list) and len(template) > 0:\ndiff --git a/tests/entities/test_prompt.py b/tests/entities/test_prompt.py\nindex be4d9f925..e2a28a787 100644\n--- a/tests/entities/test_prompt.py\n+++ b/tests/entities/test_prompt.py\n@@ -28,6 +28,31 @@ def test_prompt_initialization():\n     assert prompt._tags[PROMPT_TEXT_TAG_KEY] == \"Hello, {{name}}!\"\n \n \n+@pytest.mark.parametrize(\"tags\", [{}, {\"author\": \"alice\"}])\n+@pytest.mark.parametrize(\"model_config\", [None, {\"temperature\": 0.7}])\n+def test_prompt_initialization_does_not_mutate_tags(tags, model_config):\n+    tags = tags.copy()\n+    original_tags = tags.copy()\n+    first = PromptVersion(\n+        name=\"my_prompt\",\n+        version=1,\n+        template=\"Hello {{name}}\",\n+        tags=tags,\n+        model_config=model_config,\n+    )\n+    assert tags == original_tags\n+\n+    second = PromptVersion(name=\"my_prompt\", version=2, template=\"Hi!\", tags=tags)\n+\n+    assert tags == original_tags\n+    assert first.tags == original_tags\n+    assert second.tags == original_tags\n+    assert first.template == \"Hello {{name}}\"\n+    assert second.template == \"Hi!\"\n+    assert first.model_config == model_config\n+    assert second.model_config is None\n+\n+\n @pytest.mark.parametrize(\n     (\"template\", \"expected\"),\n     [\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "s.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.89s setup    tests/entities/test_prompt.py::test_prompt_initialization\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                            | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/entities/test_prompt.py` | 1.00s    | 53    | 0.002s | 0.890s | 0.019s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m53 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.12s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 26602,
+  "costBasis": "list price from token classes"
+}

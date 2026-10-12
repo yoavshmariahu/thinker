@@ -1,0 +1,55 @@
+{
+  "id": "scoring-server-readiness-timeout-hides-the-last-ping-error",
+  "title": "Scoring server readiness timeout hides the last ping error",
+  "kind": "rule",
+  "answers": [
+    "scoring server timed out waiting to become ready with no reason",
+    "why does the model server readiness check fail with a generic timeout",
+    "ScoringServerClient wait_server_ready timeout error missing connection refused details",
+    "mlflow serve model not ready after timeout, what was the underlying error"
+  ],
+  "body": "Symptom: A model server (mlflow models serve / pyfunc scoring server) fails to start in CI or locally with only a generic \"Wait scoring server ready timeout.\" message, so users cannot tell whether connections were refused or the server returned an HTTP error.\nRoot cause: mlflow/pyfunc/scoring_server/client.py:ScoringServerClient.wait_server_ready caught every exception from self.ping() with a bare `except Exception: pass` and raised a fixed RuntimeError with no URL, timeout, or cause.\nFix pattern: Keep the last caught exception (`except Exception as error: last_error = error`), build the message from the server URL (self.url_prefix), elapsed time, the configured timeout, and optional scoring_server_proc.pid, append `type(last_error).__name__: last_error`, and `raise RuntimeError(message) from last_error`.\nConstraints: Polling interval, timeout value, and the early exit on scoring_server_proc.poll() must stay unchanged; the early-exit RuntimeError is raised without a ping cause. Only the timeout branch is diagnostic.",
+  "applies": "Applies to readiness/wait helpers in mlflow/pyfunc/scoring_server/client.py; any similar wait-for-ready loop that swallows exceptions should follow the same capture-and-chain pattern.",
+  "tags": [
+    "scoring",
+    "pyfunc",
+    "model-server",
+    "diagnostics",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pyfunc/scoring_server/client.py",
+      "symbol": "ScoringServerClient.wait_server_ready",
+      "hash": "sha256:bcd260f22f8e9a0a835b87b4",
+      "line": 58,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bcd260f22f8e9a0a835b87b4",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25998"
+  },
+  "created": "2026-10-11T10:29:19.078Z",
+  "verified": "2026-10-11T10:29:19.078Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model serving startup fails with a generic timeout message without explaining the underlying error.",
+    "Local model server readiness check times out without displaying connection refused details.",
+    "Include the actual network response error when model deployment readiness times out.",
+    "Automated deployment checks fail on model startup with no diagnostic failure reason given."
+  ],
+  "search": "Model scoring server readiness loops must capture and chain the final ping exception upon timeout. In mlflow/pyfunc/scoring_server/client.py:ScoringServerClient.wait_server_ready, preserve the last caught exception from self.ping() and include self.url_prefix, elapsed time, timeout duration, and optional scoring_server_proc.pid in the raised RuntimeError. Polling intervals, timeout thresholds, and the early exit on scoring_server_proc.poll() remain unchanged, with only the timeout branch providing diagnostic chained errors.",
+  "saysFor": "s2:0228a4ec7b8c565a2958c9ae32a2cc3985992654d009f25d67eade9eb4af511c"
+}

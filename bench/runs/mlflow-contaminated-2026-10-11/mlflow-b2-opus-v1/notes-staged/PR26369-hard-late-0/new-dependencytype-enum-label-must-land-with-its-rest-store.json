@@ -1,0 +1,68 @@
+{
+  "id": "new-dependencytype-enum-label-must-land-with-its-rest-store",
+  "title": "New DependencyType enum label must land with its rest_store wiring or proto conversion fails",
+  "kind": "rule",
+  "answers": [
+    "registering a model to Unity Catalog fails with unknown enum label",
+    "new UC resource type dependency rejected when logging a model version",
+    "how do I add a new model dependency type for Unity Catalog registration",
+    "DATABRICKS_UC_MODEL_SERVICE dependency not recorded on model version"
+  ],
+  "body": "Symptom: Registering a model version to Unity Catalog fails during proto conversion with an \"unknown enum label\" error once a new resource type is emitted as a dependency.\nRoot cause: mlflow/store/_unity_catalog/registry/rest_store.py:get_model_version_dependencies emits dependency type strings (_DEP_TYPE_* constants) that must match a member of the DependencyType enum in mlflow/protos/databricks_uc_registry_messages.proto.\nFix pattern: Append the new member with the next free number (e.g. DATABRICKS_UC_MODEL_SERVICE = 6) to the proto enum, regenerate the _pb2 and _pb2.pyi outputs, and add the matching _DEP_TYPE_* constant and emitting branch in the same change. Never emit the string before the enum exists.\nConstraints: Applies to Unity Catalog model-version dependencies only. Enum numbers are append-only; do not renumber existing members.",
+  "applies": "Unity Catalog model-version dependency types (DependencyType enum and rest_store wiring).",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "protobuf",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages.proto",
+      "symbol": "DependencyType",
+      "hash": "sha256:029758b1f79249fddcb882c7",
+      "line": 386,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "get_model_version_dependencies",
+      "hash": "sha256:29c17f38c86e772007eeb89c",
+      "line": 271,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29c17f38c86e772007eeb89c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26140"
+  },
+  "created": "2026-10-11T10:27:22.567Z",
+  "verified": "2026-10-11T10:27:22.567Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-version-dependency-registration-must-not-emit-new-r"
+  ],
+  "says": [
+    "Registering a model version to the catalog fails with an unknown label error.",
+    "Saving a new model version is rejected when linking an unsupported resource dependency.",
+    "Support recording newly introduced cloud service dependencies when publishing catalog models.",
+    "Model version registration in the catalog drops or rejects connected service resources."
+  ],
+  "search": "Adding a Unity Catalog model-version dependency type requires defining the member in the DependencyType enum in mlflow/protos/databricks_uc_registry_messages.proto and emitting its string constant in mlflow/store/_unity_catalog/registry/rest_store.py:get_model_version_dependencies. The new enum member must be appended with the next free number, stubs regenerated, and the matching _DEP_TYPE_* constant and emitting branch added in the exact same change to prevent proto conversion errors. A dependency type string must never be emitted before its corresponding enum member exists. This guidance applies strictly to Unity Catalog model-version dependencies, and existing enum numbers must not be renumbered.",
+  "saysFor": "s2:ad8397358dce77019fa942311d0d62d1886d60df8e2f55bcdc417ce49eb9b715"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "PR26619-hard-nocache-0",
+  "task": "PR26619-hard",
+  "area": "mlflow/store",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "64b3d0da-72b6-4181-86a2-f161c7aca95f",
+  "turns": 14,
+  "wall_ms": 43723,
+  "api_ms": 34908,
+  "cost": 0.27019560000000004,
+  "in_tokens": 271071,
+  "out_tokens": 3576,
+  "tools": {
+    "calls": 13,
+    "byTool": {
+      "Bash": 12,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 12,
+    "callsBeforeFirstEdit": 11,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "ts.py::test_create_experiment_appends_to_artifact_uri_path_correctly[s3://bucket/path/to/root-s3://bucket/path/to/root/{e}]\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                                         | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ---------------------------------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py` | 6.28s    | 111   | 0.000s | 0.802s | 0.057s |\n\n::endgroup::\n\n\u001b[33m================== \u001b[32m101 passed\u001b[0m, \u001b[33m\u001b[1m10 skipped\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 6.37s\u001b[0m\u001b[33m ==================\u001b[0m\n"
+  },
+  "result": "Searching experiments on a database-backed store now accepts lowercase comparators, so `like`, `ilike`, `is null` and `is not null` behave the same as their uppercase forms. All 42 `search_experiments` tests pass, including a new one, with workspaces both enabled and disabled.\n\n**Cause:** the filter parser uppercases `IS NULL` / `IS NOT NULL`, but for normal two-sided comparisons it keeps the comparator exactly as the user typed it. The file store and run search both uppercase it before comparing, but the database code path for experiment search compared it as-is. So `like` failed checks like `comparator not in (\"=\", \"!=\", \"LIKE\", \"ILIKE\")` and the SQL comparison builder, which produced the \"Invalid comparator 'like'\" error.\n\n**Fix** (`mlflow/store/tracking/sqlalchemy_store.py`, in `_get_search_experiments_filter_clauses`):\n```python\ncomparator = f[\"comparator\"].upper()\n```\nThis uppercases the comparator once, before any of the checks, so it covers both experiment-name and tag filters. The workspace-enabled store uses this same function, so one change covers both cases. Uppercase input is unaffected.\n\n**Test** (`tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py`): I added `test_search_experiments_lowercase_comparators`. It checks lowercase `like` and `ilike` on names (including `name like 'Def%'`), lowercase `like` and `ilike` on tags, and `is null` / `is not null` on tags.\n\nThe dataset search function in the same file (`_get_search_datasets_filter_clauses`) reads the comparator the same way and may have the same problem. I left it alone because it's outside the scope you asked for.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py\nindex cc73e9220..f76e1ef65 100644\n--- a/mlflow/store/tracking/sqlalchemy_store.py\n+++ b/mlflow/store/tracking/sqlalchemy_store.py\n@@ -9678,7 +9678,7 @@ def _get_search_experiments_filter_clauses(parsed_filters, dialect):\n     for f in parsed_filters:\n         type_ = f[\"type\"]\n         key = f[\"key\"]\n-        comparator = f[\"comparator\"]\n+        comparator = f[\"comparator\"].upper()\n         value = f[\"value\"]\n         if type_ == \"attribute\":\n             if key == \"experiment_id\":\ndiff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\nindex 005e38139..3d46ec5f5 100644\n--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\n+++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py\n@@ -587,6 +587,32 @@ def test_search_experiments_filter_by_tag_is_null(store: SqlAlchemyStore):\n         store.search_experiments(filter_string=\"name IS NULL\")\n \n \n+def test_search_experiments_lowercase_comparators(store: SqlAlchemyStore):\n+    experiments = [\n+        (\"Abc\", [ExperimentTag(\"key1\", \"Value\")]),\n+        (\"ab\", [ExperimentTag(\"key1\", \"value\")]),\n+        (\"a\", []),\n+    ]\n+    for name, tags in experiments:\n+        time.sleep(0.001)\n+        store.create_experiment(name, tags=tags)\n+\n+    results = store.search_experiments(filter_string=\"name like 'a%'\")\n+    assert [e.name for e in results] == [\"a\", \"ab\"]\n+    results = store.search_experiments(filter_string=\"name ilike 'a%'\")\n+    assert [e.name for e in results] == [\"a\", \"ab\", \"Abc\"]\n+    results = store.search_experiments(filter_string=\"name like 'Def%'\")\n+    assert [e.name for e in results] == [\"Default\"]\n+    results = store.search_experiments(filter_string=\"tag.key1 like 'v%'\")\n+    assert [e.name for e in results] == [\"ab\"]\n+    results = store.search_experiments(filter_string=\"tag.key1 ilike 'v%'\")\n+    assert [e.name for e in results] == [\"ab\", \"Abc\"]\n+    results = store.search_experiments(filter_string=\"tag.key1 is null\")\n+    assert [e.name for e in results] == [\"a\", \"Default\"]\n+    results = store.search_experiments(filter_string=\"tag.key1 is not null\")\n+    assert [e.name for e in results] == [\"ab\", \"Abc\"]\n+\n+\n def test_hard_delete_experiment_cascades_to_child_tables(\n     store: SqlAlchemyStore,\n ):\n",
+  "distill": null,
+  "cache_read_tokens": 252538,
+  "cache_write_tokens": 18509,
+  "fresh_in_tokens": 24,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

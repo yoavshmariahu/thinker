@@ -1,0 +1,71 @@
+{
+  "id": "store-test-session-cache-lives-only-in-tests-conftest-py-not",
+  "title": "Store test session cache lives only in tests/conftest.py, not per module",
+  "kind": "rule",
+  "answers": [
+    "why was cached_db overridden in tests/store/tracking/conftest.py",
+    "where to define the sqlite cache for tracking store tests",
+    "module-scoped cached_db fixture removed tracking tests",
+    "shared artifact_folder path in tracking tests"
+  ],
+  "body": "Convention: Tracking store tests reuse the session-scoped cached_db from tests/conftest.py. Do not redefine cached_db per module in tests/store/tracking/conftest.py.\nWhy: A module-scoped override repeated migrations for every module and embedded a shared relative artifact path (\"artifact_folder\"), which conflicts with per-test artifact isolation.\nFix pattern: Delete the local override and let the store fixture in tests/store/tracking/conftest.py:store consume the root cache, passing artifacts under the test's tmp_path.\nConstraints: If a module genuinely needs a different database state, add a fixture under its own name rather than shadowing cached_db.",
+  "applies": "tests/store/tracking and other test modules that depend on the cached_db fixture.",
+  "tags": [
+    "tests",
+    "conventions",
+    "fixtures",
+    "tracking-store"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/conftest.py",
+      "symbol": "store",
+      "hash": "sha256:eabc1a1bda7a5356e675f44a",
+      "line": 82,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eabc1a1bda7a5356e675f44a",
+      "fanout": {
+        "files": 308,
+        "sites": 15,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "cached_db",
+      "hash": "sha256:3ca091a168cf4ad1113b81a7",
+      "line": 1292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca091a168cf4ad1113b81a7",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25753"
+  },
+  "created": "2026-10-11T08:47:54.429Z",
+  "verified": "2026-10-11T08:47:54.429Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t",
+    "parallel-tests-lose-artifacts-when-a-bare-sqlite-tracking-ur"
+  ],
+  "says": [
+    "Tracking store tests run slowly because database setup migrations repeat across test modules.",
+    "Tracking test artifacts collide because tests write to a shared folder instead of isolated directories.",
+    "Isolate generated test artifacts into temporary directories for each tracking store test run.",
+    "Reuse the shared database cache across all tracking tests to prevent redundant initialization."
+  ],
+  "search": "Tracking store tests must reuse the session-scoped cached_db fixture from tests/conftest.py rather than overriding cached_db in tests/store/tracking/conftest.py. A module-scoped cached_db repeated migrations across modules and used a shared relative artifact_folder that broke per-test artifact isolation. Tests should let tests/store/tracking/conftest.py:store consume the root cached_db with artifacts directed to tmp_path, and any module requiring custom database state must define a new fixture under a distinct name.",
+  "saysFor": "s2:0545d36de105fe5290497abfe316a30d6f795329ea89abcbd816742abe4d69fc"
+}

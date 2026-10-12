@@ -1,0 +1,67 @@
+{
+  "id": "modelversiondeploymentjobstate-to-proto-must-build-the-messa",
+  "title": "ModelVersionDeploymentJobState.to_proto must build the message type its containing field holds",
+  "kind": "rule",
+  "answers": [
+    "TypeError assigning deployment job state into model version proto",
+    "which proto module does ModelVersionDeploymentJobState to_proto use",
+    "deployment job state entity serialises to the wrong proto type"
+  ],
+  "body": "Symptom: Setting a model version's deployment job state on its proto fails, or the value is silently discarded by a caller that tried to avoid the error.\nRoot cause: mlflow/entities/model_registry/model_version_deployment_job_state.py imported ProtoModelVersionDeploymentJobState from mlflow.protos.databricks_uc_registry_messages_pb2, but the field it feeds, model_registry_pb2.ModelVersion.deployment_job_state, holds mlflow.protos.model_registry_pb2.ModelVersionDeploymentJobState. Protobuf rejects assigning one message type into a field of another.\nFix pattern: Import the proto class from the same module as the field it populates (mlflow.protos.model_registry_pb2). Keep the entity's from_proto duck-typed over field access so it still accepts the UC message type.\nConstraints: The two message types declare the same five fields with identical enum numbering (DeploymentJobRunState and DeploymentJobConnection.State), which the PR verified against descriptors. If a field or enum value is added to one, the other must be updated the same way. The only caller of this to_proto is ModelVersion.to_proto, so changing its output type affects only that path.",
+  "applies": "Serialisation of the ModelVersionDeploymentJobState entity in the OSS registry; any change to the UC or OSS deployment job protos.",
+  "tags": [
+    "model-registry",
+    "deployment-job-state",
+    "protobuf",
+    "uc-registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/model_registry/model_version_deployment_job_state.py",
+      "symbol": "ModelVersionDeploymentJobState.to_proto",
+      "hash": "sha256:0f33882391003974fe727001",
+      "line": 58,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f33882391003974fe727001",
+      "fanout": {
+        "files": 80,
+        "sites": 422,
+        "refs": 429
+      }
+    },
+    {
+      "path": "mlflow/entities/model_registry/model_version_deployment_job_state.py",
+      "symbol": "ModelVersionDeploymentJobState.from_proto",
+      "hash": "sha256:1ea62cb7ac3ac4b0619f66f5",
+      "line": 48,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1ea62cb7ac3ac4b0619f66f5",
+      "fanout": {
+        "files": 78,
+        "sites": 336,
+        "refs": 351
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25635"
+  },
+  "created": "2026-10-11T08:43:18.628Z",
+  "verified": "2026-10-11T08:43:18.628Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Saving deployment job details on a model version triggers an error during update.",
+    "Updating the deployment job status on a registered model silently discards the state.",
+    "Deployment job information fails to attach when updating a registered model version.",
+    "Ensure model version updates properly save and retain the assigned deployment job."
+  ],
+  "search": "ModelVersionDeploymentJobState.to_proto in mlflow/entities/model_registry/model_version_deployment_job_state.py must construct mlflow.protos.model_registry_pb2.ModelVersionDeploymentJobState instead of the Databricks UC message type from databricks_uc_registry_messages_pb2. This matches the field type expected by model_registry_pb2.ModelVersion.deployment_job_state when called by ModelVersion.to_proto. ModelVersionDeploymentJobState.from_proto must remain duck-typed over field access to accept both OSS and UC deployment job message types. Schema updates to fields or enum values in DeploymentJobRunState or DeploymentJobConnection.State must be applied identically across both proto definitions.",
+  "saysFor": "s2:b3a37d2b891a1d21818a17295d5c8d933272ad8aaef148ab4e47cfa7c2e49460"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "pass-untrusted-issue-text-into-workflow-shell-steps-through",
+  "title": "Pass untrusted issue text into workflow shell steps through env, not inline expressions",
+  "kind": "rule",
+  "answers": [
+    "workflow script injection from issue title",
+    "how to use issue title in a GitHub Actions run step safely",
+    "why is the issue title assigned to an env variable in triage workflow",
+    "shell injection in issue-triggered workflow"
+  ],
+  "body": "Convention: user-controlled event fields (issue title, body) are passed to a `run:` step via `env:` and read as shell variables (`TITLE: ${{ github.event.issue.title }}` then `\"${TITLE}\"`), not interpolated directly as `${{ github.event.issue.title }}` inside the script text.\nEnforced by: .github/workflows/triage.yml:jobs.label.steps (the env block feeding the title-matching script).\nInline interpolation would let a crafted issue title inject shell commands into the runner, since the expression is substituted before bash parses the script.\nMatching is done in pure bash with no LLM or external service: leading whitespace is trimmed and the title is upper-cased with `${title^^}` before `case` prefix matching, and unmatched titles exit 0 without changes.\nReuse this pattern for any new workflow that reads issue or PR text.",
+  "applies": "Any GitHub Actions workflow in this repo whose run steps read issue or PR titles or bodies.",
+  "tags": [
+    "github-actions",
+    "security",
+    "shell",
+    "issues"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/triage.yml",
+      "hash": "sha256:d4e625a0d77ab1a86d9138da",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26296"
+  },
+  "created": "2026-10-11T10:26:10.586Z",
+  "verified": "2026-10-11T10:26:10.586Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Submitting an issue with quotes or special characters causes workflow script injection",
+    "Malicious issue titles can execute unauthorized shell commands during automated issue triage",
+    "Prevent crafted issue or pull request titles from injecting commands into automation",
+    "Automated triage workflow fails when processing issue titles that contain shell characters"
+  ],
+  "search": "In GitHub Actions run steps, untrusted issue and pull request titles or bodies must be passed via env variables rather than interpolated directly into script text. Enforced in .github/workflows/triage.yml:jobs.label.steps by mapping ${{ github.event.issue.title }} to an env variable, this convention prevents crafted issue titles from injecting shell commands into the runner. Title matching is handled in pure bash by trimming whitespace and uppercasing with ${title^^} for case matching, exiting 0 on unmatched titles without external services.",
+  "saysFor": "s2:60b26431af3bcaf6655839b9b72ee42de609b35d157575fc5c10ddd3be2a0985"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "codex-transcript-lookup-must-resolve-the-codex-home-the-way",
+  "title": "Codex transcript lookup must resolve the Codex home the way Codex does (CODEX_HOME, empty counts as unset)",
+  "kind": "rule",
+  "answers": [
+    "Codex traces missing model, tool calls, or token usage when CODEX_HOME is set",
+    "Codex session transcript not found for custom CODEX_HOME launcher",
+    "Why does Codex enrichment fall back to notify payload only",
+    "Empty CODEX_HOME breaks Codex transcript discovery"
+  ],
+  "body": "Symptom: Codex traces from a launcher that sets a custom CODEX_HOME show no model, tool calls/results, span timing or token usage; only the notify payload is recorded.\nRoot cause: libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread previously hard-coded join(homedir(), '.codex', 'sessions'), ignoring where Codex actually writes rollouts.\nFix pattern: derive the base as `process.env.CODEX_HOME || join(homedir(), '.codex')` and search `join(codexHome, 'sessions')`. Keep the lookup in this one function so every enrichment path uses the same directory.\nConstraints: use `||`, not `??`; Codex treats an empty CODEX_HOME as unset, and launchers often forward an optional variable as ''. Empty must fall back to ~/.codex. Transcript lookup is optional enrichment, so a missing directory must still return null, not throw.",
+  "applies": "Any change to how the Codex integration locates rollout files or other Codex state on disk.",
+  "tags": [
+    "codex",
+    "tracing",
+    "env",
+    "transcript"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/transcript.ts",
+      "symbol": "findTranscriptForThread",
+      "hash": "sha256:0516893cda27a1221d1d1d59",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0516893cda27a1221d1d1d59",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25822"
+  },
+  "created": "2026-10-11T10:32:39.701Z",
+  "verified": "2026-10-11T10:32:39.701Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-transcript-tests-mock-node-os-homedir-and-restore-code"
+  ],
+  "says": [
+    "Codex traces are missing tool calls, model names, and token usage details.",
+    "Custom launcher sessions only show notify payloads instead of full execution traces.",
+    "Codex session transcripts are not discovered when using a custom directory path.",
+    "An empty home directory configuration breaks transcript lookup for Codex traces.",
+    "Show complete span timing and tool results for all recorded Codex sessions."
+  ],
+  "search": "Codex transcript lookup in libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread must resolve rollout sessions under process.env.CODEX_HOME || join(homedir(), '.codex') to prevent missing model, tool call, timing, and token trace data. This applies to any change in the Codex integration locating disk rollout files or session state. Logical OR (||) must be used instead of nullish coalescing (??) so empty strings fall back to ~/.codex, and missing directories must return null rather than throwing.",
+  "saysFor": "s2:4ccccfa7adc8dfbe65e54fb4be46c3da81fa9051a94df23fa833bc3260ae0d95"
+}

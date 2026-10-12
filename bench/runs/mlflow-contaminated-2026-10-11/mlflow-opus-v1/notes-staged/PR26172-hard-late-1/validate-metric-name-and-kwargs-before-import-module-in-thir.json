@@ -1,0 +1,72 @@
+{
+  "id": "validate-metric-name-and-kwargs-before-import-module-in-thir",
+  "title": "Validate metric_name and kwargs before import_module in third-party scorer deserialization",
+  "kind": "rule",
+  "answers": [
+    "dotted metric name in scorer payload imports a module",
+    "scorer kwargs metric_name overrides the registry lookup",
+    "RagasScorer or DeepEvalScorer imports an arbitrary path from a crafted payload",
+    "third-party scorer metric_name injection"
+  ],
+  "body": "Symptom: a crafted third-party scorer payload makes RagasScorer or DeepEvalScorer import a caller-placed module, even when the module itself is allow-listed.\nRoot cause: the wrappers splice unknown metric_name values into import paths (ragas.metrics.collections.<metric_name>, deepeval.metrics.<metric_name>Metric). Concrete subclasses inherit the wrapper __init__, so a metric_name in kwargs reached the constructor unchecked (mlflow/genai/scorers/base.py:Scorer.model_validate).\nFix pattern: in Scorer.model_validate, reject metric_name that is not str.isidentifier(), and reject any kwargs containing 'metric_name'. Both checks run before importlib.import_module. Tests assert import_module is never called.\nConstraints: the deserializer injects metric_name only when the class has no metric_name ClassVar, so the top-level value is the only trusted source. Keep these checks ahead of the import.",
+  "applies": "Changes to Scorer.model_validate or to RagasScorer/DeepEvalScorer metric-name resolution in mlflow/genai/scorers.",
+  "tags": [
+    "security",
+    "genai",
+    "scorers",
+    "deserialization",
+    "metric-name"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T08:44:58.692Z",
+  "verified": "2026-10-11T08:44:58.692Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-serialized-scorers-must-reload-with-timeout-0-not-the",
+    "scorer-invocation-timeout-is-enforced-only-inside-scorer-run",
+    "reflected-third-party-scorer-attribute-must-be-a-scorer-subc",
+    "allow-list-must-equal-the-set-of-scorer-defining-modules-a-c"
+  ],
+  "says": [
+    "A crafted third-party scorer configuration allows loading unapproved modules during model evaluation.",
+    "Evaluation metric definitions accept invalid names and load unintended external code libraries.",
+    "Block unauthorized code loading by strictly validating metric names before running evaluations.",
+    "Reject custom scorer configurations that pass unexpected arguments or invalid metric naming."
+  ],
+  "search": "In third-party scorer deserialization within mlflow/genai/scorers, Scorer.model_validate must validate metric_name with str.isidentifier() and reject kwargs containing metric_name before calling importlib.import_module. This prevents crafted payloads for RagasScorer or DeepEvalScorer from splicing unchecked metric_name values into import paths like ragas.metrics.collections or deepeval.metrics to load caller-placed modules. Deserialization injects metric_name only when the class lacks a metric_name ClassVar, making the top-level value the only trusted source. Applies to changes in mlflow/genai/scorers/base.py:Scorer.model_validate, mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES, or metric-name resolution for Ragas and DeepEval scorers.",
+  "saysFor": "s2:d9cced22fdfda37b874d20197cab4ef4bb6b093423f755f37470ea50c590eab8"
+}

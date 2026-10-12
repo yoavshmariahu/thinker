@@ -1,0 +1,54 @@
+{
+  "id": "serving-tests-for-uc-trace-location-set-mlflow-experiment-id",
+  "title": "Serving tests for UC trace location set MLFLOW_EXPERIMENT_ID via monkeypatch instead of patching _get_experiment_id",
+  "kind": "rule",
+  "answers": [
+    "how to write a test for serving UC trace resolution",
+    "test mocks fluent _get_experiment_id in serving tests",
+    "monkeypatch MLFLOW_EXPERIMENT_ID in tracing provider tests",
+    "regression test for serving experiment id local store validation"
+  ],
+  "body": "Serving-path tests in tests/tracing/test_provider.py drive the experiment id through monkeypatch.setenv(\"MLFLOW_EXPERIMENT_ID\", ...), because the serving branch of _resolve_experiment_uc_location no longer calls mlflow.tracking.fluent._get_experiment_id; patching that function no longer exercises the code path.\nA regression test that must prove the local check is bypassed should patch mlflow.tracking.fluent._get_experiment_id with a side_effect and assert_not_called() on the captured mock.\nEvery mock in these tests (get_tracking_uri, _get_store) should be captured and asserted with its call args (for example mock_store_fn.assert_called_once_with(\"databricks\")), not just set up with a return value.\nComments in these tests must describe the direct env-var read accurately, not say the code falls back to the env var after calling _get_experiment_id.",
+  "applies": "tests/tracing/test_provider.py serving UC location tests only.",
+  "tags": [
+    "tests",
+    "tracing",
+    "model-serving",
+    "mocking",
+    "monkeypatch"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/test_provider.py",
+      "symbol": "test_resolve_uc_location_in_serving_bypasses_local_experiment_validation",
+      "hash": "sha256:3258b50527c8347f4ccfaf0c",
+      "line": 1156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3258b50527c8347f4ccfaf0c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25913"
+  },
+  "created": "2026-10-11T08:44:45.360Z",
+  "verified": "2026-10-11T08:44:45.360Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model serving endpoints fail to send traces to catalog experiment tables.",
+    "Serving trace logging should bypass local experiment validation in model serving.",
+    "Inference traces from deployed models are missing from catalog trace destinations."
+  ],
+  "search": "Serving-path tests in tests/tracing/test_provider.py must set MLFLOW_EXPERIMENT_ID via monkeypatch instead of patching mlflow.tracking.fluent._get_experiment_id. Because _resolve_experiment_uc_location reads the environment variable directly in serving, regression tests proving local validation is bypassed should mock _get_experiment_id with a side effect and assert it is not called. All test mocks such as get_tracking_uri and _get_store must explicitly assert call arguments rather than only specifying return values. Applies exclusively to serving Unity Catalog location tests in tests/tracing/test_provider.py.",
+  "saysFor": "s2:9167f6478c09cef0dca7aac5ba931b9773f445f04ffd174b2c6b5fa3a5eb47d9"
+}

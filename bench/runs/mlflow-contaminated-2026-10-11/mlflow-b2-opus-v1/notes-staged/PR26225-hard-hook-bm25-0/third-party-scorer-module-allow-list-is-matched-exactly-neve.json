@@ -1,0 +1,96 @@
+{
+  "id": "third-party-scorer-module-allow-list-is-matched-exactly-neve",
+  "title": "Third-party scorer module allow-list is matched exactly, never by package prefix",
+  "kind": "rule",
+  "answers": [
+    "why does loading a RAGAS or DeepEval scorer reject a submodule path",
+    "third-party scorer module not in the allow-list after prefix change",
+    "can a file under an mlflow scorer package path be imported when deserializing",
+    "how do I add a new scorer module for trulens, phoenix, ragas or deepeval deserialization"
+  ],
+  "body": "Invariant: a third_party_scorer_data.module is accepted only if it equals one of the names in THIRD_PARTY_SCORER_ALLOWED_MODULES. Dotted descendants of a package root (e.g. mlflow.genai.scorers.trulens.<run_id>.artifacts.payload) are rejected.\nEnforced by: mlflow/genai/scorers/base.py:Scorer.model_validate runs `module_path not in THIRD_PARTY_SCORER_ALLOWED_MODULES` before importlib.import_module.\nWhat breaks if skipped: a caller-placed file below an allow-listed package (e.g. a run artifact under a file:// experiment artifact root) gets imported and its top-level code runs before the class checks.\nConstraints: the set in mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES lists the modules that define supported scorer classes, so a new scorer module needs an entry there. Packages that define no Scorer subclass (e.g. mlflow.genai.scorers.trulens.scorers) are not allowed.\nApplies: any change to third-party scorer deserialization or to the scorer packages under mlflow/genai/scorers (ragas, deepeval, trulens, phoenix).",
+  "applies": "Deserialization of third-party scorers in mlflow/genai/scorers/base.py; not the server-side payload checks in mlflow/server/handlers.py.",
+  "tags": [
+    "security",
+    "genai-scorers",
+    "serialization",
+    "allow-list"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 482,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 118,
+        "refs": 144
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "symbol": "test_third_party_scorer_allow_list_is_exactly_the_scorer_defining_modules",
+      "hash": "sha256:70449555f15dfaad0097572d",
+      "line": 975,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:70449555f15dfaad0097572d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T10:30:36.208Z",
+  "verified": "2026-10-11T10:30:36.208Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "scorer-signature-with-parentheses-in-defaults-fails-to-reloa",
+    "server-side-decorator-call-source-scorers-are-blocked-unless",
+    "third-party-scorer-metric-name-must-be-an-identifier-and-mus",
+    "third-party-scorer-checks-must-run-before-import-and-before"
+  ],
+  "says": [
+    "Loading saved evaluation metrics rejects nested package paths for external scorers.",
+    "Saved model evaluation fails to load scorers using custom subpackage paths.",
+    "Allow new third-party evaluation scoring modules to be loaded from saved experiments.",
+    "Support restoring evaluation metrics defined inside external scoring framework submodules.",
+    "Evaluation runs fail when loading saved metrics from TruLens or Phoenix integrations."
+  ],
+  "search": "Third-party scorer deserialization in mlflow/genai/scorers/base.py enforces that third_party_scorer_data.module exactly matches an entry in mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES before import. In Scorer.model_validate, dotted descendants of package roots are rejected to prevent executing top-level code from caller-placed files under an experiment artifact root. New scorer modules for ragas, deepeval, trulens, or phoenix must be explicitly added to THIRD_PARTY_SCORER_ALLOWED_MODULES, but packages without a Scorer subclass are not permitted. This rule applies to deserialization under mlflow/genai/scorers tested in test_third_party_scorer_allow_list_is_exactly_the_scorer_defining_modules, but not to server-side checks in mlflow/server/handlers.py.",
+  "saysFor": "s2:15ba570c02aebdab462b9c106a703339afc55baaa8dccf064b0bdb5e2f3d89c2",
+  "stale": {
+    "since": "2026-10-11T18:17:55.256Z",
+    "changed": [
+      {
+        "path": "mlflow/genai/scorers/base.py",
+        "symbol": "Scorer.model_validate",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

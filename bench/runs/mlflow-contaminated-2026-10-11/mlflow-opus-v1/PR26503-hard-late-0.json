@@ -1,0 +1,60 @@
+{
+  "id": "PR26503-hard-late-0",
+  "task": "PR26503-hard",
+  "area": "mlflow/utils",
+  "arm": "late",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "d5607c6b-9b92-491f-8819-865421017f25",
+  "turns": 5,
+  "wall_ms": 19291,
+  "api_ms": 11543,
+  "cost": 0.08742840000000002,
+  "in_tokens": 65366,
+  "out_tokens": 1058,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "callsBeforeFirstEdit": 2,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "st_scorers_empty_experiment[json-expected_output1]\n0.02s setup    tests/cli/test_scorers.py::test_list_scorers_invalid_output_format\n0.02s setup    tests/cli/test_scorers.py::test_list_scorers_long_names[json]\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_short_options\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                        | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/cli/test_scorers.py` | 1.64s    | 42    | 0.002s | 0.732s | 0.039s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m62 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 2.26s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "Empty query results now print the table's header row and divider line instead of blank output. The tests for the changed code pass (62 in `tests/utils/test_string_utils.py` and `tests/cli/test_scorers.py`).\n\n**Cause:** the shared table function `_create_table` in `mlflow/utils/string_utils.py` worked out column widths by pairing each column of data with its header. With no data rows there were no columns to pair, so it found zero columns and printed nothing, not even the headers.\n\n**Fix:** it now works out each column's width from the header list instead. The longest cell counts as 0 when there are no rows, so the width comes from the header label plus 2 and the minimum width of 4 — the same rules a populated table uses. When there are rows, the calculation is unchanged, so those tables look exactly as before.\n\n**Tests:** I didn't write new ones. Test changes were already staged in your working tree when I started, and they cover this:\n- `test_create_table_empty_rows_keeps_headers` in `tests/utils/test_string_utils.py` checks that an empty table still shows its header and divider.\n- `test_list_scorers_empty_experiment` in `tests/cli/test_scorers.py` now expects the scorer list's header row instead of empty output.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/utils/string_utils.py b/mlflow/utils/string_utils.py\nindex f253795fa..2c11062b0 100644\n--- a/mlflow/utils/string_utils.py\n+++ b/mlflow/utils/string_utils.py\n@@ -54,8 +54,8 @@ def _create_table(\n     d     e     f\n     \"\"\"\n     column_widths = [\n-        max(len(max(col, key=len)), len(header) + 2, min_column_width)\n-        for col, header in zip(zip(*rows), headers)\n+        max(max((len(row[i]) for row in rows), default=0), len(header) + 2, min_column_width)\n+        for i, header in enumerate(headers)\n     ]\n     aligned_rows = [\n         column_sep.join(header.ljust(width) for header, width in zip(headers, column_widths)),\ndiff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py\nindex 5c1b301a5..a4656e7eb 100644\n--- a/tests/cli/test_scorers.py\n+++ b/tests/cli/test_scorers.py\n@@ -146,7 +146,7 @@ def test_list_scorers_json_output(\n @pytest.mark.parametrize(\n     (\"output_format\", \"expected_output\"),\n     [\n-        (\"table\", \"\"),\n+        (\"table\", \"Scorer Name    Description  \\n-------------  -------------\\n\"),\n         (\"json\", {\"scorers\": []}),\n     ],\n )\n@@ -164,8 +164,7 @@ def test_list_scorers_empty_experiment(\n         output_json = json.loads(result.output)\n         assert output_json == expected_output\n     else:\n-        # Empty table produces minimal output\n-        assert result.output.strip() == expected_output\n+        assert result.output == expected_output\n \n \n def test_list_scorers_with_experiment_id_env_var(\ndiff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py\nindex 20c7ac3c6..ca9ba61db 100644\n--- a/tests/utils/test_string_utils.py\n+++ b/tests/utils/test_string_utils.py\n@@ -1,6 +1,7 @@\n import pytest\n \n from mlflow.utils.string_utils import (\n+    _create_table,\n     format_table_cell_value,\n     is_string_type,\n     mslex_quote,\n@@ -9,6 +10,13 @@ from mlflow.utils.string_utils import (\n )\n \n \n+def test_create_table_empty_rows_keeps_headers():\n+    assert _create_table([], [\"Name\", \"ID\"]).splitlines() == [\n+        \"Name    ID  \",\n+        \"------  ----\",\n+    ]\n+\n+\n @pytest.mark.parametrize(\n     ((\"original\", \"prefix\", \"expected\")),\n     [(\"smoketest\", \"smoke\", \"test\"), (\"\", \"test\", \"\"), (\"\", \"\", \"\"), (\"test\", \"\", \"test\")],\n",
+  "distill": null,
+  "cache_read_tokens": 58542,
+  "cache_write_tokens": 6816,
+  "fresh_in_tokens": 8,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "model-catalog-assets-publish-only-from-master-push-never-fro",
+  "title": "Model catalog assets publish only from master push, never from pull_request runs",
+  "kind": "rule",
+  "answers": [
+    "why did the model catalog release not update on a PR",
+    "where does the model catalog get published to GitHub Releases",
+    "can a pull request run upload model-catalog assets or move the tag",
+    "which workflow job publishes the model catalog release"
+  ],
+  "body": "Invariant: release publication for the model catalog runs only on `push` to `master` in mlflow/mlflow. Scheduled/manual runs generate, validate and open or update the automated PR (`create-pr` job). `pull_request` runs validate generation only.\nEnforced by the job-level `if` on the `publish` job in .github/workflows/update-model-catalog.yml (`github.event_name == 'push' && github.ref == 'refs/heads/master'`), and by `sync` skipping push events.\nPublish sequence must stay in this order: move `model-catalog/latest` to `github.sha` first, then run dev/publish_model_catalog.sh, so release assets match the merged commit.\n`publish` authenticates with `secrets.GITHUB_TOKEN` (contents: write); the App token stays on `create-pr` for PR creation.\nBreaks if skipped: untrusted PR code could move the release tag or overwrite release assets; assets could drift from the merged catalog.\nReruns of the push workflow are the retry path for publication.",
+  "applies": "Any change to the job graph, triggers, or permissions of .github/workflows/update-model-catalog.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "model-catalog",
+    "release"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    },
+    {
+      "path": "dev/publish_model_catalog.sh",
+      "hash": "sha256:f7eb03a44714649940b8b7aa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25689"
+  },
+  "created": "2026-10-11T08:48:33.782Z",
+  "verified": "2026-10-11T08:48:33.782Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why did the model catalog release assets not update during pull request checks?",
+    "Model catalog release files should only publish after merging changes into the main branch.",
+    "Prevent pull request test runs from moving public release tags or uploading assets.",
+    "Ensure scheduled catalog updates open an automated review request rather than publishing immediately."
+  ],
+  "search": "Model catalog release publication in .github/workflows/update-model-catalog.yml executes exclusively on push events to refs/heads/master. Pull request runs only validate catalog generation, while scheduled runs use the create-pr job with an App token to open review PRs. The publish job authenticates with secrets.GITHUB_TOKEN, advances model-catalog/latest to github.sha, and executes dev/publish_model_catalog.sh so release assets match merged commits. Publication retries require rerunning the master push workflow to prevent untrusted PR runs from moving tags or overwriting assets.",
+  "saysFor": "s2:618194d91fc2c7853140d64f423f8e3607e476b7ff0e0f0bd38243e498ae8cc3"
+}

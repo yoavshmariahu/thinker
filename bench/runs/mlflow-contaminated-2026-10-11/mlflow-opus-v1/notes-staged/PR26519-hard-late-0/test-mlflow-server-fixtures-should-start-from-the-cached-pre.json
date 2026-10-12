@@ -1,0 +1,57 @@
+{
+  "id": "test-mlflow-server-fixtures-should-start-from-the-cached-pre",
+  "title": "Test MLflow server fixtures should start from the cached pre-migrated SQLite DB",
+  "kind": "rule",
+  "answers": [
+    "setup.sh E2E test server times out waiting for readiness in CI",
+    "flaky mlflow_server fixture in tests/agent setup.sh tests",
+    "why does the module-scoped MLflow server take so long to start in tests",
+    "copy cached_db into per-server directory for test MLflow server"
+  ],
+  "body": "Symptom: The setup.sh remote-setup E2E tests fail intermittently in CI because the MLflow server does not become ready before the readiness timeout.\nRoot cause: tests/agent/test_setup_sh_e2e.py:mlflow_server started `mlflow server` on an empty SQLite file, so every module-scoped run paid the schema migration cost while CI load was high.\nFix pattern: Request the session-cached, pre-migrated `cached_db` fixture as an argument, then `shutil.copy2(cached_db, db_path)` into the server's own tmp directory before launching the process. Keep the per-server `db_path` and artifact directory under that tmp directory so each server stays isolated.\nConstraints: Only copy the database; do not share one SQLite file between servers, since each module-scoped server needs its own DB and artifact root. Readiness and cleanup logic stays unchanged.",
+  "applies": "Module-scoped or per-test MLflow server fixtures in tests/agent/ and similar E2E tests that need a live tracking server backed by SQLite.",
+  "tags": [
+    "tests",
+    "e2e",
+    "flaky-test",
+    "sqlite",
+    "fixture",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/test_setup_sh_e2e.py",
+      "symbol": "mlflow_server",
+      "hash": "sha256:f1e57428fb78bc907903cfa6",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f1e57428fb78bc907903cfa6",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 110
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25757"
+  },
+  "created": "2026-10-11T08:42:26.726Z",
+  "verified": "2026-10-11T08:42:26.726Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated remote setup tests time out waiting for the tracking server to start up.",
+    "Remote environment setup test suite fails intermittently during continuous integration server readiness checks.",
+    "Speed up test tracking server startup by reusing a pre-migrated database template.",
+    "Test tracking servers time out during startup because database migrations run from scratch.",
+    "End to end agent setup tests are flaky due to slow server initialization."
+  ],
+  "search": "Module-scoped or per-test MLflow tracking server fixtures backed by SQLite in tests/agent/test_setup_sh_e2e.py should initialize from a cached pre-migrated database. Copy the session-cached cached_db fixture into the server's temporary directory using shutil.copy2 before starting the server process to avoid migration timeouts in CI. Each server must maintain an isolated database copy and artifact root rather than sharing a single SQLite file, keeping readiness and cleanup logic unchanged.",
+  "saysFor": "s2:b8dc4e3902867963ed1d183e6600cd3f3b6052a7aedb06d2783cc28f728fb46c"
+}

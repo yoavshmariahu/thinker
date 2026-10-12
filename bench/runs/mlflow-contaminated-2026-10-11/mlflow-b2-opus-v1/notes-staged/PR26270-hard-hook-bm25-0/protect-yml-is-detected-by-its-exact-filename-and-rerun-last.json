@@ -1,0 +1,69 @@
+{
+  "id": "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+  "title": "protect.yml is detected by its exact filename and rerun last, after wait",
+  "kind": "rule",
+  "answers": [
+    "protect.yml rerun happens in the wrong order in retry",
+    "retry workflow protect workflow not rerun",
+    "how does retry.sh identify the protect workflow",
+    "renaming protect.yml breaks retry"
+  ],
+  "body": "Invariant: retry.sh identifies the protect workflow by comparing the `workflow` field to the literal `protect.yml`, and reruns it only after the `wait` that follows the loop over other rows.\nWhere enforced: .github/workflows/retry.sh:runs (jq sets `workflow` to the basename of `.workflowRun.workflow.resourcePath` via `split(\"/\")[-1]`) and the `while IFS=$'\\t' read -r run_id workflow` loop that stores `protect_id`/`protect_workflow`, followed by `wait` and the deferred `rerun \"$protect_id\" \"$protect_workflow\"`.\nWhat breaks if skipped: Comparing against a path (such as an endswith on \"/protect.yml\" after the field was changed to a bare filename) silently never matches, so protect is rerun as an ordinary parallel rerun or not at all. Renaming protect.yml requires updating the literal in retry.sh.\nConstraints: The `workflow` value is a filename only, so comparisons must use filenames, not paths. Only one protect row is tracked (`protect_id` is a single variable); the reason for deferring it is not stated in the diff.",
+  "applies": "Applies to workflow-name matching and rerun ordering in .github/workflows/retry.sh; does not cover which runs the jq filter selects for rerun.",
+  "tags": [
+    "retry",
+    "protect",
+    "github-actions",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "protect_id",
+      "hash": "sha256:348df65e0e31196f410d65c6",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "runs",
+      "hash": "sha256:3fadbfb022af8eeb0436aeb9",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26135"
+  },
+  "created": "2026-10-11T10:27:38.909Z",
+  "verified": "2026-10-11T10:27:38.909Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "rerun-on-approval-must-treat-timed-out-and-startup-failure-a",
+    "retry-gating-order-in-retry-sh-dedupe-drop-dynamic-runs-then",
+    "protect-workflow-is-rerun-last-and-only-after-the-other-reru",
+    "dry-run-the-ci-retry-sweep-locally-and-by-manual-dispatch"
+  ],
+  "says": [
+    "The protection check does not rerun after renaming the merge validation configuration.",
+    "Renaming the protection workflow causes it to run out of order during retries.",
+    "Automatic retries fail to detect the protection check and run it in parallel.",
+    "Why did changing the merge check name break the deferred retry sequence?"
+  ],
+  "search": "Workflow matching in .github/workflows/retry.sh identifies the protection job by exact filename protect.yml before deferring its rerun until after wait. Applies to .github/workflows/retry.sh:runs and the while loop reading run_id and workflow, which expects a bare filename from jq. Comparing against full paths fails silently, renaming protect.yml requires updating the script literal, and only a single protect row is tracked.",
+  "saysFor": "s2:98a01eb114e1514c27a38a7c1ce63f213793e0b8a3516dfd8c203753de41b63b"
+}

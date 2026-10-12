@@ -1,0 +1,45 @@
+{
+  "id": "keep-the-langchain-test-matrix-openai-pin-in-sync-with-the-o",
+  "title": "Keep the LangChain test matrix openai pin in sync with the OpenAI matrix",
+  "kind": "rule",
+  "answers": [
+    "langchain tests fail with openai 3 client mocking errors",
+    "why is openai pinned below 3 in langchain test requirements",
+    "openai httpx2 async cleanup test failures",
+    "how to lift the openai<3 cap in ml-package-versions"
+  ],
+  "body": "Symptom: LangChain integration tests break after a new major openai release, with mocking or async cleanup failures.\nRoot cause: The langchain entries in mlflow/ml-package-versions.yml install unbounded \"openai\". The openai test matrix is already capped at openai<3 because its httpx2-based client mocking and async cleanup are not yet supported.\nFix pattern: Use \"openai<3\" in the langchain requirement lists, matching the existing OpenAI matrix. Change both the langchain entry and the one under the >= 0.0.0 requirements block together.\nConstraints: Remove the cap only after httpx2 client mocking and async cleanup work with openai 3. Until then, keep all openai pins in this file consistent.",
+  "applies": "Test-matrix requirement pins for langchain and openai in mlflow/ml-package-versions.yml.",
+  "tags": [
+    "langchain",
+    "openai",
+    "dependencies",
+    "test-matrix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/ml-package-versions.yml",
+      "hash": "sha256:89750152037ceaf59f912beb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26124"
+  },
+  "created": "2026-10-11T10:24:40.997Z",
+  "verified": "2026-10-11T10:24:40.997Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "LangChain integration tests fail in continuous integration after a new model provider release.",
+    "Nightly automated test suite breaks with mock client cleanup errors for external models.",
+    "Please cap external model provider version in the test matrix until mocking works.",
+    "Continuous integration builds are red due to failing integration tests for third-party models."
+  ],
+  "search": "Test matrix requirement pins for langchain in mlflow/ml-package-versions.yml must specify openai<3 to stay in sync with the OpenAI test matrix. Both the langchain entry and the one under the >= 0.0.0 requirements block must be changed together to prevent mocking and async cleanup failures. The cap should only be removed once httpx2 client mocking and async cleanup function with openai 3.",
+  "saysFor": "s2:862ad9062c6a7da7c76951deef1cc82b1184f70fae6ce05a20d940c98bdae579"
+}

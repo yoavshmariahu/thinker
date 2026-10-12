@@ -1,0 +1,51 @@
+{
+  "id": "repo-wide-pre-commit-hooks-must-set-always-run-true",
+  "title": "Repo-wide pre-commit hooks must set always_run: true",
+  "kind": "rule",
+  "answers": [
+    "pre-commit hook skipped on deletion-only commit",
+    "unused media not caught when deleting a doc reference",
+    "how to make a pre-commit hook run without staged files",
+    "filename-independent pre-commit hook not running"
+  ],
+  "body": "Convention: a pre-commit hook that checks the whole repo, not specific files, must set `pass_filenames: false` and `always_run: true`.\nWhy: pre-commit skips hooks when no staged file matches their `files`/`types` filter, and deleted paths are excluded from the candidate list. A commit that only deletes the last reference to a media file would otherwise never trigger the check.\nWhere: `.pre-commit-config.yaml` entry `unused-media` (entry `dev/find-unused-media.sh`, language `system`).\nConstraints: applies to hooks whose result does not depend on which files changed. Hooks scoped to particular file types (like the `*.gif` hook beside it) should keep their `files:` filter instead.",
+  "applies": "Any new or edited hook in .pre-commit-config.yaml whose check is repo-wide.",
+  "tags": [
+    "build",
+    "pre-commit",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:26b4041b502f2c8ce009a05d",
+      "missing": false
+    },
+    {
+      "path": "dev/find-unused-media.sh",
+      "hash": "sha256:063c96ba0ad14df492896eec",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25815"
+  },
+  "created": "2026-10-11T08:47:13.608Z",
+  "verified": "2026-10-11T08:47:13.608Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unused-media-check-runs-only-through-pre-commit"
+  ],
+  "says": [
+    "Commit checks for unused media do not run when only deleting file references.",
+    "Unreferenced documentation images are missed when submitting deletion-only changes.",
+    "Ensure repository-wide cleanup checks trigger even when no new files are staged.",
+    "Unused media check is skipped on pull requests that solely remove content."
+  ],
+  "search": "Repository-wide pre-commit hooks in .pre-commit-config.yaml must configure pass_filenames: false and always_run: true. This ensures checks like dev/find-unused-media.sh execute even on commits that only delete files or references without staging matching paths. Applies to any repository-wide hook whose outcome is independent of specific changed files, while file-type scoped hooks should retain their files filter.",
+  "saysFor": "s2:724c8380c281a55b9b3db04480627996438699cdca9f5892a3aacb75f874ab8c"
+}

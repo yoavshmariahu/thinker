@@ -1,0 +1,72 @@
+{
+  "id": "openai-autolog-streaming-span-left-open-when-the-stream-rais",
+  "title": "OpenAI autolog streaming span left open when the stream raises mid-iteration",
+  "kind": "rule",
+  "answers": [
+    "OpenAI autolog trace missing when a streaming response fails partway through",
+    "mlflow openai stream raised APIError but no trace was logged",
+    "streaming chat completion error trace status not ERROR in MLflow"
+  ],
+  "body": "Symptom: With mlflow.openai.autolog() on, a streaming call that fails after some chunks (server error event, overload, content filter, network drop) raises to the user, but no trace is exported and the trace sits in InMemoryTraceManager until it times out.\nRoot cause: mlflow/openai/autolog.py:_stream_output_logging_hook (sync and async variants) ended the span only through _process_last_chunk after the loop; an exception from the underlying stream skipped that call and nothing else ended the span.\nFix pattern: wrap the iteration loop in try/except Exception, call _end_span_on_exception(span, e), then re-raise so the caller still sees the original error. Keep _process_last_chunk on the success path only.\nConstraints: Applies to streaming hooks only; non-streaming calls already end the span in patched_call / async_patched_call. Catch Exception, not BaseException, so GeneratorExit from break/close() keeps its current behavior.",
+  "applies": "OpenAI autolog stream wrappers in mlflow/openai/autolog.py (Chat Completions and Responses API share the hook).",
+  "tags": [
+    "openai",
+    "autolog",
+    "tracing",
+    "streaming",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_stream_output_logging_hook",
+      "hash": "sha256:80def39bcaacc0fecf39ddfb",
+      "line": 345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80def39bcaacc0fecf39ddfb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_end_span_on_exception",
+      "hash": "sha256:ffbe6455a0304d28bc7681fc",
+      "line": 535,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffbe6455a0304d28bc7681fc",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26305"
+  },
+  "created": "2026-10-11T10:26:04.299Z",
+  "verified": "2026-10-11T10:26:04.299Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-openai-autolog-streaming-span-must-end-when-the-stream",
+    "openai-autolog-stream-hook-must-bind-loop-variable-before-th"
+  ],
+  "says": [
+    "Traces are missing from the dashboard when a streaming chat fails partway through.",
+    "Streaming completions that encounter network errors never show up in the trace UI.",
+    "Show failed streaming chat calls with error status in the trace view.",
+    "Why do interrupted streaming requests remain hanging instead of logging an error trace?",
+    "Content filter errors during streaming should still record an error trace in the dashboard."
+  ],
+  "search": "In OpenAI autolog streaming wrappers for Chat Completions and Responses API, stream iteration must be wrapped in try/except Exception to call _end_span_on_exception and re-raise. Without this handling in mlflow/openai/autolog.py:_stream_output_logging_hook, exceptions occurring mid-stream prevent _process_last_chunk from running, leaving traces unexported in InMemoryTraceManager until timeout. This applies to sync and async stream hooks, while non-streaming calls already end spans in patched_call and async_patched_call. BaseException must not be caught so GeneratorExit from break or close retains existing behavior.",
+  "saysFor": "s2:06f809d422eddca24ab4375b9515ddf091d9081f580554e7fbbc3d24038792b1"
+}

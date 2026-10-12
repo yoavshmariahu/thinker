@@ -1,0 +1,69 @@
+{
+  "id": "ndcg-at-k-duplicate-retrieved-docs-must-be-expanded-as-id-oc",
+  "title": "ndcg_at_k: duplicate retrieved docs must be expanded as (id, occurrence) tuples, never by suffixing string IDs",
+  "kind": "rule",
+  "answers": [
+    "ndcg_at_k gives relevance to a non-relevant document whose ID contains a suffix like _bc574ae_2",
+    "NDCG score is nonzero even though no retrieved document matches the targets",
+    "how are duplicate retrieved documents handled in the legacy NDCG metric",
+    "retrieval evaluation NDCG wrong when document IDs look like generated duplicates"
+  ],
+  "body": "Symptom: NDCG@k reports a positive score when none of the retrieved documents is relevant, e.g. targets [\"a_bc574ae_2\"] with predictions [\"a\", \"a\", \"z\"] scored about 0.63 instead of 0.\nRoot cause: mlflow/metrics/metric_definitions.py:_expand_duplicate_retrieved_docs built a second occurrence as the string f\"{doc_id}_bc574ae_{n}\" and then matched it against targets, so a real ID equal to that string was treated as relevant.\nFix pattern: represent each retrieved item as (original_id, occurrence_number) and build the relevant set from the original target set, adding (doc_id, k) only when the original doc_id is a target. Synthetic keys are never compared against the raw target strings.\nConstraints: Applies to the legacy ndcg_at_k metric in metric_definitions.py. Relevant-duplicate behaviour (every occurrence of a relevant doc counts) is preserved. Short-retrieval-list handling and the GenAI scorers are not covered by this invariant.\nTest guard: tests/metrics/test_metric_definitions.py:test_ndcg_at_k_preserves_relevance_when_ids_are_renamed checks that scores are unchanged after a bijective rename of all IDs; new NDCG cases should follow that pattern.",
+  "applies": "Any change to duplicate handling or relevance matching in the legacy ndcg_at_k metric in mlflow/metrics/metric_definitions.py.",
+  "tags": [
+    "evaluation",
+    "metrics",
+    "ndcg",
+    "retrieval",
+    "duplicates"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/metrics/metric_definitions.py",
+      "symbol": "_expand_duplicate_retrieved_docs",
+      "hash": "sha256:01d777513f8a231f5cf7365b",
+      "line": 409,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:01d777513f8a231f5cf7365b",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/metrics/test_metric_definitions.py",
+      "symbol": "test_ndcg_at_k_preserves_relevance_when_ids_are_renamed",
+      "hash": "sha256:eb219256093b1b25cbdc549b",
+      "line": 378,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb219256093b1b25cbdc549b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26041"
+  },
+  "created": "2026-10-11T10:25:01.772Z",
+  "verified": "2026-10-11T10:25:01.772Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The search evaluation metric shows a positive score even when no retrieved document is relevant.",
+    "Retrieval ranking metrics report positive scores for completely irrelevant search results.",
+    "Ranking quality scores are incorrect when document identifiers contain underscore suffixes or duplicate numbers.",
+    "Search evaluation results should report zero relevance when none of the retrieved items match."
+  ],
+  "search": "In mlflow/metrics/metric_definitions.py:_expand_duplicate_retrieved_docs, duplicate retrieved documents in legacy ndcg_at_k must be represented as (original_id, occurrence_number) tuples. Matching generated string suffixes like f\"{doc_id}_bc574ae_{n}\" against targets previously caused non-relevant documents with matching IDs to receive positive NDCG scores. The invariant applies strictly to legacy ndcg_at_k in metric_definitions.py, preserving relevant-duplicate behavior while excluding short-retrieval lists and GenAI scorers.",
+  "saysFor": "s2:543919b82477df986618e98a39231dc20339290937922a700466de0137870660"
+}

@@ -1,0 +1,85 @@
+{
+  "id": "uc-model-version-dependency-registration-must-not-emit-new-r",
+  "title": "UC model-version dependency registration must not emit new ResourceType values until the backend proto supports them",
+  "kind": "rule",
+  "answers": [
+    "why isn't my new resource type added to model version dependencies",
+    "registering a model version fails with unknown dependency type",
+    "Unity Catalog model version dependencies new resource type",
+    "CreateModelVersionRequest dependency type error"
+  ],
+  "body": "Symptom: Registering a model version in Unity Catalog fails after a new resource type was added to model logging.\nRoot cause: The UC path in mlflow/store/_unity_catalog/registry/rest_store.py (get_model_version_dependencies) converts resources into model_version_dependencies for CreateModelVersionRequest, whose Dependency.type is the closed backend DependencyType enum. A ResourceType value the proto does not know is rejected.\nFix pattern: Keep new ResourceType members out of the UC dependency mapping until the backend proto includes the matching type; land the proto change first, then wire the mapping in get_model_version_dependencies. Resource metadata (MLmodel serialization) can be added independently.\nConstraints: This applies only to the UC model-version dependency path; MLmodel resource serialization of the same type is unaffected. Verify against the backend DependencyType enum before wiring.",
+  "applies": "Applies when a ResourceType is being connected to Unity Catalog model version registration; not to local MLmodel serialization.",
+  "tags": [
+    "models",
+    "unity-catalog",
+    "model-registry",
+    "resources"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "ResourceType",
+      "hash": "sha256:eb202e672f4178b74d459d84",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb202e672f4178b74d459d84",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 50
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "get_model_version_dependencies",
+      "hash": "sha256:29c17f38c86e772007eeb89c",
+      "line": 271,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29c17f38c86e772007eeb89c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "model_version_dependencies",
+      "hash": "sha256:38ac40585e50934373406828",
+      "line": 1061,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 39
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26137"
+  },
+  "created": "2026-10-11T10:27:26.094Z",
+  "verified": "2026-10-11T10:27:26.094Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-databricks-resource-type-touches-three-registration",
+    "new-dependencytype-enum-label-must-land-with-its-rest-store",
+    "uc-model-load-and-register-must-both-gate-on-the-databricks",
+    "uc-model-load-and-register-must-switch-artifact-repo-togethe"
+  ],
+  "says": [
+    "Registering a model version in Unity Catalog fails because of an unrecognized resource dependency.",
+    "Saving a trained model version is rejected when logging newer external resource requirements.",
+    "Support newly added model dependency types during catalog version registration without throwing errors.",
+    "Model registry rejects version creation after associating unsupported backend dependency types with artifacts."
+  ],
+  "search": "When registering Unity Catalog model versions, new ResourceType entries must not be mapped into model_version_dependencies until the backend protobuf DependencyType enum supports them. In mlflow/store/_unity_catalog/registry/rest_store.py (get_model_version_dependencies), CreateModelVersionRequest rejects any unrecognized dependency type. The backend proto schema change must be deployed before wiring the mapping, whereas local MLmodel resource serialization can proceed independently. This constraint applies exclusively to the Unity Catalog model-version dependency registration path.",
+  "saysFor": "s2:7655e9092df49ba0a6f3a7de010dc2af0c4da90bf0a43e2a4d4bfbf1ec6f9140"
+}

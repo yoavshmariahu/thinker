@@ -1,0 +1,58 @@
+{
+  "id": "local-setup-wrapper-actions-must-call-the-upstream-actions-s",
+  "title": "Local setup-* wrapper actions must call the upstream actions/setup-* directly",
+  "kind": "rule",
+  "answers": [
+    "Why does the review flag actions/setup-python inside .github/actions/setup-python as recursive?",
+    "Can a composite action wrapper call actions/setup-node itself?",
+    "Should I replace upstream actions/setup-* calls inside the local setup wrappers?"
+  ],
+  "body": "The local wrappers under .github/actions/setup-python, setup-node and setup-java are the implementation of the wrapper, so their steps must call the upstream actions/setup-* actions.\nThe upstream call is at .github/actions/setup-python/action.yml:runs.steps (line ~60), .github/actions/setup-node/action.yml:runs.steps (line ~12) and .github/actions/setup-java/action.yml:runs.steps (line ~17).\nDo not rewrite these calls to the local wrapper; that makes the action call itself.\nThe workflow guidance in .claude/rules/github-actions.md says to replace direct actions/setup-* usage with the wrappers. That advice is for consumers, and nothing mechanical (dev/check_actions.py, .github/policy.rego) enforces it, so the wrappers are not exempted in the file.",
+  "applies": "Edits to the setup-python, setup-node or setup-java composite actions, or reviews of any composite action that wraps an upstream action.",
+  "tags": [
+    "github-actions",
+    "composite-action",
+    "setup-wrappers"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:1fff3b3c63cfad8835c62c6e",
+      "missing": false
+    },
+    {
+      "path": ".github/actions/setup-node/action.yml",
+      "hash": "sha256:6e26f4ebbede18efa2fa78eb",
+      "missing": false
+    },
+    {
+      "path": ".github/actions/setup-java/action.yml",
+      "hash": "sha256:8f966bcdc813c7d464468c6b",
+      "missing": false
+    },
+    {
+      "path": "dev/check_actions.py",
+      "hash": "sha256:ec7953f822af666ed5105663",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25540"
+  },
+  "created": "2026-10-11T08:51:22.880Z",
+  "verified": "2026-10-11T08:51:22.880Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Code review flags the shared setup action as calling itself in an infinite loop.",
+    "Reviewers ask why the custom setup wrapper calls the official upstream action directly.",
+    "A pull request comment suggests replacing upstream setup steps inside the wrapper definition.",
+    "The environment setup action fails by recursively invoking itself during continuous integration runs."
+  ],
+  "search": "Composite action wrappers under `.github/actions/setup-python`, `setup-node`, and `setup-java` must call the upstream `actions/setup-*` actions directly within their step definitions. Replacing these upstream calls with the local wrapper causes recursive self-invocation. General rules advising repository workflows to use local wrappers apply only to consumers and are not mechanically enforced or exempted by `dev/check_actions.py` or `.github/policy.rego`.",
+  "saysFor": "s2:97663a32deb95b56ad992ee66914d05286ba16efd2006f4e7f729470c8c2942d"
+}

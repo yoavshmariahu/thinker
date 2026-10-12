@@ -1,0 +1,62 @@
+{
+  "id": "PR26503-hard-hook-bm25-1",
+  "task": "PR26503-hard",
+  "area": "mlflow/utils",
+  "arm": "hook-bm25",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "abeefa59-b540-45b7-ae1d-30906aa9f324",
+  "turns": 14,
+  "wall_ms": 69841,
+  "api_ms": 38841,
+  "cost": 0.24026160000000002,
+  "in_tokens": 285077,
+  "out_tokens": 3915,
+  "tools": {
+    "calls": 13,
+    "byTool": {
+      "Bash": 13
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 13,
+    "callsBeforeFirstEdit": 13,
+    "testRunsBeforeEdit": 8,
+    "testRunsAfterEdit": 0,
+    "attemptsToGreen": null,
+    "greenReached": false,
+    "injected": [
+      "eval-results-table-attaches-model-outputs-by-position-not-in",
+      "register-session-header-aggregates-per-column-via-rendersess"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": ":test_list_scorers_with_descriptions\n0.02s setup    tests/cli/test_scorers.py::test_list_scorers_special_characters_in_names\n0.02s setup    tests/cli/test_scorers.py::test_create_judge_with_extra_headers\n0.02s setup    tests/cli/test_scorers.py::test_list_scorers_single_scorer[json]\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                        | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/cli/test_scorers.py` | 1.51s    | 42    | 0.002s | 0.685s | 0.036s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m62 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 2.10s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "Commands that use the shared table display now print the header row and its dashes when a query returns no rows. The relevant tests pass (63 in the two test files I touched).\n\n**Cause:** `_create_table` in `mlflow/utils/string_utils.py` worked out each column's width by walking through the data rows. With no rows there were no widths, so the header and the dashes under it came out empty.\n\n**Fix:** When there are no rows, each column now gets an empty placeholder value, so the width comes only from the header label plus the usual padding and the 4-character minimum. That gives the same header layout as a populated table. Tables with rows still go through the original code unchanged.\n\nFor example, `mlflow scorers list` on an empty experiment now prints:\n```\nScorer Name    Description\n-------------  -------------\n```\n\n**Tests:**\n- **New tests** in `tests/utils/test_string_utils.py`: one checks a populated table, one checks an empty table.\n- **Updated test:** `tests/cli/test_scorers.py::test_list_scorers_empty_experiment` used to expect empty output for an empty table, which was the bug. It now expects the header. The expected string ends the header line with two spaces because every cell is padded to its column width, the same as in populated tables.\n\nI didn't touch the change to `tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py` that was already staged.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/utils/string_utils.py b/mlflow/utils/string_utils.py\nindex f253795fa..6f3c6af83 100644\n--- a/mlflow/utils/string_utils.py\n+++ b/mlflow/utils/string_utils.py\n@@ -53,9 +53,11 @@ def _create_table(\n     a     b     c\n     d     e     f\n     \"\"\"\n+    # With no rows, size columns from the headers alone so the header row is still rendered\n+    columns = zip(*rows) if rows else [[\"\"]] * len(headers)\n     column_widths = [\n         max(len(max(col, key=len)), len(header) + 2, min_column_width)\n-        for col, header in zip(zip(*rows), headers)\n+        for col, header in zip(columns, headers)\n     ]\n     aligned_rows = [\n         column_sep.join(header.ljust(width) for header, width in zip(headers, column_widths)),\ndiff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py\nindex 5c1b301a5..3e411f0be 100644\n--- a/tests/cli/test_scorers.py\n+++ b/tests/cli/test_scorers.py\n@@ -146,7 +146,7 @@ def test_list_scorers_json_output(\n @pytest.mark.parametrize(\n     (\"output_format\", \"expected_output\"),\n     [\n-        (\"table\", \"\"),\n+        (\"table\", \"Scorer Name    Description  \\n-------------  -------------\"),\n         (\"json\", {\"scorers\": []}),\n     ],\n )\n@@ -164,7 +164,7 @@ def test_list_scorers_empty_experiment(\n         output_json = json.loads(result.output)\n         assert output_json == expected_output\n     else:\n-        # Empty table produces minimal output\n+        # Empty table still shows the header row\n         assert result.output.strip() == expected_output\n \n \ndiff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py\nindex b7cf5de72..a089f53e6 100644\n--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py\n+++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py\n@@ -1,6 +1,8 @@\n import time\n \n import pytest\n+from sqlalchemy.dialects import mssql\n+from sqlalchemy.orm import Query\n \n from mlflow.exceptions import MlflowException\n from mlflow.genai.label_schemas.label_schemas import (\n@@ -425,6 +427,33 @@ def test_list_seeds_protected_default_question(store):\n     assert d.enable_comment is False\n \n \n+def test_default_question_lookup_uses_mssql_compatible_boolean_predicate(store, monkeypatch):\n+    exp_id = _create_experiments(store, \"default_q_mssql_boolean\")\n+    statements = []\n+\n+    def capture_first(query):\n+        statements.append(\n+            str(\n+                query.statement.compile(\n+                    dialect=mssql.dialect(), compile_kwargs={\"literal_binds\": True}\n+                )\n+            )\n+        )\n+        return None\n+\n+    with monkeypatch.context() as mp:\n+        mp.setattr(Query, \"first\", capture_first)\n+        with store.ManagedSessionMaker(read_only=False) as session:\n+            store._ensure_default_label_schema(session, exp_id)\n+\n+    assert len(statements) == 1\n+    assert \"is_default = 1\" in statements[0]\n+    assert \"is_default IS 1\" not in statements[0]\n+\n+    default = next(schema for schema in store.list_label_schemas(exp_id) if schema.is_default)\n+    assert default.name == DEFAULT_LABEL_SCHEMA_NAME\n+\n+\n def test_default_question_seed_is_idempotent(store):\n     exp_id = _create_experiments(store, \"default_q_idempotent\")\n     first = store.list_label_schemas(exp_id)\ndiff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py\nindex 20c7ac3c6..ee470c80b 100644\n--- a/tests/utils/test_string_utils.py\n+++ b/tests/utils/test_string_utils.py\n@@ -1,6 +1,7 @@\n import pytest\n \n from mlflow.utils.string_utils import (\n+    _create_table,\n     format_table_cell_value,\n     is_string_type,\n     mslex_quote,\n@@ -92,3 +93,13 @@ def test_format_table_cell_value_invalid_timestamp():\n def test_format_table_cell_value_invalid_duration():\n     result = format_table_cell_value(\"info.execution_duration_ms\", \"not-a-number\")\n     assert result == \"not-a-number\"  # Should return original\n+\n+\n+def test_create_table():\n+    assert _create_table([[\"a\", \"bbbbbbbb\"]], [\"x\", \"y\"]) == (\n+        \"x     y       \\n----  --------\\na     bbbbbbbb\"\n+    )\n+\n+\n+def test_create_table_no_rows_shows_headers():\n+    assert _create_table([], [\"x\", \"name\"]) == \"x     name  \\n----  ------\"\n",
+  "distill": null,
+  "cache_read_tokens": 271608,
+  "cache_write_tokens": 13441,
+  "fresh_in_tokens": 28,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

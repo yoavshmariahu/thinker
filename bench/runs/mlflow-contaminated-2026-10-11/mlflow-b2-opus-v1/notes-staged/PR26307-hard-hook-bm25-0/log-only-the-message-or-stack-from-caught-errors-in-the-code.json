@@ -1,0 +1,59 @@
+{
+  "id": "log-only-the-message-or-stack-from-caught-errors-in-the-code",
+  "title": "Log only the message or stack from caught errors in the Codex notify hook",
+  "kind": "rule",
+  "answers": [
+    "Codex hook prints my Databricks token in the console error log",
+    "credentials leak into MLflow Codex error output",
+    "authentication failure logs show secret config values"
+  ],
+  "body": "Symptom: When Codex notify processing fails on Databricks auth, the console error shows credentials from the SDK exception.\nRoot cause: libs/typescript/integrations/codex/src/hooks/stop.ts:runNotifyHook passed the raw caught error to `console.error('[mlflow]', err)`. Databricks SDK exceptions carry a `config` property holding credentials, and console.error prints it.\nFix pattern: Log `err.stack ?? err.message` for Error instances and `String(err)` for other thrown values. Never pass the raw error object to console or logger calls.\nConstraints: Applies to the Codex notify hook. The regression test in libs/typescript/integrations/codex/tests/stop.test.ts asserts that a secret placed in `config` never appears in console.error calls.",
+  "applies": "Error logging in libs/typescript/integrations/codex notify/stop hooks; apply the same rule to other integrations that catch Databricks SDK errors.",
+  "tags": [
+    "typescript",
+    "codex",
+    "logging",
+    "security",
+    "databricks"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/hooks/stop.ts",
+      "symbol": "runNotifyHook",
+      "hash": "sha256:94d2770420455524c73ba040",
+      "line": 15,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:94d2770420455524c73ba040",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/stop.test.ts",
+      "hash": "sha256:74c77e5f62754310a6e26dc1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T10:26:01.727Z",
+  "verified": "2026-10-11T10:26:01.727Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Authentication failure logs expose sensitive workspace access tokens in the terminal console.",
+    "The notification integration prints private cloud credentials when a connection error occurs.",
+    "Prevent secret keys and tokens from appearing in console error logs during notifications.",
+    "Terminal output leaks authentication credentials when the notification plugin encounters an error."
+  ],
+  "search": "Error logging in libs/typescript/integrations/codex/src/hooks/stop.ts:runNotifyHook must output err.stack ?? err.message for Error instances or String(err) instead of the raw caught error. Passing the raw error object to console or logger calls is forbidden because Databricks SDK exceptions contain credentials on their config property. libs/typescript/integrations/codex/tests/stop.test.ts ensures that config secrets do not leak into console.error output.",
+  "saysFor": "s2:22169e3a53a71daddb4c15641016b7a45deb29a06f9fda2a45e04799b01c9e81"
+}

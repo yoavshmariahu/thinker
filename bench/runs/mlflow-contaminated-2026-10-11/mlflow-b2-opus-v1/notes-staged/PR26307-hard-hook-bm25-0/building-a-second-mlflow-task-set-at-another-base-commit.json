@@ -1,0 +1,55 @@
+{
+  "id": "building-a-second-mlflow-task-set-at-another-base-commit",
+  "title": "Building a second MLflow task set at another base commit",
+  "kind": "howto",
+  "answers": [
+    "How do I make a benchmark task set at a different base commit?",
+    "How do I clone the mlflow bundle for a bench variant?",
+    "What flags does mlflow-tasks build take?"
+  ],
+  "body": "- Clone from the bundle into a new dir under `bench/repos`: `git clone bench/data/mlflow-upstream.bundle bench/repos/<name>`.\n- Pick the base as the first-parent commit before a date: `git rev-list -1 --first-parent --before=<ISO date> origin/master` (run in the clone).\n- Build tasks with `node bench/mlflow-tasks.js build <prs.json> --clone <dir-under-repos> --out <name> --base <sha>`. `--clone` and `--out` select a second clone and its own task file; the default is `repos/mlflow`.\n- `--hard` keeps only candidates with at least 120 changed lines or at least two source files (test files excluded from the count).\n- The build is slow (preflight per candidate); run it in the background.",
+  "applies": "For the MLflow bench task generator only; the default run uses the original clone and no flags.",
+  "tags": [
+    "bench",
+    "mlflow",
+    "tasks"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_patch_prs.py",
+      "symbol": "json",
+      "hash": "sha256:46c4dc57604e87a3b9e7a47d",
+      "line": 90,
+      "missing": false,
+      "fanout": {
+        "files": 367,
+        "sites": 52,
+        "refs": 1997
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a2787754-b958-4885-bb39-eee3b19b4025"
+  },
+  "created": "2026-10-11T10:23:39.562Z",
+  "verified": "2026-10-11T10:23:39.562Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "We need a separate evaluation task set pinned to an older release date.",
+    "Generate benchmark tasks filtered to only include difficult multi-file pull requests.",
+    "How do we generate an alternate benchmark suite from the upstream bundle?",
+    "Creating benchmark evaluation tasks takes too long and needs to run in the background.",
+    "Export a custom benchmark task file to a distinct output directory instead of default."
+  ],
+  "search": "For MLflow benchmark task generation, building a secondary task set at a custom base commit requires cloning bench/data/mlflow-upstream.bundle into bench/repos/<name>. Tasks are built with node bench/mlflow-tasks.js build <prs.json> --clone <dir-under-repos> --out <name> --base <sha>, using git rev-list to find the base commit. The --hard flag filters candidates to those with at least 120 changed lines or two source files, and builds should run in the background due to preflight slowness.",
+  "saysFor": "s2:7641c35f836ec29973658a0669503d6b1504f4269948bf2a9511e050d2732e5f",
+  "lastUsed": "2026-10-11T18:48:37.932Z",
+  "servedIn": [
+    "f069473a-7765-4197-95b4-ecde88c090af"
+  ]
+}

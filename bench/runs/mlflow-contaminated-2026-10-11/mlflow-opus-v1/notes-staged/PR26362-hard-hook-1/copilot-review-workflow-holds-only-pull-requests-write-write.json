@@ -1,0 +1,52 @@
+{
+  "id": "copilot-review-workflow-holds-only-pull-requests-write-write",
+  "title": "Copilot review workflow holds only pull-requests: write; write scope for marking ready lives in the app-token job",
+  "kind": "rule",
+  "answers": [
+    "why does copilot-review.yml have no contents write permission",
+    "where to add write permission for marking a PR ready",
+    "least privilege permissions for pull_request_target Copilot workflows",
+    "which job grants permissions for the Copilot publish step"
+  ],
+  "body": "Convention: copilot-review.yml sets top-level `permissions: {}` and grants only `pull-requests: write` on the request-review job. contents: write was removed from it.\nThe draft-to-ready step (`gh pr ready`) moved to copilot-agent.yml:publish-draft. That job also sets `permissions: {}` and gets its write scopes from the GitHub App token passed in GH_TOKEN.\nPlace new write scopes for the publish step in the app-token inputs, not in copilot-review.yml's job permissions.",
+  "applies": "Permission blocks of the Copilot workflows under .github/workflows that run on pull_request_target.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "copilot"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25642"
+  },
+  "created": "2026-10-11T08:49:42.453Z",
+  "verified": "2026-10-11T08:49:42.453Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "chained-workflow-events-need-a-github-app-token-github-token",
+    "copilot-draft-hand-off-copilot-agent-yml-publishes-copilot-r"
+  ],
+  "says": [
+    "The code review bot should only have permission to update pull requests.",
+    "Restrict reviewer automation so it does not have write access to repository contents.",
+    "Grant draft publishing credentials to the bot through application tokens instead of pipeline permissions.",
+    "Ensure automated assistant workflows adhere to least privilege security for pull request operations."
+  ],
+  "search": "The pull_request_target workflow .github/workflows/copilot-review.yml sets permissions: {} and grants only pull-requests: write on the request-review job, having removed contents: write. Marking draft pull requests ready with gh pr ready runs under copilot-agent.yml:publish-draft, which obtains write access via a GitHub App token in GH_TOKEN rather than job permissions. Any additional write scopes required for the draft publishing step must be placed in the app-token inputs rather than added to copilot-review.yml job permissions.",
+  "saysFor": "s2:83cd6bf2dc2052579535ddbb98480cc98f740b26835be3d775543ac4c735724a"
+}

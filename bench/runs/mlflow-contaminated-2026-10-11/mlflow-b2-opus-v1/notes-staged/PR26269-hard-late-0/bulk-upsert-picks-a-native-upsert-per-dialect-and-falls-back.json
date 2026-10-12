@@ -1,0 +1,75 @@
+{
+  "id": "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back",
+  "title": "_bulk_upsert picks a native upsert per dialect and falls back to merge",
+  "kind": "map",
+  "answers": [
+    "how are logged model tags written in batches per database",
+    "which SQL dialect uses ON CONFLICT versus ON DUPLICATE KEY in the tracking store",
+    "why MSSQL logged model tag writes are still slow",
+    "where is the batch size for tag upserts"
+  ],
+  "body": "Where: mlflow/store/tracking/sqlalchemy_store.py:_bulk_upsert chooses the write strategy by dialect.\nSQLite and PostgreSQL: one INSERT ... ON CONFLICT (pk columns) DO UPDATE per batch.\nMySQL: one INSERT ... ON DUPLICATE KEY UPDATE per batch.\nMSSQL and other dialects: a session.merge() loop, which issues a SELECT per row.\nBatching: rows are chunked at batch_size = 100 inside _bulk_upsert to stay under bind-parameter limits.\nCallers: SqlAlchemyStore.set_logged_model_tags (composite key model_id, tag_key) and the SqlSpan writers already using it.",
+  "applies": "Where batched write logic for SQLAlchemy tracking-store tables lives and which backends get native batching.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "upsert",
+    "dialect",
+    "mssql"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_bulk_upsert",
+      "hash": "sha256:cea78568d1d6d33ad8939d46",
+      "line": 10931,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cea78568d1d6d33ad8939d46",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2826,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-11T10:31:58.793Z",
+  "verified": "2026-10-11T10:31:58.793Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b",
+    "trace-filter-correlation-must-pass-experiment-ids-to-trace-i",
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on"
+  ],
+  "says": [
+    "Saving tags on logged models is noticeably slow when connected to Microsoft SQL Server.",
+    "Model tag updates should be written in batches rather than querying row by row.",
+    "Tagging many logged models at once takes too long in our tracking database.",
+    "Speed up bulk metadata and tag writes for tracking server database backends.",
+    "Large batches of model tags should not exceed database parameter binding limits."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py, _bulk_upsert selects native batched upserts by dialect, using ON CONFLICT for SQLite and PostgreSQL, ON DUPLICATE KEY UPDATE for MySQL, and falling back to a session.merge() loop for MSSQL and other dialects. Batches are chunked at batch_size = 100 inside _bulk_upsert to stay under bind-parameter limits. It applies to batched tracking-store writes and is called by SqlAlchemyStore.set_logged_model_tags and SqlSpan writers.",
+  "saysFor": "s2:d2949aa4a9ff8436db323bf32390d2f05b7994cb66ea80ea4ec3a2371668ae5f"
+}

@@ -1,0 +1,131 @@
+{
+  "id": "fastapi-response-filters-are-opted-in-by-endpoint-function-n",
+  "title": "FastAPI response filters are opted in by endpoint function, not by HTTP method",
+  "kind": "rule",
+  "answers": [
+    "why does my POST route not get its response filtered",
+    "how do I add response filtering to a FastAPI route under basic-auth",
+    "response filter ignored for POST endpoints",
+    "register a response filter for a FastAPI endpoint"
+  ],
+  "body": "Invariant: a FastAPI route gets a response filter only if its endpoint function object is a key in mlflow/server/auth/__init__.py:FASTAPI_ENDPOINT_RESPONSE_FILTERS.\nmlflow/server/auth/__init__.py:_find_fastapi_response_filter takes only the request and resolves request.scope['endpoint']; the former GET-only gate was removed, so a POST collection route such as job_api.py:search_jobs is filtered when registered.\nfastapi_permission_middleware applies the filter only when the user is not an admin and response.status_code < 400, after buffering the body iterator.\nSkipping registration leaves the route returning the unfiltered handler result, with no error raised.",
+  "applies": "Any new or existing FastAPI route under basic-auth that returns a collection of user-scoped resources; does not cover Flask routes.",
+  "tags": [
+    "auth",
+    "fastapi",
+    "response-filter",
+    "middleware"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5995,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5995,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "fastapi_permission_middleware",
+      "hash": "sha256:fd83f87e036003957d02ddaa",
+      "line": 6080,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fd83f87e036003957d02ddaa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "fastapi_permission_middleware",
+      "hash": "sha256:fd83f87e036003957d02ddaa",
+      "line": 6080,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fd83f87e036003957d02ddaa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "search_jobs",
+      "hash": "sha256:ea644e8e93a5ff9aa993f081",
+      "line": 154,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea644e8e93a5ff9aa993f081",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T10:31:04.388Z",
+  "verified": "2026-10-11T10:31:04.388Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "gateway-authz-validators-must-read-resource-ids-from-the-par",
+    "gateway-list-routes-need-authentication-plus-a-per-item-use",
+    "nested-graphql-fields-over-protected-resources-must-be-liste",
+    "createmodelversion-source-read-check-must-authorize-the-prot"
+  ],
+  "says": [
+    "Non-admin users can see jobs belonging to other accounts in search results.",
+    "The jobs search screen displays records that standard accounts lack permission to view.",
+    "Regular users should only see their own jobs when searching the jobs list.",
+    "Ensure searching jobs hides items created by other users from non-admin members.",
+    "Unauthorized background jobs appear in search results for users who are not administrators."
+  ],
+  "search": "FastAPI routes under basic-auth receive response filtering only when their endpoint function object is registered in FASTAPI_ENDPOINT_RESPONSE_FILTERS. In mlflow/server/auth/__init__.py, _find_fastapi_response_filter resolves request.scope['endpoint'] without a GET-only restriction, allowing POST collection endpoints like job_api.py:search_jobs to be filtered. fastapi_permission_middleware applies filters only for non-admin users when response.status_code is under 400 after buffering the body iterator, while unregistered routes silently return unfiltered results. Applies to FastAPI routes returning collections of user-scoped resources under basic-auth, excluding Flask routes.",
+  "saysFor": "s2:cb4717048bac46a416e5244a6fb60bca70cf48bd94c8b57b7d7114458c5dc416",
+  "stale": {
+    "since": "2026-10-11T18:38:44.342Z",
+    "changed": [
+      {
+        "path": "mlflow/server/auth/__init__.py",
+        "symbol": "fastapi_permission_middleware",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mlflow/server/auth/__init__.py",
+        "symbol": "fastapi_permission_middleware",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "id": "capability-endpoints-share-one-fetch-path-in-utils-server-in",
+  "title": "Capability endpoints share one fetch path in utils/server_info.py; new probes must reuse it",
+  "kind": "rule",
+  "answers": [
+    "how to add another server capability endpoint to the REST client",
+    "where server-info and server-features HTTP fetching lives",
+    "why server-features and server-info parse JSON the same way"
+  ],
+  "body": "Invariant: every capability endpoint fetch goes through mlflow/utils/server_info.py:_fetch_server_info_response(host_creds, endpoint), which owns the http_request call (timeout=3, max_retries=0), JSON-object validation and ServerInfoRequestError messages that embed the endpoint.\nWrappers: _fetch_server_info_uncached (cached path via fetch_server_info) and _fetch_server_features are thin wrappers that pass a constant (SERVER_INFO_ENDPOINT, SERVER_FEATURES_ENDPOINT).\nWhat breaks if skipped: a new probe with its own http_request call duplicates the parsing and error text, and drifts from the messages that workspace_rest_store_mixin.py matches on.\nEndpoint paths are module constants in the same file; do not hard-code them in callers.",
+  "applies": "Adding or changing server capability probes used by REST stores.",
+  "tags": [
+    "server-info",
+    "server-features",
+    "rest-client",
+    "layering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/server_info.py",
+      "symbol": "_fetch_server_info_response",
+      "hash": "sha256:e0255355f4ec9a941732e2a1",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0255355f4ec9a941732e2a1",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/server_info.py",
+      "symbol": "fetch_server_info",
+      "hash": "sha256:256cf84532c2a9a6e58e3c1f",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:256cf84532c2a9a6e58e3c1f",
+      "fanout": {
+        "files": 4,
+        "sites": 32,
+        "refs": 36
+      }
+    },
+    {
+      "path": "mlflow/store/workspace_rest_store_mixin.py",
+      "symbol": "host_creds",
+      "hash": "sha256:cafd01a463327874ef2912bc",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 45,
+        "sites": 0,
+        "refs": 207
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25979"
+  },
+  "created": "2026-10-11T10:29:54.236Z",
+  "verified": "2026-10-11T10:29:54.236Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "workspace-support-probe-a-404-on-server-info-is-not-proof-of"
+  ],
+  "says": [
+    "The client should check for newly supported server capabilities using standard feature probes.",
+    "Server feature detection errors should provide consistent messages when endpoints fail or timeout.",
+    "Add a new capability check to determine if the tracking server supports specific features.",
+    "Inconsistent error formatting when probing tracking server version and supported functionality.",
+    "Tracking client capability requests should share timeout settings and response validation."
+  ],
+  "search": "All capability endpoint fetches for REST stores must route through mlflow/utils/server_info.py:_fetch_server_info_response(host_creds, endpoint), which handles http_request calls (timeout=3, max_retries=0), JSON validation, and ServerInfoRequestError messaging. Wrappers _fetch_server_info_uncached and _fetch_server_features pass module constants SERVER_INFO_ENDPOINT and SERVER_FEATURES_ENDPOINT rather than hardcoding paths. Bypassing this shared path duplicates parsing and drifts from error messages matched by workspace_rest_store_mixin.py.",
+  "saysFor": "s2:9d6e2f71b12e54c475e346963e3785125b813a69eaa6068daff1f1a62992a09c"
+}

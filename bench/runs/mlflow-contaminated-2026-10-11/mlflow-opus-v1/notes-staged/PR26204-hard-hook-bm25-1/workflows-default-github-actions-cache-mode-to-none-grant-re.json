@@ -1,0 +1,60 @@
+{
+  "id": "workflows-default-github-actions-cache-mode-to-none-grant-re",
+  "title": "Workflows default GitHub Actions cache-mode to none; grant read or write per job, never at job level as none",
+  "kind": "rule",
+  "answers": [
+    "conftest fails with 'Workflow must set top-level cache-mode: none'",
+    "new workflow job cannot restore or save the GitHub Actions cache",
+    "how do I grant a CI job access to the Actions cache",
+    "why is cache write denied for my job"
+  ],
+  "body": "Invariant: every workflow file sets top-level `cache-mode: none`; a job gets cache access only through its own `cache-mode: read` (restore) or `cache-mode: write` (populate).\nEnforced by .github/policy.rego:deny_top_level_cache_mode (denies a missing key, or any value other than `none`, for files with `jobs`) and .github/policy.rego:deny_redundant_job_cache_mode (rejects a job-level `cache-mode: none`).\nJob-level values override the workflow default, so a job that needs no cache simply omits the key; writing `none` on a job is a policy failure.\nWhat breaks if skipped: the conftest policy check fails for that workflow, or a job lacking a grant gets no cache and restores miss.\nConstraints: the rules only fire when `input.jobs` exists, so composite action.yml files are not checked. The pinned actions/cache v6.1.0 does not read ACTIONS_CACHE_MODE, so `read` consumers of .github/actions/cache-hf log a `cache write denied` warning per run until @actions/cache 6.2.0 is released; that warning is expected and is not a reason to change the grant.",
+  "applies": "Every workflow in .github/workflows/ that has a jobs block; not composite actions.",
+  "tags": [
+    "github-actions",
+    "cache",
+    "policy",
+    "ci-security"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25809"
+  },
+  "created": "2026-10-11T08:47:30.528Z",
+  "verified": "2026-10-11T08:47:30.528Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-workflow-file-must-declare-a-top-level-concurrency-key",
+    "workflow-concurrency-block-placement-and-the-per-run-placeho",
+    "job-level-permissions-shorthand-read-all-write-all-is-denied",
+    "actions-policy-lives-in-one-file-its-line-1-regal-directive"
+  ],
+  "says": [
+    "Our continuous integration policy check failed due to invalid workflow cache settings.",
+    "A newly created build job cannot restore or save shared dependencies from cache.",
+    "Grant read access to the shared build cache for our automated test suite.",
+    "Pipeline logs show a cache write denied warning during dependency restoration."
+  ],
+  "search": "Every workflow file in .github/workflows/ containing jobs must set top-level cache-mode: none, with individual jobs explicitly specifying cache-mode: read or cache-mode: write for cache access. Enforced by .github/policy.rego via deny_top_level_cache_mode and deny_redundant_job_cache_mode, omitting cache-mode at the job level means no cache, while explicitly setting none on a job causes a conftest policy failure. These policy checks apply only when input.jobs exists and exclude composite action.yml files; additionally, read consumers of .github/actions/cache-hf log an expected cache write denied warning under actions/cache v6.1.0.",
+  "saysFor": "s2:ca250328c4f05e248b675e984a46e0b38beed1faa44c733de9896cb55bb0055c"
+}

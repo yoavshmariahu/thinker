@@ -1,0 +1,68 @@
+{
+  "id": "codex-transcript-tests-mock-node-os-homedir-and-restore-code",
+  "title": "Codex transcript tests: mock node:os homedir and restore CODEX_HOME after each test",
+  "kind": "rule",
+  "answers": [
+    "How do I test Codex transcript discovery with a fake home directory",
+    "Write tests for CODEX_HOME precedence in the Codex integration",
+    "Test isolation for process.env in Codex integration jest tests"
+  ],
+  "body": "Convention in libs/typescript/integrations/codex/tests/transcript.test.ts: the file mocks 'node:os' with jest.mock, spreading jest.requireActual and replacing only homedir with jest.fn(), so tests control the legacy home without touching the real ~/.codex.\nEach findTranscriptForThread test writes fixture rollouts under mkdtemp directories in tmpdir(), and afterEach restores process.env.CODEX_HOME (delete if it was originally undefined), resets the homedir mock, and removes the temp root.\nKeep the three cases covered together: CODEX_HOME takes precedence over the legacy home, unset falls back to ~/.codex, and empty string falls back to ~/.codex.\nThe source imports homedir from 'node:os', so the mock path must stay 'node:os' or the mock will not apply.",
+  "applies": "Jest tests for the Codex integration that read environment variables or the home directory.",
+  "tags": [
+    "codex",
+    "jest",
+    "testing",
+    "env"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/tests/transcript.test.ts",
+      "symbol": "afterEach",
+      "hash": "sha256:39e04d781563c07ceb1ea862",
+      "line": 120,
+      "missing": false,
+      "fanout": {
+        "files": 135,
+        "sites": 156,
+        "refs": 268
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/src/transcript.ts",
+      "symbol": "findTranscriptForThread",
+      "hash": "sha256:0516893cda27a1221d1d1d59",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0516893cda27a1221d1d1d59",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25822"
+  },
+  "created": "2026-10-11T10:32:40.095Z",
+  "verified": "2026-10-11T10:32:40.095Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "codex-transcript-lookup-must-resolve-the-codex-home-the-way"
+  ],
+  "says": [
+    "Automated test runs are touching files in the real user home folder.",
+    "Codex integration test suites are leaking environment configuration across different tests.",
+    "Verify that custom home directory settings properly override default session storage in tests.",
+    "Add automated tests ensuring empty directory settings fall back to default user storage.",
+    "Clean up temporary fixture folders and reset environment variables after integration tests finish."
+  ],
+  "search": "Jest tests in libs/typescript/integrations/codex/tests/transcript.test.ts mock 'node:os' homedir while spreading jest.requireActual to control legacy home paths without touching real ~/.codex. Applies to Codex integration Jest tests reading environment variables or the home directory. Each test writes fixture rollouts under mkdtemp in tmpdir(), and afterEach restores process.env.CODEX_HOME, resets the homedir mock, and removes the temp directory. Tests must verify three cases together—CODEX_HOME precedence, unset falling back to ~/.codex, and empty string falling back to ~/.codex—using the exact 'node:os' mock path.",
+  "saysFor": "s2:13727f61f88aad108784d3da0501cec7188386c278c142587dce7ffdfb251a6e"
+}

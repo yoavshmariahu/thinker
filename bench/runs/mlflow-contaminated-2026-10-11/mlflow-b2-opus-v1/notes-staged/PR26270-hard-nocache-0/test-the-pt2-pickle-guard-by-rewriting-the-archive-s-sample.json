@@ -1,0 +1,67 @@
+{
+  "id": "test-the-pt2-pickle-guard-by-rewriting-the-archive-s-sample",
+  "title": "Test the pt2 pickle guard by rewriting the archive's sample-inputs record with a marker payload",
+  "kind": "howto",
+  "answers": [
+    "how to test pt2 pickle payload rejection",
+    "write a test for malicious pt2 archive with MLFLOW_ALLOW_PICKLE_DESERIALIZATION false",
+    "simulate a pickle payload inside a pt2 model archive"
+  ],
+  "body": "Use _replace_pt2_sample_inputs_record in tests/pytorch/test_pytorch_model_export.py: it torch.save()s an object whose __reduce__ creates a marker file, then rewrites the zip entry in data/model.pt2. It matches both the legacy serialized_example_inputs.pt name and the /sample_inputs/ path, so it works across torch versions.\nAssert both mlflow.pytorch.load_model and mlflow.pyfunc.load_model raise MlflowException with match=f\"record '{re.escape(record)}'\", and that the marker file does not exist afterwards.\nPositive-path and marker tests need the @pytest.mark.skipif(Version(torch.__version__) < Version(\"2.10\")) gate; monkeypatch MLFLOW_ALLOW_PICKLE_DESERIALIZATION to \"false\" with monkeypatch.setenv.\nFor the version-refusal path, use mock.patch(\"torch.__version__\", \"2.9.1\") rather than installing another torch.",
+  "applies": "Unit tests for the pytorch pt2 load path in tests/pytorch.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "testing",
+    "pickle"
+  ],
+  "deps": [
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "_replace_pt2_sample_inputs_record",
+      "hash": "sha256:02abade161c7ec05b7b9b9ca",
+      "line": 1176,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:02abade161c7ec05b7b9b9ca",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_load_pt2_model_rejects_pickle_payload_when_pickle_deserialization_disallowed",
+      "hash": "sha256:67bba10f447ebbdad18cea1f",
+      "line": 1217,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:67bba10f447ebbdad18cea1f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T10:32:09.886Z",
+  "verified": "2026-10-11T10:32:09.886Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Loading an untrusted PyTorch model executes arbitrary code instead of being blocked.",
+    "The model serving endpoint fails to reject model packages containing unsafe serialized payloads.",
+    "Prevent execution of unauthorized serialization code when opening downloaded model archives.",
+    "Model deployment raises no security error when reading suspicious sample input records."
+  ],
+  "search": "Testing the PyTorch pt2 pickle guard involves replacing zip entries in data/model.pt2 using _replace_pt2_sample_inputs_record with an object whose __reduce__ creates a marker file. In tests/pytorch/test_pytorch_model_export.py, both mlflow.pytorch.load_model and mlflow.pyfunc.load_model must raise MlflowException with the matching record name, ensuring the marker file is not created. Tests require monkeypatching MLFLOW_ALLOW_PICKLE_DESERIALIZATION to 'false', gating on torch version 2.10 or higher, and mocking torch.__version__ as '2.9.1' for version refusal.",
+  "saysFor": "s2:e22572ef78e87b90cdcc3bb38dd684ca8585906fbad69937a2472c65d1ad4706"
+}

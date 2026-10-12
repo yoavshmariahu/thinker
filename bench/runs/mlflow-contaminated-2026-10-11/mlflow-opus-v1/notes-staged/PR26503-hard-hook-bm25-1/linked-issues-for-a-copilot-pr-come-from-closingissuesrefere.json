@@ -1,0 +1,44 @@
+{
+  "id": "linked-issues-for-a-copilot-pr-come-from-closingissuesrefere",
+  "title": "Linked issues for a Copilot PR come from closingIssuesReferences, not the webhook payload",
+  "kind": "rule",
+  "answers": [
+    "how does the copilot-agent workflow find the issues a Copilot PR is linked to",
+    "closing keyword vs assigned-to-Copilot issue link for notifications",
+    "notify linked issues when Copilot opens a pull request"
+  ],
+  "body": "Invariant: the set of issues a Copilot PR resolves must be fetched with GraphQL pullRequest.closingIssuesReferences(first: 10); the pull_request_target payload does not include it.\nEnforced: .github/workflows/copilot-agent.yml, job comment-on-linked-issues, run step (the gh api graphql query and its --jq filter).\nIntended coverage: closing keywords in the PR body and the native link created by assigning the issue to Copilot (PR description and author reply). A reviewer disputed the cited source for a limitation; no in-repo file was verified to say otherwise.\nWhat breaks: parsing 'Fixes #N' from the PR body alone misses assignment-created links.\nCaveat: first: 10 caps how many linked issues are notified.",
+  "applies": "Linked-issue lookup in the copilot-agent workflow; any change to how issues are discovered must keep this query as the source.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "graphql",
+    "linked-issues"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25645"
+  },
+  "created": "2026-10-11T08:49:33.967Z",
+  "verified": "2026-10-11T08:49:33.967Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Assigned issues are not notified when the automated assistant opens a pull request.",
+    "Pull request comments fail to appear on issues that were assigned to the bot.",
+    "Notify tickets linked by direct bot assignment in addition to closing description keywords.",
+    "Only the first ten connected issues receive notification comments from the new pull request."
+  ],
+  "search": "In `.github/workflows/copilot-agent.yml`, the `comment-on-linked-issues` job must query resolved issues via GraphQL `pullRequest.closingIssuesReferences(first: 10)` rather than the `pull_request_target` payload. This query covers closing keywords in the pull request body and direct issue assignment to Copilot, whereas parsing keywords alone misses assignment links. Discovered issues are capped at ten by `first: 10`.",
+  "saysFor": "s2:d614ae34800aa373f89761e65a8891bc4b4f2365a302d6354e96d2260fa36761"
+}

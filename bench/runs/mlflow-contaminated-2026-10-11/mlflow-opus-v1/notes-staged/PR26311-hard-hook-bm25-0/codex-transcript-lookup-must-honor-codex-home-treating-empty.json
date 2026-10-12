@@ -1,0 +1,55 @@
+{
+  "id": "codex-transcript-lookup-must-honor-codex-home-treating-empty",
+  "title": "Codex transcript lookup must honor CODEX_HOME, treating empty as unset",
+  "kind": "rule",
+  "answers": [
+    "Codex traces missing model and tool calls when a launcher sets a custom CODEX_HOME",
+    "Codex enrichment falls back to notify payload only, no token usage or span timing",
+    "Codex transcript not found under isolated Codex state directory",
+    "empty CODEX_HOME breaks Codex trace enrichment"
+  ],
+  "body": "Symptom: Codex traces show only the notify payload, with no model, tool calls/results, span timing or token usage, when the launcher runs Codex with a custom CODEX_HOME.\nRoot cause: libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread hardcoded join(homedir(), '.codex', 'sessions'), so the rollout JSONL was never found and enrichment was skipped.\nFix pattern: resolve the base as process.env.CODEX_HOME || join(homedir(), '.codex'), then join 'sessions'. Use || rather than ?? so an empty string falls back to the legacy directory.\nConstraints: Empty CODEX_HOME must count as unset, matching Codex itself; with ?? an empty value resolves to ./sessions and misses the transcript. Transcript lookup is optional enrichment, so a missing sessions dir must keep returning null without throwing.",
+  "applies": "Any change to how the Codex integration locates rollout transcripts or the directories it reads from.",
+  "tags": [
+    "codex",
+    "tracing",
+    "transcript",
+    "env-var"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/transcript.ts",
+      "symbol": "findTranscriptForThread",
+      "hash": "sha256:0516893cda27a1221d1d1d59",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0516893cda27a1221d1d1d59",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25822"
+  },
+  "created": "2026-10-11T08:47:09.058Z",
+  "verified": "2026-10-11T08:47:09.058Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Traces lack tool calls and token counts when running Codex in custom directories.",
+    "Codex activity traces show minimal summary information without model details or timing data.",
+    "Support custom session storage locations so trace enrichment captures full tool execution history.",
+    "Detailed prompts and tool responses are missing from assistant traces in isolated environments.",
+    "Ensure trace enrichment falls back to standard user directories when directory settings are blank."
+  ],
+  "search": "Codex transcript lookup in libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread must locate rollout session logs using process.env.CODEX_HOME || join(homedir(), '.codex'), treating an empty string as unset. Hardcoding the home directory skips enrichment when launchers run Codex with custom state directories, leaving traces with only notify payload data and missing models, tool calls, timing, and token usage. Using logical OR ensures empty values fall back to the default directory, while missing session directories must return null without throwing.",
+  "saysFor": "s2:392922c14fa2910b36b9b45c43039c76d2441d6ec90f4504c19e9b89e944ada2"
+}

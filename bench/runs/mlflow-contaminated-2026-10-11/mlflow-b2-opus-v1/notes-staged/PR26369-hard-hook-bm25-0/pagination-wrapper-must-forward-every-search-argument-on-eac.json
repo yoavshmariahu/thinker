@@ -1,0 +1,55 @@
+{
+  "id": "pagination-wrapper-must-forward-every-search-argument-on-eac",
+  "title": "Pagination wrapper must forward every search argument on each page",
+  "kind": "rule",
+  "answers": [
+    "prompt search pagination ignores order_by on later pages",
+    "mlflow.genai.search_prompts results not ordered across pages",
+    "search_prompts max_results paging loses filter or sort"
+  ],
+  "body": "Invariant: the fluent search_prompts helper re-issues MlflowClient().search_prompts once per page via pagination_wrapper_func, so every search argument must be passed on each call.\nEnforced in mlflow/tracking/_model_registry/fluent.py:search_prompts (pagination_wrapper_func), which passes filter_string, max_results, order_by and page_token.\nWhat breaks if skipped: a parameter omitted from the wrapper is silently dropped on pages after the first, so results can be unsorted or filtered inconsistently across pages. This is inferred from the wrapper's structure, not from a reported failure.\nWhen adding any search argument to the fluent layer, add it to this wrapper too.",
+  "applies": "Fluent prompt search helpers that use get_results_from_paginated_fn.",
+  "tags": [
+    "prompt-registry",
+    "pagination",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:c075f2379053a7deb5d91623",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c075f2379053a7deb5d91623",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25967"
+  },
+  "created": "2026-10-11T10:25:26.167Z",
+  "verified": "2026-10-11T10:25:26.167Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "append-new-optional-params-last-on-public-search-prompts-sig",
+    "search-params-must-be-threaded-through-all-prompt-search-lay"
+  ],
+  "says": [
+    "Prompt search results lose their sorting order when clicking to subsequent pages",
+    "Filtering prompts in the registry resets filters when browsing past the first page",
+    "Prompt evaluation search displays unsorted records after navigating to the next page",
+    "Ensure prompt search maintains the selected sort order across all paginated views"
+  ],
+  "search": "The fluent search_prompts helper in mlflow/tracking/_model_registry/fluent.py must forward every search argument to MlflowClient().search_prompts on every page within pagination_wrapper_func. The wrapper explicitly forwards filter_string, max_results, order_by, and page_token so subsequent pages do not silently lose filtering or sorting. This applies to fluent prompt search helpers using get_results_from_paginated_fn, requiring any newly added search argument to be forwarded by the wrapper.",
+  "saysFor": "s2:60ea3b85ba43a78367a6d6c8ece58a20e5a6e2f32b8646a1830ddadf7526eaf9"
+}

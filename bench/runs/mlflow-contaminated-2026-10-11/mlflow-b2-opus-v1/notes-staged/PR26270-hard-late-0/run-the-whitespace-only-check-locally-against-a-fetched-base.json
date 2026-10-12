@@ -1,0 +1,70 @@
+{
+  "id": "run-the-whitespace-only-check-locally-against-a-fetched-base",
+  "title": "Run the whitespace-only check locally against a fetched base branch",
+  "kind": "howto",
+  "answers": [
+    "how do I run the whitespace check locally",
+    "check_whitespace_only.py usage",
+    "run whitespace-only lint before pushing",
+    "local whitespace check against upstream master"
+  ],
+  "body": "Command: `uv run --no-project dev/check_whitespace_only.py --repo mlflow/mlflow --pr <N> --base-revision upstream/master`.\n--base-revision is required (no default). Use a revision that exists in your clone, e.g. upstream/master after `git fetch upstream master`; a missing ref makes git diff fail.\nThe diff is computed from your local HEAD, so check out the PR branch first; the diff is not fetched from GitHub.\nGitHub is queried for PR labels only when whitespace-only changes are detected (get_pr_labels), so the --repo and --pr flags matter only in that case.\nCI uses `--base-revision HEAD^1` (see .github/workflows/lint.yml).",
+  "applies": "Developers or agents running dev/check_whitespace_only.py outside CI.",
+  "tags": [
+    "lint",
+    "whitespace",
+    "local-dev",
+    "git"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "parse_args",
+      "hash": "sha256:31647357623c36991df77826",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:31647357623c36991df77826",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    },
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "get_pr_diff",
+      "hash": "sha256:3833aed6df998a65a6fe73ef",
+      "line": 57,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3833aed6df998a65a6fe73ef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26094"
+  },
+  "created": "2026-10-11T10:27:58.490Z",
+  "verified": "2026-10-11T10:27:58.490Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "whitespace-check-diffs-the-local-git-checkout-so-ci-must-kee"
+  ],
+  "says": [
+    "Local whitespace check fails because the upstream target branch has not been fetched",
+    "Verify whether pull request changes contain only whitespace formatting before submitting for review",
+    "The whitespace validation tool computes differences from the wrong branch instead of the pull request",
+    "Detect formatting-only changes locally so pull requests receive the appropriate label automatically"
+  ],
+  "search": "Running dev/check_whitespace_only.py locally requires executing uv run --no-project dev/check_whitespace_only.py with --repo mlflow/mlflow, --pr <N>, and a required --base-revision pointing to an existing local ref such as upstream/master. The diff is calculated directly against local HEAD, requiring the target PR branch to be checked out rather than fetching diffs from GitHub. GitHub is queried via get_pr_labels only when whitespace-only changes are detected, meaning --repo and --pr are used exclusively in that scenario. While local runs compare against a fetched revision like upstream/master, CI configures --base-revision HEAD^1 in .github/workflows/lint.yml.",
+  "saysFor": "s2:aafa5439aed49d0a11751f1359ac36c11a1dc1d44a972f3e683185e8913cd1da"
+}

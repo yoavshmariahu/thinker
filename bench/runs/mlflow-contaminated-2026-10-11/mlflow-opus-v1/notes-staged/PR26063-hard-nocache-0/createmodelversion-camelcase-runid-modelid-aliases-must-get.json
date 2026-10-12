@@ -1,0 +1,129 @@
+{
+  "id": "createmodelversion-camelcase-runid-modelid-aliases-must-get",
+  "title": "CreateModelVersion camelCase runId/modelId aliases must get the source READ check in basic-auth",
+  "kind": "rule",
+  "answers": [
+    "basic-auth user can read another user's run artifacts through a model version they created",
+    "model version create skips permission check when using runId camelCase",
+    "GHSA-442c-p479-46xg model version source read bypass",
+    "CreateModelVersion without READ on source run succeeds with runId key"
+  ],
+  "body": "Symptom: an authenticated basic-auth user with no READ on another user's run reads that run's artifacts by registering a model version of their own that points at the run, sending the source id as camelCase `runId` (or `modelId`) instead of `run_id` / `model_id`.\nRoot cause: mlflow/server/auth/__init__.py:validate_can_create_model_version checked presence of the snake_case keys in the raw Flask JSON body, while the handler binds the same body through the CreateModelVersion proto, which also accepts the lowerCamelCase aliases. The READ check was skipped for the alias while the version was still anchored to the source.\nFix pattern: parse the body with `_get_request_message(CreateModelVersion())` in the validator, then check `msg.HasField(\"run_id\")` / `msg.HasField(\"model_id\")` and authorize the bound values through `_get_run_permission` / `_get_model_permission` via `_can_read_model_version_source`.\nConstraints: an explicitly empty id must still be denied (HasField presence, not truthiness). A non-dict body degrades to an empty message and falls through to the handler's validation. Tested by tests/server/auth/test_auth.py:test_create_model_version_camelcase_alias_requires_read_on_source and the cross-workspace cases in tests/server/auth/test_auth_workspace.py.\nApplies: basic-auth CreateModelVersion requests (`/api/2.0/mlflow/model-versions/create`) that reference a source run or logged model.",
+  "applies": "Any change to the model-version create authorization in mlflow/server/auth/__init__.py.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "model-registry",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:663eee91caf89cba39c283c9",
+      "line": 1400,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:663eee91caf89cba39c283c9",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_can_read_model_version_source",
+      "hash": "sha256:4c6f7a309ecfe51d60883997",
+      "line": 1427,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4c6f7a309ecfe51d60883997",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_run_permission",
+      "hash": "sha256:76bc5a944abd834fcb9acbea",
+      "line": 943,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:76bc5a944abd834fcb9acbea",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_model_permission",
+      "hash": "sha256:98adb73d298a0ba2fe2ed07b",
+      "line": 965,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:98adb73d298a0ba2fe2ed07b",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_create_model_version_camelcase_alias_requires_read_on_source",
+      "hash": "sha256:a4be043dfc66fbd3d18b5620",
+      "line": 1839,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a4be043dfc66fbd3d18b5620",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth_workspace.py",
+      "symbol": "__init__",
+      "hash": "sha256:fadc15ff671445744fee7477",
+      "line": 208,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fadc15ff671445744fee7477",
+      "fanout": {
+        "files": 269,
+        "sites": 307,
+        "refs": 431
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25892"
+  },
+  "created": "2026-10-11T08:45:31.123Z",
+  "verified": "2026-10-11T08:45:31.123Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo",
+    "body-gating-auth-validators-must-authorize-on-the-proto-boun",
+    "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ"
+  ],
+  "says": [
+    "Users can view private run files by registering a new model version linked to them.",
+    "Registering a model version allows unauthorized accounts to access artifacts from restricted runs.",
+    "Prevent users from creating model versions linked to training runs they cannot view.",
+    "Creating a model version from another person's run should check run read permissions."
+  ],
+  "search": "Model version creation in basic-auth must validate read permissions on source runs and models using parsed protobuf fields to catch camelCase aliases such as runId and modelId. In mlflow/server/auth/__init__.py:validate_can_create_model_version, requests are parsed with _get_request_message(CreateModelVersion()) and checked via msg.HasField before calling _can_read_model_version_source, _get_run_permission, and _get_model_permission. Empty IDs must still be denied, while non-dict bodies degrade to empty messages for handler validation, with test coverage in tests/server/auth/test_auth.py and tests/server/auth/test_auth_workspace.py.",
+  "saysFor": "s2:2502d54244cad3d438d6efc1e4bdc7e84322ed4d11b369993afc1089c4db0862"
+}

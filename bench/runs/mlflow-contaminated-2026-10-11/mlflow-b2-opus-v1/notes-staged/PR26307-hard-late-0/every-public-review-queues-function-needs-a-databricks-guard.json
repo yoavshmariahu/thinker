@@ -1,0 +1,67 @@
+{
+  "id": "every-public-review-queues-function-needs-a-databricks-guard",
+  "title": "Every public review_queues function needs a Databricks guard entry and a matching test case",
+  "kind": "rule",
+  "answers": [
+    "add new review queue function on databricks",
+    "which review_queues functions are guarded against databricks",
+    "test databricks guardrail for review queue API",
+    "new review queue API missing databricks_api_disabled"
+  ],
+  "body": "Invariant: each public function in mlflow/genai/review_queues/__init__.py carries @databricks_api_disabled whose first argument is the function's exact __name__, because the guard error message embeds that name.\nEnforced by: tests/genai/review_queues/test_review_queues_sdk.py:test_databricks_tracking_uri_rejected, a parametrized list of (fn, args, kwargs) covering all 10 public functions on both \"databricks\" and \"databricks://profile\" URIs. It asserts INVALID_PARAMETER_VALUE, the function name, the \"Use the workspace Reviews UI.\" guidance, and that TracingClient.__init__ is not called.\nWhat breaks if skipped: an unguarded function reaches the OSS /api/3.0/mlflow/review-queues routes on Databricks and returns the misleading INTERNAL_ERROR Not Found; a mismatched name string makes the test's match pattern fail.\nConstraints: when adding a new public review_queues function, add it to that parametrized list as well, using the same guard message string constant _REVIEWS_UI_ALTERNATIVE.",
+  "applies": "Adding or renaming public functions in mlflow/genai/review_queues/__init__.py and their SDK tests.",
+  "tags": [
+    "review-queues",
+    "genai",
+    "databricks",
+    "tests",
+    "guardrail"
+  ],
+  "deps": [
+    {
+      "path": "tests/genai/review_queues/test_review_queues_sdk.py",
+      "symbol": "test_databricks_tracking_uri_rejected",
+      "hash": "sha256:404b669fda475c03667d116e",
+      "line": 196,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:404b669fda475c03667d116e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/genai/review_queues/__init__.py",
+      "symbol": "_REVIEWS_UI_ALTERNATIVE",
+      "hash": "sha256:1c4b9f4ea460eb516c217f97",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25879"
+  },
+  "created": "2026-10-11T10:31:17.888Z",
+  "verified": "2026-10-11T10:31:17.888Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Calling review queue commands against managed workspaces returns a misleading internal error.",
+    "Direct cloud workspace users to the reviews interface instead of failing review queue operations.",
+    "Review queue operations fail with an unexplained not found error on hosted workspaces.",
+    "Guide workspace accounts to use the review interface for human feedback queues."
+  ],
+  "search": "Every public function in mlflow/genai/review_queues/__init__.py must carry @databricks_api_disabled with the function's exact __name__ as its first argument. Without this guard, calls on databricks or databricks://profile URIs reach unhandled OSS routes and fail with misleading INTERNAL_ERROR Not Found rather than directing users to the workspace Reviews UI via _REVIEWS_UI_ALTERNATIVE. New or renamed functions must be added to the parametrized list in tests/genai/review_queues/test_review_queues_sdk.py:test_databricks_tracking_uri_rejected asserting INVALID_PARAMETER_VALUE, the function name, and that TracingClient.__init__ is not called.",
+  "saysFor": "s2:b389867fd32e418236e557b2ceda9a59a6c8d65538d3ba08afaeead6322decb0"
+}

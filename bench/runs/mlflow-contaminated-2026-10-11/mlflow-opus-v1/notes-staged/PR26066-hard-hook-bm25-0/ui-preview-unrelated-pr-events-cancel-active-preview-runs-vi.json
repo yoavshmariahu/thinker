@@ -1,0 +1,47 @@
+{
+  "id": "ui-preview-unrelated-pr-events-cancel-active-preview-runs-vi",
+  "title": "UI Preview: unrelated PR events cancel active preview runs via shared concurrency group",
+  "kind": "rule",
+  "answers": [
+    "UI preview build canceled by an unrelated PR event",
+    "ui-preview label added to another label cancels my preview deployment",
+    "why did my preview run get cancelled when I pushed to a PR without the ui-preview label",
+    "redundant preview deployments triggered by label changes"
+  ],
+  "body": "Symptom: A UI preview deployment for a PR gets canceled, or redundant previews are deployed, when unrelated pull-request events (for example adding or removing other labels, or events on PRs without the ui-preview label) occur.\nRoot cause: .github/workflows/ui-preview.yml:concurrency. The group was keyed only on workflow name and PR number (or 'master'), so every PR event shared one group with cancel-in-progress: true. Job-level `if` conditions do not help because workflow-level concurrency is evaluated before job conditions.\nFix pattern: Compute the concurrency group expression so that meaningful events (ui-preview label present, or labeled with ui-preview) share a stable '<pr>-preview' group, while irrelevant events fall back to the unique github.run_id, so they never cancel another run.\nConstraints: Any gating that decides whether a run should exist must also be reflected in the concurrency group expression, not only in job `if`. Push events to master use their own 'master-preview' group. Untested end-to-end at merge time per the PR description.",
+  "applies": "Applies to the UI Preview workflow in .github/workflows/ui-preview.yml; not to other workflows unless they use the same keyed-group pattern.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "concurrency",
+    "ui-preview",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25673"
+  },
+  "created": "2026-10-11T08:48:44.303Z",
+  "verified": "2026-10-11T08:48:44.303Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Adding or removing unrelated labels on a pull request canceled my ongoing preview deployment.",
+    "Pushing commits to a pull request without the preview tag canceled our active preview.",
+    "Stop general pull request activity from prematurely aborting active preview builds.",
+    "Changing labels on pull requests is triggering duplicate preview deployments.",
+    "Preview deployments should only be canceled by new commits on the same preview."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, the concurrency group must distinguish relevant preview events from unrelated pull request events to prevent unwanted cancellations. Applies to the UI Preview workflow concurrency configuration where cancel-in-progress is enabled. The concurrency expression must map preview events to '<pr>-preview', push events on master to 'master-preview', and irrelevant events to github.run_id. Because workflow concurrency evaluates before job-level if conditions, any run eligibility gating must also be reflected in the concurrency group expression.",
+  "saysFor": "s2:9d1a346b0cd99a356023c711bcf5be124b114bf1e47b21f54a6ce3438e9dbffa"
+}

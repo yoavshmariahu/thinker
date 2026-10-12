@@ -1,0 +1,51 @@
+{
+  "id": "migration-check-step-must-run-every-migration-service-and-re",
+  "title": "Migration check step must run every migration-* service and report per-service failures",
+  "kind": "rule",
+  "answers": [
+    "migration check fails with a generic exit code and I can't tell which database failed",
+    "how do I add or debug a migration-mssql or migration-postgres CI check",
+    "why does the database migration CI job only show a timeout without naming the service",
+    "CI migration job stops after first failing database service"
+  ],
+  "body": "Symptom: The CI database migration job fails with a generic exit code, and the log does not name which database (e.g. mssql) failed or why.\nInvariant: The 'Run migration check' step in .github/workflows/master.yml runs every service returned by `tests/db/compose.sh config --services` whose name starts with `migration-`, keeps going after a failure, prints a per-service ✅/❌ summary, and exits non-zero if any service failed.\nEnforcement: .github/workflows/master.yml 'Run migration check' step (the `if ... run ... else status=$?` branch records the failure, emits `::error::Migration check failed for <service> (exit code N)`, and ends with `exit \"$failed\"`).\nWhat breaks if skipped: Stopping at the first failing service hides the other databases' results. Exiting without the error annotation leaves only a generic job failure to diagnose.\nConstraints: New migration services are picked up automatically by the `grep '^migration-'` filter, so name new ones with that prefix. Do not switch back to a shell `trap ... ERR` flag, which this change replaced. The annotation and summary are only useful if the step keeps the per-service exit code.",
+  "applies": "Applies to the migration check step in master.yml and to any CI step that loops over compose services and must report each one.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "database",
+    "migration",
+    "diagnostics"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:b4cbc606274abac24bf05d23",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26299"
+  },
+  "created": "2026-10-11T10:26:05.701Z",
+  "verified": "2026-10-11T10:26:05.701Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated build fails migrations without naming which database had the error.",
+    "Database migration checks should continue running so every database status is reported.",
+    "Show an individual pass or fail summary for every database in the build.",
+    "The build pipeline aborts on the first database failure instead of testing all."
+  ],
+  "search": "The 'Run migration check' step in .github/workflows/master.yml must run every compose service from `tests/db/compose.sh config --services` starting with `migration-`, continue after failures, emit `::error::Migration check failed for <service> (exit code N)`, and exit non-zero if any failed. It records per-service exit codes rather than using a shell `trap ... ERR` flag to preserve individual failure details. New services must use the `migration-` prefix to be discovered automatically.",
+  "saysFor": "s2:2d39cc4336002f2d52e3bac5c57945053d00c9c5f046f21848080993a86a081d"
+}

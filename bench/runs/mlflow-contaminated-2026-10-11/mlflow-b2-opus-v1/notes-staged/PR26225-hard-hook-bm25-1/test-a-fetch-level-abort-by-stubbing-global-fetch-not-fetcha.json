@@ -1,0 +1,63 @@
+{
+  "id": "test-a-fetch-level-abort-by-stubbing-global-fetch-not-fetcha",
+  "title": "Test a fetch-level abort by stubbing global.fetch, not fetchAPI",
+  "kind": "howto",
+  "answers": [
+    "how do I unit test an aborted request in the MLflow JS UI",
+    "how to test that a timeout actually cancels the fetch",
+    "why do my fetchAPI mock tests pass when the signal is dropped",
+    "how to fake timers for a React Query request timeout"
+  ],
+  "body": "Stub global.fetch with a jest.fn that rejects with new DOMException('Aborted', 'AbortError') when init.signal fires 'abort'. Do not mock fetchAPI. fetchAPI must forward signal into the RequestInit it builds, and a mock hides that passthrough. In the PR, removing the ...restOptions spread made the change inert in a browser while all fetchAPI-mocked tests stayed green.\nUse jest.useFakeTimers() and jest.advanceTimersByTime(SERVER_INFO_TIMEOUT_MS) to fire the deadline.\nTo check the timer, find the setTimeout spy call whose delay equals SERVER_INFO_TIMEOUT_MS and assert clearTimeout was called with its return value. Do not count pending timers, because React Query schedules its own.\nBuild the QueryClient with retry: false so failures are not retried.",
+  "applies": "Jest tests in mlflow/server/js for code that passes signal or timeouts to fetch.",
+  "tags": [
+    "jest",
+    "testing",
+    "fetch",
+    "abort-signal",
+    "fake-timers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.timeout.test.tsx",
+      "hash": "sha256:6e12a6278f56bd9d92c84e95",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "SERVER_INFO_TIMEOUT_MS",
+      "hash": "sha256:9c060534eea1154bf17e793e",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89cb217cc433966342b037d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-11T10:28:50.753Z",
+  "verified": "2026-10-11T10:28:50.753Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "a-hanging-server-info-request-leaves-the-whole-ui-on-a-skele",
+    "serverinfo-query-gates-router-creation-and-its-fallback-is-c"
+  ],
+  "says": [
+    "The server status request in the web console hangs indefinitely instead of timing out.",
+    "The experiment tracking interface continues waiting on stuck network calls without canceling them.",
+    "Server information queries keep retrying automatically after failing from a connection timeout.",
+    "Ensure slow backend status checks are aborted when the response deadline passes."
+  ],
+  "search": "Unit testing fetch-level aborts in Jest requires stubbing global.fetch to reject with an AbortError DOMException rather than mocking fetchAPI. Applies to tests in mlflow/server/js where fetchAPI must forward the signal into RequestInit without mocks hiding broken passthroughs. Use jest.useFakeTimers() and jest.advanceTimersByTime(SERVER_INFO_TIMEOUT_MS), assert clearTimeout was called on the matching setTimeout spy call, do not count pending timers due to React Query, and initialize QueryClient with retry: false.",
+  "saysFor": "s2:9995bd9dc11ffd6276d795ace87c29fb18c468cfeb933d933a370d04a3764410"
+}

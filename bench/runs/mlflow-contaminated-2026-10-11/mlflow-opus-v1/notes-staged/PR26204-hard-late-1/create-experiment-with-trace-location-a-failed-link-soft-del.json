@@ -1,0 +1,91 @@
+{
+  "id": "create-experiment-with-trace-location-a-failed-link-soft-del",
+  "title": "create_experiment with trace_location: a failed link soft-deletes the new experiment and reports the cleanup outcome",
+  "kind": "rule",
+  "answers": [
+    "create_experiment with trace_location fails and leaves an experiment behind",
+    "retry create_experiment with same name after trace location link error fails",
+    "mlflow.create_experiment trace_location Unity Catalog link failure cleanup",
+    "failed trace location link leaves a deleted experiment whose name is still reserved"
+  ],
+  "body": "Symptom: a user calls mlflow.create_experiment(name, trace_location=...) and the link step fails; the experiment is left behind and retrying with the same name does not work.\nRoot cause: mlflow/tracking/fluent.py:create_experiment creates the experiment first, then calls _resolve_experiment_to_trace_location; the original except block re-raised without undoing the creation.\nFix pattern: in the except around the link call, call client.delete_experiment(experiment_id) (soft delete). Wrap it in its own try, track success in a flag, and on failure log a WARNING with exc_info=True. Build the re-raised MlflowException message from that flag so it never claims a deletion that did not happen.\nConstraints: MlflowClient.delete_experiment is a soft delete and the name stays reserved, so a retry with the same name still fails; this gap is raised in review and not resolved by the PR. Do not describe this as a rollback or as making the name reusable. Permanent removal is via mlflow gc. Applies only to the trace_location branch of create_experiment.",
+  "applies": "Changes to create_experiment's trace_location path in mlflow/tracking/fluent.py; not general experiment deletion.",
+  "tags": [
+    "tracking",
+    "experiments",
+    "trace-location",
+    "error-handling",
+    "soft-delete"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "create_experiment",
+      "hash": "sha256:cd5f56bacfb60479121cb842",
+      "line": 2315,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cd5f56bacfb60479121cb842",
+      "fanout": {
+        "files": 88,
+        "sites": 962,
+        "refs": 1023
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.delete_experiment",
+      "hash": "sha256:369cef0b4bda14ea31626975",
+      "line": 2184,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:369cef0b4bda14ea31626975",
+      "fanout": {
+        "files": 28,
+        "sites": 67,
+        "refs": 74
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "delete_experiment",
+      "hash": "sha256:369cef0b4bda14ea31626975",
+      "line": 2184,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:369cef0b4bda14ea31626975",
+      "fanout": {
+        "files": 28,
+        "sites": 67,
+        "refs": 74
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25604"
+  },
+  "created": "2026-10-11T08:50:03.301Z",
+  "verified": "2026-10-11T08:50:03.301Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "fluent-restore-delete-wrappers-are-one-line-delegations-to-m"
+  ],
+  "says": [
+    "Creating an experiment with a trace location fails and leaves behind an orphaned experiment.",
+    "Retrying experiment creation with the same name fails after a trace location link error.",
+    "Clean up newly created experiments when linking to the trace storage location fails.",
+    "An experiment creation failure leaves the chosen name reserved and prevents re-creating it.",
+    "The error message should accurately report whether deleting the failed experiment succeeded."
+  ],
+  "search": "In mlflow/tracking/fluent.py:create_experiment, if _resolve_experiment_to_trace_location fails during the trace_location branch, the exception handler must call client.delete_experiment(experiment_id) to soft-delete the newly created experiment. The soft delete must be wrapped in its own try block logging a warning on failure, with the re-raised MlflowException indicating whether cleanup succeeded. Because MlflowClient.delete_experiment is a soft delete, the experiment name remains reserved until mlflow gc runs, so retrying creation with the same name will still fail.",
+  "saysFor": "s2:7ab54a1f1d796788406a3652d251d800a8911e98c1711d9731b12fc6558769b2",
+  "lastUsed": "2026-10-11T10:32:01.217Z",
+  "servedIn": [
+    "codex-mlflow-astra-v1-PR26204-hard-0",
+    "ac2b3183-7447-487e-bdb4-af70772e9853"
+  ]
+}

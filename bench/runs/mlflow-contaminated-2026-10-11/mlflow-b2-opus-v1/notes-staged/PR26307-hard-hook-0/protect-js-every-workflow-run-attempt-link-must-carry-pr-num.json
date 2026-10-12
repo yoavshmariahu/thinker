@@ -1,0 +1,55 @@
+{
+  "id": "protect-js-every-workflow-run-attempt-link-must-carry-pr-num",
+  "title": "protect.js: every workflow-run attempt link must carry ?pr=<number>, and both push sites must be kept in sync",
+  "kind": "rule",
+  "answers": [
+    "why does the Protect workflow-run link have a pr query parameter",
+    "how are attempt URLs built for Protect checks",
+    "my new Protect check link is missing the PR number"
+  ],
+  "body": "Invariant: each check pushed by protect.js that links to a workflow run uses url = `${run.html_url}/attempts/${run.run_attempt}?pr=${pullRequest.number}`.\nEnforcement: .github/workflows/protect.js:module.exports, in the two checks.push calls that build the url from run.html_url (the run-level status branch and the pending/failed branch).\nWhat breaks: a link built without the ?pr= suffix differs from the others in the same log output. The two push sites duplicate the same URL template, so a change made to one site is not applied to the other unless both are edited.",
+  "applies": "Any change to the URL format of checks in .github/workflows/protect.js, including new check sources that point at workflow runs.",
+  "tags": [
+    "protect",
+    "github-actions",
+    "urls"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pullRequest",
+      "hash": "sha256:ecac78478cefe6d2a511e5be",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6487de17415952dc3b6502d6",
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-11T10:29:05.253Z",
+  "verified": "2026-10-11T10:29:05.253Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-check-log-order-is-the-key-order-of-state-so-new",
+    "protect-js-expected-protect-failures-are-reported-with-core"
+  ],
+  "says": [
+    "The workflow attempt link in the protection check log is missing the pull request parameter.",
+    "Some test run links in the check summary lack the pull request query context.",
+    "Ensure all continuous integration run links in the protection log include the pull request.",
+    "Why do different check links in the status report format their run URLs inconsistently?"
+  ],
+  "search": "Workflow run URLs generated in .github/workflows/protect.js must include the attempt and the pull request number query parameter across both push sites. Applies to URL formatting in .github/workflows/protect.js:pullRequest where run.html_url, run.run_attempt, and pullRequest.number are formatted into checks.push. Modifying URL structure requires updating both the run-level status branch and pending/failed branch to prevent inconsistent link formats.",
+  "saysFor": "s2:7865f36bd225e4ccc4f23890f11ec7132717acf1323f08a1b2b07a02533c64c1"
+}

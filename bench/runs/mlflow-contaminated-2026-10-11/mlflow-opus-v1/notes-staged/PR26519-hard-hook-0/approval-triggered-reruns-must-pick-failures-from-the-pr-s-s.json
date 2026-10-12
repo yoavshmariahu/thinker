@@ -1,0 +1,46 @@
+{
+  "id": "approval-triggered-reruns-must-pick-failures-from-the-pr-s-s",
+  "title": "Approval-triggered reruns must pick failures from the PR's statusCheckRollup, deduplicated per check name",
+  "kind": "rule",
+  "answers": [
+    "approval rerun reruns old failed checks that were already superseded",
+    "workflow_run approval reruns checks that are not part of the PR",
+    "rerun on approve picks stale failures instead of latest run",
+    "statusCheckRollup rerun failed jobs"
+  ],
+  "body": "Symptom: after a maintainer approves a PR, the auto-rerun restarts jobs whose earlier failure was already superseded by a newer passing or pending run, or restarts checks outside the PR's rollup.\nRoot cause: .github/workflows/rerun-workflow-run.yml (the rerun job's step) listed every check run on the head SHA via REST `repos/$GH_REPO/commits/$HEAD_SHA/check-runs`, with no supersession dedup.\nFix pattern: query the head SHA's paginated `statusCheckRollup` via GraphQL, keep only CheckRun nodes whose `checkSuite.app.slug` is `github-actions`, `group_by` name, workflow name and event, keep `max_by(.startedAt // \"\")`, and only then apply the existing failure, <=60s duration, `rerun` and `protect` filters.\nConstraints: dedup must happen before the failure filter, or a newer success will not suppress an older failure. Keep the existing filter order. The PR's fork probes found only `actions: write` is needed on public repos, so do not add read scopes without evidence.",
+  "applies": "Approval-triggered rerun job in .github/workflows/rerun-workflow-run.yml only; not general check-run handling elsewhere.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "rerun",
+    "statuscheckrollup",
+    "approval"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "hash": "sha256:1123ab8d5531b5e8f2408d10",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26018"
+  },
+  "created": "2026-10-11T08:43:59.554Z",
+  "verified": "2026-10-11T08:43:59.554Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Approving a pull request restarts checks that already passed on a newer run",
+    "Automatic rerun on pull request approval triggers checks that are not part of the PR",
+    "Only rerun the latest failed checks instead of stale runs when a review is approved",
+    "Approving a change restarts build jobs whose failures were superseded by pending or passing tests"
+  ],
+  "search": "Approval-triggered reruns in .github/workflows/rerun-workflow-run.yml must query the head SHA's paginated statusCheckRollup via GraphQL and deduplicate check runs per name before filtering for failures. Deduplication filters for github-actions app slugs, groups by name, workflow name, and event, and selects the latest startedAt run so newer passing or pending runs suppress older failures. Existing failure, duration under 60 seconds, rerun, and protect filters must only be applied after deduplication. Applies strictly to the approval-triggered rerun job in .github/workflows/rerun-workflow-run.yml, and only actions: write permissions should be requested on public repositories.",
+  "saysFor": "s2:9a375f45852e46e931a1afcd7a741eb1f1f090fa285cfe5b0a51b7b1d52839ee"
+}

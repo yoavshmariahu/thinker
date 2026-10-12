@@ -1,0 +1,70 @@
+{
+  "id": "model-version-source-uri-shape-decides-which-source-row-rend",
+  "title": "Model version source URI shape decides which source row renders",
+  "kind": "rule",
+  "answers": [
+    "model version page shows no source model link",
+    "registered model version from a logged model not linking to model",
+    "how does the UI tell models:/ logged model sources from registry version sources",
+    "source model row missing for alias or artifact source"
+  ],
+  "body": "Symptom: On the model version page, a version registered from a logged model shows no Source Model entry, or a registry-version source shows the wrong link.\nInvariant: `models:/<model_id>` (one path segment, no `@`) is a logged model source. `models:/<name>/<version>` is a registry version and keeps the \"Copied from\" link. Aliases (`models:/name@alias`) and artifact URIs return no logged model ID.\nEnforced in: mlflow/server/js/src/model-registry/utils/VersionUtils.ts:extractLoggedModelIdFromModelSource, consumed by mlflow/server/js/src/model-registry/components/ModelVersionView.tsx:ModelVersionViewImpl.renderSourceModelDescription.\nKeep the regex in step with the Python `_parse_model_uri` the docstring names; a change on one side only makes the UI disagree with the server's source resolution.\nApplies to any change to model version source parsing or the source rows in the model registry UI.",
+  "applies": "Model Registry UI source parsing in mlflow/server/js/src/model-registry; the Python parser is referenced but not part of this diff.",
+  "tags": [
+    "model-registry",
+    "frontend",
+    "source-model",
+    "url-parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/model-registry/utils/VersionUtils.ts",
+      "symbol": "extractLoggedModelIdFromModelSource",
+      "hash": "sha256:4e43a5d62560ddb5f9dd6a9e",
+      "line": 8,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e43a5d62560ddb5f9dd6a9e",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionView.tsx",
+      "symbol": "ModelVersionViewImpl.renderSourceModelDescription",
+      "hash": "sha256:4ec2a737d215bcd828241e36",
+      "line": 391,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4ec2a737d215bcd828241e36",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-11T08:48:15.460Z",
+  "verified": "2026-10-11T08:48:15.460Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "component-tests-assert-visible-output-and-mock-hooks-with-th"
+  ],
+  "says": [
+    "The model version details page does not display a link to the source model.",
+    "A registered model version created from a logged model is missing its source link.",
+    "Model versions copied from another registry version display the wrong destination link.",
+    "Show the correct source model information when viewing registered versions in the registry."
+  ],
+  "search": "In the Model Registry UI, source URI structure determines whether the model version page displays a Source Model link or a Copied from link. extractLoggedModelIdFromModelSource in mlflow/server/js/src/model-registry/utils/VersionUtils.ts identifies logged model sources matching models:/<model_id> while distinguishing registry versions (models:/<name>/<version>), aliases, and artifact URIs. ModelVersionViewImpl.renderSourceModelDescription in mlflow/server/js/src/model-registry/components/ModelVersionView.tsx uses this extraction to render the appropriate source description row. The UI regex must remain synchronized with Python _parse_model_uri to maintain consistent source resolution between client and server.",
+  "saysFor": "s2:ae9c263edde390fb1fb3b8f1b293eb4535ebff709beeec1faccb1b0e4fa45694"
+}

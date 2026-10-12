@@ -1,0 +1,53 @@
+{
+  "id": "autoformat-commit-identity-take-author-from-workflow-event-h",
+  "title": "Autoformat commit identity: take author from workflow event, hardcode bot ID",
+  "kind": "rule",
+  "answers": [
+    "how does the autoformat workflow pick the git author for its commit",
+    "autoformat commit shows wrong author or bot email",
+    "why is mlflow-app[bot] ID hardcoded in autoformat workflow",
+    "change who gets credited for autoformatted commits"
+  ],
+  "body": "Symptom: Commits pushed by the autoformat bot are attributed to the wrong user, or the bot's noreply email/ID is wrong.\nInvariant: The 'Configure git' step in autoformat.yml sets user.name and user.email from github.event.issue.user (login, id, type), not from gh CLI or API lookups.\nBot case: when type is 'Bot', LOGIN is forced to 'mlflow-app[bot]' and ID is the hardcoded 191841109. Do not replace this with a runtime users/<login> API call.\nEmail format: git user.email must stay '${ID}+${LOGIN}@users.noreply.github.com' so GitHub links the commit to the right account.\nBreaks if: the ID or the email format is changed independently, or the step reintroduces gh pr view/gh api, which adds token dependence and drifts from the event payload.",
+  "applies": "Only .github/workflows/autoformat.yml, the 'Configure git' step. Other workflows that set commit identity are not covered by this note.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "autoformat",
+    "commit-identity"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/autoformat.yml",
+      "symbol": "LOGIN",
+      "hash": "sha256:dbfc9c6e1856dac7bd72af46",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25902"
+  },
+  "created": "2026-10-11T10:30:37.992Z",
+  "verified": "2026-10-11T10:30:37.992Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Commits created by the code formatting bot show the wrong author profile on GitHub.",
+    "The automated cleanup bot is crediting the wrong person on pull requests.",
+    "Automated style fixes show an incorrect bot email address and broken profile link.",
+    "Ensure automated formatting changes link cleanly to the official bot account.",
+    "Pull request formatting updates are attributed to the wrong team member."
+  ],
+  "search": "In .github/workflows/autoformat.yml, the 'Configure git' step must set user.name and user.email directly from github.event.issue.user (login, id, type), hardcoding LOGIN to mlflow-app[bot] and ID to 191841109 when type is Bot. The email format must remain '${ID}+${LOGIN}@users.noreply.github.com' rather than using runtime users/<login> API calls or gh CLI lookups. This guidance applies strictly to the 'Configure git' step in .github/workflows/autoformat.yml and covers no other workflows.",
+  "saysFor": "s2:0f9f433194996c07b28f9e2466febfc1df3f9e1c6541a38b151e4cdc594eb8e5"
+}

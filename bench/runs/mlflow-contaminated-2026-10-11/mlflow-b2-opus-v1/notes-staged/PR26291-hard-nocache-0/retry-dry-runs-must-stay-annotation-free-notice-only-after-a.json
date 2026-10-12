@@ -1,0 +1,46 @@
+{
+  "id": "retry-dry-runs-must-stay-annotation-free-notice-only-after-a",
+  "title": "Retry dry runs must stay annotation-free; ::notice only after a real rerun request",
+  "kind": "rule",
+  "answers": [
+    "retry workflow dry run prints a rerun annotation by mistake",
+    "why does the retry dry run show no notice",
+    "where is the rerun notice emitted in retry.sh",
+    "rerun annotation missing or emitted before gh run rerun"
+  ],
+  "body": "Symptom: A dry run of the retry workflow shows a \"Rerun failed jobs\" annotation, or a rerun annotation appears for a run that was never rerun.\nRoot cause: .github/workflows/retry.sh:rerun prints either a plain \"Would rerun failed jobs for <workflow>\" line (dry run, early return) or the ::notice line after `gh run rerun`.\nFix pattern: Keep the `dry_run` early return before any gh call and emit `::notice title=Rerun failed jobs::<workflow>: <run url>` only after `gh run rerun` has been invoked. Dry-run output stays a plain echo that includes the workflow filename.\nConstraints: Do not move the ::notice above the gh call or into the dry-run branch. The notice text is the reviewer-visible record of a rerun request, so it must name the workflow filename and the run URL.",
+  "applies": "Applies to the rerun() function in .github/workflows/retry.sh and any new output it prints; does not cover retry.yml's job logic.",
+  "tags": [
+    "retry",
+    "github-actions",
+    "annotations",
+    "dry-run"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26135"
+  },
+  "created": "2026-10-11T10:27:38.717Z",
+  "verified": "2026-10-11T10:27:38.717Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Dry runs of the retry workflow mistakenly display rerun annotations on pull requests.",
+    "Reviewers see rerun notices even when the pipeline was never actually restarted.",
+    "A rerun notification appeared on the check run before any retry happened.",
+    "Keep dry run retry checks silent so notices appear only after actual reruns.",
+    "Simulation runs should output plain logs instead of creating reviewer-visible rerun notices."
+  ],
+  "search": "The rerun() function in .github/workflows/retry.sh must keep dry-run output annotation-free, emitting ::notice only after gh run rerun executes an actual retry. Dry runs must exit early before any gh invocation, outputting a plain echo containing the workflow filename. Applies to rerun() in retry.sh and excludes retry.yml; ::notice must not precede the gh call or enter the dry-run branch, and must record the workflow filename and run URL.",
+  "saysFor": "s2:cbea6e8c4a25d451ea3f0274a29c5232791c2bbd6dad4f5b45241625e56eaabe"
+}

@@ -1,0 +1,52 @@
+{
+  "id": "every-service-facing-port-in-the-helm-chart-must-read-mlflow",
+  "title": "Every Service-facing port in the Helm chart must read mlflow.servicePort, not the container port",
+  "kind": "rule",
+  "answers": [
+    "helm service port differs from container port mlflow",
+    "expose mlflow on port 80 with the kubernetes helm chart",
+    "cronjob MLFLOW_TRACKING_URI wrong port after changing service port",
+    "helm NOTES shows wrong port for LoadBalancer or port-forward"
+  ],
+  "body": "Symptom: a user cannot expose MLflow through the Helm chart on a conventional port (e.g. 80) while the server listens on 5000. After such a change, the garbage-collection CronJob's tracking URI or the NOTES.txt URL/port-forward hint still shows the container port.\nRoot cause: charts/templates/service.yaml, cronjob.yaml and NOTES.txt all derived their port from server.value_options.port, so the Service port and the container port were the same value.\nFix pattern: resolve the Service port only through the define mlflow.servicePort in charts/templates/_helpers.tpl (service.port, falling back to server.value_options.port). Use it in every consumer that addresses the Service: the Service port, the MLFLOW_TRACKING_URI in charts/templates/cronjob.yaml, and the remote side of the port-forward and LoadBalancer hints in charts/templates/NOTES.txt. Keep the container port and targetPort on server.value_options.port and the named http/https port.\nConstraints: the helper uses `default`, so an empty or 0 service.port falls back to the server port. Keep service.port default \"\" in charts/values.yaml so an unset value preserves the old behaviour. The local port in the port-forward hint stays server.value_options.port, as the diff does.",
+  "applies": "Any template or value change that touches Service ports, Service-addressed URLs or NOTES hints in the MLflow Helm chart.",
+  "tags": [
+    "helm",
+    "kubernetes",
+    "service",
+    "ports",
+    "charts"
+  ],
+  "deps": [
+    {
+      "path": "charts/templates/_helpers.tpl",
+      "hash": "sha256:eebcb555aff92a6e368b251c",
+      "missing": false
+    },
+    {
+      "path": "charts/values.yaml",
+      "hash": "sha256:e74d01e3d2917fabad4d6045",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25539"
+  },
+  "created": "2026-10-11T08:51:32.057Z",
+  "verified": "2026-10-11T08:51:32.057Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Post-installation instructions show the container port instead of the configured Kubernetes service port.",
+    "Scheduled garbage collection jobs fail to connect after changing the service port.",
+    "Expose the tracking server on port eighty while the container listens on another port.",
+    "Load balancer setup instructions show the wrong port after configuring a custom service port.",
+    "Port-forward instructions in Helm release notes should target the custom service port."
+  ],
+  "search": "Service-facing ports in the MLflow Helm chart must resolve through the mlflow.servicePort define in charts/templates/_helpers.tpl rather than server.value_options.port. This helper falls back to server.value_options.port when service.port is empty or 0, preserving default behavior when charts/values.yaml sets service.port to empty string. It must be used for the Service port, the MLFLOW_TRACKING_URI in charts/templates/cronjob.yaml, and remote port hints in charts/templates/NOTES.txt. The container port, targetPort, and local port in port-forward hints remain on server.value_options.port.",
+  "saysFor": "s2:cbf821036ce16785fed2cf862b2e306a96464d973c2fb2ba6be55737b1404abc"
+}

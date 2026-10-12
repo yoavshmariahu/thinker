@@ -1,0 +1,74 @@
+{
+  "id": "gateway-auth-config-delivered-list-options-must-accept-a-com",
+  "title": "Gateway auth_config-delivered list options must accept a comma-separated string",
+  "kind": "rule",
+  "answers": [
+    "Why does my list-valued Vertex option fail validation when set through the API?",
+    "auth_config only supports string values for gateway endpoint settings",
+    "How do I pass a list setting to a database-managed gateway endpoint?",
+    "comma separated string instead of list in gateway config"
+  ],
+  "body": "Invariant: GatewayModelConfig auth_config is map<string, string> in the service proto, and the REST handler copies it as-is, so any list-typed provider config field that database-managed endpoints can set must also accept a string.\nEnforced by mlflow/gateway/config.py:VertexAIConfig.validate_vertex_anthropic_betas (a mode='before' field_validator that splits on commas, strips whitespace, drops empties; '' yields []) and by mlflow/server/gateway_api.py:_build_endpoint_config, which reads the value from auth_config.\nWhat breaks if skipped: a list can never arrive through the API, and a plain or JSON-looking string fails pydantic validation when the first request hits the endpoint, not at endpoint creation.\nYAML configs can still pass a real list, so the validator must return non-string values unchanged.",
+  "applies": "Any new list-typed field on a gateway provider config that is also read from auth_config in mlflow/server/gateway_api.py:_build_endpoint_config.",
+  "tags": [
+    "gateway",
+    "config",
+    "validation",
+    "auth-config",
+    "vertex-ai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig.validate_vertex_anthropic_betas",
+      "hash": "sha256:c0d288259e89292b03d18c42",
+      "line": 340,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c0d288259e89292b03d18c42",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "_build_endpoint_config",
+      "hash": "sha256:b0d328c69ba6f09a9ffd8fe9",
+      "line": 341,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b0d328c69ba6f09a9ffd8fe9",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25835"
+  },
+  "created": "2026-10-11T10:32:29.060Z",
+  "verified": "2026-10-11T10:32:29.060Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "AI Gateway endpoints fail validation when list settings are configured through the API.",
+    "Allow entering comma separated values for list options in gateway endpoint configurations.",
+    "Requests to managed gateway endpoints fail when provider list options are configured.",
+    "Cannot pass multiple configuration options to a gateway model through the management interface.",
+    "Setting multiple provider options on a gateway endpoint causes unexpected request errors."
+  ],
+  "search": "List-typed provider configuration fields on database-managed gateway endpoints must accept comma-separated strings because GatewayModelConfig auth_config only supports string key-value mappings. In mlflow/gateway/config.py:VertexAIConfig.validate_vertex_anthropic_betas, a before-mode validator splits comma-separated strings, strips whitespace, drops empty items, and parses empty strings to empty lists. Values are read from auth_config by mlflow/server/gateway_api.py:_build_endpoint_config; without string validation, endpoints fail Pydantic validation on the first request rather than at creation. Non-string values must be returned unchanged to allow YAML configuration files to supply raw lists.",
+  "saysFor": "s2:4ec2d1a83ea1b0a80c37a1a6cec58d5eaafe18cf09dffb9eed32110a85697c05",
+  "lastUsed": "2026-10-11T19:04:01.961Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26442-hard-0"
+  ]
+}

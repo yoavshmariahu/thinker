@@ -1,0 +1,64 @@
+{
+  "id": "raising-a-flavor-s-tested-minimum-can-orphan-a-requirement-s",
+  "title": "Raising a flavor's tested minimum can orphan a requirement selector and fail matrix generation",
+  "kind": "rule",
+  "answers": [
+    "set-matrix fails with Found unused requirements error after bumping a minimum version",
+    "ValueError unused requirements in flavors matrix for transformers models",
+    "how do I raise the minimum ML package version without breaking the cross-version matrix",
+    "peft pin removed when transformers minimum bumped"
+  ],
+  "body": "Symptom: The flavors CI matrix job (set-matrix) fails with \"Found unused requirements '< 4.45' for transformers / models\" right after the minimum version of a flavor is raised.\nRoot cause: mlflow/ml-package-versions.yml:transformers.models/autologging `requirements` contains a selector (\"< 4.45\": [\"peft<0.14.0\"]) whose range no longer overlaps the new [minimum, maximum] window, so it matches zero candidate versions. dev/flavors/src/flavors/_matrix.py:validate_requirements treats that as an error.\nFix pattern: When advancing `minimum` for a flavor in mlflow/ml-package-versions.yml, also delete every requirement selector whose upper bound is at or below the new minimum. Keep selectors that still match at least one version inside [minimum, maximum] (here \"< 4.52\": [\"peft<0.18.0\"] stayed because 4.45–4.51 exist).\nConstraints: Applies to every selector under `requirements:` in the yml for models and autologging. Check both sections, since each has its own requirements block. Does not apply to selectors that still overlap the window. Run `flavors matrix --no-dev` locally to confirm, as the PR did.",
+  "applies": "Any change to a flavor's minimum/maximum in mlflow/ml-package-versions.yml.",
+  "tags": [
+    "ml-package-versions",
+    "flavors-matrix",
+    "requirements-selector",
+    "transformers"
+  ],
+  "deps": [
+    {
+      "path": "dev/flavors/src/flavors/_matrix.py",
+      "symbol": "validate_requirements",
+      "hash": "sha256:cbb088103afcebbbb43b81fb",
+      "line": 393,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cbb088103afcebbbb43b81fb",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/ml-package-versions.yml",
+      "hash": "sha256:8b989fa833bd913db89cebfe",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25553"
+  },
+  "created": "2026-10-11T08:43:40.878Z",
+  "verified": "2026-10-11T08:43:40.878Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "The automated test matrix pipeline fails after increasing a package minimum version.",
+    "Matrix generation complains about unused requirement rules for older library releases.",
+    "Remove obsolete dependency constraints when raising the baseline package support floor.",
+    "Ensure cross-version test generation succeeds when updating supported model framework versions.",
+    "Check both model flavor and autologging dependency settings for orphaned version pins."
+  ],
+  "search": "When raising a flavor's minimum version in mlflow/ml-package-versions.yml, delete every requirement selector whose upper bound is at or below the new minimum so dev/flavors/src/flavors/_matrix.py:validate_requirements does not fail the set-matrix CI job with unused requirements. Keep selectors that still overlap the candidate [minimum, maximum] window, and verify both models and autologging requirements sections since each has its own requirements block. Applies to flavor minimum/maximum version changes in mlflow/ml-package-versions.yml, and can be verified locally using the command flavors matrix --no-dev.",
+  "saysFor": "s2:cbf1f74b9b55aa7eaeb5bbe03ff6cfd3739b75c7e7a8fa248dc282fbf5cf2c60",
+  "lastUsed": "2026-10-11T09:23:39.272Z",
+  "servedIn": [
+    "eedda188-9f88-448a-b095-608f8af34c3b"
+  ]
+}

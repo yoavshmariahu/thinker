@@ -1,0 +1,89 @@
+{
+  "id": "protobuf-request-parsers-must-reject-bodies-that-spell-one-f",
+  "title": "Protobuf request parsers must reject bodies that spell one field both snake_case and camelCase",
+  "kind": "rule",
+  "answers": [
+    "request body has both secret_id and secretId and gets authorized against the wrong secret",
+    "protobuf JSON duplicate field alias conflict in MLflow REST request",
+    "why does MLflow return 400 when a body contains both snake_case and camelCase keys",
+    "gateway secret update authorized on one id but executed on another"
+  ],
+  "body": "Symptom: a user with READ on one gateway secret updates or uses another secret by sending both `secret_id` and `secretId` in one body; the auth check and the handler act on different ids.\nRoot cause: mlflow/server/handlers.py:_get_request_message passed the body to `parse_dict`, which accepts both proto and JSON names and lets the later key win, while basic-auth validators read the raw snake_case key.\nFix pattern: call mlflow/server/handlers.py:_reject_conflicting_field_aliases on the raw request JSON before `parse_dict`. It raises INVALID_PARAMETER_VALUE when a field is spelled both ways and recurses into nested message values and lists.\nConstraints: map entries and google.protobuf well-known types are skipped because their keys are caller-chosen. A single spelling of either form is accepted. Every request-body `parse_dict` call in handlers.py must run the check too; mlflow/server/handlers.py:_get_workspace_request_message is a separate parser and was given the same call.\nApplies: every proto-backed endpoint that parses its body in mlflow/server/handlers.py.",
+  "applies": "Any request-body protobuf parser in mlflow/server/handlers.py; does not cover Flask routes that read request.json directly.",
+  "tags": [
+    "auth",
+    "security",
+    "protobuf",
+    "gateway",
+    "request-parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_reject_conflicting_field_aliases",
+      "hash": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_request_message",
+      "hash": "sha256:d835807c60947d5087bb6d63",
+      "line": 1157,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d835807c60947d5087bb6d63",
+      "fanout": {
+        "files": 5,
+        "sites": 192,
+        "refs": 247
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_workspace_request_message",
+      "hash": "sha256:b824cd159fec98e0950b1d3b",
+      "line": 1556,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b824cd159fec98e0950b1d3b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-11T10:31:44.564Z",
+  "verified": "2026-10-11T10:31:44.564Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the",
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+    "trace-ids-input-contract-shared-by-the-three-invoke-handlers",
+    "validate-the-resolved-scorer-payload-that-a-job-will-run-not"
+  ],
+  "says": [
+    "Updating an AI gateway secret unexpectedly modifies a completely different secret.",
+    "Users with read permissions on one gateway credential can overwrite unauthorized secrets.",
+    "Saving gateway secret changes applies settings to the wrong credential identifier.",
+    "Prevent privilege escalation where credential update requests execute against an unintended gateway secret.",
+    "Gateway credential edits should fail when requests include ambiguous conflicting credential field names."
+  ],
+  "search": "Protobuf request parsers in mlflow/server/handlers.py must call _reject_conflicting_field_aliases on raw request JSON before parse_dict to reject bodies spelling any field in both snake_case and camelCase with INVALID_PARAMETER_VALUE. The check recurses into nested messages and lists, permits a single spelling of either form, skips map entries and google.protobuf well-known types, and applies to every proto-backed body parser including _get_request_message and _get_workspace_request_message. It does not cover Flask routes that read request.json directly.",
+  "saysFor": "s2:cba71d1384b273691d371e321a47bc5c465aa316559c6a1f5c7ae5df3a4d0926"
+}

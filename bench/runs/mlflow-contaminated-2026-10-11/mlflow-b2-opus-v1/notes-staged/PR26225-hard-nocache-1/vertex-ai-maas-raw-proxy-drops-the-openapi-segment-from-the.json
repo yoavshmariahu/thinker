@@ -1,0 +1,92 @@
+{
+  "id": "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+  "title": "Vertex AI MaaS raw proxy drops the /openapi segment from the upstream URL",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI MaaS model proxy request returns 404 or hits the wrong endpoint",
+    "gateway proxy route to Llama or Mistral on Vertex builds endpoints/chat/completions without openapi",
+    "raw proxy to partner models on Vertex AI uses the wrong URL path"
+  ],
+  "body": "Symptom: Calling the AI Gateway raw proxy route (/gateway/proxy/{endpoint}/...) for a Vertex AI MaaS model (Llama, Mistral, DeepSeek) sends the request to .../endpoints/chat/completions instead of .../endpoints/openapi/chat/completions.\nRoot cause: OpenAICompatibleProvider._proxy strips the last segment of _api_base to undo a trailing /v1, which wrongly removes /openapi from _VertexAIMaaSProvider._api_base.\nFix pattern: Override _proxy on _VertexAIMaaSProvider to post to self._api_base unchanged, and drop only a leading \"v1/\" (and leading slash) from the caller's path.\nConstraints: Applies to MaaS providers whose base URL ends in a path segment that belongs to the API root. Other providers keep the base _proxy behaviour that strips /v1.",
+  "applies": "Vertex AI MaaS provider raw proxy path construction in mlflow/gateway/providers/vertex_ai.py.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "maas",
+    "proxy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._proxy",
+      "hash": "sha256:ea2edb4b8b493684478f2269",
+      "line": 327,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea2edb4b8b493684478f2269",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._api_base",
+      "hash": "sha256:b79edc43ba06ff48460fa0d0",
+      "line": 320,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b79edc43ba06ff48460fa0d0",
+      "fanout": {
+        "files": 13,
+        "sites": 0,
+        "refs": 29
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_maas_proxy_posts_to_openapi_endpoint",
+      "hash": "sha256:9e8bddaabb84eb2d96a13fac",
+      "line": 1017,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9e8bddaabb84eb2d96a13fac",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-11T10:32:32.243Z",
+  "verified": "2026-10-11T10:32:32.243Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the",
+    "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla",
+    "vertex-delegates-always-drop-the-client-s-auth-headers-befor",
+    "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p"
+  ],
+  "says": [
+    "Raw proxy requests to partner models like Llama or Mistral on Vertex return not found.",
+    "The AI gateway raw proxy sends chat requests to the wrong endpoint path on Vertex.",
+    "Fix gateway proxy routing so requests reach open-source models hosted on Google Cloud correctly.",
+    "Calling DeepSeek models through the gateway raw proxy route fails because the URL is truncated.",
+    "Preserve the required upstream API path segments when proxying requests to third-party models on Vertex."
+  ],
+  "search": "For Vertex AI MaaS models such as Llama, Mistral, and DeepSeek, the raw proxy route in _VertexAIMaaSProvider._proxy must post directly to _api_base without stripping the /openapi path segment. Unlike OpenAICompatibleProvider._proxy which removes the trailing segment to strip /v1, _VertexAIMaaSProvider overrides _proxy to retain _api_base and strip only a leading 'v1/' or slash from the caller path. This override applies exclusively to MaaS providers whose base URL ends with an API root segment, while other providers retain the standard /v1 stripping behavior.",
+  "saysFor": "s2:7d08c2bb38dc455ba460a0e760636eec705b71645c99bc63ec5878a664d304e2",
+  "lastUsed": "2026-10-11T19:24:04.773Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26442-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26442-hard-1"
+  ]
+}

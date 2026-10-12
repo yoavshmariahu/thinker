@@ -1,0 +1,53 @@
+{
+  "id": "step-level-policy-rules-must-iterate-step-entries-input-not",
+  "title": "Step-level policy rules must iterate step_entries(input), not input.jobs",
+  "kind": "rule",
+  "answers": [
+    "composite action steps skip policy checks",
+    "policy not enforced on steps in action.yml",
+    "add a new step-level conftest rule for workflows and composite actions",
+    "why does my rule miss steps in composite actions"
+  ],
+  "body": "Symptom: Token, checkout, artifact, install, or interpolation violations in composite-action (action.yml) steps are not reported, while the same violation in a workflow job is.\nRoot cause: .github/policy.rego:job_steps only walked input.jobs[*].steps and their parallel groups, so composite runs.steps were never visited by step-level rules.\nFix pattern: Iterate `some entry in step_entries(input)` then `step := entry.step`, and build messages from `entry.location` instead of job_id or step.name.\nConstraints: step_entries covers workflow jobs, parallel children, and composite runs.steps. Job-level rules (job if, job permissions) do not go through it. The location string (\"job 'x', step #N\") keeps unnamed steps identifiable. Do not re-add a separate `not input.jobs` branch for composite steps; the consolidated rules rely on the single traversal.",
+  "applies": "Any new or existing rule in .github/policy.rego that inspects individual steps, for both workflow and composite action inputs.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T10:30:58.613Z",
+  "verified": "2026-10-11T10:30:58.613Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Security compliance checks fail to flag checkout violations located inside composite actions.",
+    "Policy linter ignores token exposure and artifact rules in shared composite action files.",
+    "Workflow policy enforcement should report security rule violations inside composite action steps.",
+    "Why are variable interpolation violations in composite actions skipped during policy scans?",
+    "Policy scan results omit step-level compliance findings for reusable action definitions."
+  ],
+  "search": "Step-level policy rules in .github/policy.rego must iterate step_entries(input) and extract entry.step rather than walking input.jobs. Iterating only input.jobs[*].steps missed composite action runs.steps in action.yml files, leaving token, checkout, artifact, install, and interpolation violations unreported. Messages must use entry.location to keep unnamed steps identifiable across workflow jobs, parallel children, and composite steps. Job-level rules do not use step_entries, and a separate not input.jobs branch must not be re-added because rules rely on the consolidated traversal.",
+  "saysFor": "s2:9b83875c7c6fe34699b08c3275ccad2f6e57e9c0c655714baa0c975d8dfadecc"
+}

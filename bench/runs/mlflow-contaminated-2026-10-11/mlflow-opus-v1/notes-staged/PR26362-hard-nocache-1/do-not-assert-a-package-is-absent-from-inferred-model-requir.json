@@ -1,0 +1,72 @@
+{
+  "id": "do-not-assert-a-package-is-absent-from-inferred-model-requir",
+  "title": "Do not assert a package is absent from inferred model requirements.txt",
+  "kind": "rule",
+  "answers": [
+    "lightgbm cross-version tests failing with cloudpickle in requirements",
+    "skops model logged requirements contains cloudpickle unexpectedly",
+    "why does MLflow requirements.txt include cloudpickle after joblib upgrade",
+    "test asserts cloudpickle not in logged requirements"
+  ],
+  "body": "Symptom: The daily cross-version-tests for lightgbm models go red. The skops save/load tests fail because the logged model requirements include cloudpickle, which the tests assert must be absent.\nRoot cause: tests/lightgbm/test_lightgbm_model_export.py:test_sklearn_model_save_load_by_skops and test_sklearn_regressor_model_save_load_by_skops assert \"cloudpickle==...\" not in logged_reqs. joblib 1.6.0 replaced its vendored cloudpickle with a runtime dependency on the standalone cloudpickle package, and it imports it at import time. scikit-learn depends on joblib, so requirement inference picks up cloudpickle transitively.\nFix pattern: Remove negative assertions on transitive dependencies in requirement lists. Keep the positive check (e.g. skops==<version> in logged_reqs) and the reload/predict assertions, which still cover the save/load path.\nConstraints: Requirement inference records whatever is imported at save time, including transitive packages, so the exact set can change with any dependency upgrade. Negative assertions on it are brittle. Asserting that a required package is present is still fine. This note does not cover tests that deliberately check a requirements override or exclusion list.",
+  "applies": "Tests in tests/lightgbm and similar model-flavor tests that inspect logged requirements.txt contents for sklearn-based models.",
+  "tags": [
+    "tests",
+    "models",
+    "requirements",
+    "lightgbm",
+    "skops",
+    "joblib",
+    "cloudpickle"
+  ],
+  "deps": [
+    {
+      "path": "tests/lightgbm/test_lightgbm_model_export.py",
+      "symbol": "test_sklearn_model_save_load_by_skops",
+      "hash": "sha256:33185a1c6ca1484ab78ca995",
+      "line": 570,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:33185a1c6ca1484ab78ca995",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/lightgbm/test_lightgbm_model_export.py",
+      "symbol": "test_sklearn_regressor_model_save_load_by_skops",
+      "hash": "sha256:2980d4d6ba8f0825e499fef2",
+      "line": 612,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2980d4d6ba8f0825e499fef2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25684"
+  },
+  "created": "2026-10-11T08:43:02.325Z",
+  "verified": "2026-10-11T08:43:02.325Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Logged model dependencies unexpectedly include indirect packages when saving a machine learning model.",
+    "Why does the exported model requirements list contain extra transitive serialization packages?",
+    "Exporting a saved model lists unexpected background libraries in the environment specification.",
+    "Saved model packaging includes third party dependencies that were not imported directly.",
+    "Stop failing model export verification when transitive dependencies are captured in packages."
+  ],
+  "search": "Model export tests must not assert that transitive dependencies are absent from inferred model requirements.txt files because requirement inference captures anything imported at save time. In tests/lightgbm/test_lightgbm_model_export.py:test_sklearn_model_save_load_by_skops and test_sklearn_regressor_model_save_load_by_skops, negative assertions checking that cloudpickle was not in logged_reqs failed after joblib 1.6.0 began importing standalone cloudpickle. The fix removes negative assertions on transitive packages while retaining positive presence checks like skops version matching and reload or predict assertions. This guidance applies to tests/lightgbm and similar model-flavor tests inspecting logged requirements for sklearn-based models, but excludes tests that explicitly verify requirement overrides or exclusion lists.",
+  "saysFor": "s2:c2e942fd580908312f06386a4b0b5855491a53047a0bdcd06bcac5357b2a9e4d"
+}

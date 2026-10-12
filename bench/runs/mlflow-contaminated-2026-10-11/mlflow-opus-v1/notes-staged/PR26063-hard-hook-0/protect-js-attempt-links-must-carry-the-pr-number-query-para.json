@@ -1,0 +1,56 @@
+{
+  "id": "protect-js-attempt-links-must-carry-the-pr-number-query-para",
+  "title": "protect.js attempt links must carry the PR number query parameter",
+  "kind": "rule",
+  "answers": [
+    "workflow run link in protection check output is missing the PR number",
+    "protect workflow attempt URL pr query parameter",
+    "why does the protection check link not point to the pull request"
+  ],
+  "body": "Invariant: every run-attempt URL that protect.js puts into checks is `${run.html_url}/attempts/${run.run_attempt}?pr=${pullRequest.number}`.\nEnforced by: .github/workflows/protect.js:module.exports, in both checks.push sites (the completed-run branch and the in-progress/pending-run branch) that each build the url field.\nKeep in sync: the URL is built independently at both sites, so a change to its shape must be applied to both. Changing only one leaves the logged links inconsistent.\nThe pr value comes from pullRequest.number, so the URL only works where pullRequest is in scope.",
+  "applies": "Applies to run-attempt links generated inside .github/workflows/protect.js; not to other URLs in the workflow.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "logging",
+    "urls"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pullRequest",
+      "hash": "sha256:ecac78478cefe6d2a511e5be",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6487de17415952dc3b6502d6",
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-11T08:43:58.553Z",
+  "verified": "2026-10-11T08:43:58.553Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-check-log-order-is-derived-from-state-key-order"
+  ],
+  "says": [
+    "Clicking a build attempt link from the protection check loses the pull request reference.",
+    "Include the pull request number when linking to rerun attempts in the merge check log.",
+    "Protection check run attempt links in completed builds are missing the pull request target.",
+    "Ensure pending and finished build attempt links in status checks format their targets consistently.",
+    "The rerun link on the pull request status page opens without pull request context."
+  ],
+  "search": "Run-attempt URLs generated in .github/workflows/protect.js must include ?pr=${pullRequest.number} appended to ${run.html_url}/attempts/${run.run_attempt}. Enforced in .github/workflows/protect.js:module.exports across completed-run and pending-run checks.push branches, which must remain in sync. The URL requires pullRequest to be in scope and applies only to run-attempt links in protect.js rather than other workflow URLs.",
+  "saysFor": "s2:ee75dcc053e5fc007564d47dc4e2ec46467cca9186f0a7712de0269172a4d27b"
+}

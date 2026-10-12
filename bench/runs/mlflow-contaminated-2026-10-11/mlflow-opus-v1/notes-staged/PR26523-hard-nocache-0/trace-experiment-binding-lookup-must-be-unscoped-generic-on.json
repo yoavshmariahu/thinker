@@ -1,0 +1,74 @@
+{
+  "id": "trace-experiment-binding-lookup-must-be-unscoped-generic-on",
+  "title": "Trace-experiment binding lookup must be unscoped, generic on failure, and fail closed",
+  "kind": "rule",
+  "answers": [
+    "how to check a trace belongs to an experiment before scoring",
+    "why batch_get_trace_infos should not use experiment_ids filter",
+    "what happens when the tracking store has no trace lookup",
+    "what error to return for traces in another experiment"
+  ],
+  "body": "Invariant: _validate_trace_ids_in_experiment must call tracking_store.batch_get_trace_infos without an experiment_ids scope. Scoping hides foreign traces and makes the ownership comparison vacuous.\nFallback: per-trace get_trace_info runs only on MlflowNotImplementedException or bare NotImplementedError. RESOURCE_DOES_NOT_EXIST is treated as missing; any other MlflowException is re-raised.\nFail closed: a store implementing neither lookup raises, so the request is rejected rather than passed through unchecked.\nResponse: any trace whose experiment_id differs gets one generic PERMISSION_DENIED (\"Not all requested traces could be accessed.\") that does not reveal which trace or whether it exists.",
+  "applies": "Changes to the trace-ownership check or to any new endpoint that binds trace ids to an experiment.",
+  "tags": [
+    "security",
+    "authorization",
+    "trace-ids",
+    "tracking-store",
+    "fail-closed"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-11T08:41:51.080Z",
+  "verified": "2026-10-11T08:41:51.080Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "invoke-handler-tests-must-stub-batch-get-trace-infos-for-the",
+    "every-serialized-scorer-entry-point-must-run-validate-serial",
+    "artifact-uris-that-make-the-server-connect-to-a-named-host-m",
+    "server-must-re-read-the-stored-registered-scorer-by-name-and"
+  ],
+  "says": [
+    "Evaluating model traces belonging to another experiment returns a generic permission denied error.",
+    "Prevent users from evaluating or accessing execution traces outside their current experiment scope.",
+    "Do not leak the existence or identifiers of unauthorized traces when scoring fails.",
+    "Trace evaluation requests must be rejected if the trace storage cannot verify ownership."
+  ],
+  "search": "Trace-experiment binding validation in mlflow/server/handlers.py:_validate_trace_ids_in_experiment must call tracking_store.batch_get_trace_infos without an experiment_ids scope so foreign traces are not hidden. Fallback to get_trace_info occurs only on MlflowNotImplementedException or bare NotImplementedError, treating RESOURCE_DOES_NOT_EXIST as missing and re-raising any other MlflowException. The handler must fail closed by rejecting requests if neither lookup is implemented. Traces from different experiments receive a generic PERMISSION_DENIED error ('Not all requested traces could be accessed.') without revealing trace identity or existence.",
+  "saysFor": "s2:67248378fca02bfc9c3b7d22a7bc29e0ed81d439c6179c497382f637f3132fc9"
+}

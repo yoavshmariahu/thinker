@@ -1,0 +1,50 @@
+{
+  "id": "keep-package-engines-node-and-readme-node-requirement-in-syn",
+  "title": "Keep package engines.node and README Node requirement in sync with the Databricks SDK's engine floor",
+  "kind": "rule",
+  "answers": [
+    "why does @mlflow/core require Node 22 now",
+    "engines node version mismatch with @databricks/sdk-experimental",
+    "which Node version do the TypeScript packages support"
+  ],
+  "body": "Invariant: When a runtime dependency raises its Node engine floor, every TypeScript package that depends on it must raise its own `engines.node` to match, and the libs/typescript/README.md Node note must match too.\nEvidence: @databricks/sdk-experimental 0.18.0 declares node >=22. This PR moved `engines.node` to >=22 in libs/typescript/core/package.json and in the integrations (anthropic, claude-code, codex, gemini, openai, openclaw, opencode, qwen-code, vercel), and updated the README note from Node 20 to Node 22.\nWhat breaks if skipped: Consumers on Node 18 or 20 install an engine-incompatible transitive dependency and may fail at runtime. A reviewer flagged that core still declared >=18 after the bump.\nConstraints: This applies to engines and README only. Check the dependency's own engines field before choosing the floor. The PR shows the reviewer's concern but not a final resolution of it.",
+  "applies": "libs/typescript packages whose dependencies change their minimum Node.js version.",
+  "tags": [
+    "typescript",
+    "dependencies",
+    "node",
+    "engines"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/package.json",
+      "hash": "sha256:596a2b9df2aa716bfbb88d69",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/README.md",
+      "hash": "sha256:385e2f6ac5d63a897524f89a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-11T10:26:01.830Z",
+  "verified": "2026-10-11T10:26:01.830Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "TypeScript client library fails when running in older Node runtime environments.",
+    "Documentation states an older supported Node version than the packages actually require.",
+    "Update getting started instructions to state the raised minimum Node version requirement.",
+    "Applications on older LTS releases encounter crashes after updating client integration packages.",
+    "Clarify the minimum Node runtime prerequisite across all developer SDK documentation."
+  ],
+  "search": "When runtime dependencies raise their minimum Node engine, dependent packages in libs/typescript must raise engines.node in package.json and update the Node note in libs/typescript/README.md. Upgrading @databricks/sdk-experimental to 0.18.0 required moving engines.node to >=22 in libs/typescript/core/package.json and integration packages, updating the README from Node 20 to Node 22. Failing to update engines leaves consumers on Node 18 or 20 vulnerable to runtime failures from engine-incompatible transitive dependencies. Applies strictly to engines fields and README documentation for libs/typescript packages when dependencies change minimum Node requirements.",
+  "saysFor": "s2:1afdf71a29498a9f9438d6db9ffe0aab666d5760b7d8575a8ba9deda41faf980"
+}

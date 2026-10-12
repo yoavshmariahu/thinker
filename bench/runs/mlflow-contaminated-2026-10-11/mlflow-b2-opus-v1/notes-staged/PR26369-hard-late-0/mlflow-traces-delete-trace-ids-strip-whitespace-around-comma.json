@@ -1,0 +1,83 @@
+{
+  "id": "mlflow-traces-delete-trace-ids-strip-whitespace-around-comma",
+  "title": "mlflow traces delete --trace-ids: strip whitespace around comma-separated IDs",
+  "kind": "rule",
+  "answers": [
+    "traces delete skips trace IDs when I put a space after the comma",
+    "mlflow traces delete --trace-ids with spaces says deleted but trace still exists",
+    "why does delete_traces ignore the second trace ID in my comma list",
+    "comma-separated trace id list with spaces not deleted from experiment"
+  ],
+  "body": "Symptom: Running `mlflow traces delete --trace-ids \"tr-a, tr-b\"` reports fewer deleted traces than requested, exits 0, and the trace after the space is still present in `traces search`.\nRoot cause: mlflow/cli/traces.py:delete_traces split `--trace-ids` on \",\" without stripping, so \" tr-b\" reached the tracing store with a leading space and matched nothing.\nFix pattern: Strip each comma-split entry before passing it on, e.g. `[t.strip() for t in trace_ids.split(\",\")] if trace_ids else None`. The same normalization already exists in `traces search --order-by` and `traces evaluate --trace-ids` (mlflow/cli/eval.py), so new comma-list CLI options should follow it.\nConstraints: Applies to CLI parsing of comma-separated ID lists. `mlflow gc --run-ids/--experiment-ids` does not strip, but fails loudly on bad IDs, so it was intentionally left unchanged in this PR.\nTest placement: tests/cli/test_traces.py:test_delete_command_strips_spaces_in_trace_ids mocks TracingClient and asserts the exact IDs passed as `trace_ids` to delete_traces. The older test_delete_command uses IDs without spaces and cannot catch this.",
+  "applies": "CLI commands in mlflow/cli/ that accept comma-separated ID lists; not the store-level delete_traces API, which takes a list already.",
+  "tags": [
+    "tracing",
+    "cli",
+    "traces",
+    "delete",
+    "parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/cli/traces.py",
+      "symbol": "delete_traces",
+      "hash": "sha256:30fe0caaf452b27843b16925",
+      "line": 439,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:30fe0caaf452b27843b16925",
+      "fanout": {
+        "files": 18,
+        "sites": 61,
+        "refs": 68
+      }
+    },
+    {
+      "path": "tests/cli/test_traces.py",
+      "symbol": "test_delete_command_strips_spaces_in_trace_ids",
+      "hash": "sha256:7196c67ecbb8f5d24ec80079",
+      "line": 174,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7196c67ecbb8f5d24ec80079",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/cli/eval.py",
+      "symbol": "traces",
+      "hash": "sha256:4609a0c40e935f17ded362f0",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 242,
+        "sites": 11,
+        "refs": 1994
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26204"
+  },
+  "created": "2026-10-11T10:23:54.987Z",
+  "verified": "2026-10-11T10:23:54.987Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-traces-search-order-by-rejects-entries-with-spaces-af"
+  ],
+  "says": [
+    "Deleting traces using a comma-separated list with spaces fails to delete all items.",
+    "The command line trace deletion ignores identifiers that have a space after the comma.",
+    "Traces still show up after deleting them in a spaced list of identifiers.",
+    "Support spaces after commas when providing multiple trace identifiers to delete."
+  ],
+  "search": "The CLI command mlflow/cli/traces.py:delete_traces must strip whitespace around each comma-separated ID in `--trace-ids` before passing them to the tracing store. Leading spaces cause store lookups to silently fail to match existing traces while exiting zero, unlike `mlflow gc` which intentionally preserves IDs to fail loudly on errors. The normalization aligns with `traces search --order-by` and `traces evaluate --trace-ids` in mlflow/cli/eval.py, and is verified in tests/cli/test_traces.py:test_delete_command_strips_spaces_in_trace_ids.",
+  "saysFor": "s2:6970d20a4f09a5ac829952ab2f338c32693decc2394d03507825f19fa074e255"
+}

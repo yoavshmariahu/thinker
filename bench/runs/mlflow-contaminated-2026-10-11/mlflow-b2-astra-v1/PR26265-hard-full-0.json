@@ -1,0 +1,55 @@
+{
+  "session_id": "01a12c65-3857-72f1-bfe6-e6b4966456d5",
+  "turns": 1,
+  "in_tokens": 131204,
+  "cached_tokens": 108032,
+  "out_tokens": 1230,
+  "wall_ms": 36594,
+  "result": "I’ll check the artifact loaders, add explicit UTF-8 decoding and a shared error message, and test both loaders with non-ASCII and invalid UTF-8 content. I’ll use the repository’s Python style skill.\nThere are already staged regression tests for this issue; I’ll preserve them and add an assertion for the download suggestion. I’ll have `load_dict()` use `load_text()` so both share UTF-8 decoding and the same error, while keeping the existing invalid-JSON error.\nBoth loaders now read UTF-8 explicitly. `load_dict()` reuses `load_text()`, so invalid UTF-8 raises the same clear error suggesting `download_artifacts()`, with the original decoding error preserved as its cause.\n\nStrengthened the existing regression tests. Targeted tests could not run because the available pytest uses Python 3.9, which cannot parse this repository’s Python syntax. No dependencies were installed; `git diff --check` passed.",
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "command_execution": 6,
+      "mcp_tool_call": 1,
+      "file_change": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "cache": {
+      "injected": [],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 4,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": 1,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26265-hard",
+  "rep": 0,
+  "area": "mlflow/artifacts",
+  "id": "PR26265-hard-full-0",
+  "session": "01a12c65-3857-72f1-bfe6-e6b4966456d5",
+  "cost": 0.401252,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/artifacts/__init__.py b/mlflow/artifacts/__init__.py\nindex 1e4e7e983..3283d736f 100644\n--- a/mlflow/artifacts/__init__.py\n+++ b/mlflow/artifacts/__init__.py\n@@ -159,7 +159,7 @@ def list_artifacts(\n \n \n def load_text(artifact_uri: str) -> str:\n-    \"\"\"Loads the artifact contents as a string.\n+    \"\"\"Loads the UTF-8 encoded artifact contents as a string.\n \n     Args:\n         artifact_uri: Artifact location.\n@@ -185,15 +185,19 @@ def load_text(artifact_uri: str) -> str:\n     \"\"\"\n     with tempfile.TemporaryDirectory() as tmpdir:\n         local_artifact = download_artifacts(artifact_uri, dst_path=tmpdir)\n-        with open(local_artifact) as local_artifact_fd:\n+        with open(local_artifact, encoding=\"utf-8\") as local_artifact_fd:\n             try:\n-                return str(local_artifact_fd.read())\n-            except Exception:\n-                raise MlflowException(\"Unable to form a str object from file content\", BAD_REQUEST)\n+                return local_artifact_fd.read()\n+            except UnicodeDecodeError as e:\n+                raise MlflowException(\n+                    f\"Artifact '{artifact_uri}' is not valid UTF-8. \"\n+                    \"Use mlflow.artifacts.download_artifacts() to download the artifact instead.\",\n+                    BAD_REQUEST,\n+                ) from e\n \n \n def load_dict(artifact_uri: str) -> dict[str, Any]:\n-    \"\"\"Loads the artifact contents as a dictionary.\n+    \"\"\"Loads the UTF-8 encoded artifact contents as a dictionary.\n \n     Args:\n         artifact_uri: artifact location.\n@@ -217,13 +221,11 @@ def load_dict(artifact_uri: str) -> dict[str, Any]:\n \n       {'mlflow-version': '0.28', 'n_cores': '10'}\n     \"\"\"\n-    with tempfile.TemporaryDirectory() as tmpdir:\n-        local_artifact = download_artifacts(artifact_uri, dst_path=tmpdir)\n-        with open(local_artifact) as local_artifact_fd:\n-            try:\n-                return json.load(local_artifact_fd)\n-            except json.JSONDecodeError:\n-                raise MlflowException(\"Unable to form a JSON object from file content\", BAD_REQUEST)\n+    artifact_text = load_text(artifact_uri)\n+    try:\n+        return json.loads(artifact_text)\n+    except json.JSONDecodeError:\n+        raise MlflowException(\"Unable to form a JSON object from file content\", BAD_REQUEST)\n \n \n def load_image(artifact_uri: str):\ndiff --git a/tests/artifacts/test_artifacts.py b/tests/artifacts/test_artifacts.py\nindex 9e86efffc..8538d6d0e 100644\n--- a/tests/artifacts/test_artifacts.py\n+++ b/tests/artifacts/test_artifacts.py\n@@ -1,3 +1,5 @@\n+import builtins\n+import json\n import os\n import pathlib\n import uuid\n@@ -142,6 +144,47 @@ def test_load_dict(run_with_json_artifact):\n     assert mlflow.artifacts.load_dict(artifact.uri) == artifact.content\n \n \n+def test_load_text_and_dict_read_utf8_regardless_of_default_encoding(monkeypatch):\n+    text = \"café 台北 🚀\"\n+    data = {\"城市\": \"台北\"}\n+    with mlflow.start_run() as run:\n+        mlflow.log_text(text, \"text.txt\")\n+        mlflow.log_text(json.dumps(data, ensure_ascii=False), \"data.json\")\n+    base = pathlib.PurePosixPath(run.info.artifact_uri)\n+\n+    # Make text-mode `open` in mlflow.artifacts default to cp1252, as it does on Windows\n+    # with a legacy code page, so the test does not depend on the runner's locale.\n+    def open_with_cp1252_default(file, mode=\"r\", *args, encoding=None, **kwargs):\n+        if \"b\" not in mode and encoding is None:\n+            encoding = \"cp1252\"\n+        return builtins.open(file, mode, *args, encoding=encoding, **kwargs)\n+\n+    monkeypatch.setattr(mlflow.artifacts, \"open\", open_with_cp1252_default, raising=False)\n+    assert mlflow.artifacts.load_text(str(base / \"text.txt\")) == text\n+    assert mlflow.artifacts.load_dict(str(base / \"data.json\")) == data\n+\n+\n+@pytest.mark.parametrize(\n+    (\"load\", \"file_name\", \"content\"),\n+    [\n+        (mlflow.artifacts.load_text, \"text.txt\", \"café\"),\n+        (mlflow.artifacts.load_dict, \"data.json\", '{\"city\": \"café\"}'),\n+    ],\n+)\n+def test_load_text_and_dict_explain_non_utf8_artifacts(tmp_path, load, file_name, content):\n+    path = tmp_path / file_name\n+    path.write_bytes(content.encode(\"cp1252\"))\n+    with mlflow.start_run() as run:\n+        mlflow.log_artifact(path)\n+    uri = str(pathlib.PurePosixPath(run.info.artifact_uri) / file_name)\n+\n+    with pytest.raises(MlflowException, match=\"is not valid UTF-8\") as exc_info:\n+        load(uri)\n+    assert \"mlflow.artifacts.download_artifacts()\" in str(exc_info.value)\n+    assert exc_info.value.error_code == \"BAD_REQUEST\"\n+    assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)\n+\n+\n def test_load_json_invalid_json(run_with_text_artifact):\n     artifact = run_with_text_artifact\n     with pytest.raises(mlflow.exceptions.MlflowException, match=\"Unable to form a JSON object\"):\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "Avg    |\n| ---- | ----------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/artifacts/test_artifacts.py` | 5.41s    | 25    | 0.000s | 1.712s | 0.217s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6128988160)>\n2: <Thread(MlflowLocalArtifactRepository_0, started 6112161792)>\n3: <Thread(MlflowLocalArtifactRepository_0, started 6145814528)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=37565, name='python3.12', status='running', started='12:17:12')\n\u001b[33m=================== \u001b[32m22 passed\u001b[0m, \u001b[33m\u001b[1m3 skipped\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 5.47s\u001b[0m\u001b[33m ===================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 23172,
+  "costBasis": "list price from token classes"
+}

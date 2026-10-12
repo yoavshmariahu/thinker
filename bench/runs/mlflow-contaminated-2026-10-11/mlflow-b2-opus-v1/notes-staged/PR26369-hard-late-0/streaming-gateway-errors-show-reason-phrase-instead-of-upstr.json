@@ -1,0 +1,99 @@
+{
+  "id": "streaming-gateway-errors-show-reason-phrase-instead-of-upstr",
+  "title": "Streaming gateway errors show reason phrase instead of upstream message for non-OpenAI bodies",
+  "kind": "rule",
+  "answers": [
+    "streaming AI gateway request returns 400 Bad Request with no provider explanation",
+    "Bedrock error message missing from streamed gateway response",
+    "why does stream error only say 'Bad Request' while non-streaming shows the real error",
+    "upstream error detail dropped in send_stream_request"
+  ],
+  "body": "Symptom: A streaming request through the AI Gateway fails with only the HTTP reason phrase (e.g. \"400: Bad Request\") while the same request sent non-streaming shows the provider's explanation. Seen with Amazon Bedrock, whose error body is top-level {\"message\": ...}.\nRoot cause: mlflow/gateway/providers/utils.py:send_stream_request read only error_body.get(\"error\", {}).get(\"message\", e.message), so any non-OpenAI-shaped body fell back to aiohttp's reason phrase, and a non-JSON body was discarded.\nFix pattern: Extract the detail through the shared mlflow/gateway/providers/utils.py:_error_detail (error.message, then top-level message, then the whole body), and chain fallbacks json -> response.text() -> e.message. Keep the same chain in send_proxy_request.\nConstraints: send_request is intentionally unchanged; it already returns the whole body and changing it alters the response shape non-streaming callers see.",
+  "applies": "Error handling of upstream HTTP responses in mlflow/gateway/providers/utils.py; applies to any provider helper that surfaces upstream error bodies to users.",
+  "tags": [
+    "gateway",
+    "error-handling",
+    "streaming",
+    "bedrock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "_error_detail",
+      "hash": "sha256:9d5883b16adaed761fc6562f",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d5883b16adaed761fc6562f",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_stream_request",
+      "hash": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "line": 179,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "fanout": {
+        "files": 13,
+        "sites": 20,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_proxy_request",
+      "hash": "sha256:59f9f76197ad818831a3f92d",
+      "line": 241,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:59f9f76197ad818831a3f92d",
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_request",
+      "hash": "sha256:cb3969f1991ef51821c0056e",
+      "line": 121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cb3969f1991ef51821c0056e",
+      "fanout": {
+        "files": 25,
+        "sites": 36,
+        "refs": 106
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26036"
+  },
+  "created": "2026-10-11T10:28:26.876Z",
+  "verified": "2026-10-11T10:28:26.876Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr"
+  ],
+  "says": [
+    "Streaming model requests fail with generic bad request messages instead of provider explanations.",
+    "Streamed Bedrock completion returns four hundred without showing why the request was rejected.",
+    "Show the actual upstream provider error message when streaming model generation fails.",
+    "Why does non-streaming show provider error details while streaming only displays bad request?",
+    "Display provider rejection reasons in streaming gateway responses instead of generic status phrases."
+  ],
+  "search": "Upstream HTTP error handling in mlflow/gateway/providers/utils.py must extract response details using mlflow/gateway/providers/utils.py:_error_detail across streaming and proxy requests. In send_stream_request, expecting OpenAI-formatted error payloads dropped upstream messages from providers like Amazon Bedrock that return a top-level message field or non-JSON payloads, collapsing errors to generic HTTP reason phrases. The helper extracts error.message, then top-level message, then the entire body, chaining fallbacks from JSON to response.text() and e.message in send_stream_request and send_proxy_request. send_request remains intentionally unchanged because it already returns the entire response body and altering it would change the response format seen by non-streaming callers.",
+  "saysFor": "s2:0104dbfc9fb1c6df0c6402b480364ac1a186c89e6a802d92e438eee015563edc"
+}

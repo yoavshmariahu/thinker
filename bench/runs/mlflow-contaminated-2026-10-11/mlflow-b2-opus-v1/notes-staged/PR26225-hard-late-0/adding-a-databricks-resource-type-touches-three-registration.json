@@ -1,0 +1,113 @@
+{
+  "id": "adding-a-databricks-resource-type-touches-three-registration",
+  "title": "Adding a Databricks resource type touches three registrations in mlflow/models/resources.py",
+  "kind": "rule",
+  "answers": [
+    "how do I add a new Databricks resource type for model serving",
+    "add a new resource dependency to logged model resources",
+    "new resource type not serialized to MLmodel resources YAML",
+    "declare a new Databricks dependency when logging a model"
+  ],
+  "body": "Symptom: A newly declared Databricks dependency (e.g. a model-serving resource) is missing from the logged model's resources YAML or fails to round-trip when the model is loaded.\nRoot cause: Resource types are wired in three separate places in mlflow/models/resources.py: the ResourceType enum, a concrete class subclassing DatabricksResource with a `type` property, and the `resource_classes[\"databricks\"]` map in _get_resource_class_by_type. Missing any one breaks serialization or deserialization.\nFix pattern: Add the enum member with its wire value, add a DatabricksX(DatabricksResource) class whose `type` returns that member and whose __init__ forwards to super(), and add `ResourceType.X.value: DatabricksX` to the map in _get_resource_class_by_type. Then extend tests/models/test_resources.py (a parametrized per-type test, plus the expected dicts in test_resources and test_resources_from_yaml).\nConstraints: The existing resource types are untouched; add new types alongside them rather than renaming wire values. Do not change the serialized key of an existing type for backward compatibility.",
+  "applies": "Applies to any new resource type under the 'databricks' target_uri in mlflow/models/resources.py; does not cover non-Databricks target URIs.",
+  "tags": [
+    "models",
+    "resources",
+    "databricks",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "ResourceType",
+      "hash": "sha256:eb202e672f4178b74d459d84",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb202e672f4178b74d459d84",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 50
+      }
+    },
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "DatabricksResource",
+      "hash": "sha256:10f83ff5f96c33df8ae4b5e2",
+      "line": 72,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:10f83ff5f96c33df8ae4b5e2",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "_get_resource_class_by_type",
+      "hash": "sha256:f6ffd37a06967737797bbaef",
+      "line": 298,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f6ffd37a06967737797bbaef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/models/test_resources.py",
+      "symbol": "test_resources",
+      "hash": "sha256:85b98780013a89b1cff8356a",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:85b98780013a89b1cff8356a",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/models/test_resources.py",
+      "symbol": "test_resources_from_yaml",
+      "hash": "sha256:20a158b5d4c6fb76c6059959",
+      "line": 257,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:20a158b5d4c6fb76c6059959",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26137"
+  },
+  "created": "2026-10-11T10:27:25.757Z",
+  "verified": "2026-10-11T10:27:25.757Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-version-dependency-registration-must-not-emit-new-r"
+  ],
+  "says": [
+    "A declared cloud service dependency does not appear in the saved model resource configuration.",
+    "Serving resources attached to a logged model fail to reload when loading the model.",
+    "Allow logging models with a new type of backend serving dependency.",
+    "Cloud resource dependencies specified during model logging are dropped from the metadata package.",
+    "Saved model definitions do not retain newly configured cloud infrastructure requirements upon export."
+  ],
+  "search": "Adding a new Databricks resource type under target_uri 'databricks' in mlflow/models/resources.py requires updating ResourceType, subclassing DatabricksResource with a type property, and registering in resource_classes['databricks'] in _get_resource_class_by_type. Missing any registration breaks serialization to MLmodel resources YAML or model reload round-tripping. Tests in tests/models/test_resources.py (per-type tests, test_resources, and test_resources_from_yaml) must be extended. Existing resource types and wire keys must not be changed, and non-Databricks target URIs are not covered.",
+  "saysFor": "s2:3434fd3ed37ac4c3eedcb904fd6f728a919cdfaf457bd32e6924a6e67d1cdd46"
+}

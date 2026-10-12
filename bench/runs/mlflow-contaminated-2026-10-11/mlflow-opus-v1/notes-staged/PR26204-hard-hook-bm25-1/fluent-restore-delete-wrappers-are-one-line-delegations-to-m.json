@@ -1,0 +1,86 @@
+{
+  "id": "fluent-restore-delete-wrappers-are-one-line-delegations-to-m",
+  "title": "Fluent restore/delete wrappers are one-line delegations to MlflowClient; put behavior below the fluent layer",
+  "kind": "rule",
+  "answers": [
+    "add a fluent helper for an existing client operation",
+    "should the mlflow.* convenience function contain logic",
+    "where to implement restore for experiments or runs",
+    "fluent function duplicates MlflowClient behavior"
+  ],
+  "body": "Convention: mlflow.restore_experiment and mlflow.restore_run in mlflow/tracking/fluent.py contain only a call to MlflowClient().restore_experiment(...) / MlflowClient().restore_run(...), mirroring delete_experiment and delete_run.\nThe restore capability already existed end-to-end (MlflowClient methods, REST restoreExperiment/restoreRun RPCs, stores, CLI, UI), so the fluent layer added no backend behavior.\nWhen a new lifecycle or tracking operation is needed at the fluent level, implement it in MlflowClient and its store first, then add a thin fluent wrapper placed directly after the matching delete_* function.\nIf skipped: logic lands in fluent.py and diverges from the REST/CLI paths that call the client.",
+  "applies": "Fluent convenience functions in mlflow/tracking/fluent.py that wrap MlflowClient operations.",
+  "tags": [
+    "tracking",
+    "fluent-api",
+    "layering",
+    "lifecycle"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_experiment",
+      "hash": "sha256:2fd8cd90e090139b747a4843",
+      "line": 2455,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2fd8cd90e090139b747a4843",
+      "fanout": {
+        "files": 17,
+        "sites": 20,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_run",
+      "hash": "sha256:eb0476d2c4f7f787022f6b97",
+      "line": 3168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb0476d2c4f7f787022f6b97",
+      "fanout": {
+        "files": 13,
+        "sites": 19,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "delete_run",
+      "hash": "sha256:42903c236aae636ba3e4a031",
+      "line": 3137,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42903c236aae636ba3e4a031",
+      "fanout": {
+        "files": 23,
+        "sites": 44,
+        "refs": 52
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25852"
+  },
+  "created": "2026-10-11T08:46:21.120Z",
+  "verified": "2026-10-11T08:46:21.120Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-fluent-tracking-functions-must-be-exported-in-both-mlflo",
+    "create-experiment-with-trace-location-a-failed-link-soft-del"
+  ],
+  "says": [
+    "Restoring an experiment through the Python helper behaves differently than the command line.",
+    "Add convenient top-level Python functions to restore deleted experiments and runs.",
+    "Restoring deleted runs from a Python script diverges from the tracking dashboard behavior.",
+    "Ensure top-level lifecycle functions match the underlying client and remote service behavior.",
+    "Runs undeleted through convenience functions are not properly restored in the tracking store."
+  ],
+  "search": "Convenience functions mlflow.restore_experiment and mlflow.restore_run in mlflow/tracking/fluent.py must remain one-line delegations to MlflowClient, mirroring delete_experiment and delete_run. Because restore functionality exists across MlflowClient, REST RPCs restoreExperiment and restoreRun, stores, CLI, and UI, the fluent layer contains no backend logic. New lifecycle or tracking operations must be implemented in MlflowClient and underlying stores first, followed by a thin fluent wrapper placed directly below the matching delete_* function. Placing logic in fluent.py causes divergence from REST and CLI entry points that call MlflowClient directly.",
+  "saysFor": "s2:7a82e1ba901636f25c1c96a01e5fb02aa43c956d82fda5806d84119ca7f215ec"
+}

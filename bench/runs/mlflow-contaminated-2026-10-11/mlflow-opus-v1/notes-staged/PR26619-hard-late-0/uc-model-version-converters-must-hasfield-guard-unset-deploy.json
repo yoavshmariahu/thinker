@@ -1,0 +1,112 @@
+{
+  "id": "uc-model-version-converters-must-hasfield-guard-unset-deploy",
+  "title": "UC model-version converters must HasField-guard unset deployment_job_state",
+  "kind": "rule",
+  "answers": [
+    "unity catalog model version shows empty deployment job state instead of none",
+    "deployment_job_state is truthy but empty for UC model version",
+    "why does UC model version have deployment job state with blank job_id",
+    "uc model version deployment job status missing should be None"
+  ],
+  "body": "Symptom: A Unity Catalog model version with no deployment job reports an empty deployment job state (blank job id, UNSPECIFIED states) instead of no deployment job state (None), unlike the OSS registry.\nRoot cause: mlflow/utils/_unity_catalog_utils.py:model_version_from_uc_proto and model_version_search_from_uc_proto, and mlflow/store/_unity_catalog/registry/uc_native_rest_store.py:model_version_from_uc_native_proto and model_version_search_from_uc_native_proto, called ModelVersionDeploymentJobState.from_proto(uc_proto.deployment_job_state) unconditionally, so an unset message produced a truthy object.\nFix pattern: Guard each conversion of a singular message field with uc_proto.HasField(\"<field>\") and yield None otherwise, mirroring ModelVersion.from_proto in mlflow/entities/model_registry/model_version.py.\nConstraints: Applies to singular message fields, where HasField is valid (verified for deployment_job_state on both ModelVersion and ModelVersionInfo protos). Not for repeated fields or proto3 scalars without presence, where HasField does not apply. Any new UC proto-to-entity converter that reads a nested message should follow the same guard.",
+  "applies": "Converters in the Unity Catalog model registry utilities and native REST store that map UC protos to MLflow ModelVersion entities.",
+  "tags": [
+    "model-registry",
+    "unity-catalog",
+    "proto",
+    "converters"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/_unity_catalog_utils.py",
+      "symbol": "model_version_from_uc_proto",
+      "hash": "sha256:55050a35f7e569d2d44a68ff",
+      "line": 65,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55050a35f7e569d2d44a68ff",
+      "fanout": {
+        "files": 3,
+        "sites": 7,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/utils/_unity_catalog_utils.py",
+      "symbol": "model_version_search_from_uc_proto",
+      "hash": "sha256:035bbb38fe83f622dc27d5e8",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:035bbb38fe83f622dc27d5e8",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/uc_native_rest_store.py",
+      "symbol": "model_version_from_uc_native_proto",
+      "hash": "sha256:2c86d888b3a86c9d79f95fe7",
+      "line": 112,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2c86d888b3a86c9d79f95fe7",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/uc_native_rest_store.py",
+      "symbol": "model_version_search_from_uc_native_proto",
+      "hash": "sha256:2894d7657b673bc794feb3db",
+      "line": 173,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2894d7657b673bc794feb3db",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/entities/model_registry/model_version.py",
+      "symbol": "ModelVersion.from_proto",
+      "hash": "sha256:9a80d79082db1bc09cd4c26e",
+      "line": 194,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a80d79082db1bc09cd4c26e",
+      "fanout": {
+        "files": 78,
+        "sites": 336,
+        "refs": 351
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25690"
+  },
+  "created": "2026-10-11T08:42:48.984Z",
+  "verified": "2026-10-11T08:42:48.984Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "modelversion-to-proto-must-assign-the-nested-deployment-job"
+  ],
+  "says": [
+    "Model version details page displays an empty deployment job with blank identifiers.",
+    "A model version without any deployment job should show no deployment status.",
+    "Catalog model versions incorrectly report blank deployment job status instead of none.",
+    "Hide deployment job information when a registered model version has never been deployed."
+  ],
+  "search": "Unity Catalog proto-to-entity converters must guard singular message fields like deployment_job_state using HasField and return None when unset. Without this check, methods including model_version_from_uc_proto in mlflow/utils/_unity_catalog_utils.py and model_version_from_uc_native_proto in mlflow/store/_unity_catalog/registry/uc_native_rest_store.py instantiate truthy objects containing blank job IDs. This mirrors ModelVersion.from_proto in mlflow/entities/model_registry/model_version.py across both ModelVersion and ModelVersionInfo protos. The guard applies only to singular message fields and cannot be used on repeated fields or proto3 scalars lacking presence.",
+  "saysFor": "s2:9426b81ef151f3e05ece123d0d5b202a208c36c2b9ced0c0cce72b532b0d1730"
+}

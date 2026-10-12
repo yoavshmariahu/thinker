@@ -1,0 +1,100 @@
+{
+  "id": "only-response-filters-may-self-authorize-a-route-in-the-fail",
+  "title": "Only response filters may self-authorize a route in the fail-closed backstop",
+  "kind": "rule",
+  "answers": [
+    "which after-request handlers exempt a route from the auth backstop",
+    "why does adding a set_can_manage grant not authorize a route",
+    "add a new response filter to basic-auth without validator",
+    "fail-closed check for routes without before-request validator"
+  ],
+  "body": "Invariant: a route is exempt from the fail-closed backstop only when its after-request handler is in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS (the filter_* and redact_* response filters). Ownership grants (set_can_manage_*) and permission cleanups (e.g. _cleanup_workspace_permissions) do not exempt a route.\nEnforced by: mlflow/server/auth/__init__.py:_authorized_outside_before_request, which checks AFTER_REQUEST_HANDLERS.get((path, method)) and each WORKSPACE_PARAMETERIZED_AFTER_REQUEST_HANDLERS entry against that set.\nSkipping this: a write route that only registers an after-request grant becomes reachable with no validator, so its create is never checked.\nCoverage: tests/server/auth/test_authorization_coverage.py:test_every_ownership_grant_route_has_a_before_request_validator fails when a set_can_manage_* route lacks a before-request validator; tests/server/auth/test_fail_closed_flag.py:test_ownership_grant_after_handler_does_not_authorize_route pins the exemption.\nConstraints: a new response filter must be added to the set to self-authorize; a new ownership grant must not be added.",
+  "applies": "Any new route or after-request handler in the basic-auth app (mlflow/server/auth/__init__.py) that filters, redacts, grants ownership, or cleans up permissions.",
+  "tags": [
+    "auth",
+    "fail-closed",
+    "after-request",
+    "coverage"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS",
+      "hash": "sha256:9a4beefa32f822287e0e4e7c",
+      "line": 4488,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_authorized_outside_before_request",
+      "hash": "sha256:855a6e60cbc400b3b719dc10",
+      "line": 3682,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:855a6e60cbc400b3b719dc10",
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_every_ownership_grant_route_has_a_before_request_validator",
+      "hash": "sha256:122b401a346a87070621f8c2",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:122b401a346a87070621f8c2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "symbol": "test_ownership_grant_after_handler_does_not_authorize_route",
+      "hash": "sha256:674f770ffc418421066d7517",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:674f770ffc418421066d7517",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-11T10:31:00.390Z",
+  "verified": "2026-10-11T10:31:00.390Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-list-routes-need-authentication-plus-a-per-item-use",
+    "gateway-secret-create-needs-a-workspace-create-grant-fail-cl",
+    "nested-graphql-fields-over-protected-resources-must-be-liste",
+    "run-basic-auth-test-files-with-extra-dependencies-via-uv-wit"
+  ],
+  "says": [
+    "Unauthorized users can trigger actions that grant ownership without prior permission checks.",
+    "Ensure write actions verify permissions before creating resources or updating access rights.",
+    "Users without access rights are able to hit endpoints that assign permissions.",
+    "Why does granting management rights to an item fail the security check?",
+    "Allow endpoints that filter sensitive response data to pass the authorization check."
+  ],
+  "search": "In basic-auth fail-closed routing, only after-request response filters in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS exempt a route from the authorization backstop. Handlers that grant ownership like set_can_manage_* or clean up permissions like _cleanup_workspace_permissions do not exempt a route. Enforced in mlflow/server/auth/__init__.py:_authorized_outside_before_request by checking AFTER_REQUEST_HANDLERS and WORKSPACE_PARAMETERIZED_AFTER_REQUEST_HANDLERS. New response filters must be added to the set to self-authorize, while ownership grant routes must include before-request validators as tested in tests/server/auth/test_authorization_coverage.py and tests/server/auth/test_fail_closed_flag.py.",
+  "saysFor": "s2:b8e32230ae18a7e44082beb49367bf8f202f7c8743a984050de66093560af694"
+}

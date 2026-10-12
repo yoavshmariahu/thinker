@@ -1,0 +1,58 @@
+{
+  "id": "otel-collector-fixture-retry-only-the-docker-image-pull-on-t",
+  "title": "OTel collector fixture: retry only the Docker image pull on transient registry failures",
+  "kind": "rule",
+  "answers": [
+    "tracing tests fail with a Docker Hub connection reset before any test runs",
+    "how do I make the OTel collector docker pull retry on flaky network errors",
+    "why does the otel_collector fixture fail on docker pull in CI",
+    "OTLP collector test setup errors out on transient Docker Hub failure"
+  ],
+  "body": "Symptom: Tracing tests that use the OpenTelemetry collector error out during fixture setup with a Docker Hub connection reset, so none of the tracing tests run.\nRoot cause: tests/tracing/conftest.py:otel_collector ran `docker pull otel/opentelemetry-collector` once via subprocess.check_call, so any transient registry failure raised CalledProcessError and failed the whole fixture.\nFix pattern: wrap only the pull in a bounded loop of 3 attempts. Break on success, sleep 2 ** (attempt + 1) seconds (2s, then 4s) between failures, and re-raise the last CalledProcessError on the final attempt. Do not swallow the error or redirect Docker's output.\nConstraints: the retry covers only `docker pull`; `docker run`, the config write and the readiness wait are not retried by this pattern. Keep the attempt count and backoff bounded so a genuinely broken registry still fails fast.",
+  "applies": "Applies to the Docker-based otel_collector fixture in tests/tracing/conftest.py and any similar test fixture that shells out to docker pull.",
+  "tags": [
+    "tracing",
+    "tests",
+    "otel",
+    "docker",
+    "flaky-test",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26035"
+  },
+  "created": "2026-10-11T10:28:28.445Z",
+  "verified": "2026-10-11T10:28:28.445Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-fixture-config-must-be-a-readable-temp-file-a",
+    "otel-collector-test-fixture-wait-for-health-endpoint-not-a-f"
+  ],
+  "says": [
+    "Tracing test suite fails during setup due to transient container image download errors",
+    "Continuous integration tracing runs abort before starting because the registry connection was reset",
+    "Automatically retry downloading the collector image when network failures happen during test initialization"
+  ],
+  "search": "The Docker-based otel_collector fixture in tests/tracing/conftest.py must retry only the docker pull otel/opentelemetry-collector step against transient registry failures. The pull is wrapped in a bounded loop of 3 attempts with exponential backoff of 2 and 4 seconds, re-raising CalledProcessError on the final failure without redirecting output. Retries must not cover docker run, config file writes, or readiness waits, ensuring genuinely broken registries fail quickly.",
+  "saysFor": "s2:f745978cfafb729798b7e0c04ba0665cc03c6e806242d7cfe5e89d8783c1d910"
+}

@@ -1,0 +1,109 @@
+{
+  "id": "new-span-keyword-arguments-must-be-threaded-through-every-tr",
+  "title": "New span keyword arguments must be threaded through every trace entry point",
+  "kind": "rule",
+  "answers": [
+    "how do I add a new keyword argument to @mlflow.trace",
+    "where must a new start_span parameter be passed through",
+    "why does my new trace option not apply to async or generator functions",
+    "add a parameter to mlflow.start_span and the decorator"
+  ],
+  "body": "Invariant: a span-level keyword (e.g. `description`, `log_level`, `links`) must be added in every place that builds a span: the `trace` overloads and implementation, `_wrap_function` (sync/async), `_wrap_generator` (its nested `_start_stream_span`), `start_span`, and `start_span_no_context`.\nEnforcement: mlflow/tracing/fluent.py:trace, mlflow/tracing/fluent.py:_wrap_function, mlflow/tracing/fluent.py:_wrap_generator, mlflow/tracing/fluent.py:start_span, mlflow/tracing/fluent.py:start_span_no_context.\nWhat breaks if skipped: the option works on plain functions but is silently ignored for async coroutines or generators, because those paths call `start_span`/`start_span_no_context` separately and never see the argument.\nPattern in this PR: `description` was added to the two `trace` overloads, the implementation, both `_wrap_function`/`_wrap_generator` call sites, and both span constructors, mirroring `log_level` and `links`.",
+  "applies": "Any new kwarg on @mlflow.trace, start_span or start_span_no_context; not for attributes set only after span creation.",
+  "tags": [
+    "tracing",
+    "fluent-api",
+    "decorator"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/fluent.py",
+      "symbol": "trace",
+      "hash": "sha256:693f5f6c7662b44682affde2",
+      "line": 125,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:693f5f6c7662b44682affde2",
+      "fanout": {
+        "files": 206,
+        "sites": 42,
+        "refs": 2000
+      }
+    },
+    {
+      "path": "mlflow/tracing/fluent.py",
+      "symbol": "_wrap_function",
+      "hash": "sha256:07122a91e5c405c8b6002d54",
+      "line": 305,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:07122a91e5c405c8b6002d54",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/tracing/fluent.py",
+      "symbol": "_wrap_generator",
+      "hash": "sha256:b3a181d95f0c6dcb744c8e34",
+      "line": 388,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b3a181d95f0c6dcb744c8e34",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/tracing/fluent.py",
+      "symbol": "start_span",
+      "hash": "sha256:536a0eed6d0792257e5bc474",
+      "line": 543,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:536a0eed6d0792257e5bc474",
+      "fanout": {
+        "files": 99,
+        "sites": 435,
+        "refs": 472
+      }
+    },
+    {
+      "path": "mlflow/tracing/fluent.py",
+      "symbol": "start_span_no_context",
+      "hash": "sha256:c8f2d91b2ee97f4509dbbfcd",
+      "line": 703,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c8f2d91b2ee97f4509dbbfcd",
+      "fanout": {
+        "files": 26,
+        "sites": 66,
+        "refs": 85
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25548"
+  },
+  "created": "2026-10-11T08:51:07.728Z",
+  "verified": "2026-10-11T08:51:07.728Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace viewer fails to display custom descriptions on asynchronous functions and streaming generators",
+    "Span options like description or log level are ignored for background coroutines",
+    "Trace details screen drops configured metadata when viewing streaming or asynchronous runs",
+    "Support span description and log level configuration across asynchronous tasks and streams"
+  ],
+  "search": "Span-level keyword arguments must be added across all span construction entry points, including the trace overloads and implementation, _wrap_function, _wrap_generator, start_span, and start_span_no_context in mlflow/tracing/fluent.py. Skipping any entry point causes options such as description, log_level, or links to be silently ignored for async coroutines or generators. This rule applies when adding any new keyword argument to @mlflow.trace, start_span, or start_span_no_context, but not to attributes set only after span creation.",
+  "saysFor": "s2:020f183ae968907dc4bf8f51cbbb4af3aca18cc29fe481e6de68b7ad2bd9ef5d"
+}

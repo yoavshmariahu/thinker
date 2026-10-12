@@ -1,0 +1,71 @@
+{
+  "id": "unscoped-gateway-endpoint-binding-listing-is-admin-only-endp",
+  "title": "Unscoped gateway endpoint-binding listing is admin-only; endpoint-scoped listing checks endpoint read",
+  "kind": "rule",
+  "answers": [
+    "can a normal user list all gateway endpoint bindings",
+    "bindings list returns 403 without endpoint_id",
+    "who can see gateway endpoint bindings across endpoints",
+    "restrict endpoint binding listing to administrators"
+  ],
+  "body": "Invariant: GET gateway/endpoints/bindings/list without endpoint_id is restricted to administrators; a non-admin gets 403.\nWith endpoint_id supplied, the check becomes the read permission on that specific gateway endpoint, so users with read on the endpoint can list its bindings.\nEnforced by the bindings-list validator in mlflow/server/auth/__init__.py, exercised by test_gateway_endpoints_permissions in tests/server/auth/test_auth.py.\nSkipping this lets any authenticated user enumerate bindings for endpoints they have no access to.",
+  "applies": "Authorization of gateway endpoint binding list routes; does not cover create or delete binding routes.",
+  "tags": [
+    "auth",
+    "gateway",
+    "bindings",
+    "admin"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_gateway_endpoints_permissions",
+      "hash": "sha256:0a39591b53acc9492ae6f639",
+      "line": 3378,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0a39591b53acc9492ae6f639",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "endpoint_id",
+      "hash": "sha256:1cc4f18805e3e6ed70ac2538",
+      "line": 1130,
+      "missing": false,
+      "fanout": {
+        "files": 59,
+        "sites": 0,
+        "refs": 908
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-11T10:25:32.061Z",
+  "verified": "2026-10-11T10:25:32.061Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-authz-validators-must-read-resource-ids-from-the-par",
+    "nested-graphql-fields-over-protected-resources-must-be-liste",
+    "model-version-read-checks-must-be-prompt-aware-and-judge-the"
+  ],
+  "says": [
+    "Non-admin users get permission denied when viewing all AI gateway endpoint bindings at once.",
+    "Restrict viewing global gateway endpoint bindings across the organization to workspace administrators.",
+    "Allow team members with read access to view bindings for their specific gateway endpoint.",
+    "Viewing endpoint bindings without choosing a specific gateway endpoint results in an authorization error.",
+    "Prevent standard users from enumerating gateway endpoint bindings for endpoints they cannot access."
+  ],
+  "search": "Listing gateway endpoint bindings via GET gateway/endpoints/bindings/list requires administrator privileges when endpoint_id is omitted, returning 403 for non-admins. When endpoint_id is provided, the authorization check validates read permission for that specific gateway endpoint. This rule is enforced in mlflow/server/auth/__init__.py and tested in tests/server/auth/test_auth.py:test_gateway_endpoints_permissions, applying only to binding list routes and not create or delete binding routes.",
+  "saysFor": "s2:67867c59be3f90e24deb93c7bc51f8343f1d6ab3b4068c1026dde5dde48aa6d0"
+}

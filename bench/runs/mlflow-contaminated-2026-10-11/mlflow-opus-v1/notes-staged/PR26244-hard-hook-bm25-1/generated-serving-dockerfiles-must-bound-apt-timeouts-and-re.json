@@ -1,0 +1,69 @@
+{
+  "id": "generated-serving-dockerfiles-must-bound-apt-timeouts-and-re",
+  "title": "Generated serving Dockerfiles must bound apt timeouts and retries before installing packages",
+  "kind": "rule",
+  "answers": [
+    "serving image build hangs forever on apt-get update",
+    "docker build for model serving stuck on package mirror",
+    "apt-get install never finishes when Ubuntu mirror stalls",
+    "generated Dockerfile apt retries and timeouts"
+  ],
+  "body": "Symptom: A serving-image build (docker build of a generated MLflow model Dockerfile) hangs indefinitely while apt fetches packages from a stalled Ubuntu mirror.\nRoot cause: mlflow/models/docker_utils.py:generate_dockerfile emitted apt-get update/install with no socket timeout or retry config, so apt never reached its retry logic.\nFix pattern: Prepend the SETUP_APT_TIMEOUTS block (writes Acquire::http/https::Timeout \"30\" and Acquire::Retries \"3\" to /etc/apt/apt.conf.d/99-mlflow-timeouts) before any apt-get RUN in the MLflow-controlled python-slim and UBUNTU_BASE_IMAGE branches.\nConstraints: Applies only to MLflow-controlled base images; caller-supplied custom base images must stay unchanged. Keep the config file ahead of the apt-get update RUN, or the setting is not in effect for that install.",
+  "applies": "Dockerfile generation in mlflow/models/docker_utils.py for serving images; not for user-provided base images.",
+  "tags": [
+    "docker",
+    "apt",
+    "serving",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "SETUP_APT_TIMEOUTS",
+      "hash": "sha256:9986295cad44e47cd81b104a",
+      "line": 73,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "generate_dockerfile",
+      "hash": "sha256:11eeecec3437c71784a70b14",
+      "line": 92,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eeecec3437c71784a70b14",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25800"
+  },
+  "created": "2026-10-11T08:42:04.201Z",
+  "verified": "2026-10-11T08:42:04.201Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "changing-generated-dockerfile-steps-requires-updating-the-do",
+    "java-setup-step-in-generated-serving-dockerfiles-package-nam"
+  ],
+  "says": [
+    "Building the model serving container image hangs indefinitely during package installation.",
+    "Docker builds for model deployment get stuck when package mirrors fail to respond.",
+    "Add retry limits and download timeouts to package managers in generated serving images.",
+    "Container builds for served models never finish if an operating system mirror stalls."
+  ],
+  "search": "Generated model serving Dockerfiles must configure apt network timeouts and retry limits before running package installation commands. In mlflow/models/docker_utils.py:generate_dockerfile, SETUP_APT_TIMEOUTS configures Acquire::http/https::Timeout \"30\" and Acquire::Retries \"3\" in /etc/apt/apt.conf.d/99-mlflow-timeouts prior to any apt-get RUN instruction. This applies to MLflow-controlled python-slim and UBUNTU_BASE_IMAGE branches but leaves user-provided custom base images unchanged. The configuration must precede apt-get update to ensure timeout limits apply to that installation.",
+  "saysFor": "s2:a79549c3aac3d408e888600d9f552f06fa91ce6b0943cd69a4ba0c922adc343d"
+}

@@ -1,0 +1,166 @@
+{
+  "id": "trace-user-metadata-must-fall-back-from-user-to-username-on",
+  "title": "Trace user metadata must fall back from USER to USERNAME on Windows",
+  "kind": "rule",
+  "answers": [
+    "traces missing user on Windows",
+    "MLflow trace user empty on Windows host",
+    "mlflow.trace.user not set for Windows Claude Code or Codex users",
+    "why is trace user blank when running on Windows"
+  ],
+  "body": "Symptom: On Windows hosts, agent traces (Claude Code, Codex, Qwen Code, OpenCode, OpenClaw) show an empty user, because Windows sets USERNAME and not USER.\nRoot cause: Each integration read only process.env.USER (or os.environ.get(\"USER\")) when setting mlflow.trace.user, e.g. libs/typescript/integrations/claude-code/src/tracing.ts:processTranscript, libs/typescript/integrations/codex/src/tracing.ts:processNotify, and mlflow/claude_code/tracing.py:_finalize_trace.\nFix pattern: Resolve the user through a single helper that tries USER, then USERNAME, then ''. Use it at every site that writes TRACE_USER. The TS helper is libs/typescript/integrations/claude-code/src/_internal.ts:getCurrentUser; the Python helper is mlflow/claude_code/tracing.py:_get_current_user.\nConstraints: Keep the empty-string fallback when neither variable is set. Do not add new call sites that read USER directly, since that reintroduces the Windows gap.",
+  "applies": "Any code in the agent tracing integrations (TS packages under libs/typescript/integrations and mlflow/claude_code) that records the trace user.",
+  "tags": [
+    "tracing",
+    "windows",
+    "trace-metadata",
+    "claude-code",
+    "integrations"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/_internal.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:bb234798fbf9dee04e217a86",
+      "line": 21,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bb234798fbf9dee04e217a86",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:4718af474db349227c26be43",
+      "line": 528,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4718af474db349227c26be43",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/liveTracing.ts",
+      "symbol": "LiveTracingContext",
+      "hash": "sha256:4eaeb8d865a245964fdd6c9d",
+      "line": 94,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4eaeb8d865a245964fdd6c9d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "processNotify",
+      "hash": "sha256:80bea4f39326954f549eb127",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80bea4f39326954f549eb127",
+      "fanout": {
+        "files": 4,
+        "sites": 10,
+        "refs": 19
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/openclaw/src/service.ts",
+      "symbol": "createMLflowService",
+      "hash": "sha256:ec9571a28df366c62c23eabc",
+      "line": 290,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ec9571a28df366c62c23eabc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/opencode/src/index.ts",
+      "symbol": "processSession",
+      "hash": "sha256:2f0a7848e18f52f3904c2875",
+      "line": 450,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2f0a7848e18f52f3904c2875",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/qwen-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:bbea130d86cc23dfe5f07476",
+      "line": 52,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bbea130d86cc23dfe5f07476",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    },
+    {
+      "path": "mlflow/claude_code/tracing.py",
+      "symbol": "_get_current_user",
+      "hash": "sha256:584899ff7d928ba555edc0ba",
+      "line": 131,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:584899ff7d928ba555edc0ba",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/claude_code/tracing.py",
+      "symbol": "_finalize_trace",
+      "hash": "sha256:f8d2ef8886cd8bf6656e27b7",
+      "line": 509,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f8d2ef8886cd8bf6656e27b7"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-11T10:23:58.895Z",
+  "verified": "2026-10-11T10:23:58.895Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ts-integrations-keep-a-local-getcurrentuser-copy-to-respect",
+    "claude-code-llm-and-conversation-span-end-times-must-derive"
+  ],
+  "says": [
+    "Agent traces recorded on Windows machines show a blank user name.",
+    "User attribute is empty in trace history for Windows coding assistant sessions.",
+    "Populate the trace creator field correctly when running AI developer tools on Windows.",
+    "Trace details missing user information after running Claude Code on Windows.",
+    "Record the active Windows account name in agent activity trace logs."
+  ],
+  "search": "Agent tracing integrations must resolve user metadata by checking USER, falling back to USERNAME on Windows, and defaulting to an empty string. This fallback is centralized in getCurrentUser for TypeScript integrations and _get_current_user in mlflow/claude_code/tracing.py when setting mlflow.trace.user. Affected tools include Claude Code, Codex, Qwen Code, OpenCode, and OpenClaw across packages in libs/typescript/integrations and mlflow/claude_code. Call sites must never read USER directly to prevent reintroducing missing user metadata on Windows environments.",
+  "saysFor": "s2:cee88a3cd03e7290f4d29cc75c56764d3c99c5105f0ae7554f354f9c663fe03d"
+}

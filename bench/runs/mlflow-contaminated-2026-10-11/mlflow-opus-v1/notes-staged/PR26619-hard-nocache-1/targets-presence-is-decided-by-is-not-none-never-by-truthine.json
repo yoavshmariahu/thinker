@@ -1,0 +1,71 @@
+{
+  "id": "targets-presence-is-decided-by-is-not-none-never-by-truthine",
+  "title": "Targets presence is decided by 'is not None', never by truthiness",
+  "kind": "rule",
+  "answers": [
+    "why does evaluate ignore my empty targets list",
+    "targets=[] passed to evaluate gives no length error",
+    "how should optional targets be checked in mlflow evaluation dataset conversion",
+    "numpy array targets ambiguous truth value in evaluation"
+  ],
+  "body": "Invariant: in convert_data_to_mlflow_dataset, whether targets are present is decided by `targets is not None`, never by truthiness of `targets`.\nEnforced at mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset, where `np.array(targets) if targets is not None else None` is the only place targets are normalized for list input.\nWhat breaks if skipped: a truthiness check raises on multi-element NumPy arrays, and it silently converts explicit empty targets to None, which hides the length mismatch that standard validation should report.\nConstraints: explicit empty targets must reach the standard length validation. tests/data/test_evaluation_dataset.py:test_convert_list_data_with_empty_targets_uses_standard_validation expects a 'same length' MlflowException from to_evaluation_dataset().",
+  "applies": "Any code in mlflow/data that normalizes optional targets or other optional array inputs before building an evaluation dataset.",
+  "tags": [
+    "evaluation",
+    "targets",
+    "validation",
+    "numpy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/data/evaluation_dataset.py",
+      "symbol": "convert_data_to_mlflow_dataset",
+      "hash": "sha256:e0fd548686ce6dc0e0f79f06",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0fd548686ce6dc0e0f79f06",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "tests/data/test_evaluation_dataset.py",
+      "symbol": "test_convert_list_data_with_empty_targets_uses_standard_validation",
+      "hash": "sha256:bb711e0202a95449d0aad65b",
+      "line": 27,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bb711e0202a95449d0aad65b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25623"
+  },
+  "created": "2026-10-11T08:43:14.972Z",
+  "verified": "2026-10-11T08:43:14.972Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "evaluate-list-features-with-numpy-targets-truth-value-and-em"
+  ],
+  "says": [
+    "Model evaluation silently ignores empty target lists instead of reporting a length mismatch error.",
+    "Providing an empty list of targets during evaluation fails to trigger dataset length validation.",
+    "Evaluating a model with an array of targets crashes with an ambiguous truth error.",
+    "Ensure evaluation dataset creation treats empty targets as present to enforce length matching.",
+    "Empty target lists in model evaluation should produce a mismatched length validation error."
+  ],
+  "search": "In mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset, normalize optional targets using targets is not None rather than truthiness evaluation. Checking truthiness raises ambiguous truth value errors on multi-element NumPy arrays and silently converts empty lists to None, bypassing length validation. Explicit empty targets must reach standard length validation as tested in tests/data/test_evaluation_dataset.py:test_convert_list_data_with_empty_targets_uses_standard_validation.",
+  "saysFor": "s2:8723a15f2d99d7c0f5603132ad2e476c812f416c7c326dd50dd207d486ca027d"
+}

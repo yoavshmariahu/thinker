@@ -1,0 +1,87 @@
+{
+  "id": "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t",
+  "title": "Bedrock passthrough must build a new body and never mutate the caller's payload",
+  "kind": "rule",
+  "answers": [
+    "Bedrock Claude fallback sends the wrong body after the first provider fails",
+    "Why does the Anthropic passthrough payload lose model or stream on Bedrock",
+    "How do I add a passthrough body transform for a provider behind FallbackProvider",
+    "Bedrock InvokeModel request body anthropic_version bedrock-2023-05-31"
+  ],
+  "body": "Invariant: AmazonBedrockProvider._passthrough builds a new body dict for InvokeModel and leaves the caller's payload untouched. FallbackProvider hands the same payload to the next provider when this one fails, so an in-place edit corrupts the fallback leg.\nEnforced by: mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough (body is a dict comprehension that drops \"model\" and \"stream\", then sets anthropic_version on that copy).\nBedrock takes the model from the URL path and streaming from the path suffix -with-response-stream, so both keys are removed from the body; anthropic_version is set to bedrock-2023-05-31.\nTest: tests/gateway/providers/test_bedrock.py:test_bedrock_anthropic_passthrough_posts_to_invoke asserts payload[\"model\"] is unchanged after the call.\nWhat breaks if skipped: the next provider in a fallback chain receives a body missing its model or already carrying Bedrock-only keys, so the failover leg returns an error.",
+  "applies": "Any passthrough added to a provider whose request payload can be reused by FallbackProvider.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "passthrough",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "BaseProvider",
+      "hash": "sha256:8062d1e4947a8e90c56e8d76",
+      "line": 103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8062d1e4947a8e90c56e8d76",
+      "fanout": {
+        "files": 24,
+        "sites": 0,
+        "refs": 60
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_bedrock.py",
+      "symbol": "test_bedrock_anthropic_passthrough_posts_to_invoke",
+      "hash": "sha256:fe1c7dd513ddb270c246697b",
+      "line": 1007,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fe1c7dd513ddb270c246697b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T08:46:18.903Z",
+  "verified": "2026-10-11T08:46:18.903Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-adapters-silently-drop-request-keys-that-are-not-ren",
+    "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn",
+    "titan-rejects-top-p-0-with-a-422-before-calling-bedrock",
+    "bedrock-anthropic-passthrough-anthropic-models-only-api-key"
+  ],
+  "says": [
+    "Fallback to secondary provider fails because the model parameter is missing from the request.",
+    "Failover after a Bedrock error sends a corrupted payload to the backup model provider.",
+    "Streaming and model fields disappear when failing over from Bedrock to another provider.",
+    "Ensure provider failover chains preserve the original request payload when Bedrock calls fail."
+  ],
+  "search": "AmazonBedrockProvider._passthrough in mlflow/gateway/providers/bedrock.py must construct a new body dictionary for InvokeModel rather than modifying the caller's payload in place. Because FallbackProvider reuses the same request payload for subsequent providers if Bedrock fails, in-place deletion of model or stream or addition of anthropic_version bedrock-2023-05-31 corrupts the fallback failover leg. Applies to any passthrough used with FallbackProvider and is tested by tests/gateway/providers/test_bedrock.py:test_bedrock_anthropic_passthrough_posts_to_invoke asserting payload['model'] remains unchanged.",
+  "saysFor": "s2:26fb07867aab8558d5107c564e68ca5eef6cfa5e67fdd23e203f1cfa77c723e9"
+}

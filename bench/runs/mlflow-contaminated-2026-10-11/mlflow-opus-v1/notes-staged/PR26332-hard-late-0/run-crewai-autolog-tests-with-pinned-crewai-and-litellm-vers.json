@@ -1,0 +1,56 @@
+{
+  "id": "run-crewai-autolog-tests-with-pinned-crewai-and-litellm-vers",
+  "title": "Run CrewAI autolog tests with pinned crewai and litellm versions via uv",
+  "kind": "howto",
+  "answers": [
+    "how to run crewai autolog tests",
+    "pytest crewai tests with specific crewai version",
+    "uv run crewai test litellm version pin",
+    "why does crewai test fail with litellm 1.97.0"
+  ],
+  "body": "Command: uv run --frozen --with 'crewai==1.15.17' --with 'litellm!=1.97.0,<1.98.0' pytest tests/crewai/test_crewai_autolog.py\n--frozen keeps the lockfile resolution, so the repo lock is not re-solved.\n--with adds crewai at the pinned version on top of the lockfile environment for this run only.\nThe litellm constraint excludes 1.97.x, which the test suite does not support, so do not drop it.\nThe end-to-end test test_kickoff_trace_does_not_expose_llm_api_key mocks litellm.completion and needs litellm installed.",
+  "applies": "Applies when running or debugging tests in tests/crewai/ on this repository.",
+  "tags": [
+    "testing",
+    "crewai",
+    "uv"
+  ],
+  "deps": [
+    {
+      "path": "tests/crewai/test_crewai_autolog.py",
+      "symbol": "test_kickoff_trace_does_not_expose_llm_api_key",
+      "hash": "sha256:220f5108866a88c522f81adb",
+      "line": 897,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:220f5108866a88c522f81adb",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25845"
+  },
+  "created": "2026-10-11T08:46:52.283Z",
+  "verified": "2026-10-11T08:46:52.283Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assert-every-mocked-call-in-autolog-tests"
+  ],
+  "says": [
+    "CrewAI autologging tests fail when running against unsupported versions of the underlying language model library.",
+    "Run CrewAI integration tests locally using specific pinned package versions without modifying the lockfile.",
+    "Language model API key security test for CrewAI fails during local test suite execution.",
+    "Verify that CrewAI kickoff execution traces do not expose sensitive language model credentials.",
+    "Execute CrewAI automated logging checks with required dependency pins to avoid version conflicts."
+  ],
+  "search": "Running CrewAI autolog tests in tests/crewai/ with uv run using pinned dependencies on top of the locked environment. Execute uv run --frozen --with 'crewai==1.15.17' --with 'litellm!=1.97.0,<1.98.0' pytest tests/crewai/test_crewai_autolog.py to keep repo lockfile resolution intact. The litellm constraint excludes unsupported 1.97.x versions needed for test_kickoff_trace_does_not_expose_llm_api_key, which mocks litellm.completion.",
+  "saysFor": "s2:b0aa5733a7b31d6b8e838f4f844fb5c1e5bd720821b3c5a8d4177b15bf0c7aba"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "fs2db-migration-is-sqlite-only-so-postgresql-url-normalizati",
+  "title": "fs2db migration is SQLite-only, so PostgreSQL URL normalization does not belong there",
+  "kind": "map",
+  "answers": [
+    "does migrate-filestore support postgres as target",
+    "where is the filestore to database migration engine created",
+    "fs2db postgresql driver normalization"
+  ],
+  "body": "mlflow/store/fs2db/cli.py rejects every non-SQLite target for migrate-filestore, so the CLI cannot reach a PostgreSQL engine.\nmlflow/store/fs2db/__init__.py:migrate registers an unconditional SQLite-only PRAGMA listener on the engine, so a direct PostgreSQL call would be incompatible with it as well.\nBecause of this, adding postgresql+psycopg2 normalization in fs2db was unreachable for valid input and was reverted; the PostgreSQL driver concern for the filestore migration does not live in this module.",
+  "applies": "Filestore-to-database migration code under mlflow/store/fs2db; revisit only if the CLI starts accepting PostgreSQL targets.",
+  "tags": [
+    "fs2db",
+    "migration",
+    "filestore",
+    "sqlite"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/fs2db/__init__.py",
+      "symbol": "migrate",
+      "hash": "sha256:dae1530ce07c133acd6c19be",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dae1530ce07c133acd6c19be",
+      "fanout": {
+        "files": 26,
+        "sites": 6,
+        "refs": 42
+      }
+    },
+    {
+      "path": "mlflow/store/fs2db/cli.py",
+      "hash": "sha256:86ddb11debca9f525c39bd23",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26239"
+  },
+  "created": "2026-10-11T10:26:41.005Z",
+  "verified": "2026-10-11T10:26:41.005Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The filestore migration tool rejects connection strings for PostgreSQL target databases.",
+    "Allow migrating data from local file storage directly into a PostgreSQL database.",
+    "The database migration command fails when pointing to a remote PostgreSQL destination.",
+    "Support PostgreSQL destinations in the command line utility for migrating file store data.",
+    "Running the storage migration command against a PostgreSQL target shows an unsupported database error."
+  ],
+  "search": "Filestore-to-database migration in mlflow/store/fs2db supports SQLite only, making PostgreSQL URL normalization unreachable. In mlflow/store/fs2db/cli.py, migrate-filestore rejects all non-SQLite target URLs, and mlflow/store/fs2db/__init__.py:migrate attaches an unconditional SQLite PRAGMA listener to the engine. PostgreSQL driver normalization (postgresql+psycopg2) was reverted from fs2db and should be reconsidered only if the CLI is modified to accept PostgreSQL targets.",
+  "saysFor": "s2:685c6e246c65b13a1c722bd83d9f84cd943a22426a1e5bfc9b02c3b22c89c4de"
+}

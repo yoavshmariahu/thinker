@@ -1,0 +1,65 @@
+{
+  "id": "anyio-4-15-0-removed-from-thread-so-every-server-request-ret",
+  "title": "anyio 4.15.0 removed from_thread, so every server request returns 500 (/health included); exclude that release",
+  "kind": "rule",
+  "answers": [
+    "server /health returns 500 after upgrading anyio",
+    "mlflow server not ready, helm install context deadline exceeded",
+    "AttributeError module anyio has no attribute from_thread",
+    "mlflow model server all requests fail with internal error"
+  ],
+  "body": "Symptom: the MLflow tracking server returns HTTP 500 on every request, including /health, so Kubernetes readiness never passes and helm install --wait times out after a fresh pip install.\nRoot cause: anyio 4.15.0 dropped from_thread from its top-level lazy-import shim. mlflow/server/fastapi_app.py wraps the Flask app with starlette's WSGI bridge, whose WSGIResponder.start_response calls anyio.from_thread.run, so the call raises AttributeError.\nFix pattern: declare anyio as a direct dependency with a major-version cap and an unsupported entry for the broken release (requirements/skinny-requirements.yaml anyio block, mirrored into pyproject.toml and libs/skinny/pyproject.toml as anyio<5,>=3.6.2,!=4.15.0).\nConstraints: this is a bound on anyio, not a code change to the WSGI wrapper. Lift the exclusion only after confirming the starlette bridge works with the newer anyio. The description reports the cause from a failing CI run, not from a reproduction in this diff.",
+  "applies": "Dependency bounds for anyio in mlflow-skinny and mlflow; relevant when anyio or starlette versions change.",
+  "tags": [
+    "anyio",
+    "server",
+    "regression",
+    "health-check"
+  ],
+  "deps": [
+    {
+      "path": "requirements/skinny-requirements.yaml",
+      "hash": "sha256:b7fc58b978fc79464fa8fd60",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/fastapi_app.py",
+      "symbol": "fastapi_app",
+      "hash": "sha256:2774b788d82c03311ba292a1",
+      "line": 259,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 0,
+        "refs": 95
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25559"
+  },
+  "created": "2026-10-11T08:51:00.739Z",
+  "verified": "2026-10-11T08:51:00.739Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "directly-imported-dependencies-must-be-declared-in-requireme"
+  ],
+  "says": [
+    "Tracking server returns an internal server error on every request after fresh installation",
+    "Kubernetes deployment never becomes ready and times out waiting for server health check",
+    "Server status endpoint returns five hundred error immediately following a new release install",
+    "Cluster container startup fails health probe and times out during automated deployment",
+    "Prevent tracking server from crashing on all incoming requests due to incompatible background libraries"
+  ],
+  "search": "anyio 4.15.0 removed from_thread from its lazy-import shim, causing starlette's WSGI bridge in mlflow/server/fastapi_app.py:fastapi_app to raise AttributeError and return HTTP 500 on all requests including /health. In requirements/skinny-requirements.yaml, pyproject.toml, and libs/skinny/pyproject.toml, anyio must be bounded to anyio<5,>=3.6.2,!=4.15.0. This is a dependency pin rather than a code change to the WSGI wrapper, and the exclusion must remain until the starlette bridge is confirmed to work with newer anyio.",
+  "saysFor": "s2:0af13012555a400eaa3fe3a0821a81ef04908a90872aaafc3d143c924211ed9a"
+}

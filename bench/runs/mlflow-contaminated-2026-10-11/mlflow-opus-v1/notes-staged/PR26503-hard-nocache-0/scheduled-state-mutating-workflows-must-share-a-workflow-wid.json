@@ -1,0 +1,61 @@
+{
+  "id": "scheduled-state-mutating-workflows-must-share-a-workflow-wid",
+  "title": "Scheduled state-mutating workflows must share a workflow-wide concurrency group",
+  "kind": "rule",
+  "answers": [
+    "scheduled stale bot runs overlapping or running at the same time",
+    "manual workflow_dispatch queued behind cron run",
+    "why does my stale or duplicate-PR workflow not serialize",
+    "concurrency group for scheduled workflows in MLflow"
+  ],
+  "body": "Symptom: Overlapping runs of the scheduled stale/duplicate-PR/flaky-test bots can act on the same issues or PRs at once, and a manual dispatch can start while a cron run is still mutating state.\nRoot cause: .github/workflows/stale.yml, stale-prs.yml, duplicate-prs.yml and flaky-test-detector.yml used `group: ${{ github.run_id }}`, which is unique per run, so nothing ever queues.\nFix pattern: Set `concurrency.group: ${{ github.workflow }}` with `cancel-in-progress: false` so all runs of one workflow share a single queue and none are killed mid-mutation.\nConstraints: Keep `cancel-in-progress: false` for these state-mutating workflows; cancelling would abort a half-finished run. Do not use run_id-based groups here. Serialization is per workflow, so a different workflow file is not blocked by these.",
+  "applies": "Applies to the four scheduled, state-mutating workflow files listed above and any new cron workflow that edits issues, PRs or labels in this repo.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "workflows",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stale.yml",
+      "hash": "sha256:3fea670bdac385c6eaabe7be",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/stale-prs.yml",
+      "hash": "sha256:bcfaa791b9cd9ca7daa21e43",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/duplicate-prs.yml",
+      "hash": "sha256:7d86d4f5646aa2148d0ec206",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/flaky-test-detector.yml",
+      "hash": "sha256:613db574b06454599cf14c9d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25620"
+  },
+  "created": "2026-10-11T08:43:09.375Z",
+  "verified": "2026-10-11T08:43:09.375Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Scheduled stale issue bots run concurrently and modify the same pull requests simultaneously.",
+    "Manual runs of maintenance workflows collide with active scheduled jobs updating labels.",
+    "Queue duplicate pull request cleanup jobs instead of letting simultaneous executions conflict.",
+    "Prevent scheduled repository automation from terminating mid-run when another execution is triggered.",
+    "Flaky test detector runs overlap and corrupt shared state across open issues."
+  ],
+  "search": "Scheduled state-mutating workflows must configure concurrency.group to github.workflow with cancel-in-progress set to false. This serializes cron runs and manual workflow_dispatch triggers in .github/workflows/stale.yml, stale-prs.yml, duplicate-prs.yml, flaky-test-detector.yml, and any new workflow mutating issues, PRs, or labels. Run_id-based groups must not be used because they prevent queuing, and cancel-in-progress must remain false to avoid aborting runs mid-mutation.",
+  "saysFor": "s2:ab01e451808d2dd2cddab06a07a926dc532c69b3ad30c0e67c9b61615b12483a"
+}

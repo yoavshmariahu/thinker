@@ -1,0 +1,69 @@
+{
+  "id": "model-version-arguments-must-be-normalized-to-int-before-ali",
+  "title": "Model version arguments must be normalized to int before alias cleanup in the SQL registry store",
+  "kind": "rule",
+  "answers": [
+    "deleting a model version leaves its alias behind",
+    "registered model alias still points to deleted version after delete through tracking server",
+    "why does delete_model_version keep stale aliases when version is passed as a string",
+    "SqlAlchemyStore delete_model_version alias comparison int versus str"
+  ],
+  "body": "Symptom: After a model version is deleted through the tracking server, its alias (e.g. 'champion') is still listed on the registered model, even though the version no longer exists.\nRoot cause: The tracking server passes `version` as a str, and mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.delete_model_version compared it against the integer version column when cleaning up aliases, so the match failed silently and no alias rows were removed.\nFix pattern: Normalize the argument first with `version = _validate_model_version(version)` before opening the session and running any alias or version query. Cover both `2` and `\"2\"` in tests (parametrize, as tests/store/model_registry/test_sqlalchemy_store.py:test_delete_model_version_deletes_alias does).\nConstraints: Apply to any SqlAlchemyStore method that accepts a version and compares it to the integer version column. Validation must happen before the first database comparison; placing it after the query gives the same bug. Not verified for the FileStore path.\nApplies: Model-registry SQL store methods that take a model version argument; does not cover search filter parsing.",
+  "applies": "Model-registry SQLAlchemy store methods that accept a version argument and touch alias or version rows.",
+  "tags": [
+    "model-registry",
+    "sqlalchemy",
+    "aliases",
+    "delete-model-version",
+    "type-coercion"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/model_registry/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.delete_model_version",
+      "hash": "sha256:2d9fcad71952de93ac0cd5b1",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2d9fcad71952de93ac0cd5b1",
+      "fanout": {
+        "files": 16,
+        "sites": 33,
+        "refs": 36
+      }
+    },
+    {
+      "path": "tests/store/model_registry/test_sqlalchemy_store.py",
+      "symbol": "test_delete_model_version_deletes_alias",
+      "hash": "sha256:521c67112edf654dc871973e",
+      "line": 1944,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:521c67112edf654dc871973e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26173"
+  },
+  "created": "2026-10-11T10:26:56.169Z",
+  "verified": "2026-10-11T10:26:56.169Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Deleting a model version leaves its champion alias still attached to the registered model.",
+    "The model alias still points to a deleted version in the model registry.",
+    "Remove stale aliases automatically whenever a user deletes that specific version from the registry.",
+    "A deleted model version is still displayed under the assigned alias on the model details page."
+  ],
+  "search": "In mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.delete_model_version, the version argument must be normalized with version = _validate_model_version(version) before running alias or version queries. Normalizing string versions prevents silent failures where comparing strings against the integer version column leaves aliases behind on the registered model after tracking server deletion. This applies to SqlAlchemyStore methods taking a version argument and comparing against the integer column before database queries, but does not cover search filter parsing or FileStore.",
+  "saysFor": "s2:1918a7e7e636c425f59b61814bb26ed9ab31eef173dbd03b31c837688774cb5e"
+}

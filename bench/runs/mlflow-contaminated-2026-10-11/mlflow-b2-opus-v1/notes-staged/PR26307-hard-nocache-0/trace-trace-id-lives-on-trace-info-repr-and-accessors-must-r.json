@@ -1,0 +1,99 @@
+{
+  "id": "trace-trace-id-lives-on-trace-info-repr-and-accessors-must-r",
+  "title": "Trace.trace_id lives on Trace.info; repr and accessors must resolve it through info",
+  "kind": "rule",
+  "answers": [
+    "trace.trace_id raises AttributeError",
+    "repr of Trace shows a trace_id that I cannot access",
+    "how do I get the trace id from a Trace object",
+    "Trace repr prints Trace(trace_id=...) but the attribute is missing"
+  ],
+  "body": "Symptom: Users calling `trace.trace_id` on a Trace get AttributeError, even though the repr shows `Trace(trace_id=...)`.\nRoot cause: mlflow/entities/trace.py:Trace.__repr__ printed a `trace_id` that is not a field on Trace; the real identifier is `self.info.trace_id` (TraceInfo).\nFix pattern: keep the identifier on `info`. Expose `Trace.trace_id` as a @property returning `self.info.trace_id`, and build repr from a guarded lookup (`getattr(self.info, \"trace_id\", None) if self.info else None`) formatted with `!r` so the output is a valid Python literal.\nConstraints: The property does not guard against `info is None`; only __repr__ has the fallback. Any new Trace-level accessor should delegate to `info` the same way rather than copying fields onto Trace.\nApplies to: mlflow/entities/trace.py Trace class; covered by tests/entities/test_trace.py:test_trace_repr_and_trace_id.",
+  "applies": "Trace entity in mlflow/entities/trace.py and any code that renders or reads the trace identifier.",
+  "tags": [
+    "tracing",
+    "entities",
+    "trace",
+    "repr"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "Trace.__repr__",
+      "hash": "sha256:680858a76d9496540b4b4f5a",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:680858a76d9496540b4b4f5a",
+      "fanout": {
+        "files": 5,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "Trace.trace_id",
+      "hash": "sha256:7c54fb2e948ee909af27c9e5",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ddf3669baf4fe20f3deba2f6",
+      "fanout": {
+        "files": 164,
+        "sites": 0,
+        "refs": 1996
+      }
+    },
+    {
+      "path": "tests/entities/test_trace.py",
+      "symbol": "test_trace_repr_and_trace_id",
+      "hash": "sha256:90cf348139150eccfc6b7a13",
+      "line": 595,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:90cf348139150eccfc6b7a13",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "trace_id",
+      "hash": "sha256:7c54fb2e948ee909af27c9e5",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ddf3669baf4fe20f3deba2f6",
+      "fanout": {
+        "files": 164,
+        "sites": 0,
+        "refs": 1996
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26007"
+  },
+  "created": "2026-10-11T10:25:12.373Z",
+  "verified": "2026-10-11T10:25:12.373Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-add-deprecated-aliases-to-trace-for-old-identifier-na"
+  ],
+  "says": [
+    "Cannot access trace identifier directly on the returned trace object in Python.",
+    "Printed trace representation displays an ID field that fails when accessed in code.",
+    "Allow getting the trace identifier property directly from the main trace entity.",
+    "Accessing the ID on a retrieved trace raises an attribute missing error.",
+    "Trace summary output shows a trace ID that cannot be extracted programmatically."
+  ],
+  "search": "In mlflow/entities/trace.py, the Trace entity stores its identifier on TraceInfo, requiring Trace.trace_id to delegate to self.info.trace_id. Trace.__repr__ prints trace_id using a guarded getattr(self.info, 'trace_id', None) formatted with !r as a Python literal. While __repr__ handles info being None, the Trace.trace_id property does not guard against a missing info object. Any new Trace-level accessors must delegate to info rather than duplicating fields, as verified in tests/entities/test_trace.py:test_trace_repr_and_trace_id.",
+  "saysFor": "s2:3f8b77f8082ab745d580efc05985496ffb95ac4bca53cd84b3d7d11de558527f"
+}

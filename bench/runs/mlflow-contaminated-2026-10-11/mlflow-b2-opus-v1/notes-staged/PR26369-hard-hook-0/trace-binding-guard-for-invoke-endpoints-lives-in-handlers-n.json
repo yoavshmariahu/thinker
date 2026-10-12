@@ -1,0 +1,73 @@
+{
+  "id": "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n",
+  "title": "Trace-binding guard for invoke endpoints lives in handlers, not auth validators",
+  "kind": "rule",
+  "answers": [
+    "where to add authorization for trace ids in the invoke routes",
+    "why the scorer trace check is not in the auth validator",
+    "deployment without basic-auth app still checks trace ownership"
+  ],
+  "body": "Invariant: The trace-to-experiment ownership check for /invoke routes is implemented inside the handler functions in mlflow/server/handlers.py (via _validate_trace_ids_in_experiment), not in the auth validators in mlflow/server/auth.\nEnforced by: mlflow/server/handlers.py:_invoke_scorer_handler, _invoke_issue_detection_handler, _invoke_genai_evaluate_handler, all calling the same helper.\nWhat breaks if skipped: Deployments that mount the handlers without the basic-auth app lose the check entirely, and the three invoke endpoints drift apart.\nConstraints: The auth validator still gates on experiment UPDATE permission; the handler check is an additional binding, not a replacement. Reviewer note: on plain OSS basic-auth, worker callbacks are rejected by the auth layer, so full content disclosure needs workers with a service identity.",
+  "applies": "Authorization changes for trace_ids or other object ids referenced by background-job endpoints.",
+  "tags": [
+    "security",
+    "authorization",
+    "layering",
+    "invoke"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5500,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7565,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-11T10:25:56.189Z",
+  "verified": "2026-10-11T10:25:56.189Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-ids-input-contract-shared-by-the-three-invoke-handlers",
+    "server-side-decorator-call-source-scorers-are-blocked-unless",
+    "validate-the-resolved-scorer-payload-that-a-job-will-run-not",
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor"
+  ],
+  "says": [
+    "Ensure background evaluation jobs verify trace ownership across experiments even without basic authentication.",
+    "Prevent users from running scorer or issue detection jobs on unauthorized experiment traces.",
+    "Trace authorization checks fail to block access when basic authentication is not enabled.",
+    "Evaluation and issue detection endpoints should enforce experiment permissions for all submitted traces.",
+    "Running background evaluation on traces from another experiment should be rejected."
+  ],
+  "search": "Trace-to-experiment ownership validation for /invoke endpoints must reside in handler functions rather than auth validators. In mlflow/server/handlers.py, _validate_trace_ids_in_experiment is called by _invoke_scorer_handler, _invoke_issue_detection_handler, and _invoke_genai_evaluate_handler. This handler-level check ensures deployments mounted without the basic-auth app still verify trace ownership, while auth validators still check experiment UPDATE permission. Guidance applies to background-job authorization changes, noting worker callbacks on plain basic-auth get rejected unless workers use a service identity.",
+  "saysFor": "s2:1799f21df2230e789446eb095f13190fa4dbe67e2818140b4116b0be890a6e52"
+}

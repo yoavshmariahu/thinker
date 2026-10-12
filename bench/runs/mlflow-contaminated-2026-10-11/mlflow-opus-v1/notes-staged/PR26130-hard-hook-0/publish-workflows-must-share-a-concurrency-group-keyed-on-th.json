@@ -1,0 +1,56 @@
+{
+  "id": "publish-workflows-must-share-a-concurrency-group-keyed-on-th",
+  "title": "Publish workflows must share a concurrency group keyed on the resource, not github.run_id",
+  "kind": "rule",
+  "answers": [
+    "release image pushes running concurrently or out of order",
+    "two release label updates overlap for the same release tag",
+    "how do I serialize a GitHub Actions workflow so publishes do not race",
+    "concurrency group per run does not serialize anything"
+  ],
+  "body": "Symptom: Release image pushes or release label updates for the same release can run at the same time, so a publish can interleave with another and leave partial state.\nRoot cause: .github/workflows/push-images.yml, .github/workflows/update-release-labels.yml and .github/workflows/preview-docs.yml had `concurrency.group: ${{ github.run_id }}`, which is unique per run, so no two runs ever share a group and nothing is serialized.\nFix pattern: Key the group on the thing being published: `${{ github.workflow }}-${{ github.event.release.tag_name }}` for image pushes; `${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}` for label updates, where manual runs have no release and fall back to the ref.\nConstraints: Keep `cancel-in-progress: false` on publish workflows so an in-flight publish completes. Reviewers noted GitHub keeps only one pending run per group even with cancel-in-progress false, so more than two queued runs for one key can still drop a pending run.",
+  "applies": "Any GitHub Actions workflow under .github/workflows/ that publishes or mutates shared release or deployment state.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "release"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:3b5cde2b4cea05bff7192eed",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-release-labels.yml",
+      "hash": "sha256:ffc6562ffbec879d68d2d7d1",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/preview-docs.yml",
+      "hash": "sha256:f7af9cdde0df3c0894c6de58",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25622"
+  },
+  "created": "2026-10-11T08:49:44.859Z",
+  "verified": "2026-10-11T08:49:44.859Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Publishing container images for the same version runs simultaneously and leaves broken deployment state.",
+    "Simultaneous updates to release tags are stepping on each other and leaving mismatched version labels.",
+    "Preview builds for documentation triggered at the same time overwrite each other instead of waiting.",
+    "Ensure publishing jobs for identical release versions finish sequentially instead of clashing concurrently.",
+    "Prevent active release publishes from being cancelled when another update is queued for that release."
+  ],
+  "search": "Workflows that publish or mutate release or deployment state must serialize execution by keying the concurrency group on the published resource rather than github.run_id. Applies to .github/workflows/push-images.yml using ${{ github.workflow }}-${{ github.event.release.tag_name }}, .github/workflows/update-release-labels.yml using ${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}, and .github/workflows/preview-docs.yml. Workflows must retain cancel-in-progress: false so in-flight publishes complete, though GitHub will drop runs if more than two are queued for a single key.",
+  "saysFor": "s2:1755d7b1cb2d71a2877cffbe3a8eacf3a36382a0006f61af3f53f0c7defc4497"
+}

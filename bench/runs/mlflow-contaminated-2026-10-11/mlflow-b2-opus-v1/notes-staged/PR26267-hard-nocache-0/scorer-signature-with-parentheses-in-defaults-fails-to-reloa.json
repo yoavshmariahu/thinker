@@ -1,0 +1,89 @@
+{
+  "id": "scorer-signature-with-parentheses-in-defaults-fails-to-reloa",
+  "title": "Scorer signature with parentheses in defaults fails to reload after save",
+  "kind": "rule",
+  "answers": [
+    "custom scorer fails to load after saving, invalid syntax in recreated function",
+    "scorer with tuple default argument cannot be loaded back",
+    "Failed to recreate function from source code SyntaxError with @scorer defaults",
+    "saved scorer with parentheses in default value or annotation won't load"
+  ],
+  "body": "Symptom: A custom @scorer saves without error but cannot be loaded back. Loading fails with \"Failed to recreate function from source code ... invalid syntax\" when a default value contains a \")\", e.g. keywords=(\"refund\", \"order\") or a \")\" string default.\nRoot cause: mlflow/genai/scorers/scorer_utils.py:recreate_function used re.match(r\"\\((.*?)\\)\", signature), which stops at the first \")\" and truncated the parameter list.\nFix pattern: Parse the saved signature string with ast (ast.parse(f\"def _f{signature}: pass\"), nothing executed) and take the parameter text from ast.unparse(func_def.args). The logic lives in mlflow/genai/scorers/scorer_utils.py:_extract_params_from_signature, which recreate_function calls.\nConstraints: Do not reintroduce regex matching on signature text for parameter extraction; nested parentheses, commas and quotes make it wrong. The return annotation is still dropped on reload, as before. Keep the signature parse non-executing.",
+  "applies": "Applies to loading serialized custom scorers in mlflow/genai/scorers; does not cover other serialization paths.",
+  "tags": [
+    "genai",
+    "scorers",
+    "serialization",
+    "scorer_utils",
+    "regex",
+    "ast"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "recreate_function",
+      "hash": "sha256:9d4dfbb23cd495f54ea42b42",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d4dfbb23cd495f54ea42b42",
+      "fanout": {
+        "files": 2,
+        "sites": 25,
+        "refs": 27
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "_extract_params_from_signature",
+      "hash": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "line": 130,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_scorer_utils.py",
+      "symbol": "test_signature_with_parentheses_in_defaults",
+      "hash": "sha256:3dd93236db4d305a09d85350",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3dd93236db4d305a09d85350",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26172"
+  },
+  "created": "2026-10-11T10:24:14.117Z",
+  "verified": "2026-10-11T10:24:14.117Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "omit-docstrings-that-only-restate-a-private-helper-s-name",
+    "server-side-decorator-call-source-scorers-are-blocked-unless",
+    "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi",
+    "third-party-scorer-module-allow-list-is-matched-exactly-neve"
+  ],
+  "says": [
+    "Custom evaluation metric fails to reload after saving when default parameters contain tuples.",
+    "Saved model scorer throws invalid syntax error when restored into evaluation experiments.",
+    "Cannot load saved evaluation scorer whose default argument includes parentheses or list values.",
+    "Ensure custom generative AI scorers with complex default settings reload without errors."
+  ],
+  "search": "Reloading saved custom scorers in mlflow/genai/scorers must parse signature parameters using the AST rather than regular expressions. In mlflow/genai/scorers/scorer_utils.py:recreate_function and _extract_params_from_signature, extract parameters by non-executing ast.parse and ast.unparse so default values containing parentheses do not truncate the parameter list. This guidance applies strictly to serialized custom scorer loading; return annotations are still dropped on reload, and regex matching on signature text must not be reintroduced.",
+  "saysFor": "s2:c32e4544c8a6bfdccc22913fe1554248ece4c13f34440361c5ed105cecf88f72"
+}

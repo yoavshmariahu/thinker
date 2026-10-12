@@ -1,0 +1,59 @@
+{
+  "id": "remove-on-error-log-lines-must-reflect-the-actual-cleanup-ou",
+  "title": "remove_on_error log lines must reflect the actual cleanup outcome",
+  "kind": "rule",
+  "answers": [
+    "misleading Successfully removed warning for a file that was never created",
+    "log says removed when the path was not deleted",
+    "why does the cleanup log claim success for a missing path"
+  ],
+  "body": "Symptom: Logs say a partial file was removed when it never existed or was not removed.\nRoot cause: mlflow/utils/file_utils.py:remove_on_error chose its message by re-checking os.path.exists(path) after cleanup, which is true for neither the never-created nor the failed-cleanup case.\nFix pattern: Pick a remover by os.path.isfile / os.path.isdir before the try; log 'Successfully removed' only right after the remover returns, and 'Failed to remove <path>: <error>' from the except. Paths that are neither regular file nor directory are logged as 'Not removing' and left alone.\nConstraints: Tests in tests/utils/test_file_utils.py assert the exact list of warning messages emitted, so any new log line changes those assertions. Nonexistent paths log nothing.",
+  "applies": "Changes to remove_on_error's logging or its file/directory dispatch.",
+  "tags": [
+    "artifacts",
+    "logging",
+    "file-utils"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/file_utils.py",
+      "symbol": "remove_on_error",
+      "hash": "sha256:b878f6598dd5f8d0d49f9529",
+      "line": 794,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b878f6598dd5f8d0d49f9529",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 14
+      }
+    },
+    {
+      "path": "tests/utils/test_file_utils.py",
+      "hash": "sha256:bf8ce0bbf36395260a6c20fa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25626"
+  },
+  "created": "2026-10-11T08:49:38.070Z",
+  "verified": "2026-10-11T08:49:38.070Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "remove-on-error-must-re-raise-the-original-error-when-partia"
+  ],
+  "says": [
+    "Console logs falsely report cleanup succeeded for files that were never created.",
+    "Activity log claims partial files were removed even when deletion actually failed.",
+    "Stop showing successful cleanup messages when aborting downloads that created no files.",
+    "Failure logs should clearly indicate when temporary file deletion fails or is skipped."
+  ],
+  "search": "Logging in mlflow/utils/file_utils.py:remove_on_error must accurately report cleanup outcomes by checking os.path.isfile or os.path.isdir before cleanup and logging 'Successfully removed' only immediately after removal returns. Failed deletions must log 'Failed to remove <path>: <error>' from the except block, paths neither file nor directory must be logged as 'Not removing' and left alone, and nonexistent paths must log nothing. This applies to changes to remove_on_error's logging or file/directory dispatch, where tests in tests/utils/test_file_utils.py assert the exact list of emitted warning messages.",
+  "saysFor": "s2:08678728b43e3812d34b0f58c86624a05c63cb71629ea04405cd9e56f3200c33"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "copilot-reviewer-guidance-lives-in-code-review-instructions",
+  "title": "Copilot reviewer guidance lives in code-review.instructions.md; keep verification nudges conditional",
+  "kind": "rule",
+  "answers": [
+    "How do I change how Copilot code review checks its own claims?",
+    "Make the Copilot reviewer run code before posting a finding",
+    "Where is the guidance that tells Copilot to verify behavior?",
+    "Copilot review posts speculative findings like off-by-one or race conditions"
+  ],
+  "body": "Convention: reviewer behavior for Copilot code review is set in .github/instructions/code-review.instructions.md, not in code comments or workflow files.\nThe reviewer has a bash tool on a full checkout (ubuntu-24.04 runner), so it can run code to settle a behavioral claim, but it often infers instead.\nThe \"## Verify When It's Cheap\" section asks it to run a quick command when that is cheap. The nudge is conditional by design.\nDo not turn verification into a requirement: the reviewer has no web access and a $5 cost budget, so some claims cannot be checked, and mandatory proof would suppress useful findings.\nWhen adding guidance to this file, keep it short, state when it applies, and leave unverified findings allowed.",
+  "applies": "Edits to Copilot/agent code review guidance in this repository; not for human review or general docs.",
+  "tags": [
+    "copilot",
+    "code-review",
+    "instructions",
+    "review-guidance"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:c285df58ecd7ef16ef7cc4b1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25586"
+  },
+  "created": "2026-10-11T08:43:27.818Z",
+  "verified": "2026-10-11T08:43:27.818Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated pull request reviewer posts speculative bugs without running code to confirm them.",
+    "Make the automated code review bot test its claims before commenting on pull requests.",
+    "Pull request review comments contain theoretical issues like race conditions that were never tested.",
+    "Ask the code review assistant to verify cheap checks before posting bug reports.",
+    "Prevent the automated reviewer from guessing behavior instead of running a quick test command."
+  ],
+  "search": "Reviewer guidance for Copilot code review is configured in .github/instructions/code-review.instructions.md, where the '## Verify When It's Cheap' section provides conditional nudges rather than mandatory verification requirements. While the ubuntu-24.04 runner provides a bash tool to settle behavioral claims, mandatory proof is prohibited because the reviewer lacks web access and operates under a five-dollar budget. Guidance added to this file must remain brief, state when it applies, and keep unverified findings permitted.",
+  "saysFor": "s2:d31deb66fac20424d11dcc623635e3a000801423dceaf12bb2be68c37573f190"
+}

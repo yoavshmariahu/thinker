@@ -1,0 +1,95 @@
+{
+  "id": "server-side-decorator-call-source-scorers-are-blocked-unless",
+  "title": "Server-side decorator (call_source) scorers are blocked unless MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS is set, and the check recurses into ensembles",
+  "kind": "rule",
+  "answers": [
+    "Why does registering a @scorer decorator scorer on the tracking server get rejected?",
+    "How do I allow custom code scorers on the MLflow server?",
+    "Decorator scorer nested inside an ensemble is not rejected by the server, why?"
+  ],
+  "body": "Symptom: Registering or invoking a custom @scorer decorator scorer against the server fails with \"decorator scorer registration not supported\"; enabling the server custom-scorer setting must make it go through.\nRoot cause: mlflow/server/handlers.py:_validate_serialized_scorer_payload used to reject only a top-level call_source field, unconditionally, and ignored nested ensemble sub-scorers.\nFix pattern: Gate the call_source exec() check on mlflow/genai/scorers/scorer_utils.py:custom_scorer_execution_blocked(serialized_data) instead of inspecting serialized_data.get(\"call_source\") directly. That helper is opt-in via MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS and recursive over ensemble_scorer_data.\nConstraints: Applies to caller payloads on register and invoke and to scorers fetched from the store, since older rows can carry the same fields. The env flag only relaxes the exec() guard; it must not be used to relax the third-party egress check (see the sibling rule). Tests live in tests/server/test_handlers.py.",
+  "applies": "Any server-side path that reconstructs a serialized scorer (register, invoke, stored-scorer reads) in mlflow/server/handlers.py.",
+  "tags": [
+    "security",
+    "scorers",
+    "server",
+    "evaluation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "custom_scorer_execution_blocked",
+      "hash": "sha256:158076d82a28d7a4f10e4099",
+      "line": 435,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:158076d82a28d7a4f10e4099",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "DECORATOR_SCORER_REGISTRATION_NOT_SUPPORTED_ERROR",
+      "hash": "sha256:db6d1d9ba52a441732bbd989",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "hash": "sha256:50ddc98da0d813288b4da9d3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25993"
+  },
+  "created": "2026-10-11T10:29:27.639Z",
+  "verified": "2026-10-11T10:29:27.639Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n",
+    "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi",
+    "third-party-scorer-module-allow-list-is-matched-exactly-neve",
+    "validate-the-resolved-scorer-payload-that-a-job-will-run-not"
+  ],
+  "says": [
+    "Registering a custom evaluation scorer fails saying decorator scorer registration not supported.",
+    "Enable custom Python evaluation functions to run on the tracking server.",
+    "Saving an ensemble evaluator that contains custom scoring logic should be blocked.",
+    "Invoking custom code evaluation metrics on the server throws a rejected error.",
+    "Allow team members to register custom code scorers for model evaluation."
+  ],
+  "search": "Server-side execution and registration of custom decorator scorers are gated on MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS using custom_scorer_execution_blocked in mlflow/genai/scorers/scorer_utils.py. The check recursively inspects ensemble_scorer_data to prevent nested decorator scorers from executing without the flag. This validation applies to register and invoke payloads in mlflow/server/handlers.py:_validate_serialized_scorer_payload as well as stored scorers, but relaxing the execution guard must not relax third-party egress checks.",
+  "saysFor": "s2:89c968fed70acf059cac4236a05fe9a94e5013f918a842c2f4645c9b04366e93",
+  "lastUsed": "2026-10-11T18:26:42.595Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26225-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26225-hard-1"
+  ]
+}

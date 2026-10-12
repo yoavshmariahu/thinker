@@ -1,0 +1,85 @@
+{
+  "id": "bedrock-anthropic-passthrough-anthropic-models-only-api-key",
+  "title": "Bedrock Anthropic passthrough: Anthropic models only, API-key auth only, client credentials always dropped",
+  "kind": "rule",
+  "answers": [
+    "Bedrock passthrough returns 501 with access keys or IAM role",
+    "Gateway returns 400 for a non-Claude model on the Anthropic messages route",
+    "Client Authorization or x-api-key leaks to Bedrock through the gateway",
+    "Which Bedrock auth modes support the Anthropic Messages passthrough"
+  ],
+  "body": "Invariant: the Bedrock Anthropic Messages passthrough runs only for Anthropic models on bearer-token (Bedrock API key) auth. Other models get 400; SigV4 modes (access keys, IAM role, default chain) get 501.\nEnforced by: mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough checks self._underlying_provider against AmazonBedrockModelProvider.ANTHROPIC and self._is_token_auth before any request is built.\nClient auth headers are removed by _drop_client_auth_headers (mlflow/gateway/providers/base.py), then host and content-length are removed, then the endpoint's token headers from _get_token_auth_headers are merged last. A credential agent's own key is dropped too.\nWhat breaks if skipped: a client credential reaches Bedrock, which accepts only the endpoint's API key, or a non-Anthropic body is sent to the Anthropic-shaped invoke path.\nThe 501 uses the same AIGatewayException pattern this provider already uses for unsupported auth modes.",
+  "applies": "AmazonBedrockProvider passthrough actions only; Boto3 invoke_model for SigV4 is not implemented by this path.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "auth",
+    "passthrough"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "_drop_client_auth_headers",
+      "hash": "sha256:513b52d4af8168f2b04cbaf5",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:513b52d4af8168f2b04cbaf5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockModelProvider.ANTHROPIC",
+      "hash": "sha256:a44409c59703428e11aa4f8e",
+      "line": 237,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T08:46:19.123Z",
+  "verified": "2026-10-11T08:46:19.123Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-adapters-silently-drop-request-keys-that-are-not-ren",
+    "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn",
+    "bedrock-stream-exception-frames-must-raise-httpexception-wit",
+    "vertex-delegates-must-always-drop-client-auth-headers-before"
+  ],
+  "says": [
+    "The Bedrock Anthropic messages endpoint returns a 501 error when using AWS IAM authentication.",
+    "Sending non-Claude models through the Anthropic messages route fails with a 400 error.",
+    "Ensure client API keys and authorization headers are never forwarded to the Bedrock service.",
+    "Why does Bedrock Anthropic passthrough only support API key authentication instead of AWS credentials?"
+  ],
+  "search": "The Bedrock Anthropic Messages passthrough in mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough is restricted to AmazonBedrockModelProvider.ANTHROPIC models using bearer-token API key authentication. Other models return 400, while SigV4 authentication modes return 501 via AIGatewayException because Boto3 invoke_model is not implemented on this path. Client authentication headers and credential agent keys are stripped by _drop_client_auth_headers in mlflow/gateway/providers/base.py, host and content-length are removed, and endpoint token headers from _get_token_auth_headers are merged last.",
+  "saysFor": "s2:01389114ca11f18aa5b873705294fb58e8c7402592cb5d3bb2fd7a7b18674414"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "route-matching-test-mock-must-anchor-patterns-so-list-routes",
+  "title": "Route-matching test mock must anchor patterns so list routes do not match detail paths",
+  "kind": "rule",
+  "answers": [
+    "test matches chat sessions list for single session path",
+    "matchPath mock in route hook test",
+    "how to test dynamic experiment route tab mapping",
+    "jest mock of RoutingUtils matchPath"
+  ],
+  "body": "Symptom: A test expecting the list tab gets the detail tab's result (or the reverse) for a path like /experiments/123/<list>/<id>.\nRoot cause: a matchPath mock that does not anchor the regex lets a list route pattern match a longer detail path.\nFix pattern: in useGetExperimentPageActiveTabByRoute.test.tsx the jest.mock of RoutingUtils replaces each ':param' segment with a non-slash matcher and wraps the pattern in ^...$. Keep the anchors when extending the mock; add a test case per detail route with arbitrary param values (e.g. /experiments/123/datasets/dataset-456).\nConstraints: The mock covers only ':param' segments; it is not the real react-router matchPath. Tests for new routes should use concrete paths that exercise the param branch.",
+  "applies": "Unit tests of useGetExperimentPageActiveTabByRoute in the experiment-tracking experiment-page hooks.",
+  "tags": [
+    "frontend",
+    "testing",
+    "jest",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.test.tsx",
+      "hash": "sha256:31a0e9715038420794b15d01",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26187"
+  },
+  "created": "2026-10-11T10:24:02.144Z",
+  "verified": "2026-10-11T10:24:02.144Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Opening a single chat session highlights the sessions list tab on the experiment page",
+    "The experiment page active tab shows list view instead of detail view for items",
+    "Viewing a specific dataset keeps the parent list tab selected in the experiment navigation",
+    "Make experiment navigation tabs distinguish between item detail screens and item collection views"
+  ],
+  "search": "In useGetExperimentPageActiveTabByRoute.test.tsx, the jest.mock of RoutingUtils matchPath must wrap route patterns in ^...$ anchors and replace :param segments with non-slash matchers so list route patterns do not match detail paths. Tests for new or extended routes must preserve these anchors and use concrete paths with arbitrary parameter values. The mock covers only :param segments rather than full react-router matchPath behavior.",
+  "saysFor": "s2:c670d56285eadf601296cf8228292ba77d16660a7346d8688a61fce9b81ec8ec"
+}

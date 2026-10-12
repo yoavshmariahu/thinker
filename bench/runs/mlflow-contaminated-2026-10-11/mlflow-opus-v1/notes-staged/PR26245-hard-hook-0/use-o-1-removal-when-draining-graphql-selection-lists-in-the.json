@@ -1,0 +1,56 @@
+{
+  "id": "use-o-1-removal-when-draining-graphql-selection-lists-in-the",
+  "title": "Use O(1) removal when draining GraphQL selection lists in the query-cost scanner",
+  "kind": "rule",
+  "answers": [
+    "why does GraphQL query scanning get slow on wide queries",
+    "list.pop(0) in graphql scanner quadratic",
+    "DoS via large GraphQL selection sets before limit check"
+  ],
+  "body": "Convention (reviewer-enforced): In mlflow/server/graphql/graphql_no_batching.py, do not drain selection lists with list.pop(0) or del lst[0]; each removal shifts all remaining items, making traversal quadratic. Use collections.deque with popleft(), or pop() from a stack when ordering does not matter.\nWhy it matters here: _MAX_SELECTIONS is checked only after the helper returns, so an oversized selection set forces all of its traversal work before rejection.\nEnforcement: _collect_fields_and_aliases builds selections_to_process as a deque and uses popleft(); the main scan loop uses stack.pop().",
+  "applies": "Applies to any traversal code added to the GraphQL query-cost scanner; the scanner is the only place this rule is established.",
+  "tags": [
+    "graphql",
+    "performance",
+    "deque",
+    "query-cost"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/graphql/graphql_no_batching.py",
+      "symbol": "_collect_fields_and_aliases",
+      "hash": "sha256:151947a078b978a1eb97f7fe",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:151947a078b978a1eb97f7fe",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25665"
+  },
+  "created": "2026-10-11T08:49:09.571Z",
+  "verified": "2026-10-11T08:49:09.571Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "alias-count-is-aggregated-per-level-across-sibling-fragments",
+    "graphql-query-cost-limits-must-count-fields-and-aliases-insi"
+  ],
+  "says": [
+    "The server hangs or responds very slowly when validating queries with many fields.",
+    "Large queries with extensive field selections take excessive time before being rejected.",
+    "Analyzing query complexity for requests with wide selection sets causes severe server lag.",
+    "Prevent complex query inspection from slowing down the server on oversized requests."
+  ],
+  "search": "In mlflow/server/graphql/graphql_no_batching.py, traversal code in the GraphQL query-cost scanner must use collections.deque with popleft() or stack.pop() instead of list.pop(0) or del lst[0]. Applies to any traversal code added to the GraphQL query-cost scanner, such as _collect_fields_and_aliases using selections_to_process. Because _MAX_SELECTIONS is checked only after the helper returns, avoiding quadratic item-shifting prevents large selection sets from exhausting server resources prior to rejection.",
+  "saysFor": "s2:93ad50183536dd369685e8e48da01688e3c3a3aefdbd6b6c4caa7e96b2a2ec06"
+}

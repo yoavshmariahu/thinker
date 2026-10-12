@@ -1,0 +1,72 @@
+{
+  "id": "third-party-scorer-module-must-match-the-allow-list-exactly",
+  "title": "Third-party scorer module must match the allow-list exactly, never by package prefix",
+  "kind": "rule",
+  "answers": [
+    "third-party scorer loads code from an uploaded run artifact",
+    "registered scorer from a file:// artifact root executes arbitrary Python on the server",
+    "scorer deserialization imports a submodule under mlflow.genai.scorers.trulens or ragas",
+    "GHSA-26p8-2jq9-3vq9 scorer module allow-list bypass"
+  ],
+  "body": "Symptom: a registered trulens/ragas/deepeval/phoenix scorer loads a file a caller placed on the server (e.g. a run artifact under a file:// experiment root), and that file's top-level code runs before any class check.\nRoot cause: mlflow/genai/scorers/base.py:Scorer.model_validate accepted an allow-listed package or any dotted descendant (module_path.startswith(m + \".\")), and passed the descendant straight to importlib.import_module.\nFix pattern: membership check against the frozenset in mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES (module_path not in ...), done before any import_module call.\nConstraints: the allow-list holds only modules that define supported Scorer classes (package roots plus their scorers submodules). A new scorer module must be added explicitly; prefix matching must not be reintroduced.",
+  "applies": "Any change to third-party scorer deserialization or the allow-list in mlflow/genai/scorers/base.py and scorer_utils.py.",
+  "tags": [
+    "security",
+    "genai",
+    "scorers",
+    "deserialization",
+    "allow-list"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T08:44:58.398Z",
+  "verified": "2026-10-11T08:44:58.398Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-invocation-timeout-is-enforced-only-inside-scorer-run",
+    "validate-metric-name-and-kwargs-before-import-module-in-thir",
+    "reflected-third-party-scorer-attribute-must-be-a-scorer-subc",
+    "allow-list-must-equal-the-set-of-scorer-defining-modules-a-c"
+  ],
+  "says": [
+    "Registering an evaluation judge executes untrusted code from an uploaded artifact file on the server.",
+    "Prevent registered evaluation scorers from loading and executing unauthorized files stored on the server.",
+    "Loading an evaluation metric module allows arbitrary script execution from uploaded experiment files.",
+    "Restrict registered evaluation metrics to an exact approved list rather than allowing subpackages."
+  ],
+  "search": "Third-party scorer deserialization must match module paths exactly against an allow-list rather than allowing prefix or descendant matching. In mlflow/genai/scorers/base.py:Scorer.model_validate, module paths must be checked for membership in mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES before calling importlib.import_module. This prevents scorers from loading files placed on the server, such as run artifacts under file:// experiment roots, and executing top-level code. Applies to third-party scorer deserialization changes; new scorer modules must be added explicitly and prefix matching must not be reintroduced.",
+  "saysFor": "s2:c8d29b2d8897de2f516949d1b04f13e90fab0f8e41c08ad8dc833bf49f69407b"
+}

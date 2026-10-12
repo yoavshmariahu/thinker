@@ -1,0 +1,69 @@
+{
+  "id": "oss-entry-points-must-construct-queryclient-via-the-shared-f",
+  "title": "OSS entry points must construct QueryClient via the shared factory, not new QueryClient()",
+  "kind": "rule",
+  "answers": [
+    "why does the app use createMlflowQueryClient instead of new QueryClient",
+    "where should I create the react-query client in MLflow UI",
+    "new QueryClient in bootstrap.tsx or app.tsx causes offline hang"
+  ],
+  "body": "Invariant: each OSS entry point builds its QueryClient with createMlflowQueryClient(), not a bare new QueryClient(). The factory carries the networkMode 'always' default.\nEnforced at: shared/web-shared/query-client/createMlflowQueryClient.ts:createMlflowQueryClient, used by app.tsx:MLFlowRoot and oss-notebook-renderer/bootstrap.tsx:AppComponent.\nWhat breaks if skipped: a bare client reintroduces the paused-query hang for that entry point; the notebook trace explorer hung identically before the factory was shared, because it used its own bare client over the same React Query instance.\nConstraint: the eslint no-singleton-query-client suppression is placed on the factory's new QueryClient line, so new call sites should use the factory rather than add their own suppression.",
+  "applies": "Any new OSS QueryClient creation under mlflow/server/js/src (app shell, notebook renderer, tests that mirror production wiring).",
+  "tags": [
+    "react-query",
+    "query-client",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.ts",
+      "symbol": "createMlflowQueryClient",
+      "hash": "sha256:3ac4327183320a197086367d",
+      "line": 3,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d211a1ef7c24f52bbf7a853",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/oss-notebook-renderer/bootstrap.tsx",
+      "symbol": "AppComponent",
+      "hash": "sha256:380ce90c95028843299a00aa",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:380ce90c95028843299a00aa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-11T10:25:23.973Z",
+  "verified": "2026-10-11T10:25:23.973Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-ui-stays-on-a-loading-skeleton-with-zero-api-calls-wh",
+    "under-shared-web-shared-import-the-local-query-client-re-exp"
+  ],
+  "says": [
+    "The notebook trace explorer hangs indefinitely and never finishes loading",
+    "Model trace view freezes inside the notebook when viewing traces offline",
+    "Queries in the user interface pause and hang without an active internet connection",
+    "Prevent the model trace viewer component from freezing when running in disconnected environments"
+  ],
+  "search": "Open-source entry points under mlflow/server/js/src must construct their QueryClient using createMlflowQueryClient rather than a bare new QueryClient(). Used by app.tsx:MLFlowRoot and oss-notebook-renderer/bootstrap.tsx:AppComponent, this factory enforces the networkMode 'always' default to avoid paused-query hangs when offline. The eslint no-singleton-query-client suppression belongs solely on the factory constructor line, so call sites must not add individual suppressions.",
+  "saysFor": "s2:4ef776b659ab36ab09c85386a458f94d5083c7f6d3bc428b56e5945de3f9943e"
+}

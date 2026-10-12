@@ -1,0 +1,49 @@
+{
+  "id": "jobs-must-omit-permissions-to-inherit-an-empty-token-job-lev",
+  "title": "Jobs must omit permissions to inherit an empty token; job-level permissions: {} is denied",
+  "kind": "rule",
+  "answers": [
+    "can a GitHub Actions job set permissions: {}",
+    "conftest says job is redundant permissions {}",
+    "how do I give a workflow job no GITHUB_TOKEN permissions",
+    "job missing permissions policy error in workflow"
+  ],
+  "body": "Invariant: a workflow job must not set job-level `permissions: {}`. A job that needs no token either omits `permissions` (inheriting the workflow-level default) or declares a non-empty grant.\nEnforced by .github/policy.rego:deny_redundant_job_permissions, which denies any job whose `permissions` equals `{}` and names the job in the message (\"Omit it to inherit the workflow's empty default permissions\").\nThe older requirement that every job declare `permissions` (deny_jobs_without_permissions, with its helper jobs_without_permissions) was removed; do not reintroduce it, because omitting permissions is now the accepted way to get an empty token.\nFix pattern: when a job needs no token scopes, delete its `permissions: {}` line and rely on the workflow-level `permissions: {}`. This PR removed four such lines in copilot-agent.yml, rerun.yml, ui-preview.yml and ui-review.yml.\nConstraints: omitting is only an empty grant when the workflow-level `permissions` is `{}`; the rule checks only the job-level value and does not verify the workflow default. Non-empty grants must still be declared explicitly on the job.",
+  "applies": "Jobs under `jobs:` in .github/workflows/*.yml; the job-level rule does not cover composite action.yml files.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "policy",
+    "conftest",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25678"
+  },
+  "created": "2026-10-11T08:48:45.517Z",
+  "verified": "2026-10-11T08:48:45.517Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "workflows-default-github-actions-cache-mode-to-none-grant-re"
+  ],
+  "says": [
+    "Automated compliance check fails on pipeline jobs that request empty access permissions.",
+    "The pull request policy check rejects pipeline tasks configured with blank permissions.",
+    "Allow automated build jobs without special access rights to pass security compliance checks.",
+    "Workflow validation blocks pull requests claiming job permissions should be omitted instead.",
+    "Strip unnecessary permission blocks from automated workflow steps so pull requests pass."
+  ],
+  "search": "Workflow jobs must not set job-level permissions: {} and must instead omit permissions to inherit empty workflow defaults or declare non-empty grants. This is enforced under jobs: in .github/workflows/*.yml by .github/policy.rego:deny_redundant_job_permissions, while deny_jobs_without_permissions was removed and must not be reintroduced. To fix violations, delete the permissions: {} line from the job, noting that omission only yields an empty grant if workflow-level permissions is {} and composite action.yml files are not covered.",
+  "saysFor": "s2:7398cd4987b6af0748fbe0a855745ca861810dc9c46e3ad60baa2aa3cd10bbad"
+}

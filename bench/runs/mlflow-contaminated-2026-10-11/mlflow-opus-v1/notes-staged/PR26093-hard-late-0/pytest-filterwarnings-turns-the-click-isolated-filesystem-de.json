@@ -1,0 +1,45 @@
+{
+  "id": "pytest-filterwarnings-turns-the-click-isolated-filesystem-de",
+  "title": "pytest filterwarnings turns the Click isolated_filesystem deprecation into an error",
+  "kind": "rule",
+  "answers": [
+    "why does my test fail with isolated_filesystem is deprecated",
+    "where is the click isolated_filesystem warning filter configured",
+    "pytest filterwarnings Click CliRunner deprecation",
+    "will removing isolated_filesystem break tests before Click 9"
+  ],
+  "body": "Invariant: the pytest filterwarnings list in pyproject.toml has an entry \"error:'isolated_filesystem' is deprecated:DeprecationWarning\", so any test that calls CliRunner.isolated_filesystem fails instead of only warning.\nEnforced by: pyproject.toml filterwarnings (pytest ini options), next to the other 'Prevent deprecated ...' entries.\nWhat breaks if skipped: removing the entry lets new tests use the deprecated helper silently until Click 9.0 removes it. Adding a test that uses it fails at run time.\nConstraints: the filter matches on the warning message text, so if Click reword the deprecation message the filter stops matching and needs updating in the same change.",
+  "applies": "Test configuration for the mlflow repository; applies whenever Click or the CliRunner test helpers are upgraded.",
+  "tags": [
+    "pytest",
+    "warnings",
+    "click",
+    "config"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25633"
+  },
+  "created": "2026-10-11T08:49:32.576Z",
+  "verified": "2026-10-11T08:49:32.576Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test runs fail with deprecation errors when calling legacy filesystem command runner helpers.",
+    "Command line interface test utilities trigger test failures instead of benign deprecation warnings.",
+    "Enforce strict test failure on obsolete command line file sandbox utilities before major upgrades.",
+    "Block new test suites from silently relying on outdated command runner temporary file fixtures."
+  ],
+  "search": "The pytest filterwarnings list in pyproject.toml defines error:'isolated_filesystem' is deprecated:DeprecationWarning to fail tests using CliRunner.isolated_filesystem instead of warning. This prevents tests from using the deprecated helper prior to its removal in Click 9.0. Because the configuration matches exact warning text, any upstream rewording of the deprecation message requires updating the filter string.",
+  "saysFor": "s2:253559692a4dfd4abc0a7e79cd15216b7f31b64e1a4a0fd210ff5f283b21eecb"
+}

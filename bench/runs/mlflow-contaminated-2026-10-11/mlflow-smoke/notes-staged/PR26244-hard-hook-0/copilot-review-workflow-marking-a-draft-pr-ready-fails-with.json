@@ -1,0 +1,46 @@
+{
+  "id": "copilot-review-workflow-marking-a-draft-pr-ready-fails-with",
+  "title": "Copilot review workflow: marking a draft PR ready fails with 'Resource not accessible by integration' under pull-requests: write alone",
+  "kind": "rule",
+  "answers": [
+    "Copilot review workflow fails to mark draft PR ready for review",
+    "Resource not accessible by integration markPullRequestReadyForReview",
+    "gh pr ready fails in GitHub Actions copilot review",
+    "draft PR never gets Copilot review requested"
+  ],
+  "body": "Symptom: The Copilot review workflow fails at the 'Mark ready for review' step, so the follow-up Copilot review request never runs. Error: 'GraphQL: Resource not accessible by integration (markPullRequestReadyForReview)'.\nRoot cause: not confirmed. Reviewers observed the failure with `pull-requests: write` alone (run 33641318507, attempt 2, on #25537). Adding `contents: write` was proposed as the fix, but a reviewer argued the mutation is covered by `pull-requests: write` and `contents` does not authorize it.\nFix pattern: not established by PR #25538. The reviewer asked to remove the `contents: write` addition and diagnose the failing token scope from a run log before changing permissions.\nConstraints: Applies to the `request-review` job permissions in .github/workflows/copilot-review.yml, which runs on `pull_request_target`. Do not widen the token to `contents: write` (branches, tags, releases) without evidence from a failing run.",
+  "applies": "Only the permissions block of the request-review job in .github/workflows/copilot-review.yml; verify with a real run before relying on any scope change.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "permissions",
+    "copilot-review"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25538"
+  },
+  "created": "2026-10-11T08:43:45.974Z",
+  "verified": "2026-10-11T08:43:45.974Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated reviewer fails when attempting to mark a draft pull request as ready.",
+    "Draft pull requests get stuck and never receive an automated Copilot code review.",
+    "The bot reports an integration access error when transitioning a pull request from draft.",
+    "Pull requests cannot be automatically marked ready for review due to insufficient permissions.",
+    "Enable automated review requests to proceed after marking draft pull requests ready for review."
+  ],
+  "search": "In .github/workflows/copilot-review.yml, marking a draft PR ready via gh pr ready in the pull_request_target request-review job fails with GraphQL error 'Resource not accessible by integration (markPullRequestReadyForReview)' under pull-requests: write alone. Although adding contents: write was proposed, reviewers noted the mutation is covered by pull-requests: write and left the root cause and fix pattern unconfirmed. Do not widen token permissions to contents: write (branches, tags, releases) without diagnosing the failing token scope from run logs.",
+  "saysFor": "s2:b20123a06ac4f3c44b7418ca65b957e0010441bba1536669fbddeb1e358e4234"
+}

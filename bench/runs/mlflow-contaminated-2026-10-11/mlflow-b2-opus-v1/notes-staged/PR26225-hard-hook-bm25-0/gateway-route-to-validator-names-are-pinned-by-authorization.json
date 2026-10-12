@@ -1,0 +1,71 @@
+{
+  "id": "gateway-route-to-validator-names-are-pinned-by-authorization",
+  "title": "Gateway route-to-validator names are pinned by authorization coverage tests",
+  "kind": "rule",
+  "answers": [
+    "test_gateway_guardrail_gating fails after renaming gateway validators",
+    "which validator guards the guardrail add or remove endpoint route",
+    "how do I rename a gateway auth validator without breaking tests",
+    "guardrail routes authorization validator names"
+  ],
+  "body": "Convention: each gateway endpoint-attached route (add-to-endpoint, remove-from-endpoint, update-config, list-for-endpoint) is mapped to a route-specific validator, and tests/server/auth/test_authorization_coverage.py:test_gateway_guardrail_gating asserts the exact validator name per route.\nRenaming or splitting a validator in mlflow/server/auth/__init__.py therefore requires updating those assertions in the same change, or the test fails deterministically.\nCurrent mapping: add -> validate_can_add_guardrail_to_gateway_endpoint, remove -> validate_can_remove_guardrail_from_gateway_endpoint, update-config -> validate_can_update_gateway_endpoint_guardrail_config, list-for-endpoint -> validate_can_read_gateway_endpoint_guardrail_configs.",
+  "applies": "Gateway guardrail and endpoint-attached routes registered in the auth before-request validator map.",
+  "tags": [
+    "auth",
+    "gateway",
+    "tests",
+    "validators"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_gateway_guardrail_gating",
+      "hash": "sha256:310b08df63a3efbe8c67e90a",
+      "line": 203,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:310b08df63a3efbe8c67e90a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_add_guardrail_to_gateway_endpoint",
+      "hash": "sha256:ba82b41ff8cb2ab7c1b141d4",
+      "line": 2052,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ba82b41ff8cb2ab7c1b141d4",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-11T10:25:32.247Z",
+  "verified": "2026-10-11T10:25:32.247Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-authz-validators-must-read-resource-ids-from-the-par"
+  ],
+  "says": [
+    "Update access permissions for attaching guardrails to an AI Gateway endpoint.",
+    "Restrict which team members can remove guardrails from a gateway endpoint.",
+    "Change authorization requirements for editing gateway endpoint guardrail configurations.",
+    "Control user permissions for viewing guardrails attached to a gateway endpoint.",
+    "Split permission checks for managing guardrails on AI Gateway endpoints."
+  ],
+  "search": "Gateway endpoint-attached guardrail routes map to route-specific validators that are asserted by name in tests/server/auth/test_authorization_coverage.py:test_gateway_guardrail_gating. Renaming or splitting validators in mlflow/server/auth/__init__.py requires updating those test assertions in the same change to avoid deterministic test failures. Pinned mappings include validate_can_add_guardrail_to_gateway_endpoint, validate_can_remove_guardrail_from_gateway_endpoint, validate_can_update_gateway_endpoint_guardrail_config, and validate_can_read_gateway_endpoint_guardrail_configs. Applies to gateway guardrail and endpoint-attached routes in the auth before-request validator map.",
+  "saysFor": "s2:10c036ea4d0fde392ba36b68a528bf952b48eecf31fb9d098b21ec6235219359"
+}

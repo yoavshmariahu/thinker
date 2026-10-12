@@ -1,0 +1,61 @@
+{
+  "session_id": "01a12c72-4b2e-7b90-9c5f-5f70872c5ee3",
+  "turns": 1,
+  "in_tokens": 225927,
+  "cached_tokens": 207360,
+  "out_tokens": 1553,
+  "wall_ms": 113722,
+  "result": "I’ll locate the validation calculation and threshold documentation, update them, and add regression coverage for negative baselines. I’ll use the repository’s Python style guidance and won’t install dependencies.\nThe calculation divides by the signed baseline in both directions. There’s already a staged regression test covering the reported R² examples and positive and negative baselines; I’ll preserve it and add zero-baseline and exact-threshold cases.\nUpdated relative-change validation to divide by `abs(baseline)` for both metric directions, preserving positive-baseline behavior and the zero-baseline fallback.\n\nCorrected the threshold documentation and extended the existing staged regression tests with exact-threshold and zero-baseline cases.\n\n`git diff --check` passed. Tests were blocked: the existing pytest environment uses Python 3.9, and Python 3.12 lacks pytest. No dependencies were installed.",
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "command_execution": 9,
+      "mcp_tool_call": 1,
+      "file_change": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "ndcg-at-k-duplicate-retrieved-docs-must-be-expanded-as-id-oc",
+      "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val"
+    ],
+    "cache": {
+      "injected": [
+        "ndcg-at-k-duplicate-retrieved-docs-must-be-expanded-as-id-oc",
+        "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val"
+      ],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 6,
+    "testRunsBeforeEdit": 1,
+    "testRunsAfterEdit": 2,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26252-hard",
+  "rep": 1,
+  "area": "mlflow/models",
+  "id": "PR26252-hard-full-1",
+  "session": "01a12c72-4b2e-7b90-9c5f-5f70872c5ee3",
+  "cost": 0.47068,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/models/evaluation/validation.py b/mlflow/models/evaluation/validation.py\nindex 1cd762d16..f8a5e3005 100644\n--- a/mlflow/models/evaluation/validation.py\n+++ b/mlflow/models/evaluation/validation.py\n@@ -33,13 +33,16 @@ class MetricThreshold:\n \n         min_relative_change: (Optional) A floating point number between 0 and 1 representing\n             the minimum relative change (in percentage of\n-            baseline model metric value) for candidate model\n+            the magnitude of the baseline model metric value) for candidate model\n             to pass the comparison with the baseline model.\n \n             - If greater is better for the metric, metric value has to be\n-              >= baseline model metric value * (1 + min_relative_change)\n+              >= baseline model metric value + min_relative_change * abs(baseline model metric value)\n             - Otherwise, metric value has to be\n-              <= baseline model metric value * (1 - min_relative_change)\n+              <= baseline model metric value - min_relative_change * abs(baseline model metric value)\n+            - For positive baseline values, these are equivalent to multiplying the baseline\n+              model metric value by (1 + min_relative_change) and (1 - min_relative_change),\n+              respectively.\n             - Note that if the baseline model metric value is equal to 0, the\n               threshold falls back performing a simple verification that the\n               candidate metric value is better than the baseline metric value,\n@@ -406,16 +409,16 @@ def _validate(\n                 )\n                 continue\n             # metric comparison relative change fails\n-            # - if (metric_value - baseline) / baseline < min_relative_change for greater is better\n-            # - if (baseline - metric_value) / baseline < min_relative_change for lower is better\n+            # - if (metric_value - baseline) / abs(baseline) < min_relative_change for greater is better\n+            # - if (baseline - metric_value) / abs(baseline) < min_relative_change for lower is better\n             if metric_threshold.greater_is_better:\n                 relative_change = (\n                     candidate_metric_value - baseline_metric_value\n-                ) / baseline_metric_value\n+                ) / abs(baseline_metric_value)\n             else:\n                 relative_change = (\n                     baseline_metric_value - candidate_metric_value\n-                ) / baseline_metric_value\n+                ) / abs(baseline_metric_value)\n             validation_result.min_relative_change_failed = (\n                 relative_change < metric_threshold.min_relative_change\n             )\ndiff --git a/tests/evaluate/test_validation.py b/tests/evaluate/test_validation.py\nindex 3c9b87c63..b2ac4997d 100644\n--- a/tests/evaluate/test_validation.py\n+++ b/tests/evaluate/test_validation.py\n@@ -823,6 +823,72 @@ def test_validation_model_comparison_relative_threshold_should_pass(\n     )\n \n \n+@pytest.mark.parametrize(\n+    (\"greater_is_better\", \"min_relative_change\", \"baseline\", \"candidate\", \"should_pass\"),\n+    [\n+        # An R2 score below 0: a worse candidate must fail and a perfect one must pass.\n+        (True, 0.05, -1.8, -5.0, False),\n+        (True, 0.05, -1.8, 1.0, True),\n+        # Negative baselines, 10% gate: candidates 50%, 20% and 5% better than the baseline\n+        # (measured against its magnitude), then 5%, 20% and 50% worse.\n+        (True, 0.1, -2.0, -1.0, True),\n+        (True, 0.1, -2.0, -1.6, True),\n+        (True, 0.1, -2.0, -1.9, False),\n+        (True, 0.1, -2.0, -2.1, False),\n+        (True, 0.1, -2.0, -2.4, False),\n+        (True, 0.1, -2.0, -3.0, False),\n+        (False, 0.1, -2.0, -3.0, True),\n+        (False, 0.1, -2.0, -2.4, True),\n+        (False, 0.1, -2.0, -2.1, False),\n+        (False, 0.1, -2.0, -1.9, False),\n+        (False, 0.1, -2.0, -1.6, False),\n+        (False, 0.1, -2.0, -1.0, False),\n+        # Positive baselines keep their existing behavior.\n+        (True, 0.1, 2.0, 3.0, True),\n+        (True, 0.1, 2.0, 2.4, True),\n+        (True, 0.1, 2.0, 2.1, False),\n+        (True, 0.1, 2.0, 1.9, False),\n+        (True, 0.1, 2.0, 1.6, False),\n+        (True, 0.1, 2.0, 1.0, False),\n+        (False, 0.1, 2.0, 1.0, True),\n+        (False, 0.1, 2.0, 1.6, True),\n+        (False, 0.1, 2.0, 1.9, False),\n+        (False, 0.1, 2.0, 2.1, False),\n+        (False, 0.1, 2.0, 2.4, False),\n+        (False, 0.1, 2.0, 3.0, False),\n+        # Exactly meeting the relative threshold passes in either direction.\n+        (True, 0.25, -2.0, -1.5, True),\n+        (False, 0.25, -2.0, -2.5, True),\n+        # Zero baselines retain the simple comparison with a 1e-10 margin.\n+        (True, 0.1, 0.0, 1e-10, True),\n+        (True, 0.1, 0.0, 0.0, False),\n+        (True, 0.1, 0.0, 5e-11, False),\n+        (False, 0.1, 0.0, -1e-10, True),\n+        (False, 0.1, 0.0, 0.0, False),\n+        (False, 0.1, 0.0, -5e-11, False),\n+    ],\n+)\n+def test_validation_relative_threshold_uses_baseline_magnitude(\n+    greater_is_better, min_relative_change, baseline, candidate, should_pass\n+):\n+    kwargs = {\n+        \"validation_thresholds\": {\n+            \"metric\": MetricThreshold(\n+                min_relative_change=min_relative_change, greater_is_better=greater_is_better\n+            )\n+        },\n+        \"candidate_result\": EvaluationResult(metrics={\"metric\": candidate}, artifacts={}),\n+        \"baseline_result\": EvaluationResult(metrics={\"metric\": baseline}, artifacts={}),\n+    }\n+    if should_pass:\n+        mlflow.validate_evaluation_results(**kwargs)\n+    else:\n+        with pytest.raises(\n+            ModelValidationFailedException, match=\"minimum relative change check failed\"\n+        ):\n+            mlflow.validate_evaluation_results(**kwargs)\n+\n+\n @pytest.fixture\n def multi_thresholds_test_spec(request):\n     \"\"\"\n",
+  "grade": {
+    "tests": "fail",
+    "testTail": "\u001b[1m============================= test session starts ==============================\u001b[0m\ncollected 69 items\n\ntests/evaluate/test_validation.py \u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m\u001b[32m.\u001b[0m"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 18567,
+  "costBasis": "list price from token classes"
+}

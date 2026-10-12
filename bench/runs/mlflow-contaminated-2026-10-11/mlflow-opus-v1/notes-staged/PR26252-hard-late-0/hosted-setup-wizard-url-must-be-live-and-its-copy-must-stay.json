@@ -1,0 +1,68 @@
+{
+  "id": "hosted-setup-wizard-url-must-be-live-and-its-copy-must-stay",
+  "title": "Hosted setup wizard URL must be live, and its copy must stay within what the wizard does",
+  "kind": "rule",
+  "answers": [
+    "setup wizard command returns 403",
+    "mlflow.org/wizard/setup.sh fails in onboarding",
+    "does the wizard install MLflow skills",
+    "can I put a Databricks workspace URL in the onboarding command"
+  ],
+  "body": "- The OSS entry points run `curl -LsSf https://mlflow.org/wizard/setup.sh | sh`, which is served by the mlflow-website deployment, not this repository. Changing these entry points depends on that deployment.\n- Before shipping, verify the production URL returns HTTP 200 and that the downloaded script passes `sh -n`. Per the review comment, the URL returned 403 until the website change was deployed, which would break every changed onboarding path.\n- Copy must not say the wizard installs MLflow skills or writes evaluation code. The regression-testing guide instead links to separate skills installation instructions.\n- Generic OSS entry points must not embed Databricks-specific workspace URLs, experiment IDs, or warehouse IDs.\n- The PR did not execute the installer itself; only the HTTP status and syntax check were verified.",
+  "applies": "Any OSS docs, README or UI copy that references the hosted mlflow.org wizard script.",
+  "tags": [
+    "onboarding",
+    "docs",
+    "deployment",
+    "wizard"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "README.md",
+      "hash": "sha256:8cc1b534d7673fa5df3f3134",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/eval-monitor/regression-testing.mdx",
+      "hash": "sha256:3c3b3538ca9077a780b994a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-11T08:41:47.564Z",
+  "verified": "2026-10-11T08:41:47.564Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "setup-wizard-command-and-its-copy-are-duplicated-across-read",
+    "long-setup-command-in-the-agent-action-card-overflows-instea"
+  ],
+  "says": [
+    "The onboarding setup command fails with a forbidden error when new users run it.",
+    "Getting started instructions claim the setup wizard installs evaluation skills that are missing.",
+    "Ensure the getting started installation link is reachable before releasing the onboarding card.",
+    "Open source onboarding instructions mistakenly include cloud workspace links and warehouse identifiers.",
+    "Update setup wizard documentation so copy accurately reflects what the installer actually performs."
+  ],
+  "search": "References to the hosted setup wizard URL in open-source copy must point to an active endpoint and accurately describe its capabilities. Before shipping changes in AgentActionCard, README.md, or docs/docs/genai/eval-monitor/regression-testing.mdx, verify that https://mlflow.org/wizard/setup.sh returns HTTP 200 and passes sh -n syntax checks. Documentation and onboarding card copy must not claim the wizard installs MLflow skills or writes evaluation code, nor embed Databricks workspace URLs, experiment IDs, or warehouse IDs. The hosted script is served by mlflow-website rather than this repository, and validation requires confirming HTTP 200 and syntax rather than executing the installer.",
+  "saysFor": "s2:6873d008d0fab08586a30bbcf358441544245140a4441f63d257763f4f7d8211"
+}

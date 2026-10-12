@@ -1,0 +1,46 @@
+{
+  "id": "pr-closed-workflow-cache-deletion-must-be-job-scoped-and-lim",
+  "title": "PR-closed workflow: cache deletion must be job-scoped and limited to the PR's merge ref",
+  "kind": "rule",
+  "answers": [
+    "why does the PR closed workflow need actions write permission",
+    "how are caches cleaned up when a pull request closes",
+    "which cache refs does the PR closed cleanup delete",
+    "why is top-level permissions not granting cache write in pr-closed.yml"
+  ],
+  "body": "Invariant: in .github/workflows/pr-closed.yml, the workflow keeps top-level cache/actions permissions denied; only the delete-caches job sets `actions: write`.\nEnforced by: .github/workflows/pr-closed.yml (job delete-caches, permissions block; top-level permissions).\nScope of deletion: `gh cache delete --all --ref \"refs/pull/$PR_NUMBER/merge\"` with `--succeed-on-no-caches`. Do not widen the ref or drop the PR-number filter, or caches of other PRs and branches get deleted.\nOrdering: delete-caches has `needs: cancel`, so runs are cancelled before caches are removed.\nIf skipped: widening permissions at top level grants write to every job, and an unscoped delete wipes shared caches. Keep the job at ubuntu-slim with timeout-minutes 5.\nConstraints: the GH_TOKEN and REPO come from env, not inline interpolation in the run script.",
+  "applies": "Changes to the pull_request_target closed/merged cleanup workflow in this repo.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "permissions",
+    "cache"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-closed.yml",
+      "hash": "sha256:960834be4cab5553f2fc50f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25871"
+  },
+  "created": "2026-10-11T08:45:49.952Z",
+  "verified": "2026-10-11T08:45:49.952Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Closing a pull request accidentally deleted build caches for other open branches.",
+    "Pull request cleanup jobs should only remove caches belonging to the closed contribution.",
+    "Shared build caches keep getting wiped out whenever pull requests are merged.",
+    "Restrict pipeline cache deletion privileges so automated jobs do not have excess permissions.",
+    "Cancel running automated checks before purging saved build caches on pull request closure."
+  ],
+  "search": "In .github/workflows/pr-closed.yml, pull request cleanup keeps top-level permissions denied and restricts actions: write exclusively to the delete-caches job. Cache deletion runs gh cache delete --all --ref refs/pull/$PR_NUMBER/merge with --succeed-on-no-caches to avoid deleting caches of other pull requests or branches. The delete-caches job requires needs: cancel so runs are cancelled before deletion, uses ubuntu-slim with a 5-minute timeout, and passes GH_TOKEN and REPO via environment variables.",
+  "saysFor": "s2:91ec48e023ea278a3b239d809f011c2a78246880228e0bf3ce76a8cf143b2cbb"
+}

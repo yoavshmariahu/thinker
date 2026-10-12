@@ -1,0 +1,68 @@
+{
+  "id": "lightgbm-native-booster-ignores-the-serialization-format-def",
+  "title": "LightGBM native Booster ignores the serialization_format default",
+  "kind": "rule",
+  "answers": [
+    "lightgbm Booster logged with cloudpickle label",
+    "native lightgbm model serialization format on Databricks",
+    "lightgbm serialization_format not applied to Booster"
+  ],
+  "body": "Invariant: a native lightgbm.Booster is always saved in LightGBM's native format; only non-Booster (sklearn-style) models use serialization_format.\nEnforced in: mlflow/lightgbm/__init__.py:save_model, which branches on isinstance(lgb_model, lgb.Booster) before serializing.\nWhat breaks if skipped: the Databricks-dependent default (_get_default_serialization_format) gets applied to Booster inputs, so the flavor configuration and logged-model telemetry report \"cloudpickle\" for a format that was never used. Reviewer comments flagged the helper as resolving without considering model type.\nConstraints: Model-type check should gate the Databricks default; the helper alone does not check model type.",
+  "applies": "LightGBM save_model/log_model and any code that reads serialization_format from the flavor configuration.",
+  "tags": [
+    "lightgbm",
+    "serialization",
+    "telemetry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "_get_default_serialization_format",
+      "hash": "sha256:9bd1641dfee8f1bf3c672f14",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bd1641dfee8f1bf3c672f14",
+      "fanout": {
+        "files": 6,
+        "sites": 13,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "save_model",
+      "hash": "sha256:4e2e148bd633419e0099af7c",
+      "line": 137,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e2e148bd633419e0099af7c",
+      "fanout": {
+        "files": 97,
+        "sites": 692,
+        "refs": 745
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25992"
+  },
+  "created": "2026-10-11T10:29:35.612Z",
+  "verified": "2026-10-11T10:29:35.612Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "flavor-serialization-format-default-is-resolved-at-call-time"
+  ],
+  "says": [
+    "Logged native gradient boosted models display the wrong serialization format on the model page.",
+    "Model details screen shows pickle format label for native booster models logged in Databricks.",
+    "Experiment tracking view reports incorrect storage format for native gradient boosting models.",
+    "Saved native booster models should accurately reflect native format in model catalog metadata."
+  ],
+  "search": "In mlflow/lightgbm/__init__.py:save_model, a native lightgbm.Booster is always saved in native format and must bypass serialization_format. Checking isinstance(lgb_model, lgb.Booster) gates the Databricks default from _get_default_serialization_format to prevent flavor configuration and telemetry from incorrectly reporting cloudpickle. Only non-Booster models use serialization_format because _get_default_serialization_format does not inspect model type.",
+  "saysFor": "s2:a2b909c7d179865bfddc86e2ccd17c9455137c3748c3e87fc7963b2d3d96e08b"
+}

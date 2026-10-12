@@ -1,0 +1,53 @@
+{
+  "id": "unused-media-check-runs-through-the-pre-commit-config-not-a",
+  "title": "Unused-media check runs through the pre-commit config, not a dedicated lint.yml step",
+  "kind": "map",
+  "answers": [
+    "where is the unused media check run in CI",
+    "which workflow checks for unused media files",
+    "how do I run the unused media check locally",
+    "where did the find-unused-media step in lint.yml go"
+  ],
+  "body": "The unused-media check (dev/find-unused-media.sh) is a pre-commit hook with id `unused-media` in .pre-commit-config.yaml, not a step in .github/workflows/lint.yml.\nCI coverage comes from running `pre-commit run --all-files`, which executes the hook against the whole repository.\nLocally, run `pre-commit run unused-media --all-files` to check only this hook, or `pre-commit run --all-files` for the full set.\nThe hook ignores changed filenames (pass_filenames: false), so it checks the whole tree on every run.",
+  "applies": "Looking up or changing where media/doc asset checks run; do not re-add a separate lint.yml step, or the check runs twice.",
+  "tags": [
+    "pre-commit",
+    "ci",
+    "lint",
+    "media",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:26b4041b502f2c8ce009a05d",
+      "missing": false
+    },
+    {
+      "path": "dev/find-unused-media.sh",
+      "hash": "sha256:063c96ba0ad14df492896eec",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25815"
+  },
+  "created": "2026-10-11T10:32:53.288Z",
+  "verified": "2026-10-11T10:32:53.288Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "repo-wide-filename-independent-pre-commit-hooks-must-set-alw"
+  ],
+  "says": [
+    "Continuous integration pull request checks are running the unused media asset validation twice.",
+    "Pull request validation fails on orphan images and obsolete media files in documentation.",
+    "Run the unused image check locally before pushing documentation changes to pull requests.",
+    "Ensure automated pull request workflows detect unreferenced graphics across the entire repository."
+  ],
+  "search": "The unused-media asset check (dev/find-unused-media.sh) executes as a pre-commit hook with id unused-media in .pre-commit-config.yaml rather than a dedicated step in .github/workflows/lint.yml. In CI, pre-commit run --all-files runs the hook across the repository, while locally developers can invoke pre-commit run unused-media --all-files. The hook sets pass_filenames: false to scan the entire tree on every run, and a separate lint.yml step must not be added to avoid duplicate runs.",
+  "saysFor": "s2:e2710cb4b5d2d3273aeb619da5d8c644f45412b4c361d18bf45a6d62cccca2c6"
+}

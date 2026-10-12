@@ -1,0 +1,54 @@
+{
+  "id": "every-experiment-page-sub-route-needs-an-entry-in-the-route",
+  "title": "Every experiment-page sub-route needs an entry in the route-to-tab map or its side-nav item loses selection",
+  "kind": "rule",
+  "answers": [
+    "Datasets side nav item not highlighted on dataset detail page",
+    "nav tab deselected when opening a sub-page of an experiment",
+    "which tab is active for a new experiment page route",
+    "active tab lost on nested experiment route"
+  ],
+  "body": "Symptom: On a nested experiment page (e.g. a single dataset detail), the matching side navigation item (Datasets) is not highlighted.\nRoot cause: useGetExperimentPageActiveTabByRoute.tsx:ExperimentPageRoutePathToTabNameMap had no key for RoutePaths.experimentPageTabDatasetDetail, so the active tab resolved to undefined.\nFix pattern: when adding a new experiment-page route in RoutePaths, add a key mapping it to the owning ExperimentPageTabName in ExperimentPageRoutePathToTabNameMap. Nested detail routes map to their parent tab (dataset detail -> Datasets).\nConstraints: Applies to routes that live under the experiment page tabs. Detail routes share the parent tab name; a route without a map entry silently gets no highlight and no error is raised.",
+  "applies": "Experiment page routing in mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks.",
+  "tags": [
+    "frontend",
+    "routing",
+    "experiment-page",
+    "navigation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx",
+      "symbol": "ExperimentPageRoutePathToTabNameMap",
+      "hash": "sha256:f972a00be568981987898313",
+      "line": 8,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f972a00be568981987898313",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26187"
+  },
+  "created": "2026-10-11T10:24:02.071Z",
+  "verified": "2026-10-11T10:24:02.071Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The datasets tab loses its active highlight when opening a dataset detail page.",
+    "Side navigation menu deselects the current tab on nested experiment sub-pages.",
+    "Keep the parent navigation tab selected when drilling down into experiment details.",
+    "Sidebar item highlight disappears after clicking into a specific dataset view."
+  ],
+  "search": "Nested experiment-page sub-routes must be mapped to their parent ExperimentPageTabName in ExperimentPageRoutePathToTabNameMap within mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx. When a route added to RoutePaths lacks a mapping entry, the active tab resolves to undefined, causing side navigation items like Datasets to silently lose selection. The rule applies to routes under experiment page tabs, requiring detail routes to share the owning parent tab name.",
+  "saysFor": "s2:2e8155c0d31ab185fea221b6d5242d1b0e55692c3898a21bde119f95b0e99a0a"
+}

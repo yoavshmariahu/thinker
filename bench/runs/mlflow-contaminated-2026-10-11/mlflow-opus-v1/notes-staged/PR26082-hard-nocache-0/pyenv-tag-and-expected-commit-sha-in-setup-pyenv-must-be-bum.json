@@ -1,0 +1,51 @@
+{
+  "id": "pyenv-tag-and-expected-commit-sha-in-setup-pyenv-must-be-bum",
+  "title": "pyenv tag and expected commit SHA in setup-pyenv must be bumped together",
+  "kind": "rule",
+  "answers": [
+    "setup-pyenv fails with pyenv SHA mismatch",
+    "how do I upgrade pyenv in the GitHub Actions setup",
+    "pyenv version bump model serving tests Python environment"
+  ],
+  "body": "Symptom: CI setup fails with an error like 'pyenv SHA mismatch: expected X, got Y' after the pyenv version is changed.\nRoot cause: .github/actions/setup-pyenv/action.yml:Setup pyenv step clones pyenv with `git clone --branch <tag>` and then compares `git rev-parse HEAD` against a hardcoded expected_sha; the tag and the SHA are two separate literals.\nFix pattern: change the tag in the clone command and the expected_sha together, taking the SHA from the tag's commit, and check that the new pyenv version has build definitions for the Python versions the tests need (the PR verified v2.8.5 for 3.10.21 and 3.11.16).\nConstraints: updating only the tag makes every run fail the SHA check; updating only the SHA makes the clone fail or check the wrong code. The retry loop around the clone does not change the verification.",
+  "applies": "Applies to the pyenv install in the setup-pyenv composite action; not to pyenv usage in test code.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "pyenv",
+    "supply-chain"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-pyenv/action.yml",
+      "symbol": "expected_sha",
+      "hash": "sha256:a2ff8558d37143557de43e15",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-11T08:45:04.859Z",
+  "verified": "2026-10-11T08:45:04.859Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration setup fails with a checksum mismatch error after upgrading the Python manager.",
+    "Model serving test builds crash during Python environment initialization with verification errors.",
+    "Upgrade the test Python environment manager so builds can install newer patch versions.",
+    "Ensure automated test environment setup verifies correctly when updating the Python installer release."
+  ],
+  "search": "Upgrading pyenv in .github/actions/setup-pyenv/action.yml requires updating the git clone tag and the hardcoded expected_sha literal together. Bumping only the tag causes setup to fail with a SHA mismatch error, while bumping only the SHA causes clone failures or verifies wrong code, unaffected by the clone retry loop. The updated pyenv version must contain build definitions for required Python test versions such as 3.10.21 and 3.11.16.",
+  "saysFor": "s2:61347eb529d116a48320775bee813df4bb98392bc3d1f32be9f8e145a86ad37f"
+}

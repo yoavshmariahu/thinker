@@ -1,0 +1,100 @@
+{
+  "id": "environment-provenance-is-merged-into-trace-metadata-first-i",
+  "title": "Environment provenance is merged into trace metadata first in both TS span processors",
+  "kind": "rule",
+  "answers": [
+    "Where does git source metadata get added to TypeScript traces?",
+    "Why does my trace metadata key get overwritten by git provenance?",
+    "How do I add a new automatic metadata field to the MLflow and Unity Catalog TypeScript exporters?"
+  ],
+  "body": "Invariant: both span processors build traceMetadata by spreading resolveEnvironmentMetadata() first, then set TraceMetadataKey.SCHEMA_VERSION, then merge getConfiguredTraceMetadata() context values. Later keys win, so environment defaults can be overridden and the schema version stays fixed.\nEnforced at: libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor (onStart) and libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor (onStart).\nWhat breaks if skipped: adding the spread after the schema version or context metadata can overwrite the schema version or user-set values. Missing it in one processor makes git metadata appear only on one export path.\nTest placement: the processor-level test in libs/typescript/core/tests/exporters/uc_table_processor.test.ts mocks '../../src/core/utils/environment' so that no real git call runs. The mlflow.ts unit suite does not instantiate a processor, so it needs no mock.\nApplies: any new metadata source added to TypeScript span processors in libs/typescript/core/src/exporters.",
+  "applies": "TypeScript SDK exporters (generic MLflow and Databricks UC table) that populate trace metadata on span start.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "exporters",
+    "trace-metadata",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:fce56b1c93758da7e559177c",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fce56b1c93758da7e559177c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/exporters/uc_table_processor.test.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:a2462d1ac29b4c11aaa15159",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2462d1ac29b4c11aaa15159",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-11T10:33:09.921Z",
+  "verified": "2026-10-11T10:33:09.921Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "git-provenance-fields-are-resolved-independently-and-origin",
+    "session-user-root-span-attributes-are-uc-only-the-generic-ml"
+  ],
+  "says": [
+    "Custom trace metadata attributes are being overwritten by automatic repository environment details.",
+    "Source code repository metadata appears in table exports but is missing from standard traces.",
+    "Ensure user-configured trace metadata values take precedence over default environment provenance properties.",
+    "Automatic environment discovery is overwriting custom tags attached to our recorded application traces.",
+    "Preserve custom trace attributes and schema version numbers when automatic environment tracking runs."
+  ],
+  "search": "In TypeScript span processors (libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor and libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor), onStart must build traceMetadata by spreading resolveEnvironmentMetadata() first, setting TraceMetadataKey.SCHEMA_VERSION second, and merging getConfiguredTraceMetadata() last. This ordering ensures user-configured context values override environment defaults and schema version remains intact, avoiding bugs where git provenance overwrites user values, schema versions get corrupted, or metadata only appears on one exporter. Applies to any new metadata source in libs/typescript/core/src/exporters; processor tests in libs/typescript/core/tests/exporters/uc_table_processor.test.ts mock '../../src/core/utils/environment' to avoid real git calls, while mlflow.ts tests instantiate no processor.",
+  "saysFor": "s2:5e85992051c3cd71275538ac99c486dc5e01f437b280c9b146583a3d303e632b"
+}

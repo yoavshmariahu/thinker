@@ -1,0 +1,66 @@
+{
+  "id": "claude-code-config-tests-must-clear-mlflow-enable-async-trac",
+  "title": "Claude Code config tests must clear MLFLOW_ENABLE_ASYNC_TRACE_LOGGING between cases",
+  "kind": "rule",
+  "answers": [
+    "config test leaks async trace logging env var between tests",
+    "ensureInitialized test passes or fails depending on order",
+    "how to write a Claude Code config test that checks env defaults"
+  ],
+  "body": "Invariant: ensureInitialized writes MLFLOW_ENABLE_ASYNC_TRACE_LOGGING into process.env, so the value persists across tests in the same process.\nEnforced by: libs/typescript/integrations/claude-code/tests/config.test.ts, the beforeEach block that deletes process.env entries (including MLFLOW_ENABLE_ASYNC_TRACE_LOGGING) before each case.\nWhat breaks if skipped: a case that expects the unset-default 'true' can see 'false' or 'true' left over from an earlier opt-out or opt-in case, so results depend on test order.\nConvention: When adding an env-default test, set the variable explicitly for the opt-out or opt-in case, and add any new env var to that cleanup list.",
+  "applies": "Applies to tests in the Claude Code integration package that call ensureInitialized.",
+  "tags": [
+    "claude-code",
+    "tests",
+    "env-isolation",
+    "async-trace-logging"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/tests/config.test.ts",
+      "symbol": "beforeEach",
+      "hash": "sha256:63e43243a3cee6c89766177d",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 370,
+        "sites": 454,
+        "refs": 795
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/config.ts",
+      "symbol": "ensureInitialized",
+      "hash": "sha256:18457c9ceb1c3715f4121d07",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:18457c9ceb1c3715f4121d07",
+      "fanout": {
+        "files": 10,
+        "sites": 15,
+        "refs": 30
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25541"
+  },
+  "created": "2026-10-11T08:51:12.659Z",
+  "verified": "2026-10-11T08:51:12.659Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "claude-code-defaults-mlflow-enable-async-trace-logging-to-tr"
+  ],
+  "says": [
+    "Verify that background trace recording in Claude Code remains enabled when left unconfigured.",
+    "Test that opting out of asynchronous trace collection in Claude Code disables tracking properly.",
+    "Ensure automated validation of default background tracing settings in Claude Code runs reliably."
+  ],
+  "search": "Claude Code configuration tests in libs/typescript/integrations/claude-code/tests/config.test.ts must clear MLFLOW_ENABLE_ASYNC_TRACE_LOGGING from process.env in beforeEach to prevent test pollution. Calling ensureInitialized writes the variable into process.env, which otherwise leaks into subsequent tests and causes cases expecting the unset-default 'true' to depend on execution order. New environment-default tests must set variables explicitly for opt-in or opt-out cases and register any new variable in the cleanup list.",
+  "saysFor": "s2:ebc140d9aa0df7ddfcaa7a518583e6da384b29ff27ba2f1e9bcae44f2da7d443"
+}

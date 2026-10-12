@@ -1,0 +1,57 @@
+{
+  "id": "otel-collector-fixture-config-must-be-a-readable-temp-file-a",
+  "title": "OTel collector fixture: config must be a readable temp file and the collector always terminated",
+  "kind": "rule",
+  "answers": [
+    "collector container left running after a failed test",
+    "docker collector cannot read config file in tests",
+    "how to pass otel collector config to docker in tests",
+    "why does the otel_collector fixture yield only log path and port"
+  ],
+  "body": "Invariant: the collector config is written to pytest tmp_path (kept alive for the whole fixture) and bind-mounted read-only at /etc/otelcol/config.yaml; it is chmod 0o644 so the container user can read it.\nEnforced in tests/tracing/conftest.py:otel_collector: the yield sits inside try/finally, and the finally block always calls process.terminate(), then wait(timeout=5), then kill() on timeout.\nWhat breaks if skipped: a failed readiness check leaves a docker run process (and container) alive for later tests; a non-world-readable config makes the container fail to start its config load.\nConsumers unpack exactly two values: `output_file, port = otel_collector` (log path, OTLP port). Do not reintroduce the process object or stdin writes into the fixture.",
+  "applies": "Any change to the otel_collector fixture or the tests that consume it in tests/tracing.",
+  "tags": [
+    "tracing",
+    "testing",
+    "otel",
+    "fixtures",
+    "docker"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26038"
+  },
+  "created": "2026-10-11T10:25:07.744Z",
+  "verified": "2026-10-11T10:25:07.744Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-test-fixture-wait-for-health-endpoint-not-a-f",
+    "otel-collector-fixture-retry-only-the-docker-image-pull-on-t"
+  ],
+  "says": [
+    "Tracing test suite leaves orphaned collector containers running in the background after test failures",
+    "Collector container fails to start during tracing tests because configuration permissions prevent reading",
+    "Ensure background test containers are always terminated when tracing integration tests fail"
+  ],
+  "search": "In tests/tracing/conftest.py:otel_collector, the OpenTelemetry collector configuration must be written to a world-readable temporary file and the container process must always be terminated. The config file is created in pytest tmp_path with chmod 0o644, bind-mounted read-only at /etc/otelcol/config.yaml, and cleaned up in a finally block that calls process.terminate() followed by wait(timeout=5) and kill(). Consumers unpack only output_file and port, without reintroducing the process object or writing configuration via stdin.",
+  "saysFor": "s2:3381af8742f190e68309933284e8f7585bf46bf6462306e0c564e3489101c83f"
+}

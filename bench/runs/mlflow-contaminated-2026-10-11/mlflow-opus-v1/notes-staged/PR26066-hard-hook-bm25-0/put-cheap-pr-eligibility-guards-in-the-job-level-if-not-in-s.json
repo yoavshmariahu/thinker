@@ -1,0 +1,45 @@
+{
+  "id": "put-cheap-pr-eligibility-guards-in-the-job-level-if-not-in-s",
+  "title": "Put cheap PR eligibility guards in the job-level `if`, not in shell steps, in community-label.yml",
+  "kind": "rule",
+  "answers": [
+    "community label job runs for bot or maintainer PRs",
+    "skip community labeling before runner is allocated",
+    "why does the community-label workflow still provision a runner for member PRs",
+    "where to add an exclusion for internal authors in community-label workflow"
+  ],
+  "body": "Symptom: Bot-authored and maintainer (MEMBER/COLLABORATOR/OWNER) PRs still queue a labeling job and get a runner, even though the labeling is skipped.\nRoot cause: .github/workflows/community-label.yml:label-community had only `github.repository == 'mlflow/mlflow'` as its job `if`; the bot and association checks ran as shell `exit 0` inside the `run:` step, after runner allocation.\nFix pattern: Express static, payload-only eligibility checks (user.type != 'Bot', author_association not in the internal list) in the job-level `if:` expression, using `fromJSON('[...]')` with `contains(...)` for the association list. Delete the matching shell guards and their env vars (AUTHOR_TYPE, ASSOCIATION).\nConstraints: Only checks that need no API call belong in `if:`. The profile (company/email Databricks) and commit-email affiliation checks need `gh api` and stay in the script step. Applies to this workflow's job condition; other workflows may differ.",
+  "applies": "Edits to .github/workflows/community-label.yml job conditions and steps; any workflow where skip decisions use only event payload fields.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "community-label",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/community-label.yml",
+      "hash": "sha256:9d19a490ddc75153d19ff8c1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25901"
+  },
+  "created": "2026-10-11T08:45:06.090Z",
+  "verified": "2026-10-11T08:45:06.090Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Community labeling jobs allocate and waste build runners on pull requests submitted by maintainers.",
+    "Automated bot pull requests spin up build machines just to immediately skip labeling.",
+    "Skip community contributor label checks before reserving a runner when internal team members create PRs.",
+    "Prevent community labeling workflows from queuing jobs whenever bots or project collaborators push branches."
+  ],
+  "search": "Job conditions in .github/workflows/community-label.yml must use the job-level if expression for static, payload-only eligibility checks to avoid allocating a runner for bot or maintainer pull requests. Checks such as user.type != 'Bot' and author_association not in the internal list using fromJSON and contains belong in if:, replacing shell exit 0 guards and AUTHOR_TYPE and ASSOCIATION environment variables. Checks requiring gh api calls, such as company and commit-email affiliations, must remain inside the script step.",
+  "saysFor": "s2:8fc1fa468acaa019cf4b2a1f1cff73fa17be9943408f3273a50139b06f6d4eca"
+}

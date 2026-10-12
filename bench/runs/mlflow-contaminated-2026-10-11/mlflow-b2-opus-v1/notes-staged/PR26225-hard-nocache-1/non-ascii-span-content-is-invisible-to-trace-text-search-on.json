@@ -1,0 +1,78 @@
+{
+  "id": "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+  "title": "Non-ASCII span content is invisible to trace.text search on SQL backends",
+  "kind": "rule",
+  "answers": [
+    "trace search doesn't find accented or Chinese text",
+    "search traces with emoji or non-English characters returns nothing",
+    "trace.text ILIKE filter not matching unicode span content",
+    "Traces search box misses non-ASCII text"
+  ],
+  "body": "Symptom: Searching traces for accented, CJK or emoji text (e.g. \"España\", \"什么\") in the Traces search box or `trace.text ILIKE` returns no results, while ASCII terms match.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:_log_spans_once serialized `spans.content` with `json.dumps` using the default `ensure_ascii=True`, so \"España\" was stored as \"España\" and LIKE filters never matched what users typed.\nFix pattern: Serialize searchable span content with `ensure_ascii=False` on SQL backends, keeping the escaped form only for MSSQL (`ensure_ascii=self.db_type == MSSQL`).\nConstraints: MSSQL `spans.content` is a non-Unicode VARCHAR, so unescaped CJK/emoji would be stored as \"?\"; keep the escape there. Existing rows are not migrated, so only newly logged spans become searchable.",
+  "applies": "Span content serialization in the SqlAlchemyStore span-logging path (`_log_spans_once`); any other writer of `spans.content` should follow the same backend rule.",
+  "tags": [
+    "tracing",
+    "search",
+    "sqlalchemy",
+    "unicode",
+    "mssql"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._log_spans_once",
+      "hash": "sha256:c8a16478bddf4dfbd5543401",
+      "line": 5702,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c8a16478bddf4dfbd5543401",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_log_spans_once",
+      "hash": "sha256:c8a16478bddf4dfbd5543401",
+      "line": 5702,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c8a16478bddf4dfbd5543401",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26130"
+  },
+  "created": "2026-10-11T10:24:35.225Z",
+  "verified": "2026-10-11T10:24:35.225Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "metric-comparisons-in-logged-model-filter-string-must-join-o",
+    "logged-model-search-must-eager-load-every-child-relationship",
+    "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b",
+    "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back"
+  ],
+  "says": [
+    "Searching traces for accented words or non-English characters returns no results in the UI.",
+    "The trace search bar fails to find logged conversation spans containing emojis.",
+    "Support multilingual text search in the traces view for Chinese and Spanish queries.",
+    "Filtering traces by text only matches plain English words and ignores international characters."
+  ],
+  "search": "SqlAlchemyStore._log_spans_once in mlflow/store/tracking/sqlalchemy_store.py must serialize spans.content with json.dumps using ensure_ascii=False on SQL backends to allow trace.text ILIKE and Traces search box queries to match non-ASCII text. The escaped format ensure_ascii=True must be kept only for MSSQL, where spans.content is a non-Unicode VARCHAR that would replace unescaped CJK or emoji text with question marks. Any other component writing spans.content must follow this SQL backend rule. Existing database rows are not migrated, meaning only newly logged spans become searchable.",
+  "saysFor": "s2:0a1a26c6a988e00276698f5879f1a91da196ac1cef59a5d3a6f58a2048838acd",
+  "lastUsed": "2026-10-11T19:16:26.405Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26265-hard-0"
+  ]
+}

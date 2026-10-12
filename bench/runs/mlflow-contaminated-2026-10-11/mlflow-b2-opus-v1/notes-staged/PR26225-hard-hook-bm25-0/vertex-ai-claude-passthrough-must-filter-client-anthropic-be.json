@@ -1,0 +1,89 @@
+{
+  "id": "vertex-ai-claude-passthrough-must-filter-client-anthropic-be",
+  "title": "Vertex AI Claude passthrough must filter client anthropic-beta per endpoint config",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI rejects my request with 400 Unexpected value for the anthropic-beta header",
+    "Claude Code requests fail through a Vertex AI gateway endpoint after a new beta header",
+    "How do I control which anthropic-beta values are forwarded to Claude on Vertex?",
+    "vertex_anthropic_betas gateway option for beta header"
+  ],
+  "body": "Symptom: Requests through a Vertex AI gateway endpoint for Claude fail with a 400 'Unexpected value(s) ... for the anthropic-beta header' after the client starts sending a newer beta (for example advisor-tool-2026-03-01), while the same request works against the Anthropic API.\nRoot cause: mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider._get_headers forwarded the client's anthropic-beta unchanged through the shared Anthropic header merge; Vertex validates the header against its own supported set and rejects the whole request, where the Anthropic API ignores unknown values.\nFix pattern: Filter the header in the Vertex Claude subclass before calling super()._get_headers, driven by VertexAIConfig.vertex_anthropic_betas (mlflow/gateway/config.py:VertexAIConfig) via mlflow/gateway/providers/vertex_ai.py:_filter_anthropic_betas. Leave the shared Anthropic merge untouched.\nConstraints: None forwards the header unchanged, [] drops it, a non-empty list keeps only listed values and drops the header if none remain. Matching on the header name is case-insensitive. Gemini and MaaS providers on Vertex are not affected by this option.",
+  "applies": "Vertex AI endpoints serving Claude models on the passthrough/raw proxy routes; any other provider that must strip client headers before forwarding upstream.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "anthropic",
+    "headers",
+    "passthrough"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._get_headers",
+      "hash": "sha256:2e52c56e62618efe794dba47",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2e52c56e62618efe794dba47",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_filter_anthropic_betas",
+      "hash": "sha256:ff72e4360b92d82bfea854d0",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ff72e4360b92d82bfea854d0",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig",
+      "hash": "sha256:ac2ee9a849ab02f2202dc63e",
+      "line": 332,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac2ee9a849ab02f2202dc63e",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25835"
+  },
+  "created": "2026-10-11T10:32:28.822Z",
+  "verified": "2026-10-11T10:32:28.822Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the",
+    "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla",
+    "vertex-delegates-always-drop-the-client-s-auth-headers-befor",
+    "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p"
+  ],
+  "says": [
+    "Claude requests through the AI gateway fail with an unexpected beta header error.",
+    "Coding assistant tools targeting Claude work directly but get rejected through Vertex gateway endpoints.",
+    "Allow gateway administrators to configure which beta features are forwarded to Claude on Vertex.",
+    "Filter out unsupported client beta flags so Vertex AI does not reject Claude requests.",
+    "Upgraded client libraries break when calling Claude models through the gateway due to unrecognized betas."
+  ],
+  "search": "Vertex AI endpoints serving Claude models on passthrough and raw proxy routes must filter client anthropic-beta headers using _filter_anthropic_betas in _VertexAIClaudeProvider._get_headers before delegating upstream. Header filtering is configured by vertex_anthropic_betas on VertexAIConfig in mlflow/gateway/config.py, where None forwards headers unchanged, an empty list drops them, and a non-empty list retains only matching values. Matching on the header name is case-insensitive, while Gemini and MaaS providers on Vertex remain unaffected.",
+  "saysFor": "s2:d519296a355d725fe297748c13ca0a1401b7f1a79a26ac7607855095747b67ff"
+}

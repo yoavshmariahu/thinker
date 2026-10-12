@@ -1,0 +1,67 @@
+{
+  "id": "multi-registry-prompt-tests-copy-the-pre-migrated-cached-db",
+  "title": "Multi-registry prompt tests copy the pre-migrated cached_db instead of creating fresh SQLite registries",
+  "kind": "rule",
+  "answers": [
+    "slow prompt registry tests on Windows CI",
+    "test fixture for two SQLite registry databases",
+    "why do prompt cache tests copy cached_db"
+  ],
+  "body": "Convention: tests in tests/tracking/test_client.py that need extra SQLite registry databases copy the session-scoped cached_db file with shutil.copy2 and build sqlite:/// URIs from the copies. They do not point at new file paths, because each new SQLite file runs the full schema migration, which is a substantial cost on Windows CI.\nThe helpers are the fixtures tests/tracking/test_client.py:isolated_registry_uris and workspace_registry_uri; the same fixtures are reused by the parametrized isolation and invalidation tests.\nReviewers asked for this pattern explicitly. Keep routing to the intended registry set up in the fixture itself rather than in each test.",
+  "applies": "Tests in tests/tracking/test_client.py that need more than one registry database.",
+  "tags": [
+    "testing",
+    "sqlite",
+    "fixtures",
+    "windows-ci",
+    "prompts"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "isolated_registry_uris",
+      "hash": "sha256:4fed23cb2ba6d023d200cfaf",
+      "line": 2411,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4fed23cb2ba6d023d200cfaf",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "workspace_registry_uri",
+      "hash": "sha256:514d7274b0ca346ee9628523",
+      "line": 2419,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:514d7274b0ca346ee9628523",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26066"
+  },
+  "created": "2026-10-11T10:28:19.049Z",
+  "verified": "2026-10-11T10:28:19.049Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automated test suite for prompt registries runs extremely slowly on Windows build pipelines.",
+    "Continuous integration test checks for prompt registries take too long on Windows runners.",
+    "Speed up the automated tests that validate multi-registry prompt isolation and invalidation."
+  ],
+  "search": "Tests in tests/tracking/test_client.py needing multiple SQLite registries must copy the session-scoped cached_db using shutil.copy2 and construct sqlite:/// URIs. This convention avoids costly schema migrations on new SQLite files on Windows CI. The setup is encapsulated in fixtures isolated_registry_uris and workspace_registry_uri reused by parametrized isolation and invalidation tests.",
+  "saysFor": "s2:b597e56870893deada9bf7509438745fd44df8f3be00b9974835703256f0c3bc"
+}

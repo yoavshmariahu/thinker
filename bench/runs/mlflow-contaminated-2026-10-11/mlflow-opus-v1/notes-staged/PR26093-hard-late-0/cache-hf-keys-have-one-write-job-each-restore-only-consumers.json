@@ -1,0 +1,69 @@
+{
+  "id": "cache-hf-keys-have-one-write-job-each-restore-only-consumers",
+  "title": "cache-hf keys have one write job each; restore-only consumers set cache-mode read, not a restore-only input",
+  "kind": "rule",
+  "answers": [
+    "Windows HF datasets redownloaded every run after cache change",
+    "cache-hf restore-only input removed, how do I make a job read-only",
+    "which job writes the Linux or Windows hf-datasets cache",
+    "cache never refreshes after the cache-mode change"
+  ],
+  "body": "Invariant: each cache key built by .github/actions/cache-hf/action.yml (`${{ runner.os }}-hf-datasets-<hash of tests/data/test_huggingface_dataset_and_source.py>`) must keep a job with `cache-mode: write`; consumers that only restore set `cache-mode: read` and pass no save-related input.\nThe composite no longer has a `restore-only` input or a separate actions/cache/restore branch; save is denied at token level by the job's cache-mode, so the grant is what changes saving.\nThe key includes runner.os, so the Linux writer (master.yml) and the Windows writer (the windows job in slow-tests.yml) are distinct; making the Windows job read leaves its key with no writer and every run redownloads datasets.\nFix pattern when adding an HF-cache consumer: set `cache-mode: read` on the job and do not add `restore-only`; add a write job only when a new runner.os key is needed.\nConstraints: the writer-per-key list comes from review discussion on this PR and was not re-verified against every workflow; re-check the cache key before changing any writer grant.",
+  "applies": "Jobs that call .github/actions/cache-hf and the cache-mode grants of the workflows that use it; not other caches.",
+  "tags": [
+    "github-actions",
+    "cache",
+    "hf-datasets",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/cache-hf/action.yml",
+      "hash": "sha256:adb499f90da20ab3de358763",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:7a23e9e2645572c59f7793f4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/slow-tests.yml",
+      "hash": "sha256:3b4c714d6c11ca0a1af414ae",
+      "missing": false
+    },
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": "tests/data/test_huggingface_dataset_and_source.py",
+      "hash": "sha256:0e766f54901103d22d727bf6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25809"
+  },
+  "created": "2026-10-11T08:47:30.737Z",
+  "verified": "2026-10-11T08:47:30.737Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "workflows-default-github-actions-cache-mode-to-none-grant-re",
+    "hf-datasets-cache-each-runner-os-key-needs-exactly-one-savin",
+    "cache-hf-action-path-key-and-restore-keys-are-duplicated-in"
+  ],
+  "says": [
+    "Windows automated test runs are redownloading large dataset files on every build execution.",
+    "Dataset caches are never created or updated after switching build permissions to read-only.",
+    "Ensure continuous integration pipelines have a designated writing job for each operating system.",
+    "Build jobs fail when attempting to pass obsolete restore parameters into dataset caching."
+  ],
+  "search": "Each cache key in .github/actions/cache-hf/action.yml requires exactly one workflow job configured with cache-mode: write, while restore-only consumers set cache-mode: read. Because the composite action removed the restore-only input and enforces saving at the token level, consumers must not pass save-related inputs. The Linux writer runs in .github/workflows/master.yml and the Windows writer runs in the windows job in .github/workflows/slow-tests.yml. Setting a platform writer to cache-mode: read leaves its runner.os key without a writer, forcing runs on that OS to redownload datasets every time.",
+  "saysFor": "s2:a5db6af3075f248300fe73d7aa4860671f55b6791ecee779f902096420496422"
+}

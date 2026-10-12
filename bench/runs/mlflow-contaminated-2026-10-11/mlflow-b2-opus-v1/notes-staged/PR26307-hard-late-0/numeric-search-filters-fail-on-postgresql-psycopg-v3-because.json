@@ -1,0 +1,113 @@
+{
+  "id": "numeric-search-filters-fail-on-postgresql-psycopg-v3-because",
+  "title": "Numeric search filters fail on PostgreSQL psycopg v3 because values were bound as strings",
+  "kind": "rule",
+  "answers": [
+    "Why do run start_time or MCP created_at filters fail with a type mismatch on PostgreSQL with psycopg3?",
+    "Filtering runs by timestamp errors out on Postgres psycopg v3 with VARCHAR vs integer",
+    "Numeric attribute filter returns an error when the database is PostgreSQL using psycopg3",
+    "How does SearchUtils parse numeric attribute values for search?"
+  ],
+  "body": "Symptom: On PostgreSQL with the psycopg v3 driver, searching runs by start_time, or MCP registry searches by created_at, with a numeric filter (e.g. `attributes.start_time = 1234`) fails because the value reaches an integer column as a string.\nRoot cause: mlflow/utils/search_utils.py:SearchUtils._get_value returned `token.value` unchanged for numeric tokens, so every numeric attribute value stayed a Python str.\nFix pattern: Convert numeric tokens inside `_get_value` once, at parse time: `int` for Integer literal tokens, `float` otherwise. Downstream code then only calls `int()` on values that are still strings (guarded by `isinstance(value, str)`) in the in-memory matchers.\nConstraints: This covers every SearchUtils subclass that inherits the shared parser (runs, experiments, datasets, logged models, MCP servers/versions/endpoints). Experiment and dataset builders need extra handling (see the integer-only guard note). Test PostgreSQL paths with psycopg3 when changing this.",
+  "applies": "Parsing of numeric attribute tokens in MLflow search filters for tracking and MCP registry stores; not for tag, param or metric comparisons, which are string-valued.",
+  "tags": [
+    "search",
+    "postgres",
+    "psycopg3",
+    "sqlalchemy",
+    "filter"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._get_value",
+      "hash": "sha256:5695cab8f8f5a828d29796ca",
+      "line": 436,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5695cab8f8f5a828d29796ca",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._does_run_match_clause",
+      "hash": "sha256:09dddd9b790845982cbb9d1a",
+      "line": 691,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09dddd9b790845982cbb9d1a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils",
+      "hash": "sha256:8061f72517b58994c5f92e14",
+      "line": 172,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8061f72517b58994c5f92e14",
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 171
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "token",
+      "hash": "sha256:6d50162204e7a61c3df8d8de",
+      "line": 2726,
+      "missing": false,
+      "fanout": {
+        "files": 308,
+        "sites": 8,
+        "refs": 1730
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_get_value",
+      "hash": "sha256:5695cab8f8f5a828d29796ca",
+      "line": 436,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5695cab8f8f5a828d29796ca",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26180"
+  },
+  "created": "2026-10-11T10:24:10.120Z",
+  "verified": "2026-10-11T10:24:10.120Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fractional-numeric-filter-values-must-be-compared-exactly-ne",
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "fractional-model-version-literals-must-be-rejected-before-in"
+  ],
+  "says": [
+    "Filtering experiment runs by start time fails with a type error on PostgreSQL databases.",
+    "Searching the registry by creation timestamp crashes when using numeric filter expressions.",
+    "Support numeric attribute queries in the experiment run search bar for Postgres backends.",
+    "Timestamp comparison filters in the registry search box produce database type mismatch errors."
+  ],
+  "search": "SearchUtils._get_value in mlflow/utils/search_utils.py must parse numeric tokens into int for Integer literals and float otherwise, instead of returning token.value as a string. Leaving numeric attribute tokens as strings causes type mismatch errors on PostgreSQL with the psycopg v3 driver when filtering integer columns such as start_time for runs or created_at for MCP registry entities. Downstream in-memory matchers in SearchUtils._does_run_match_clause must guard int() conversions with isinstance(value, str). This shared parser applies to runs, experiments, datasets, logged models, and MCP stores, but does not apply to string-valued tag, param, or metric comparisons.",
+  "saysFor": "s2:873b15920a4bef11b9be28b9d41954346433c1488a06d3ae199b43787256c0ec"
+}

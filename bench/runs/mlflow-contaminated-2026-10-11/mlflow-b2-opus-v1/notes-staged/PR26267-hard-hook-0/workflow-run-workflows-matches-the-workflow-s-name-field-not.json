@@ -1,0 +1,50 @@
+{
+  "id": "workflow-run-workflows-matches-the-workflow-s-name-field-not",
+  "title": "workflow_run.workflows matches the workflow's name field, not its filename",
+  "kind": "rule",
+  "answers": [
+    "approval rerun not triggering after rename",
+    "workflow_run trigger never fires",
+    "why does rerun.yml not run after a workflow file rename",
+    "which workflow name does workflow_run filter match"
+  ],
+  "body": "Invariant: the `workflows:` list under `on.workflow_run` must contain the `name:` value of the triggering workflow, not its filename.\nEnforcement: .github/workflows/rerun.yml (on.workflow_run.workflows: [trigger-rerun]) matches .github/workflows/trigger-rerun.yml (top-level name: trigger-rerun).\nWhat breaks: if the trigger's name: still says an old value (for example `rerun` after the file was renamed), the worker's filter never matches and approvals silently stop invoking the rerun worker; no error is raised.\nApplies: any rename of an approval trigger or worker workflow file or its name: field; keep the file name, name: field and workflow_run.workflows in sync in the same commit.",
+  "applies": "Any rename of an approval trigger or rerun worker workflow file or its name: field.",
+  "tags": [
+    "github-actions",
+    "workflow_run",
+    "rename",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:15dfdf1ad45c4e4314ca5d50",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/trigger-rerun.yml",
+      "hash": "sha256:eb6c1ec332d4928910c3eafc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26030"
+  },
+  "created": "2026-10-11T10:28:43.081Z",
+  "verified": "2026-10-11T10:28:43.081Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Approving a pull request rerun fails to start the automated worker workflow.",
+    "Rerun automation never launches after approving a failed build run.",
+    "Workflow approval triggers stop working silently following recent automation updates.",
+    "Ensure automated rerun tasks trigger properly when upstream build approvals are granted."
+  ],
+  "search": "Under on.workflow_run, the workflows list must specify the triggering workflow's top-level name field rather than its filename. In .github/workflows/rerun.yml, on.workflow_run.workflows matches the name field in .github/workflows/trigger-rerun.yml; renaming the file without updating name causes approvals to silently stop triggering the worker. When renaming an approval trigger or worker workflow, keep the filename, name field, and workflow_run.workflows synchronized in the same commit.",
+  "saysFor": "s2:c7336599369b3e4f59d6426a52762b3ae2228b000b7a25fe2dc26080e412a364"
+}

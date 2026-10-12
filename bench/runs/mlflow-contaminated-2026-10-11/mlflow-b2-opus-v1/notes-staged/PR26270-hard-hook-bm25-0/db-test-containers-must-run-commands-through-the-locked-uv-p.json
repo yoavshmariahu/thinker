@@ -1,0 +1,68 @@
+{
+  "id": "db-test-containers-must-run-commands-through-the-locked-uv-p",
+  "title": "DB test containers must run commands through the locked uv project env",
+  "kind": "rule",
+  "answers": [
+    "how do DB test containers get their python dependencies",
+    "why does the tests/db container ignore the image's pip packages",
+    "where should a new driver be installed for the database compose tests"
+  ],
+  "body": "Invariant: Each tests/db service syncs its environment at startup with `uv sync --locked --no-default-groups --extra db --group db-test` into /opt/venv (UV_PROJECT_ENVIRONMENT), using /usr/local/bin/python (UV_PYTHON), and runs the command with `exec uv run --no-sync \"$@\"`.\nEnforced by: tests/db/entrypoint.sh (script-level), with the image-level installs removed from tests/db/Dockerfile and tests/db/Dockerfile.mssql.\nWhat breaks if skipped: Omitting `--no-default-groups` pulls the full dev toolchain (including PySpark) into every container. Omitting `--locked` lets resolution drift from uv.lock. Using the mounted repo's `.venv` makes a local run overwrite the host's environment.\nConstraints: INSTALL_MLFLOW_FROM_REPO no longer exists; every service installs the repo's mlflow as the project, so tests/db/compose.yml must not set it. Per-container sync is accepted because each sync takes seconds, and a shared cache volume would not survive `compose.sh` `down --volumes`.",
+  "applies": "Services defined in tests/db/compose.yml and their entrypoint; not for host-side CI jobs outside the compose stack.",
+  "tags": [
+    "database",
+    "docker",
+    "compose",
+    "uv",
+    "entrypoint"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/entrypoint.sh",
+      "hash": "sha256:c8272ad3a3b7c4d9410bed19",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.yml",
+      "hash": "sha256:5271839d60b3d6b4fd61bda2",
+      "missing": false
+    },
+    {
+      "path": "tests/db/Dockerfile",
+      "hash": "sha256:d4056f52b57f91833bcdf484",
+      "missing": false
+    },
+    {
+      "path": "tests/db/Dockerfile.mssql",
+      "hash": "sha256:fa2487fa2f5e6e1227bd0268",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26168"
+  },
+  "created": "2026-10-11T10:24:39.112Z",
+  "verified": "2026-10-11T10:24:39.112Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "db-ci-images-resolved-unpinned-deps-and-picked-psycopg-v3-vi",
+    "tests-db-shell-scripts-run-with-set-e-only-and-uv-steps-are"
+  ],
+  "says": [
+    "Running local database test containers overwrites the host machine virtual environment.",
+    "Database test containers download the full development toolchain instead of minimal test dependencies.",
+    "Containerized database testing environments pull unpinned packages rather than locked project dependencies.",
+    "Prevent database integration test containers from modifying the local repository environment."
+  ],
+  "search": "Database test compose services must sync their environment at container startup into /opt/venv and execute commands through uv run --no-sync. Enforced by tests/db/entrypoint.sh, each service runs uv sync --locked --no-default-groups --extra db --group db-test using /usr/local/bin/python, replacing image-level package installations in tests/db/Dockerfile and tests/db/Dockerfile.mssql. This applies only to services in tests/db/compose.yml; it prevents host .venv overwrites, dependency drift from uv.lock, and loading dev tools like PySpark, while INSTALL_MLFLOW_FROM_REPO must not be set.",
+  "saysFor": "s2:c6603f96e26855a38a278c6b1026a2c2bebd188ae91c677c272c524e1103ebc8"
+}

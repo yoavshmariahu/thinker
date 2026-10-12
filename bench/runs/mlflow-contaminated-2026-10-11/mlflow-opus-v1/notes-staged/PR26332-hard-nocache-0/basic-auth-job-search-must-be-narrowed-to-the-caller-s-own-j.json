@@ -1,0 +1,144 @@
+{
+  "id": "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j",
+  "title": "Basic-auth job search must be narrowed to the caller's own jobs",
+  "kind": "rule",
+  "answers": [
+    "non-admin user sees other users' jobs in job search under basic-auth",
+    "POST /ajax-api/3.0/jobs/search returns every job to any authenticated user",
+    "users can enumerate other users' job ids, params and results through job search",
+    "why does jobs search return jobs created by other accounts"
+  ],
+  "body": "Symptom: under --app-name basic-auth, a non-admin calling job search gets every job in the store, including other users' params and result/error text, while GET of the same job id returns 403.\nRoot cause: mlflow/server/auth/__init__.py:_get_job_route_validator only requires authentication for the search path, so the full result of the search handler reaches the caller.\nFix pattern: keep the Job response model exposing creator (mlflow/server/job_api.py:Job.from_job_entity) and register mlflow/server/auth/__init__.py:_filter_search_jobs in FASTAPI_ENDPOINT_RESPONSE_FILTERS keyed on job_api.search_jobs, keeping only jobs whose creator equals the username.\nConstraints: the filter runs after the response, which is only sound because the search handler returns the full unpaginated set; a paginated or store-side search must filter in the query instead. Jobs with no creator (legacy rows, worker-spawned child jobs) stay hidden from non-admins, matching the per-id routes. Admins skip response filters in fastapi_permission_middleware.\nApplies: the basic-auth native FastAPI job search route and any new job listing route.",
+  "applies": "basic-auth FastAPI job collection routes; not the per-id get/cancel routes, which are gated by ownership in the validator.",
+  "tags": [
+    "auth",
+    "jobs",
+    "basic-auth",
+    "response-filter",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5927,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_job_route_validator",
+      "hash": "sha256:7337283d97b4143615ccec30",
+      "line": 5732,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7337283d97b4143615ccec30",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5927,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "fastapi_permission_middleware",
+      "hash": "sha256:fd83f87e036003957d02ddaa",
+      "line": 6042,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fd83f87e036003957d02ddaa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "Job.from_job_entity",
+      "hash": "sha256:5165229f0eb55acdda863c69",
+      "line": 35,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5165229f0eb55acdda863c69",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_job_route_validator",
+      "hash": "sha256:7337283d97b4143615ccec30",
+      "line": 5732,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7337283d97b4143615ccec30",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "search_jobs",
+      "hash": "sha256:ea644e8e93a5ff9aa993f081",
+      "line": 121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea644e8e93a5ff9aa993f081",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T08:45:28.659Z",
+  "verified": "2026-10-11T08:45:28.659Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "auth-validators-must-be-mapped-to-the-route-s-own-request-pr",
+    "issue-detection-invoke-must-require-use-on-the-body-s-gatewa",
+    "plain-flask-ui-routes-need-an-explicit-authenticated-only-va",
+    "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker"
+  ],
+  "says": [
+    "Standard users can see other accounts' background jobs, parameters, and results in job search.",
+    "Restrict the jobs dashboard view so team members only see their own submitted tasks.",
+    "Non-administrator accounts are able to view private execution results from other people's jobs.",
+    "Filter the background job search list to display only jobs created by the caller."
+  ],
+  "search": "Under basic-auth, job search responses must be filtered to return only jobs belonging to the authenticated caller. _filter_search_jobs in mlflow/server/auth/__init__.py is registered in FASTAPI_ENDPOINT_RESPONSE_FILTERS for job_api.search_jobs, matching the username against the creator field exposed by Job.from_job_entity. This post-response filter applies because the handler returns an unpaginated set, whereas paginated or store-side searches must filter within the database query. Administrator accounts bypass response filters in fastapi_permission_middleware, while jobs lacking a creator stay hidden from non-admins, applying to FastAPI job search and listing routes.",
+  "saysFor": "s2:926d0424be601727353705aac3ae2c2a88cd8f1e25bc505f808d65ea21264b75"
+}

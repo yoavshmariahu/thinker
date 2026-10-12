@@ -1,0 +1,59 @@
+{
+  "id": "run-the-push-images-workflow-structure-test-after-editing-th",
+  "title": "Run the push-images workflow structure test after editing the workflow",
+  "kind": "howto",
+  "answers": [
+    "how to test changes to push-images.yml",
+    "run the docker image workflow test locally",
+    "workflow test fails after editing the image promotion script",
+    "check that docker tag promotion steps are still wired correctly"
+  ],
+  "body": "Run: `UV_FROZEN=1 uv run pytest tests/test_push_images_workflow.py`.\nThe test loads .github/workflows/push-images.yml with yaml.safe_load and asserts job names, `needs`, `permissions`, `concurrency`, `flavor: latest=false` on each metadata-action step, and step order (validation before the first push).\nIt also matches exact strings in the promotion `run` script, including the full `docker buildx imagetools create --prefer-index=false --tag ... \"ghcr.io/mlflow/...:$RELEASE_TAG\"` command for all three images.\nAny edit to those commands, step names, or the Latest-check wording needs a matching update to the test, or the test fails even when the workflow is valid.\nRun the repo pre-commit hooks `check-github-workflows` and `check-actions` as well.",
+  "applies": "Edits to .github/workflows/push-images.yml or tests/test_push_images_workflow.py.",
+  "tags": [
+    "testing",
+    "github-actions",
+    "docker",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_push_images_workflow.py",
+      "symbol": "test_floating_image_tags_are_promoted_after_versioned_images_are_published",
+      "hash": "sha256:dfc9c6323f0a5d7fda45a7a5",
+      "line": 8,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfc9c6323f0a5d7fda45a7a5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:f81e2019e4c7412cfdc9deb4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-11T10:27:46.659Z",
+  "verified": "2026-10-11T10:27:46.659Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Container image publishing tests fail after modifying the release promotion command script",
+    "Verify that container tag promotion occurs only after versioned release images are published",
+    "The image release pipeline test fails due to mismatched step names or permissions",
+    "Test container release pipeline structure locally before triggering automated container image deployment"
+  ],
+  "search": "Validating edits to .github/workflows/push-images.yml is performed by running UV_FROZEN=1 uv run pytest tests/test_push_images_workflow.py. The test parses the workflow using yaml.safe_load to assert job names, needs, permissions, concurrency, step order, and flavor: latest=false on metadata-action steps. It performs exact string matching on promotion run scripts, including docker buildx imagetools create commands with --prefer-index=false for all three ghcr.io images and the Latest-check wording. Any modification to those commands, step names, or wording requires updating the test, alongside running repository pre-commit hooks check-github-workflows and check-actions.",
+  "saysFor": "s2:5efa826704422ba2092380b5bcc030aa8a4d8b12ca7f2d16170af392895e0cf9"
+}

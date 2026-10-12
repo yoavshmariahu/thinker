@@ -1,0 +1,56 @@
+{
+  "session_id": "01a12a58-7ad8-7af1-a22e-f6f1d7c24869",
+  "turns": 1,
+  "in_tokens": 137137,
+  "cached_tokens": 122240,
+  "out_tokens": 872,
+  "wall_ms": 36458,
+  "result": "I’ll check the logged model serialization code, add the missing field, and run the relevant tests. I’m using the repository’s Python style skill.\nUpdated `LoggedModel.to_proto()` to include `status_message`, preserving failure reasons such as `\"Upload failed\"` through serialization.\n\nAdded regression tests for populated, empty, and absent messages. All three passed; pytest then encountered a sandbox permission error in its terminal-summary hook. No dependencies were installed.",
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "command_execution": 6,
+      "mcp_tool_call": 1,
+      "file_change": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "cache": {
+      "injected": [],
+      "hookServed": 0,
+      "lateServed": 0,
+      "orientCalls": 1,
+      "lookupCalls": 0
+    },
+    "callsBeforeFirstEdit": 5,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": 1,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "full",
+  "task": "PR26244-hard",
+  "rep": 0,
+  "area": "mlflow/entities",
+  "id": "PR26244-hard-full-0",
+  "session": "01a12a58-7ad8-7af1-a22e-f6f1d7c24869",
+  "cost": 0.31481,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/entities/logged_model.py b/mlflow/entities/logged_model.py\nindex e0137a7c7..1d9815ed4 100644\n--- a/mlflow/entities/logged_model.py\n+++ b/mlflow/entities/logged_model.py\n@@ -201,6 +201,7 @@ class LoggedModel(_MlflowObject):\n                 model_type=self.model_type,\n                 source_run_id=self.source_run_id,\n                 status=self.status.to_proto(),\n+                status_message=self.status_message,\n                 tags=[pb2.LoggedModelTag(key=k, value=v) for k, v in self.tags.items()],\n             ),\n             data=pb2.LoggedModelData(\ndiff --git a/tests/entities/test_logged_model.py b/tests/entities/test_logged_model.py\nnew file mode 100644\nindex 000000000..207dddbd7\n--- /dev/null\n+++ b/tests/entities/test_logged_model.py\n@@ -0,0 +1,25 @@\n+import pytest\n+\n+from mlflow.entities.logged_model import LoggedModel\n+from mlflow.entities.logged_model_status import LoggedModelStatus\n+\n+\n+@pytest.mark.parametrize(\"status_message\", [\"Upload failed\", \"\", None])\n+def test_status_message_proto_round_trip(status_message):\n+    model = LoggedModel(\n+        experiment_id=\"1\",\n+        model_id=\"m-123\",\n+        name=\"model\",\n+        artifact_location=\"/artifacts/model\",\n+        creation_timestamp=1,\n+        last_updated_timestamp=2,\n+        status=LoggedModelStatus.FAILED,\n+        status_message=status_message,\n+    )\n+\n+    proto = model.to_proto()\n+    assert proto.info.status_message == (status_message or \"\")\n+\n+    restored = LoggedModel.from_proto(type(proto).FromString(proto.SerializeToString()))\n+    assert restored.status_message == (status_message or \"\")\n+    assert restored.status == LoggedModelStatus.FAILED\n",
+  "grade": {
+    "goldTests": "gold tests did not apply: Performing three-way merge...\nerror: tests/entities/test_logged_model.py: does not exist in index\nerror: cannot read the current contents of 'tests/entities/test_logged_model.py'\nerror: tests/entities/test_logged_model.py: patch does not apply\n",
+    "tests": "pass",
+    "testTail": "ated and will be removed in a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)\n    num_metric_entries = session.query(SqlMetric).count()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.89s setup    tests/entities/test_logged_model.py::test_status_message_proto_round_trip[Upload failed]\n\n(8 durations < 0.005s hidden.  Use -vv to show these durations.)\n\u001b[33m========================= \u001b[32m3 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 0.91s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 14897,
+  "costBasis": "list price from token classes"
+}

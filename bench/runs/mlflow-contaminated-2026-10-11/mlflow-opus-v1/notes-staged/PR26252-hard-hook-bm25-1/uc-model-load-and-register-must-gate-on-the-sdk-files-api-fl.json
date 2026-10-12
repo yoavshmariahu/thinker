@@ -1,0 +1,82 @@
+{
+  "id": "uc-model-load-and-register-must-gate-on-the-sdk-files-api-fl",
+  "title": "UC model load and register must gate on the SDK Files-API flag together",
+  "kind": "rule",
+  "answers": [
+    "UC model load_model goes through scoped cloud credentials even though the Files API flag is set",
+    "register model version to Unity Catalog still asks for temporary write credentials",
+    "how do I route Unity Catalog model artifacts through the Databricks SDK files API",
+    "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC has no effect on one of load or register"
+  ],
+  "body": "Symptom: With the flag on, UC model download or upload still uses vended scoped tokens, which Unity Catalog blocks on MLR 15.4 LTS, so load or register fails.\nRoot cause: Two entry points create the artifact repo for UC models: UnityCatalogModelsArtifactRepository._get_artifact_repo (load) and UcModelRegistryStore._get_artifact_repo (register, in mlflow/store/_unity_catalog/registry/rest_store.py). Each must check the flag before requesting scoped tokens or write credentials.\nFix pattern: Keep the early return `if MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC.get(): return DatabricksSDKModelsArtifactRepository(...)` at the top of both methods. Any change to one must be mirrored in the other.\nConstraints: The flag is read at call time and defaults to False, so unset means the old scoped-credential path, unchanged. Editing only one method silently leaves the other on vended tokens. The env var is defined in mlflow/environment_variables.py.",
+  "applies": "Any change to how UC model artifacts are loaded or registered in mlflow/store/artifact and mlflow/store/_unity_catalog/registry.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "artifacts",
+    "databricks-sdk"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/unity_catalog_models_artifact_repo.py",
+      "symbol": "UnityCatalogModelsArtifactRepository._get_artifact_repo",
+      "hash": "sha256:dcf01c1a77ee218b5e163c5c",
+      "line": 170,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dcf01c1a77ee218b5e163c5c",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "UcModelRegistryStore._get_artifact_repo",
+      "hash": "sha256:a8ee1ef8f21380efbaa7a560",
+      "line": 1112,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8ee1ef8f21380efbaa7a560",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC",
+      "hash": "sha256:c702dffb494a71467110dd92",
+      "line": 1172,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-11T08:44:24.594Z",
+  "verified": "2026-10-11T08:44:24.594Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-load-and-register-must-share-one-files-api-routing"
+  ],
+  "says": [
+    "Registering a new model version fails because temporary credentials are blocked.",
+    "Loading a model from the catalog fails despite enabling the new files interface.",
+    "Route catalog model uploads and downloads through the file service instead of scoped credentials.",
+    "Model registry operations fail during upload when temporary storage tokens are rejected."
+  ],
+  "search": "Unity Catalog model artifact loading and registration must both check MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC to return DatabricksSDKModelsArtifactRepository. This dual check occurs in UnityCatalogModelsArtifactRepository._get_artifact_repo and UcModelRegistryStore._get_artifact_repo before requesting scoped tokens or write credentials. Mirroring the flag check across both paths prevents failures on environments like MLR 15.4 LTS where Unity Catalog blocks vended scoped tokens. The environment variable defaults to False at call time, so changing only one method leaves the other path on scoped tokens.",
+  "saysFor": "s2:78d43facb5c6c785e2c5c15364cc711f83bb251e3ce9f880ad30c3af1edc4ed4"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "example-bucket-init-container-order-via-service-completed-su",
+  "title": "Example bucket init container: order via service_completed_successfully and keep it idempotent",
+  "kind": "rule",
+  "answers": [
+    "tracking server starts before bucket exists in docker compose example",
+    "mlflow artifact upload fails with NoSuchBucket in compose example",
+    "how to create S3 bucket in docker compose with aws cli"
+  ],
+  "body": "Invariant: the client/tracking service must wait for the bucket-creation container to finish successfully, not merely start.\n- In examples/mlflow_artifacts/docker-compose.yml the tracking service uses `depends_on: create-bucket: condition: service_completed_successfully`; a plain `depends_on` list only orders start, so the bucket may not exist yet.\n- The create-bucket entrypoint (`/bin/sh -c` with `set -e`) runs `aws s3api head-bucket` first and only calls `create-bucket` if that fails, so re-running compose does not error on an existing bucket.\n- Storage readiness is gated by the storage healthcheck (`condition: service_healthy`) before create-bucket runs.\nConstraints: this replaces the earlier MinIO `mc` init; the `mc` image is no longer available on Docker Hub, so do not reintroduce it.",
+  "applies": "Adding or reordering services in examples/mlflow_artifacts/docker-compose.yml that depend on bucket creation.",
+  "tags": [
+    "examples",
+    "docker-compose",
+    "healthcheck",
+    "s3-bucket"
+  ],
+  "deps": [
+    {
+      "path": "examples/mlflow_artifacts/docker-compose.yml",
+      "hash": "sha256:7e6b0a34bb4a83e859ca389e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25808"
+  },
+  "created": "2026-10-11T08:47:25.178Z",
+  "verified": "2026-10-11T08:47:25.178Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Artifact uploads fail with a missing bucket error in the local compose example.",
+    "The tracking server starts up before the storage bucket has been created.",
+    "Restarting the local container environment fails because the storage bucket already exists.",
+    "Ensure the storage bucket setup finishes completely before the tracking service launches.",
+    "Bucket initialization runs before the underlying local object storage service is fully healthy."
+  ],
+  "search": "In examples/mlflow_artifacts/docker-compose.yml, the tracking service must gate startup on bucket creation completing via depends_on with condition service_completed_successfully. Storage readiness is gated first by the storage service healthcheck condition service_healthy before create-bucket executes. The create-bucket entrypoint checks aws s3api head-bucket before calling create-bucket to remain idempotent across restarts. This replaces the deprecated MinIO mc initialization container, which must not be reintroduced.",
+  "saysFor": "s2:4b4fcc3b5d0b2fa4e431864a19a8dc7008537af60ba0554cab546dbea240c753"
+}

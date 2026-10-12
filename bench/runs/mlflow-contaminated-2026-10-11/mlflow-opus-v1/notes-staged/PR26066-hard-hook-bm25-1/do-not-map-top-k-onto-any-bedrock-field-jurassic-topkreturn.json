@@ -1,0 +1,74 @@
+{
+  "id": "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn",
+  "title": "Do not map top_k onto any Bedrock field; Jurassic topKReturn is not top-k sampling",
+  "kind": "rule",
+  "answers": [
+    "top_k setting on Bedrock models",
+    "why top_k is not supported for Bedrock Titan or Jurassic",
+    "map top_k to topK bedrock",
+    "topKReturn meaning for AI21 Jurassic"
+  ],
+  "body": "Invariant: top_k stays unmapped in the Bedrock adapters. Titan's textGenerationConfig accepts only maxTokenCount, stopSequences, temperature and topP. Jurassic's topKReturn controls how many alternative tokens are reported, not sampling.\nEnforced by: the NB comments above mapping in mlflow/gateway/providers/bedrock.py:AWSTitanAdapter.completions_to_model and AI21Adapter.completions_to_model.\nWhat breaks if skipped: renaming top_k to topK, or to topKReturn, forwards a key Bedrock ignores or changes the response payload. The request then looks handled while the sampling behaviour is unchanged, which is the same silent-drop failure as an unmapped top_p.\nOpen decision: the PR leaves top_k accepted and ignored rather than rejecting it with a 422. Check for a later change before assuming either behaviour.",
+  "applies": "Mapping decisions for Bedrock completions adapters only; GeminiAdapter maps top_k to topK because Gemini supports it.",
+  "tags": [
+    "bedrock",
+    "gateway",
+    "top_k",
+    "parameter-mapping"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AWSTitanAdapter.completions_to_model",
+      "hash": "sha256:f00e82083243c1ac1da6576d",
+      "line": 124,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f00e82083243c1ac1da6576d",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AI21Adapter.completions_to_model",
+      "hash": "sha256:fc5ef60784c56079080616c0",
+      "line": 191,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fc5ef60784c56079080616c0",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25795"
+  },
+  "created": "2026-10-11T08:42:25.147Z",
+  "verified": "2026-10-11T08:42:25.147Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "titan-rejects-top-p-0-with-a-422-before-calling-bedrock",
+    "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t",
+    "bedrock-anthropic-passthrough-anthropic-models-only-api-key",
+    "bedrock-stream-exception-frames-must-raise-httpexception-wit"
+  ],
+  "says": [
+    "Changing the top k sampling parameter has no effect on Amazon Bedrock models.",
+    "Why is top k sampling ignored when sending requests to Bedrock foundation models?",
+    "Configuring candidate token sampling on Bedrock gateway endpoints does not change completions.",
+    "The AI gateway silently ignores sampling candidate limits for Titan and Jurassic endpoints.",
+    "Support token candidate sampling controls or report an error on unsupported Bedrock endpoints."
+  ],
+  "search": "The top_k parameter must remain unmapped in Amazon Bedrock completions adapters because Titan's textGenerationConfig only supports maxTokenCount, stopSequences, temperature, and topP, while Jurassic's topKReturn specifies returned token alternatives rather than sampling. Mapping comments in mlflow/gateway/providers/bedrock.py:AWSTitanAdapter.completions_to_model and AI21Adapter.completions_to_model document that mapping to topK or topKReturn either sends ignored keys or alters response payloads without changing sampling behavior. This restriction applies exclusively to Bedrock completions adapters, unlike GeminiAdapter where top_k maps to topK. The current implementation accepts and ignores top_k rather than rejecting it with HTTP 422, leaving an open decision for future behavior changes.",
+  "saysFor": "s2:a2bcffbf56177d36e7cdd1e2a9f70030d331bdefdb00a49dfa137f8361fc1f1e"
+}

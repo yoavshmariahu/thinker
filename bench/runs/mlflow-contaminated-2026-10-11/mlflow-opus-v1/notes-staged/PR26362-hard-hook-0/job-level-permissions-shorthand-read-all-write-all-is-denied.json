@@ -1,0 +1,55 @@
+{
+  "id": "job-level-permissions-shorthand-read-all-write-all-is-denied",
+  "title": "Job-level permissions shorthand read-all/write-all is denied; jobs must list scopes",
+  "kind": "rule",
+  "answers": [
+    "why does conftest reject permissions: write-all on a job",
+    "how do I give a workflow job broad token permissions in this repo",
+    "job permissions read-all or write-all policy failure",
+    "can a job use the permissions shorthand instead of listing scopes"
+  ],
+  "body": "Invariant: a job under `jobs:` must not set `permissions` to the string `read-all` or `write-all`; it must list the scopes it needs in object form (or omit the key or use `{}`).\nEnforced by .github/policy.rego:deny_job_permissions_shorthand, which checks `job.permissions in {\"read-all\", \"write-all\"}` for each job in `input.jobs` and names the job and shorthand in the message.\nWhat breaks if skipped: conftest fails the workflow. Object-form `permissions` and `permissions: {}` pass this rule.\nConstraints: the rule only inspects job-level values; top-level `permissions` is covered separately by deny_top_level_permissions, which requires `{}`. It walks `input.jobs` only, so composite action.yml files are not checked.\nApplies: Job-level `permissions` in .github/workflows/*.yml.",
+  "applies": "Jobs under `jobs:` in .github/workflows/*.yml; composite actions are not covered by this rule.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "permissions",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25590"
+  },
+  "created": "2026-10-11T08:50:25.824Z",
+  "verified": "2026-10-11T08:50:25.824Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "do-not-list-github-s-default-pull-request-activity-types-in",
+    "workflows-default-github-actions-cache-mode-to-none-grant-re",
+    "actions-policy-lives-in-one-file-its-line-1-regal-directive"
+  ],
+  "says": [
+    "Workflow security policy check fails when using read-all or write-all permissions shortcuts.",
+    "Continuous integration configuration fails validation because a job uses broad permission shorthands.",
+    "Workflow pull request is rejected by security checks for not listing explicit permission scopes.",
+    "Require workflow jobs to specify explicit token permission scopes instead of shorthand strings.",
+    "Automated pipeline validation rejects workflow jobs configured with global read or write permissions."
+  ],
+  "search": "Workflow jobs in .github/workflows/*.yml are denied from using the read-all or write-all permissions shorthand by .github/policy.rego:deny_job_permissions_shorthand. Jobs must explicitly list required scopes in object form, use empty braces, or omit the permissions key entirely to pass conftest. The policy inspects input.jobs at the job level only and does not apply to composite actions in action.yml files. Denying top-level permissions shorthand is handled separately by deny_top_level_permissions, which requires empty braces.",
+  "saysFor": "s2:9d59d706a57b0aea8dda0369c6b7f66aa01f4a9b58341c42bec6143ab2a8fd18"
+}

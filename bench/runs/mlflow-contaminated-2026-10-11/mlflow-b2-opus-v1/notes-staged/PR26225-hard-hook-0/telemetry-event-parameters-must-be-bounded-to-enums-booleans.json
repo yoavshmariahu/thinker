@@ -1,0 +1,96 @@
+{
+  "id": "telemetry-event-parameters-must-be-bounded-to-enums-booleans",
+  "title": "Telemetry event parameters must be bounded to enums, booleans, or None",
+  "kind": "rule",
+  "answers": [
+    "telemetry records free-form model flavor or URI scheme values",
+    "how do I add a new telemetry parameter without leaking user data",
+    "custom flavor shows up as its own name in usage tracking",
+    "bound the values of a usage event to a known set"
+  ],
+  "body": "Invariant: every parameter an Event.parse returns must be a bool, None, or a value from a fixed, hand-maintained set. Anything outside the set becomes \"other\" (or \"local\" for a URI with no scheme).\nEnforced in mlflow/telemetry/events.py:_bound_flavor (checks KNOWN_FLAVORS from mlflow/telemetry/constant.py), mlflow/telemetry/events.py:RegisterModelEvent.parse (env_pack checked against get_args(EnvPackType); source_scheme checked against _KNOWN_MODEL_URI_SCHEMES).\nWhat breaks if skipped: free-form or user-identifying strings reach telemetry, and plugin-defined values inflate cardinality.\nConstraints: do not bound against the artifact-repository registry, because plugins can register schemes at runtime. Parse schemes with urlparse so single-slash forms such as dbfs:/ classify as a scheme; splitting on '://' misclassifies them as local.",
+  "applies": "Any Event subclass in mlflow/telemetry/events.py whose parse() reads user-supplied strings such as flavor, URI, or pack names.",
+  "tags": [
+    "telemetry",
+    "usage-tracking",
+    "privacy",
+    "bounded-values"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "_bound_flavor",
+      "hash": "sha256:8e04c5563b4fb5a4d8030128",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8e04c5563b4fb5a4d8030128",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "RegisterModelEvent.parse",
+      "hash": "sha256:78e080025e58fbe9c124dbaa",
+      "line": 301,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78e080025e58fbe9c124dbaa",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    },
+    {
+      "path": "mlflow/telemetry/constant.py",
+      "symbol": "KNOWN_FLAVORS",
+      "hash": "sha256:5f3174fe1e9c604a64a39092",
+      "line": 95,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "Event.parse",
+      "hash": "sha256:1c18b286cf887d42723de9d4",
+      "line": 113,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c18b286cf887d42723de9d4",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-11T10:30:30.180Z",
+  "verified": "2026-10-11T10:30:30.180Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-usage-event-touches-the-event-class-docs-table-and"
+  ],
+  "says": [
+    "Custom model flavors are appearing in usage tracking dashboards instead of being grouped as other.",
+    "Internal storage locations and private model paths are leaking into product telemetry reports.",
+    "Group all unrecognized model types under a single category in usage statistics.",
+    "Prevent proprietary storage scheme names from cluttering the model registry usage analytics."
+  ],
+  "search": "Telemetry parameters returned by Event.parse must be bounded to bool, None, or values from fixed sets like KNOWN_FLAVORS, mapping anything outside to 'other' or 'local'. Applies to Event subclasses in mlflow/telemetry/events.py such as RegisterModelEvent.parse and _bound_flavor that parse user strings like flavor, URI schemes, or env_pack. Do not bound against the artifact-repository registry because plugins register schemes at runtime, and parse schemes with urlparse rather than splitting on '://' to properly classify single-slash schemes like dbfs:/.",
+  "saysFor": "s2:6b7c5ab9b29dd99f05cf53338b1698983ad65d1bc78269b4b2ad66ae293a8ab1"
+}

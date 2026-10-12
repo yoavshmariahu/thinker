@@ -1,0 +1,117 @@
+{
+  "id": "host-addressed-artifact-uris-must-pass-the-host-policy-befor",
+  "title": "Host-addressed artifact URIs must pass the host policy before the server connects to them",
+  "kind": "rule",
+  "answers": [
+    "server connects to an arbitrary host from an experiment artifact location",
+    "tracking server SSRF through artifact_location or model version source",
+    "why does creating an experiment with an hdfs or ftp artifact location get rejected on the server",
+    "register model source on another storage host rejected by the tracking server"
+  ],
+  "body": "Symptom: A client creates an experiment, workspace or model version whose artifact location is on another storage host (ftp, sftp, hdfs, viewfs, http(s), mlflow-artifacts, r2, b2, abfss), and the tracking server later contacts that host when serving artifacts.\nRoot cause: mlflow/store/artifact/artifact_repository_registry.py:ArtifactRepositoryRegistry.get_artifact_repository built repositories from the stored URI without any host check, and the storage-location and model-source validators in mlflow/server/handlers.py did not look at the host.\nFix pattern: Check the URI with mlflow/store/artifact/host_policy.py:rejected_host_addressed_scheme in request validators (handlers.py:_validate_artifact_uri_scheme, which gives a field-specific 400), in the registry (enforce_server_artifact_uri_host_policy), and in stored-location construction (handlers.py:_get_artifact_repository_for_uri).\nConstraints: Enforcement applies only when the server-process marker is set, so client processes are unaffected. Trusted hosts are those of the server's default artifact root and artifacts destination, plus per-scheme opt-in via MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. Proxied http(s) roots under --serve-artifacts never reach the handler guard. A scheme may join HOST_ADDRESSED_ARTIFACT_SCHEMES only after its repository's endpoint derivation is checked (r2/b2/abfss were added that way; wasbs was not).",
+  "applies": "Any new or changed handler, validator or repository path that turns a stored or client-supplied artifact URI into a connection in a server process.",
+  "tags": [
+    "security",
+    "artifacts",
+    "ssrf",
+    "tracking-server",
+    "host-policy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "rejected_host_addressed_scheme",
+      "hash": "sha256:545df968444a236f6a28994d",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:545df968444a236f6a28994d",
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "enforce_server_artifact_uri_host_policy",
+      "hash": "sha256:d2fa12724f2890450f637c43",
+      "line": 163,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d2fa12724f2890450f637c43",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/artifact_repository_registry.py",
+      "symbol": "ArtifactRepositoryRegistry.get_artifact_repository",
+      "hash": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "line": 60,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "fanout": {
+        "files": 46,
+        "sites": 111,
+        "refs": 183
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_artifact_uri_scheme",
+      "hash": "sha256:b652cb346d90c8387139a20a",
+      "line": 1467,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b652cb346d90c8387139a20a",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_artifact_repository_for_uri",
+      "hash": "sha256:3caa854a06cab55fafabdc5e",
+      "line": 1475,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3caa854a06cab55fafabdc5e",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-11T10:31:27.878Z",
+  "verified": "2026-10-11T10:31:27.878Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n",
+    "server-process-marker-env-var-names-must-mirror-mlflow-serve",
+    "compare-host-addressed-artifact-targets-as-scheme-family-hos",
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali"
+  ],
+  "says": [
+    "Registering a model pointing to external cloud storage host is rejected by the server.",
+    "The tracking server rejects creating experiments with custom remote storage locations.",
+    "Allow configuring trusted remote storage endpoints for model artifacts and experiment data.",
+    "Prevent the tracking server from reaching out to unapproved third party storage hosts.",
+    "Experiment creation fails with an invalid storage scheme error when using external servers."
+  ],
+  "search": "Tracking server handlers and artifact repository constructors must validate host-addressed artifact URIs against host policy before connecting to external storage hosts. Validation is enforced in mlflow/server/handlers.py:_validate_artifact_uri_scheme, handlers.py:_get_artifact_repository_for_uri, and ArtifactRepositoryRegistry.get_artifact_repository using host_policy.py functions. Enforcement applies only in server processes, trusting default artifact roots or schemes opted in via MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. Adding schemes to HOST_ADDRESSED_ARTIFACT_SCHEMES requires verified endpoint derivation, while proxied http(s) roots under --serve-artifacts bypass handler checks.",
+  "saysFor": "s2:20d611daa0daed3d89e0e3e139480ad9a40009ccc2e65327f6837a7c96c75862"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "copilot-setup-steps-yml-steps-must-be-a-flat-list-of-run-use",
+  "title": "copilot-setup-steps.yml steps must be a flat list of run/uses entries",
+  "kind": "rule",
+  "answers": [
+    "Copilot cloud agent fails with 'Failed to launch agent' after editing the setup workflow",
+    "Why won't my Copilot coding agent session start after changing copilot-setup-steps?",
+    "Can I use a parallel: group in the Copilot setup steps workflow?"
+  ],
+  "body": "Symptom: Copilot cloud agent sessions fail in about 2s with \"Failed to launch agent\", with no session logs and no agent run started.\nRoot cause: .github/workflows/copilot-setup-steps.yml, job steps. A `parallel:` group entry is neither a `run` nor a `uses` step. The launcher splices these steps into its own job, and actions/runner's schema accepts only `run` and `uses`, so the session cannot launch.\nFix pattern: keep every entry under the setup job's `steps:` as a plain `run` or `uses` step, in sequence. Keep the cache restores and per-step `with:` inputs (e.g. `pin-micro-version: false`) when flattening.\nConstraints: the agent reads this file from the default branch, so a change here is not exercised by any session until merged. CI runs the file as an ordinary workflow and stays green even when launch would fail, so the `copilot-setup-steps` check validates only the file itself.",
+  "applies": "Only the Copilot setup steps file in this repo; not for ordinary workflows that CI runs and that can use parallel-style constructs.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "ci",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25545"
+  },
+  "created": "2026-10-11T08:43:37.137Z",
+  "verified": "2026-10-11T08:43:37.137Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Cloud coding agent fails immediately with a message saying failed to launch agent.",
+    "The assistant session aborts within two seconds without producing any error logs.",
+    "Why does the coding agent crash on startup while continuous integration checks stay green?",
+    "Agent sessions cannot launch after grouping environment setup steps into parallel blocks.",
+    "Fix agent startup failure where the cloud session crashes instantly before starting work."
+  ],
+  "search": "Steps under the setup job in .github/workflows/copilot-setup-steps.yml must remain a flat sequential list composed strictly of run or uses steps. Group entries such as parallel: violate the actions/runner schema when spliced by the launcher, causing Copilot cloud agent sessions to fail within two seconds with 'Failed to launch agent' and no logs. The workflow is fetched from the default branch, meaning launch failures are not caught by the file's green CI checks until merged.",
+  "saysFor": "s2:8eb239130774895d2f6be878c1bb34bfe744a0c6799d52a1893f128703f6d3d4"
+}

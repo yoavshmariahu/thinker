@@ -1,0 +1,71 @@
+{
+  "id": "third-party-scorer-checks-must-run-before-import-and-before",
+  "title": "Third-party scorer checks must run before import and before instantiation",
+  "kind": "rule",
+  "answers": [
+    "order of validation when restoring a third-party scorer",
+    "why is a non-Scorer class rejected before construction",
+    "where should new checks for third-party scorer payloads go"
+  ],
+  "body": "Invariant: in Scorer.model_validate, all payload checks (allow-list, required fields, metric_name identifier, kwargs metric_name) run before importlib.import_module. After import, the resolved attribute must be a class and a Scorer subclass before it is instantiated.\nEnforced by: mlflow/genai/scorers/base.py:Scorer.model_validate (the `inspect.isclass(scorer_class) and issubclass(scorer_class, Scorer)` check precedes construction).\nWhat breaks if skipped: an import with side effects runs on a bad payload, or a non-Scorer attribute's constructor runs as defense-in-depth is lost.\nConstraints: new validation for third-party payloads belongs before the import_module call; tests should patch mlflow.genai.scorers.base.importlib.import_module and assert it is not called on rejected payloads, as tests/genai/scorers/test_serialization.py does.",
+  "applies": "Any new check added to third-party scorer deserialization in mlflow/genai/scorers/base.py.",
+  "tags": [
+    "security",
+    "genai-scorers",
+    "serialization",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 482,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 118,
+        "refs": 144
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "symbol": "test_third_party_scorer_descendant_module_rejected_before_import",
+      "hash": "sha256:ee41858f193f64c5163059fd",
+      "line": 863,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee41858f193f64c5163059fd",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T10:30:36.743Z",
+  "verified": "2026-10-11T10:30:36.743Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-module-allow-list-is-matched-exactly-neve",
+    "third-party-scorer-metric-name-must-be-an-identifier-and-mus"
+  ],
+  "says": [
+    "Reject malformed third-party evaluation metric configurations before loading external modules.",
+    "Restoring an invalid custom scorer runs untrusted module code during import.",
+    "Ensure third-party evaluators validate required fields before importing dependencies.",
+    "Prevent non-scorer classes from being constructed when restoring evaluation metrics.",
+    "Loading a damaged custom evaluation metric triggers unexpected module side effects."
+  ],
+  "search": "Third-party scorer deserialization in Scorer.model_validate must run all payload validation checks before calling importlib.import_module, and must verify the imported attribute is a Scorer subclass before instantiation. Performing validation prior to import prevents executing imports with side effects or running constructors of non-Scorer classes. Applies to new checks added in mlflow/genai/scorers/base.py, where tests should assert importlib.import_module is never called on rejected payloads.",
+  "saysFor": "s2:2141446278b7daf8ef82706d4c11979fb1555d197f61c233d9eb6ad9805a5f0c"
+}

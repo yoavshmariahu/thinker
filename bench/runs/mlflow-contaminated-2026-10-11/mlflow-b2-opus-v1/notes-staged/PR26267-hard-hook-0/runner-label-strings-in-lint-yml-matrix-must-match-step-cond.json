@@ -1,0 +1,50 @@
+{
+  "id": "runner-label-strings-in-lint-yml-matrix-must-match-step-cond",
+  "title": "Runner label strings in lint.yml matrix must match step conditions, job name and cache keys",
+  "kind": "rule",
+  "answers": [
+    "Why are lint steps silently skipped after changing the runner OS?",
+    "How do I change the ubuntu runner in the lint matrix without breaking conditions?",
+    "Where is the runner label used in workflow if-conditions and cache keys?"
+  ],
+  "body": "Invariant: the matrix `os` value in .github/workflows/lint.yml is repeated as literal strings in the job `name:` expression, in `if: matrix.os == '...'` guards (Add problem matchers, Check function signatures, Check whitespace-only changes, Check uv.lock changes), and in cache keys built from `${{ matrix.os }}`.\nWhen the runner changes, update the matrix value and every literal comparison in the same file together.\nWhat breaks if skipped: a guard that still compares against the old label evaluates false, so the check is skipped without an error. The lint job name also falls back to `lint-macos`.\nCache key prefixes in .github/workflows/copilot-setup-steps.yml embed the runner label too (`mypy-ubuntu-24.04-`, `install-bin-ubuntu-24.04-`, `pre-commit-ubuntu-24.04-`), so keys and restore-keys move together.",
+  "applies": "Any workflow that compares matrix or runner labels in if-conditions, job names or cache keys; check these literals whenever a runner label changes.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "matrix",
+    "cache-keys",
+    "runners"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:86030cddebefeb6cb6ae79b4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:f50649f8a816c0599e01826c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26183"
+  },
+  "created": "2026-10-11T10:26:58.645Z",
+  "verified": "2026-10-11T10:26:58.645Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated code quality checks are silently skipped after upgrading the continuous integration operating system",
+    "The continuous integration linting job displays the incorrect operating system name on pull requests",
+    "Build cache restoration fails after updating the pipeline operating system version",
+    "Update continuous integration runner operating systems without breaking step conditional checks and caches"
+  ],
+  "search": "The runner operating system label in .github/workflows/lint.yml must be kept synchronized across matrix os definitions, job name expressions, if-condition guards, and cache keys. Literal runner string mismatches cause guards like Check function signatures, Check whitespace-only changes, and Check uv.lock changes to evaluate false, silently skipping checks without errors while defaulting job names to lint-macos. Cache key prefixes in .github/workflows/copilot-setup-steps.yml, such as mypy-ubuntu-24.04-, install-bin-ubuntu-24.04-, and pre-commit-ubuntu-24.04-, also embed runner labels and must be updated alongside restore keys.",
+  "saysFor": "s2:35c1bed736e54c46eddfb3eea96f3a9523014f96b05d3725374170462afe7ab8"
+}

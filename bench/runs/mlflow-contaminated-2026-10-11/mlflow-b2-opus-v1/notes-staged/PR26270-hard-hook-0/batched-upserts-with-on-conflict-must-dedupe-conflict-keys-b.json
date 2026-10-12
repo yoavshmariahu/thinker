@@ -1,0 +1,89 @@
+{
+  "id": "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b",
+  "title": "Batched upserts with ON CONFLICT must dedupe conflict keys before the statement",
+  "kind": "rule",
+  "answers": [
+    "PostgreSQL CardinalityViolation ON CONFLICT DO UPDATE command cannot affect row a second time",
+    "saving logged model tags with a repeated key fails on Postgres",
+    "duplicate tag key in one set_logged_model_tags call errors only on PostgreSQL",
+    "bulk upsert duplicate key last value wins"
+  ],
+  "body": "Symptom: Logging logged-model tags with the same key twice in one call fails on PostgreSQL with \"ON CONFLICT DO UPDATE command cannot affect row a second time\". SQLite and MySQL accept it, and the old per-tag loop kept the last value.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.set_logged_model_tags passed one row per input tag to _bulk_upsert. A repeated (model_id, tag_key) pair put two rows on the same conflict target in one INSERT ... ON CONFLICT statement.\nFix pattern: Dedupe rows by conflict key before calling _bulk_upsert, e.g. deduped = {tag.key: tag.value for tag in tags}, so the last value wins as session.merge did.\nConstraints: Applies to any _bulk_upsert caller whose input can repeat a conflict-key value (ON CONFLICT on SQLite/PostgreSQL, ON DUPLICATE KEY on MySQL). Dedupe in the store rather than relying on caller order. The regression case is the repeated \"dup\" key in test_set_logged_model_tags_bulk_upsert.\nApplies: Any new or changed caller of _bulk_upsert in mlflow/store/tracking/sqlalchemy_store.py, including logged model tags.",
+  "applies": "SQLAlchemy tracking store bulk upserts that write rows keyed by a composite primary key.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "postgresql",
+    "upsert",
+    "logged-model"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2826,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_bulk_upsert",
+      "hash": "sha256:cea78568d1d6d33ad8939d46",
+      "line": 10931,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cea78568d1d6d33ad8939d46",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_set_logged_model_tags_bulk_upsert",
+      "hash": "sha256:923d6e11d3b919ec0e260b03",
+      "line": 4568,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:923d6e11d3b919ec0e260b03",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-11T10:31:58.536Z",
+  "verified": "2026-10-11T10:31:58.536Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "logged-model-search-must-eager-load-every-child-relationship",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back"
+  ],
+  "says": [
+    "Saving multiple tags with the same key on a logged model fails in Postgres.",
+    "Updating model metadata crashes when the tag list contains duplicate label names.",
+    "Overwriting an existing model tag key in a batch should keep the newest value.",
+    "Bulk tagging a logged model throws a database conflict error on repeated attributes.",
+    "Editing model tags should let the latest duplicate entry override earlier entries cleanly."
+  ],
+  "search": "Bulk upserts in the SQLAlchemy tracking store must deduplicate input rows by conflict key so the last value wins without triggering PostgreSQL cardinality errors. In mlflow/store/tracking/sqlalchemy_store.py, SqlAlchemyStore.set_logged_model_tags passes rows to _bulk_upsert, where duplicate (model_id, tag_key) pairs cause ON CONFLICT failures. The store must perform deduplication internally rather than relying on caller order for any _bulk_upsert caller with composite primary keys, verified by test_set_logged_model_tags_bulk_upsert in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py.",
+  "saysFor": "s2:c18f83ba9e64936c4433ad5b44cec4e0a636f7910af0681dcc4621931c9e5a36"
+}

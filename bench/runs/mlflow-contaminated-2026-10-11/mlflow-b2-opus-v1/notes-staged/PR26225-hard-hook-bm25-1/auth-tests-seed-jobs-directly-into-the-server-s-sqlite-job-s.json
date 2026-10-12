@@ -1,0 +1,70 @@
+{
+  "id": "auth-tests-seed-jobs-directly-into-the-server-s-sqlite-job-s",
+  "title": "Auth tests seed jobs directly into the server's SQLite job store",
+  "kind": "howto",
+  "answers": [
+    "how do I create jobs for a basic-auth server test",
+    "seed job rows for a FastAPI auth test without submitting over HTTP",
+    "build sqlite uri for test job store on windows and posix",
+    "create a legacy job with no creator in a test"
+  ],
+  "body": "Seed jobs in auth tests by constructing mlflow/store/jobs/sqlalchemy_store.py:SqlAlchemyJobStore on the same SQLite file the fixture points the server at, then call create_job(name, params, creator=...).\nHTTP submit would need job execution enabled plus an allowlisted job function in the auth fixture, and cannot produce a creator-less row, so it is avoided.\nURI: use 'sqlite:////' plus the path for POSIX and 'sqlite://' plus the path on Windows, as in tests/server/auth/test_auth.py:test_job_search_only_returns_callers_jobs.\ncreate_job commits on session exit, so rows are visible to the running server and its huey worker subprocess.",
+  "applies": "Basic-auth FastAPI tests in tests/server/auth/ that need job rows with specific creators.",
+  "tags": [
+    "tests",
+    "auth",
+    "jobs",
+    "sqlite",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_job_search_only_returns_callers_jobs",
+      "hash": "sha256:5129f9eb18f34878b3b7aab5",
+      "line": 5387,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5129f9eb18f34878b3b7aab5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/jobs/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyJobStore",
+      "hash": "sha256:13d9fb18c1b373d44adaa568",
+      "line": 52,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:13d9fb18c1b373d44adaa568",
+      "fanout": {
+        "files": 12,
+        "sites": 45,
+        "refs": 96
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-11T10:31:04.755Z",
+  "verified": "2026-10-11T10:31:04.755Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Job search results should only display background tasks created by the signed-in user.",
+    "Users are able to see background jobs submitted by other workspace members.",
+    "Legacy jobs created without an owner should not be exposed to unauthorized callers.",
+    "Filtering jobs in the dashboard should hide tasks belonging to other user accounts.",
+    "Make sure search queries return only the active user's queued and completed jobs."
+  ],
+  "search": "In tests/server/auth/, basic-auth FastAPI tests seed job rows directly into SQLite using SqlAlchemyJobStore rather than submitting over HTTP. Tests construct mlflow/store/jobs/sqlalchemy_store.py:SqlAlchemyJobStore pointing to the fixture SQLite file via 'sqlite:////' on POSIX or 'sqlite://' on Windows, then call create_job(name, params, creator=...). This bypasses the need for job execution and allowlisted functions while allowing creator-less legacy rows, committing on session exit to remain visible to the server and huey worker subprocess.",
+  "saysFor": "s2:c7ce0c9f6da687055fad37a18c805105518d8c4664e374bbba84d4143ec60b31"
+}

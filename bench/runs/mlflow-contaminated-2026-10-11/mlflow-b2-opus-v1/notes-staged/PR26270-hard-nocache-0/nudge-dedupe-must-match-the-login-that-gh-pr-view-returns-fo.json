@@ -1,0 +1,50 @@
+{
+  "id": "nudge-dedupe-must-match-the-login-that-gh-pr-view-returns-fo",
+  "title": "Nudge dedupe must match the login that gh pr view returns for comments",
+  "kind": "rule",
+  "answers": [
+    "stack nudge comment posted again on every PR edit",
+    "duplicate stacked PR comments from github-actions",
+    "marker comment not detected so bot keeps commenting"
+  ],
+  "body": "Symptom: Each `edited` event on a qualifying PR posts another stacked-PR nudge comment instead of only one.\nRoot cause: .github/workflows/stack-nudge.yml:nudge (step \"Nudge\", `already_nudged` jq filter) compares `.author.login == \"github-actions\"` and searches for the HTML marker `<!-- mlflow-stack-nudge -->`. That login form is what `gh pr view --json comments` returns (GraphQL author login). The REST comments API reports the same author as `github-actions[bot]`.\nFix pattern: When deduplicating bot comments read through `gh`, compare against the login that the same `gh` command returns, and keep the marker string identical between the search and the posted body.\nConstraints: Applies to comments created with GITHUB_TOKEN. Reviewers verified the two interfaces differ; if the read path changes to REST, the login comparison must change to `github-actions[bot]`.",
+  "applies": "Any duplicate-suppression logic in the workflow that reads PR comments with gh.",
+  "tags": [
+    "github-actions",
+    "gh-cli",
+    "dedupe",
+    "stack-nudge"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "symbol": "already_nudged",
+      "hash": "sha256:3538e25eca4af8c5cec9912b",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-11T10:32:18.349Z",
+  "verified": "2026-10-11T10:32:18.349Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The automation posts duplicate stacked pull request comments every time a pull request is edited.",
+    "Editing a pull request triggers repeated bot reminder messages instead of detecting the existing comment.",
+    "Prevent repetitive stacked branch notices from spamming the pull request conversation on updates."
+  ],
+  "search": "In .github/workflows/stack-nudge.yml, the already_nudged jq filter in step Nudge must compare .author.login against github-actions when deduplicating comments read via gh pr view --json comments. The gh command returns the GraphQL author login github-actions for comments created with GITHUB_TOKEN, unlike the REST comments API which reports github-actions[bot]. The duplicate-suppression filter must also search for the exact HTML marker <!-- mlflow-stack-nudge --> used in the posted comment body. If the workflow comment retrieval path changes from gh to the REST API, the author login comparison must be updated to github-actions[bot].",
+  "saysFor": "s2:e2c79f24717b9f8a35c276401e2158620a42ffe03eed330a318728e43eec4b4e"
+}

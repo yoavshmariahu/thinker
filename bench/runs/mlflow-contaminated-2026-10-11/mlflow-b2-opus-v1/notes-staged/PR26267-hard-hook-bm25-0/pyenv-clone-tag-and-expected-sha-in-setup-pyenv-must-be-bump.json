@@ -1,0 +1,57 @@
+{
+  "id": "pyenv-clone-tag-and-expected-sha-in-setup-pyenv-must-be-bump",
+  "title": "pyenv clone tag and expected SHA in setup-pyenv must be bumped together",
+  "kind": "rule",
+  "answers": [
+    "setup-pyenv fails with pyenv SHA mismatch error",
+    "how do I upgrade pyenv in the CI action",
+    "model serving tests cannot build Python 3.10.21 or 3.11.16 via pyenv",
+    "pyenv version bump in GitHub Actions"
+  ],
+  "body": "Symptom: CI job fails early in the pyenv setup with a 'pyenv SHA mismatch' error, so model-serving environment recreation never starts.\nRoot cause: .github/actions/setup-pyenv/action.yml (Linux step) pins pyenv twice: the tag in `git clone --branch vX` and the `expected_sha` that is compared against `git rev-parse HEAD` after the clone.\nFix pattern: when moving the tag, replace both values in the same change, and take the SHA the tag resolves to in pyenv/pyenv. Confirm the new pyenv release ships build definitions for every Python micro version that setup-python pins, because pyenv install fails for versions it does not know.\nConstraints: the clone is retried up to 3 times, but a SHA mismatch is not retried and exits with ::error::. Changing only the tag or only the SHA always breaks the job.",
+  "applies": "Changes to the pyenv version used by the setup-pyenv composite action on Linux.",
+  "tags": [
+    "ci",
+    "pyenv",
+    "github-actions",
+    "supply-chain"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-pyenv/action.yml",
+      "symbol": "expected_sha",
+      "hash": "sha256:a2ff8558d37143557de43e15",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:c98e5b5d94be6c9b687188cd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-11T10:30:41.823Z",
+  "verified": "2026-10-11T10:30:41.823Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration pipelines fail during environment setup before model serving tests can run.",
+    "Pull request builds fail immediately with checksum mismatch errors during Python environment preparation.",
+    "Automated test jobs cannot install newly supported Python maintenance releases for serving tests.",
+    "Fix build pipeline crashes caused by mismatched version tags during automated test initialization."
+  ],
+  "search": "Updates to pyenv in the Linux setup-pyenv composite action must simultaneously bump the git clone tag and expected_sha in .github/actions/setup-pyenv/action.yml. The expected_sha must match git rev-parse HEAD for the tag in pyenv/pyenv, and the pyenv release must include build definitions for every Python micro version pinned in .github/actions/setup-python/action.yml. Changing only the tag or only the SHA causes an immediate unretried SHA mismatch failure exiting with ::error::.",
+  "saysFor": "s2:2bf18c1b78a6472fece2900c38d3c636f54ffa59b79329fb9a00f57ceb379584"
+}

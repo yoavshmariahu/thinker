@@ -1,0 +1,70 @@
+{
+  "id": "gateway-model-listing-only-named-endpoints-sorted-by-name-id",
+  "title": "Gateway model listing: only named endpoints, sorted by name, ids are endpoint names",
+  "kind": "rule",
+  "answers": [
+    "what model IDs does the gateway models endpoint return?",
+    "why does an unnamed gateway endpoint not appear in the OpenAI models list?",
+    "what is the created timestamp unit in the gateway models response?",
+    "how do OpenAI clients pick a gateway endpoint name as model"
+  ],
+  "body": "Invariant: the OpenAI-compatible model list is built from store.list_gateway_endpoints(), keeping only endpoints with a non-empty name, sorted by name, with id=endpoint.name and owned_by=\"mlflow\".\nEnforced by mlflow/server/gateway_api.py:list_models. Endpoints without a name are filtered out, since the name is the value clients pass as the chat completions model parameter.\ncreated is endpoint.created_at // 1000 (epoch milliseconds converted to seconds, as the OpenAI models schema expects).\nSkipping the name filter would emit null or empty model ids that cannot be used with /gateway/mlflow/v1/chat/completions.",
+  "applies": "Changes to the response shape or ordering of /gateway/mlflow/v1/models in mlflow/server/gateway_api.py; schema types live in mlflow/gateway/schemas/models.py.",
+  "tags": [
+    "gateway",
+    "openai-compatible",
+    "models-list"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 994,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/gateway/schemas/models.py",
+      "symbol": "ModelObject",
+      "hash": "sha256:1c65a3fced3ba37172e8ac56",
+      "line": 4,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c65a3fced3ba37172e8ac56",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-11T10:30:10.102Z",
+  "verified": "2026-10-11T10:30:10.102Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-list-routes-need-authentication-plus-a-per-item-use"
+  ],
+  "says": [
+    "Gateway endpoints without names do not appear in the model selection list.",
+    "Sort the available AI Gateway models alphabetically by name.",
+    "Unnamed gateway endpoints are missing from the OpenAI-compatible model dropdown.",
+    "Model creation timestamps in the gateway list should be displayed in seconds.",
+    "Allow clients to discover and select gateway endpoints by their configured name."
+  ],
+  "search": "In mlflow/server/gateway_api.py:list_models, the OpenAI-compatible model list includes only endpoints from store.list_gateway_endpoints() having non-empty names, sorted by name with id=endpoint.name and owned_by='mlflow'. Unnamed endpoints are filtered out because clients supply the endpoint name as the model parameter in /gateway/mlflow/v1/chat/completions. The created timestamp converts endpoint.created_at from epoch milliseconds to seconds via integer division by 1000 per mlflow/gateway/schemas/models.py:ModelObject. Applies to changes affecting the response shape or ordering of /gateway/mlflow/v1/models.",
+  "saysFor": "s2:b98f25cd407b8e8b6c9b460acc2ba03ad2b80b96d1eb555d5ffce4a53fe28081"
+}

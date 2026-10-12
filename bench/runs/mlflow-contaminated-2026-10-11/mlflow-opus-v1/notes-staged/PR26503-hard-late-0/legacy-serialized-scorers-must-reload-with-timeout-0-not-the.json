@@ -1,0 +1,114 @@
+{
+  "id": "legacy-serialized-scorers-must-reload-with-timeout-0-not-the",
+  "title": "Legacy serialized scorers must reload with timeout=0, not the fresh-scorer default",
+  "kind": "rule",
+  "answers": [
+    "why did my existing registered scorer start timing out after upgrade",
+    "what timeout do scorers loaded from old JSON get",
+    "how is the scorer timeout serialized",
+    "why does a deserialized scorer have timeout 0"
+  ],
+  "body": "Symptom: scorers registered before the timeout feature suddenly get bounded at 300 s in online monitoring after upgrading.\nRoot cause: the timeout field default must differ by path. Scorer.timeout defaults to None (meaning DEFAULT_SCORER_TIMEOUT), but SerializedScorer.timeout defaults to 0, so a payload without the key reloads unbounded.\nFix pattern: keep SerializedScorer.timeout defaulted to 0 and pass serialized.timeout through in _reconstruct_decorator_scorer. Fresh scorers serialize their None value through Scorer.model_dump.\nConstraints: changing SerializedScorer's default to None would silently bound every legacy scorer. Covered by test_scorer_serialized_before_timeout_existed_deserializes_to_zero in tests/genai/scorers/test_serialization.py.",
+  "applies": "Changes to SerializedScorer, Scorer.model_dump, or decorator-scorer reconstruction in mlflow/genai/scorers/base.py.",
+  "tags": [
+    "genai",
+    "scorers",
+    "serialization",
+    "backward-compatibility"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "SerializedScorer",
+      "hash": "sha256:42907f3c0f613452ddddbe65",
+      "line": 165,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42907f3c0f613452ddddbe65",
+      "fanout": {
+        "files": 11,
+        "sites": 32,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_dump",
+      "hash": "sha256:dfe7e48186c1758d380e68a0",
+      "line": 406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfe7e48186c1758d380e68a0",
+      "fanout": {
+        "files": 94,
+        "sites": 258,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._reconstruct_decorator_scorer",
+      "hash": "sha256:1d44c8cede1ee8469ea6f502",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d44c8cede1ee8469ea6f502",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "symbol": "test_scorer_serialized_before_timeout_existed_deserializes_to_zero",
+      "hash": "sha256:20d19a291066f014edf360b2",
+      "line": 1110,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:20d19a291066f014edf360b2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.timeout",
+      "hash": "sha256:f974c1640c0b14d4b5d4338d",
+      "line": 454,
+      "missing": false,
+      "fanout": {
+        "files": 212,
+        "sites": 30,
+        "refs": 921
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25720"
+  },
+  "created": "2026-10-11T08:42:55.706Z",
+  "verified": "2026-10-11T08:42:55.706Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-module-must-match-the-allow-list-exactly",
+    "validate-metric-name-and-kwargs-before-import-module-in-thir",
+    "reflected-third-party-scorer-attribute-must-be-a-scorer-subc",
+    "async-scorer-paths-must-carry-the-registered-scorer-version"
+  ],
+  "says": [
+    "Registered model scorers suddenly time out during online monitoring after system upgrades.",
+    "Existing evaluation metrics stop running and fail after five minutes in production.",
+    "Previously saved custom scorers should continue running without unexpected timeout limits.",
+    "Upgraded model monitoring triggers false timeout errors on legacy evaluation metrics.",
+    "Prevent system upgrades from imposing default timeout limits on existing registered scorers."
+  ],
+  "search": "Deserialized legacy scorers must reload with timeout=0 to remain unbounded rather than adopting the default assigned to fresh scorers. In mlflow/genai/scorers/base.py, Scorer.timeout defaults to None (DEFAULT_SCORER_TIMEOUT), but SerializedScorer.timeout defaults to 0 and passes through _reconstruct_decorator_scorer so older payloads do not get capped at 300 seconds. Setting SerializedScorer's default to None would silently bound legacy scorers, as verified in tests/genai/scorers/test_serialization.py:test_scorer_serialized_before_timeout_existed_deserializes_to_zero.",
+  "saysFor": "s2:5c39238d1f4292236fc8a55a7b65683136309196acc21d755deac001c6e87667"
+}

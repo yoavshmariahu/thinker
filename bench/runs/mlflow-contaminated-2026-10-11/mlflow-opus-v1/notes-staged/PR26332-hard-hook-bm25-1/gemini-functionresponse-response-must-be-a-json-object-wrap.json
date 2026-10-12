@@ -1,0 +1,73 @@
+{
+  "id": "gemini-functionresponse-response-must-be-a-json-object-wrap",
+  "title": "Gemini functionResponse.response must be a JSON object; wrap non-object tool content as {\"result\": ...}",
+  "kind": "rule",
+  "answers": [
+    "AI Gateway fails with a 500 on a multi-turn tool call to Gemini when the tool result is plain text",
+    "Gemini tool calling through the gateway errors with JSONDecodeError on tool message content",
+    "Why does a non-JSON tool result break the Gemini request on Vertex AI through MLflow gateway?"
+  ],
+  "body": "Symptom: A multi-turn tool-calling chat through the AI Gateway to Gemini (or Gemini on Vertex AI) fails with a 500 as soon as a tool result is plain text, an empty string, a list of content parts, or null, or when it is JSON that is not an object.\nRoot cause: mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model called json.loads(message[\"content\"]) directly for every role \"tool\" message and passed the result as functionResponse.response.\nFix pattern: Route tool content through mlflow/gateway/providers/gemini.py:_tool_result_to_response. It returns a parsed JSON object unchanged and wraps anything else (non-JSON, non-object JSON, None, list of parts) as {\"result\": <content>}.\nConstraints: Gemini requires response to be an object, so any new code that builds functionResponse must go through this helper. Vertex AI inherits the fix via super().chat_to_model. Grouping parallel tool calls is a separate concern and is not handled here.",
+  "applies": "Any change to how tool-role messages become Gemini functionResponse parts in mlflow/gateway/providers/gemini.py, including the Vertex AI adapter that reuses chat_to_model.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "tool-calling",
+    "vertex-ai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "_tool_result_to_response",
+      "hash": "sha256:8c5059ed72dfe0cdfcaa5168",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8c5059ed72dfe0cdfcaa5168",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:2217f691823a63926c51e683",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2217f691823a63926c51e683",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25868"
+  },
+  "created": "2026-10-11T08:45:56.007Z",
+  "verified": "2026-10-11T08:45:56.007Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "gemini-thoughtsignature-is-a-sibling-of-functioncall-on-the"
+  ],
+  "says": [
+    "Multi-turn Gemini chat crashes with a server error when a tool returns plain text.",
+    "AI gateway tool calling fails if the function result is not formatted as JSON.",
+    "Allow Gemini models on Vertex AI to handle tool outputs containing lists or empty strings.",
+    "Tool execution responses returning null or non-object data break the chat conversation."
+  ],
+  "search": "Gemini tool call responses require functionResponse.response to be a JSON object, wrapping non-object or non-JSON content into a dictionary with a result key. In mlflow/gateway/providers/gemini.py, GeminiAdapter.chat_to_model uses _tool_result_to_response to pass parsed JSON objects unchanged while wrapping strings, null values, lists, and non-object JSON as {\"result\": <content>}. The Vertex AI adapter inherits this logic via super().chat_to_model, while parallel tool call grouping is not handled. It applies to any change in mlflow/gateway/providers/gemini.py converting tool-role messages into Gemini functionResponse parts.",
+  "saysFor": "s2:a1079984e6a0842159bee5619f2f85cddc6338eb18cb287240c68c10968a3424",
+  "lastUsed": "2026-10-11T10:46:40.051Z",
+  "servedIn": [
+    "975b61ed-2c13-413c-ac47-b67a6d692112"
+  ]
+}

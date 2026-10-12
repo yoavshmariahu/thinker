@@ -1,0 +1,76 @@
+{
+  "id": "codex-transcript-tests-isolate-codex-home-and-mocked-homedir",
+  "title": "Codex transcript tests: isolate CODEX_HOME and mocked homedir per test",
+  "kind": "rule",
+  "answers": [
+    "how to test Codex transcript discovery with CODEX_HOME",
+    "test pollution from CODEX_HOME in Codex integration tests",
+    "mock home directory in Codex transcript tests",
+    "where to add Codex transcript lookup tests"
+  ],
+  "body": "Local test convention in libs/typescript/integrations/codex/tests/transcript.test.ts (describe 'findTranscriptForThread').\nTests that set CODEX_HOME save the original value in beforeEach and restore it in afterEach, deleting the variable when it was undefined; otherwise the value leaks into later tests.\nHome directory is controlled by jest.mock('node:os') with jest.requireActual spread and homedir as jest.fn(); the mock specifier must match the 'node:os' import used by src, and afterEach resets it with jest.mocked(homedir).mockReset().\nFixtures are built in an mkdtemp directory under tmpdir() (sessions/YYYY/MM/DD/rollout-...-<threadId>.jsonl), with fake timers set to a fixed date, and removed with rmSync in afterEach.\nCover the precedence cases together: CODEX_HOME set, unset, and empty.",
+  "applies": "Tests for Codex integration code that read environment variables or the user home directory.",
+  "tags": [
+    "codex",
+    "testing",
+    "jest",
+    "env-var"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/tests/transcript.test.ts",
+      "symbol": "beforeEach",
+      "hash": "sha256:8ff22d9c37886909c3cb3cc8",
+      "line": 114,
+      "missing": false,
+      "fanout": {
+        "files": 370,
+        "sites": 454,
+        "refs": 795
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/transcript.test.ts",
+      "symbol": "afterEach",
+      "hash": "sha256:39e04d781563c07ceb1ea862",
+      "line": 120,
+      "missing": false,
+      "fanout": {
+        "files": 131,
+        "sites": 151,
+        "refs": 261
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/transcript.test.ts",
+      "symbol": "rmSync",
+      "hash": "sha256:f609b8c5fb9d8ed1bfefde2a",
+      "line": 128,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 27,
+        "refs": 33
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25822"
+  },
+  "created": "2026-10-11T08:47:09.501Z",
+  "verified": "2026-10-11T08:47:09.501Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Verify transcript discovery behaves correctly across custom, omitted, and blank directory locations.",
+    "Test that assistant session records are found when pointing to custom storage folders.",
+    "Ensure automated tests for assistant transcript lookup do not leak environment settings.",
+    "Validate that session transcript search functions properly when the user folder is relocated."
+  ],
+  "search": "Codex transcript tests in libs/typescript/integrations/codex/tests/transcript.test.ts must isolate CODEX_HOME and mocked homedir per test case. Tests save and restore CODEX_HOME across beforeEach and afterEach, deleting undefined values to avoid leaking into later tests. The home directory is mocked via jest.mock('node:os') with homedir reset in afterEach, while fixtures are created in an mkdtemp directory under tmpdir() and removed with rmSync. Tests must cover precedence across set, unset, and empty CODEX_HOME configurations together.",
+  "saysFor": "s2:4543a341243b4c7d09bf8936671de21a263c66cd15d7778c137ae135d40887d0"
+}

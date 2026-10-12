@@ -1,0 +1,72 @@
+{
+  "id": "claude-code-defaults-mlflow-enable-async-trace-logging-to-tr",
+  "title": "Claude Code defaults MLFLOW_ENABLE_ASYNC_TRACE_LOGGING to true only when unset",
+  "kind": "rule",
+  "answers": [
+    "Claude Code traces lost when backend upload fails during Stop hook",
+    "Stop hook waits for trace upload and trace never arrives",
+    "how to turn off async trace logging for Claude Code",
+    "why is async trace export enabled by default in the Claude Code integration"
+  ],
+  "body": "Symptom: A Claude Code session's trace is not delivered, or the Stop hook stalls, when the MLflow backend upload fails intermittently.\nRoot cause: libs/typescript/integrations/claude-code/src/config.ts:ensureInitialized did not set MLFLOW_ENABLE_ASYNC_TRACE_LOGGING, so the TypeScript SDK fell back to synchronous export.\nFix pattern: Set the default at the integration init boundary with `process.env[MLFLOW_ENABLE_ASYNC_TRACE_LOGGING] ??= 'true'`, using the constant exported from config.ts. Do not hard-code the value.\nConstraints: Unset becomes 'true'; an explicit 'false' or 'true' is preserved. The default is scoped to Claude Code only; do not move it into the shared SDK default. It sits after an early `return false` guard, so the tracing-disabled path never sets it.",
+  "applies": "Applies to the Claude Code integration's initialization path in libs/typescript/integrations/claude-code. Does not change the default for other TypeScript SDK consumers.",
+  "tags": [
+    "claude-code",
+    "tracing",
+    "async-trace-logging",
+    "typescript",
+    "env-defaults"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/config.ts",
+      "symbol": "ensureInitialized",
+      "hash": "sha256:18457c9ceb1c3715f4121d07",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:18457c9ceb1c3715f4121d07",
+      "fanout": {
+        "files": 10,
+        "sites": 15,
+        "refs": 30
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/config.ts",
+      "symbol": "MLFLOW_ENABLE_ASYNC_TRACE_LOGGING",
+      "hash": "sha256:d251ffdf69bf2cc2bb141a02",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c27bbc28e2768037062c3650",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25541"
+  },
+  "created": "2026-10-11T08:51:12.446Z",
+  "verified": "2026-10-11T08:51:12.446Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "claude-code-config-tests-must-clear-mlflow-enable-async-trac"
+  ],
+  "says": [
+    "Claude Code hangs when finishing a session if the tracking server is unreachable.",
+    "Session traces in Claude Code are lost when backend uploads encounter intermittent network errors.",
+    "Enable asynchronous trace uploading by default so exiting Claude Code does not stall.",
+    "Provide an option to disable background trace uploads during Claude Code sessions.",
+    "Claude Code freezes upon closing while waiting for activity logs to finish uploading."
+  ],
+  "search": "Claude Code initialization in libs/typescript/integrations/claude-code/src/config.ts:ensureInitialized sets process.env[MLFLOW_ENABLE_ASYNC_TRACE_LOGGING] to 'true' only when unset. This default prevents lost traces or stalled Stop hooks when backend uploads fail intermittently, while preserving explicit 'true' or 'false' settings. The default is scoped exclusively to Claude Code after an early return guard, rather than the shared TypeScript SDK. Assignments must use nullish coalescing with the exported constant rather than hard-coded values.",
+  "saysFor": "s2:ff50bc79901b22fe460017ce9aa7e287f28047997b4939894b469a23c478ca92"
+}

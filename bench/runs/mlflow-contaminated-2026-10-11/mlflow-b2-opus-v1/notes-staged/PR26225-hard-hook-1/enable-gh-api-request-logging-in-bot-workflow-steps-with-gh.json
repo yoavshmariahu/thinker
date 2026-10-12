@@ -1,0 +1,54 @@
+{
+  "id": "enable-gh-api-request-logging-in-bot-workflow-steps-with-gh",
+  "title": "Enable gh API request logging in bot workflow steps with GH_DEBUG=api",
+  "kind": "howto",
+  "answers": [
+    "How do I log gh API requests in a GitHub Actions step?",
+    "How to debug duplicate labels or duplicate events from gh pr create or gh pr edit in CI",
+    "Turn on verbose gh api debug output in a workflow",
+    "gh GH_DEBUG api environment variable in workflow"
+  ],
+  "body": "To see the HTTP requests a `gh` command makes in a workflow step, set `GH_DEBUG: api` in that step's `env:` block, next to `GH_TOKEN`.\nThe PR set it on the bot PR-creation steps in `.github/workflows/update-model-catalog.yml` (step id `pr`) and `.github/workflows/uv.yml` (the step that runs `gh pr create`), with a comment saying it was for diagnosing labels applied twice.\nIt is set per step, so it logs only that step's `gh` calls and does not affect the rest of the job.\nThe log goes to the step output, so read it from the Actions run log for that step.\nThe PR's stated purpose was to tell client-side duplication from server-side duplication. It does not show what the logs revealed.\nRemove the variable when the diagnosis is finished, unless the log volume is acceptable to keep.",
+  "applies": "Diagnostic use in GitHub Actions steps that call the gh CLI; not a fix for duplicate label events by itself.",
+  "tags": [
+    "github-actions",
+    "gh-cli",
+    "debugging",
+    "ci",
+    "bot-prs"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:1de1d9dcc50c441a01380c51",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:9b682d7da9595cfb55096299",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26285"
+  },
+  "created": "2026-10-11T10:26:08.801Z",
+  "verified": "2026-10-11T10:26:08.801Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bot-pr-creation-and-reuse-paths-must-apply-the-auto-rerun-la"
+  ],
+  "says": [
+    "Automated pull request creation bot is applying duplicate labels to new pull requests.",
+    "Enable detailed request logging in workflow runs to diagnose automated pull request actions.",
+    "Workflow bots generate duplicated label events whenever publishing automated repository update requests.",
+    "How can we check whether duplicate pull request tags come from clients or servers?",
+    "Inspect raw API traffic in build logs to troubleshoot bot pull request operations."
+  ],
+  "search": "To log HTTP requests made by the gh CLI in a GitHub Actions workflow step, set `GH_DEBUG: api` in that step's `env:` block alongside `GH_TOKEN`. Used in `.github/workflows/update-model-catalog.yml` (step `pr`) and `.github/workflows/uv.yml` (`gh pr create`) to diagnose duplicate label applications by distinguishing client-side from server-side duplication, output is written directly to that step's Actions run log. This setting is diagnostic rather than a fix for duplicate labels, and the variable should be removed once debugging completes unless the log volume is acceptable.",
+  "saysFor": "s2:9183532a1beb39f6ac3dd14270964b4dd2cd367ed1ead5444039dadb02f970e7"
+}

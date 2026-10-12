@@ -1,0 +1,46 @@
+{
+  "id": "copilot-draft-pr-publish-guard-in-copilot-agent-yml-opened-w",
+  "title": "Copilot draft PR publish guard in copilot-agent.yml: opened-with-changes vs empty-draft wait",
+  "kind": "rule",
+  "answers": [
+    "Copilot draft PR never gets marked ready for review",
+    "when does the copilot agent publish its draft pull request",
+    "Copilot opened a PR with changes but it stayed draft",
+    "Copilot agent empty draft waits for review request"
+  ],
+  "body": "Symptom: A Copilot-authored PR that already contains file changes stays in draft, so reviewers never see it until someone manually clicks \"Ready for review\".\nRoot cause: .github/workflows/copilot-agent.yml:publish-draft only ran on pull_request_target `review_requested` events, so a PR opened with changes was never evaluated.\nFix pattern: Keep the trigger list `[opened, review_requested]` and gate the job's `if:` per action: `opened` publishes only when `github.event.pull_request.changed_files > 0`; `review_requested` publishes only when `github.event.sender.login == 'Copilot'`.\nConstraints: Empty opened drafts must keep waiting for a Copilot-originated review_requested event, so do not drop the sender check or the changed_files check. Keep the identity guards (`pull_request.user.login == 'Copilot'` and `user.type == 'Bot'`) and the draft guard on every branch; the job must not publish human-authored drafts.",
+  "applies": "Only the publish-draft job condition in .github/workflows/copilot-agent.yml; other jobs in that workflow are not covered by this note.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "workflow",
+    "draft-pr"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:5b2162116e11586a9819c8f4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26145"
+  },
+  "created": "2026-10-11T10:27:11.565Z",
+  "verified": "2026-10-11T10:27:11.565Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Copilot pull requests containing file changes stay stuck in draft instead of opening for review.",
+    "Automatically mark pull requests opened by the coding assistant as ready for review.",
+    "Draft pull requests created with changes never notify reviewers until manually published.",
+    "Empty draft pull requests from Copilot should not publish until review is explicitly requested.",
+    "Reviewers never see pull requests opened by Copilot because they stay in draft status."
+  ],
+  "search": "Copilot draft pull request publishing in .github/workflows/copilot-agent.yml is controlled by the publish-draft job condition. The workflow triggers on [opened, review_requested], publishing an opened event only when github.event.pull_request.changed_files > 0, and publishing a review_requested event only when github.event.sender.login == 'Copilot'. Empty opened drafts must continue waiting for a Copilot-originated review request without removing sender or changed-file checks. Identity guards (pull_request.user.login == 'Copilot' and user.type == 'Bot') and draft guards must remain on all branches to avoid publishing human-authored drafts.",
+  "saysFor": "s2:93450615d30c2febfebeb6055c28ac3f48f00fdeee363a5fac5ff63aa058cea5"
+}

@@ -1,0 +1,78 @@
+{
+  "id": "renaming-the-rerun-workflows-requires-updating-three-differe",
+  "title": "Renaming the rerun workflows requires updating three different identifier forms",
+  "kind": "rule",
+  "answers": [
+    "renamed rerun workflow, what else must change",
+    "protect ignores wrong workflow after rename",
+    "retry reruns wrong workflows after rename",
+    "which files reference rerun workflow names"
+  ],
+  "body": "Invariant: the rerun workflows are referenced by three different identifier forms that must all be updated together: the repo-relative path in Protect's IGNORED_WORKFLOWS set, the resourcePath suffix (endswith) in retry.sh's jq rerun flag, and the workflow display name in rerun.yml's workflow_run.workflows.\nEnforcement: .github/workflows/protect.js:module.exports (IGNORED_WORKFLOWS = new Set([\".github/workflows/trigger-rerun.yml\"])), .github/workflows/retry.sh:runs (rerun: resourcePath endswith \"/rerun.yml\" or \"/retry.yml\" | not), .github/workflows/rerun.yml:on.\nWhat breaks: a stale path in IGNORED_WORKFLOWS lets the approval trigger run be treated as a checks source; a stale endswith in retry.sh marks the worker as a normal retry target or misses it; stale names break the workflow_run chain. None of these fail loudly.\nApplies: renames of .github/workflows/rerun.yml or trigger-rerun.yml; the three forms are not interchangeable, so do not copy one form into another location.",
+  "applies": "Renames of .github/workflows/rerun.yml or trigger-rerun.yml and any edit to the workflow references in protect.js or retry.sh.",
+  "tags": [
+    "github-actions",
+    "rename",
+    "protect",
+    "retry",
+    "workflow-names"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "IGNORED_WORKFLOWS",
+      "hash": "sha256:a31f258cb06605ac4abbe8f6",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a31f258cb06605ac4abbe8f6",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "runs",
+      "hash": "sha256:3fadbfb022af8eeb0436aeb9",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:15dfdf1ad45c4e4314ca5d50",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26030"
+  },
+  "created": "2026-10-11T10:28:43.503Z",
+  "verified": "2026-10-11T10:28:43.503Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-yml-is-detected-by-its-exact-filename-and-rerun-last",
+    "protect-empty-workflow-run-discovery-must-retry-then-fail-cl",
+    "protect-js-expected-protect-failures-are-reported-with-core",
+    "retry-gating-order-in-retry-sh-dedupe-drop-dynamic-runs-then"
+  ],
+  "says": [
+    "Automated test retries stopped triggering after we renamed the retry workflow.",
+    "Pull request protection checks misidentify rerun triggers after renaming CI automation.",
+    "Failed build retries rerun the wrong pipeline jobs following a workflow rename.",
+    "What configuration references need updating when renaming our automated rerun workflows?",
+    "Approval triggers fail to chain into subsequent test runs after renaming workflows."
+  ],
+  "search": "Renaming rerun workflows requires synchronizing three distinct identifier formats across .github/workflows/protect.js, .github/workflows/retry.sh, and .github/workflows/rerun.yml. The repo-relative path must be set in IGNORED_WORKFLOWS in protect.js, the resourcePath suffix in retry.sh's jq filter, and the workflow display name in rerun.yml's workflow_run.workflows. Applies to renames of rerun.yml or trigger-rerun.yml; stale identifiers cause silent failures where protect misinterprets triggers, retry targets are missed, or workflow_run chains break.",
+  "saysFor": "s2:16e83185581048dd38dbba4010e3ba2574692cb72ab1345f1ec31f6b4d47e767"
+}

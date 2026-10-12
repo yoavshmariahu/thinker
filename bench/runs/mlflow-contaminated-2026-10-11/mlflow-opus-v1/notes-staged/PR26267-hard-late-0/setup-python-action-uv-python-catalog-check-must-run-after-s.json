@@ -1,0 +1,53 @@
+{
+  "id": "setup-python-action-uv-python-catalog-check-must-run-after-s",
+  "title": "setup-python action: uv Python catalog check must run after setup-uv and the get-python-version step",
+  "kind": "rule",
+  "answers": [
+    "uv cannot install the Python version in CI",
+    "CI fails to provision Python 3.10 with uv",
+    "where to add a uv python availability check in the setup-python action",
+    "why does the setup-python step fail early with cannot download Python"
+  ],
+  "body": "Symptom: CI jobs fail partway through setup because uv cannot provision the Python version the test fixture requires, for example uv 0.11.x unable to download Python 3.10.x on a platform.\nRoot cause: .github/actions/setup-python/action.yml composite action resolves the version in the get-python-version step and then calls setup-uv; nothing checked that uv's download catalog contains that version before the install steps.\nFix pattern: keep the early check as a separate bash step placed after the setup-uv step, reading the version from steps.get-python-version.outputs.version via env. It runs `uv python list \"$PYTHON_VERSION\" --all-versions --only-downloads` and fails with ::error:: if output is empty.\nConstraints: the check depends on uv being on PATH, so it must stay after setup-uv; it does not download anything and does not enumerate platforms. If the version pin changes, the error text points to required-version in pyproject.toml, so keep that pointer accurate.",
+  "applies": "Applies to changes in the composite setup-python action used by GitHub Actions workflows in this repo; not to runtime Python code.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "uv",
+    "python-version"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "symbol": "downloads",
+      "hash": "sha256:a31858aab6c2c9ec8475fdca",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25968"
+  },
+  "created": "2026-10-11T08:44:10.354Z",
+  "verified": "2026-10-11T08:44:10.354Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration jobs fail during environment setup because Python cannot be downloaded.",
+    "Automated test runs fail early when the installer catalog lacks the requested Python release.",
+    "Add an early availability check to fail fast when Python cannot be provisioned in CI.",
+    "Build pipeline jobs error out halfway through because the target Python version is missing.",
+    "Check that the required Python version is available before running the build install steps."
+  ],
+  "search": "In .github/actions/setup-python/action.yml:downloads, a separate bash step must verify that uv can download the requested Python version after setup-uv runs and after the get-python-version step. The check passes steps.get-python-version.outputs.version via env, executes `uv python list \"$PYTHON_VERSION\" --all-versions --only-downloads`, and fails with ::error:: pointing to required-version in pyproject.toml if output is empty. This step relies on uv being on PATH, does not perform downloads or enumerate platforms, and prevents CI failures where uv cannot provision versions like Python 3.10.x. Applies exclusively to composite setup-python actions in repository GitHub Actions workflows, not runtime Python code.",
+  "saysFor": "s2:c90e33d1001d405b5d9b49055e16afdba589e581eb367cb83b420308dad1847b"
+}

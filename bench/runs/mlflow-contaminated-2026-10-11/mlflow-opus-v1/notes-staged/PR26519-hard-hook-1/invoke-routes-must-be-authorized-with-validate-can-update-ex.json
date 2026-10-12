@@ -1,0 +1,74 @@
+{
+  "id": "invoke-routes-must-be-authorized-with-validate-can-update-ex",
+  "title": "Invoke routes must be authorized with validate_can_update_experiment, not the gateway no-op validator",
+  "kind": "rule",
+  "answers": [
+    "scorer invoke endpoint lets any logged-in user run scorers on other users' experiments",
+    "why does POST scorer/invoke skip permission checks",
+    "which auth validator should an /invoke endpoint use",
+    "broken object authorization on scorer invoke"
+  ],
+  "body": "Symptom: any authenticated user could run scorers against, and write assessments to, traces in experiments they cannot access.\nRoot cause: mlflow/server/auth/__init__.py (route-to-validator map) mapped (INVOKE_SCORER, \"POST\") to validate_gateway_proxy, which does not check experiment permissions.\nFix pattern: map every /invoke endpoint that creates runs or jobs in an experiment to validate_can_update_experiment, the same validator as INVOKE_ISSUE_DETECTION and INVOKE_GENAI_EVALUATE.\nConstraints: this gates only the request's experiment_id. It does not bind caller-supplied trace_ids to that experiment, which must be checked in the handler (see the trace-binding notes). Do not use validate_gateway_proxy for endpoints that write to experiments.",
+  "applies": "Any new or edited route in the auth validator map for an invoke/evaluation endpoint that submits work under an experiment_id.",
+  "tags": [
+    "auth",
+    "security",
+    "invoke",
+    "scorer"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_experiment",
+      "hash": "sha256:42ea8e2dda6ed8c49a46305f",
+      "line": 1200,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42ea8e2dda6ed8c49a46305f",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_gateway_proxy",
+      "hash": "sha256:f2320e6cce4ab26a87adfbf0",
+      "line": 2541,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f2320e6cce4ab26a87adfbf0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25721"
+  },
+  "created": "2026-10-11T08:42:41.406Z",
+  "verified": "2026-10-11T08:42:41.406Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare",
+    "legacy-basic-auth-admin-password-password1234-must-never-boo",
+    "admin-bootstrap-and-rotation-checks-must-read-the-primary-db",
+    "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p"
+  ],
+  "says": [
+    "Any logged in user can run scorers on experiments they do not have access to.",
+    "Scorer evaluation endpoints skip permission checks and allow unauthorized updates to private experiments.",
+    "Users without edit permissions can write evaluation assessments into other teams' experiments.",
+    "Require experiment update permissions before allowing members to trigger scorer evaluation jobs.",
+    "Prevent authenticated users from launching evaluation runs against restricted experiments they cannot edit."
+  ],
+  "search": "In mlflow/server/auth/__init__.py, route mappings for /invoke endpoints submitting work under an experiment_id must use validate_can_update_experiment rather than validate_gateway_proxy. Mapping (INVOKE_SCORER, 'POST') to validate_gateway_proxy omitted experiment permission checks, allowing any authenticated user to execute scorers and write assessments to unauthorized experiments. Every invoke endpoint creating runs or jobs in an experiment must align with INVOKE_ISSUE_DETECTION and INVOKE_GENAI_EVALUATE by mapping to validate_can_update_experiment. This validator gates only the requested experiment_id and does not bind caller-supplied trace_ids, so handlers must perform trace-binding validation separately.",
+  "saysFor": "s2:9472b24b55c4804c87a582357e301da2c9947a20ee78497248ce1c849aa45768"
+}

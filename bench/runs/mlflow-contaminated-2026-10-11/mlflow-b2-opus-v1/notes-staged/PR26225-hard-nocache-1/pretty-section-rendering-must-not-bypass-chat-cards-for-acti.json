@@ -1,0 +1,57 @@
+{
+  "id": "pretty-section-rendering-must-not-bypass-chat-cards-for-acti",
+  "title": "Pretty section rendering must not bypass chat cards for active search matches",
+  "kind": "rule",
+  "answers": [
+    "search in trace pretty view hides chat cards",
+    "highlighting a match in trace input shows raw fields instead of chat",
+    "active match trace search breaks Pretty rendering",
+    "Pretty mode should keep chat cards while searching"
+  ],
+  "body": "Invariant: In Pretty render mode, renderSectionPayload must always produce the chat cards plus the filtered non-chat fields. It must not fall back to a raw field list just because a search match is active in that section.\nEnforced at: ModelTraceExplorerDefaultSpanView.tsx:renderSectionPayload. The early return on `isActiveMatchSpan && activeMatch.section === section` that called renderPrettyFields over the full list was removed.\nWhat breaks if skipped: With an active match, the section switches to the unfiltered field list, so chat messages appear as duplicated or raw content and the chat layout disappears while searching.\nTests: ModelTraceExplorerRightPane.test.tsx covers this by rerendering with searchFilter and activeMatch set, then checking that the User and Assistant role labels still appear exactly once.",
+  "applies": "Search and active-match highlighting in the trace span detail Pretty view.",
+  "tags": [
+    "tracing",
+    "trace-explorer",
+    "search",
+    "pretty-view",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx",
+      "symbol": "renderSectionPayload",
+      "hash": "sha256:f0a310d87ac00fe6697e7a10",
+      "line": 259,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f0a310d87ac00fe6697e7a10",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26097"
+  },
+  "created": "2026-10-11T10:24:54.005Z",
+  "verified": "2026-10-11T10:24:54.005Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "top-level-otel-chat-payloads-render-twice-in-trace-pretty-vi"
+  ],
+  "says": [
+    "Searching inside the trace details pane collapses formatted chat cards into raw text.",
+    "Highlighting a search match in span details breaks the pretty conversation view.",
+    "Keep user and assistant message bubbles visible while filtering trace text.",
+    "Active search results in model trace view should not duplicate chat message fields."
+  ],
+  "search": "In the model trace explorer span detail Pretty view, renderSectionPayload must retain chat cards alongside filtered non-chat fields even when a search match is active in that section. Enforced in ModelTraceExplorerDefaultSpanView.tsx:renderSectionPayload by removing the active match early return that fell back to renderPrettyFields on the full list. Applies to active-match search highlighting in Pretty mode, preventing chat layouts from collapsing into duplicate raw fields, as tested in ModelTraceExplorerRightPane.test.tsx.",
+  "saysFor": "s2:4db9f65374d75bd68075b1f27429a488cc62fb9bc5e65f5540038af5e210b30a"
+}

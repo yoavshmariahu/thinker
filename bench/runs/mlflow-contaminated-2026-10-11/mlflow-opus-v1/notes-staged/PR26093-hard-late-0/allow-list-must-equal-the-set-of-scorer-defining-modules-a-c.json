@@ -1,0 +1,60 @@
+{
+  "id": "allow-list-must-equal-the-set-of-scorer-defining-modules-a-c",
+  "title": "Allow-list must equal the set of Scorer-defining modules; a completeness test guards drift",
+  "kind": "rule",
+  "answers": [
+    "new ragas or deepeval scorer module fails to deserialize as not in the allow-list",
+    "add scorer module to third-party allow-list",
+    "scorer module missing from THIRD_PARTY_SCORER_ALLOWED_MODULES"
+  ],
+  "body": "Invariant: THIRD_PARTY_SCORER_ALLOWED_MODULES in mlflow/genai/scorers/scorer_utils.py lists exactly the modules under the four third-party packages (trulens, ragas, deepeval, phoenix) that define Scorer subclasses. Exact-match checking means a missing module cannot be reached through its parent package.\nEnforced at: tests/genai/scorers/test_serialization.py (completeness test), which AST-scans the four packages and requires the allow-list to equal the set of Scorer-defining modules.\nWhat breaks if skipped: a newly added scorer module is rejected at deserialization time with 'not in the allow-list', and the stored scorer cannot be reloaded.\nConstraints: after adding a scorer module, add its dotted path to the frozenset in the same change. Do not solve it by restoring prefix matching.",
+  "applies": "Adding or moving scorer modules under mlflow/genai/scorers/ragas, deepeval, trulens, or phoenix.",
+  "tags": [
+    "genai",
+    "scorers",
+    "allow-list",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "hash": "sha256:b204a64d3b304af77bdf2324",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T08:44:58.913Z",
+  "verified": "2026-10-11T08:44:58.913Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-module-must-match-the-allow-list-exactly",
+    "validate-metric-name-and-kwargs-before-import-module-in-thir"
+  ],
+  "says": [
+    "Saved evaluation metrics fail to load with an error stating scorer is not permitted",
+    "Newly added third-party evaluation metric cannot be reloaded from storage",
+    "Evaluation run fails to restore saved scores from supported external libraries",
+    "Allow new evaluation metrics from external packages to load successfully in experiments",
+    "Stored generative AI evaluation model fails to reload after completing an assessment run"
+  ],
+  "search": "THIRD_PARTY_SCORER_ALLOWED_MODULES in mlflow/genai/scorers/scorer_utils.py must contain the exact dotted module paths defining Scorer subclasses across trulens, ragas, deepeval, and phoenix. A completeness test in tests/genai/scorers/test_serialization.py AST-scans those packages to ensure the allow-list equals the Scorer modules, preventing deserialization failures. Newly added scorer modules must add their dotted path to the frozenset directly rather than restoring prefix matching.",
+  "saysFor": "s2:ab8442ecb37b0eaaa26961d287c71625f5c52f4da8c4f5f08c2a9a3aee8908a2"
+}

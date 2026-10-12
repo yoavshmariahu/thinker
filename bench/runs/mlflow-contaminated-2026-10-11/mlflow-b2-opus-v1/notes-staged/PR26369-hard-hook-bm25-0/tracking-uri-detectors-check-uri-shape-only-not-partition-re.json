@@ -1,0 +1,71 @@
+{
+  "id": "tracking-uri-detectors-check-uri-shape-only-not-partition-re",
+  "title": "Tracking-URI detectors check URI shape only, not partition, region, or account",
+  "kind": "rule",
+  "answers": [
+    "is SageMaker tracking server ARN detected correctly",
+    "does the tracking URI check accept GovCloud or China ARNs",
+    "why does the SageMaker ARN check not validate the region",
+    "sagemaker endpoint ARN mistaken for a tracking server"
+  ],
+  "body": "Convention: is_sagemaker_mlflow_tracking_uri in mlflow/utils/uri.py checks only the ARN prefix, the sagemaker service, the exact mlflow-tracking-server resource type, and a nonempty resource id.\nIt does not allowlist AWS partitions (aws, aws-cn, aws-us-gov, and future ones), regions, or account IDs. A reviewer rejected a partition allowlist as too strict and fragile.\nSageMaker endpoint and other sagemaker ARNs must still return False, and so must a mismatched resource type like mlflow-tracking-server-other.\nAdd new cases to tests/utils/test_uri.py:test_is_sagemaker_mlflow_tracking_uri rather than tightening the check.",
+  "applies": "Tracking-URI and ARN shape detection in mlflow/utils/uri.py.",
+  "tags": [
+    "uri",
+    "sagemaker",
+    "tracking-uri",
+    "arn"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_sagemaker_mlflow_tracking_uri",
+      "hash": "sha256:455a855d24e6c5e73427368f",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:455a855d24e6c5e73427368f",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/utils/test_uri.py",
+      "symbol": "test_is_sagemaker_mlflow_tracking_uri",
+      "hash": "sha256:da8167cb861631439e40b4e5",
+      "line": 160,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:da8167cb861631439e40b4e5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26178"
+  },
+  "created": "2026-10-11T10:24:18.614Z",
+  "verified": "2026-10-11T10:24:18.614Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "client-side-llm-cost-selection-must-mirror-server-side-cost"
+  ],
+  "says": [
+    "Cannot connect to SageMaker tracking server located in AWS GovCloud or China regions.",
+    "Allow SageMaker tracking server resource identifiers from any cloud region or partition.",
+    "SageMaker tracking URI validation rejects tracking servers running in sovereign government clouds.",
+    "Entering a SageMaker endpoint address should not be accepted as a tracking server.",
+    "Support connecting tracking clients to SageMaker tracking servers in new AWS regions."
+  ],
+  "search": "The SageMaker tracking URI detector in mlflow/utils/uri.py validates ARN structural shape rather than restricting AWS partition, region, or account ID. is_sagemaker_mlflow_tracking_uri verifies the ARN prefix, the sagemaker service, the exact mlflow-tracking-server resource type, and a non-empty resource ID. Partition allowlists covering aws, aws-cn, and aws-us-gov are rejected as fragile, but endpoint ARNs and mismatched resource types like mlflow-tracking-server-other must evaluate to False. New verification cases belong in tests/utils/test_uri.py:test_is_sagemaker_mlflow_tracking_uri instead of tightening detection logic.",
+  "saysFor": "s2:3177dd3aca1d64dcf7aaf433a9b2504bf15c650d7c9699ee5651a8105d2ab554"
+}

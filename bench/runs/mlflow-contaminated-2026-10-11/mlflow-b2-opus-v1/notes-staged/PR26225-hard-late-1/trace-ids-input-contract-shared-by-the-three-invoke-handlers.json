@@ -1,0 +1,87 @@
+{
+  "id": "trace-ids-input-contract-shared-by-the-three-invoke-handlers",
+  "title": "trace_ids input contract shared by the three /invoke handlers",
+  "kind": "rule",
+  "answers": [
+    "invoke endpoint returns 500 for non-string trace id",
+    "issue detection submits a job for an empty trace list",
+    "duplicate trace ids analyzed twice in evaluation job"
+  ],
+  "body": "Invariant: trace_ids on issues/invoke, genai/evaluate/invoke, and scorer/invoke must be a non-empty list of strings, de-duplicated (order-preserving) before any store lookup.\nEnforced by: the request schema in each handler (_assert_item_type_string added alongside _assert_array), an explicit empty-list 400 in mlflow/server/handlers.py:_invoke_issue_detection_handler, and an isinstance/str check in _invoke_scorer_handler.\nWhat breaks if skipped: An empty list produces a no-op run and job for issues/invoke; a non-string item reaches the store and returns a 500 rather than a 400; repeated ids are fetched and analyzed twice.\nConstraints: Validate before the ownership lookup so the store never sees malformed ids.",
+  "applies": "Any new invoke-style handler that accepts a list of trace ids for a background job.",
+  "tags": [
+    "validation",
+    "invoke",
+    "trace-ids",
+    "input-contract"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_issue_detection_handler",
+      "hash": "sha256:b04751cfe36d29c0005098d7",
+      "line": 5535,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04751cfe36d29c0005098d7",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5646,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7565,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-11T10:25:56.499Z",
+  "verified": "2026-10-11T10:25:56.499Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor",
+    "prompt-model-version-sources-must-be-a-placeholder-or-a-vali",
+    "prompt-code-path-is-selected-only-by-an-effective-is-prompt",
+    "protobuf-request-parsers-must-reject-bodies-that-spell-one-f"
+  ],
+  "says": [
+    "Submitting an issue detection job with no traces selected creates a useless task.",
+    "Triggering background trace evaluation with duplicate trace entries analyzes the same traces twice.",
+    "Invalid trace IDs sent to evaluation endpoints return server errors instead of validation messages.",
+    "Reject empty trace lists immediately when starting automated trace scoring or assessment runs.",
+    "Deduplicate selected traces before launching batch evaluation and issue analysis background jobs."
+  ],
+  "search": "The trace_ids input for issues/invoke, genai/evaluate/invoke, and scorer/invoke background-job endpoints must be a non-empty, deduplicated list of strings validated before store lookups. In mlflow/server/handlers.py, handlers _invoke_issue_detection_handler, _invoke_genai_evaluate_handler, and _invoke_scorer_handler enforce this using _assert_item_type_string, _assert_array, an empty-list 400 check, and isinstance string validation. Skipping validation causes empty lists to spawn no-op jobs, non-string IDs to trigger 500 errors in the store instead of 400 responses, and duplicate IDs to be analyzed repeatedly. This input contract applies to all new invoke-style handlers accepting trace IDs for background jobs.",
+  "saysFor": "s2:6e614fdb117ee64e8a198e5b54fd8d890ec0d0814a56f5feb5404efe23a5c30f"
+}

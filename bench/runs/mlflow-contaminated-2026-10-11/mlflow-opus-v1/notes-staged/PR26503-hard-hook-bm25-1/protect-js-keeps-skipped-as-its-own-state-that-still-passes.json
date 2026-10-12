@@ -1,0 +1,58 @@
+{
+  "id": "protect-js-keeps-skipped-as-its-own-state-that-still-passes",
+  "title": "protect.js keeps skipped as its own state that still passes the merge gate",
+  "kind": "rule",
+  "answers": [
+    "Why do skipped checks show as skipped instead of passed in the protection log?",
+    "Skipped CI jobs are blocking or failing the protect step, how is skipped handled?",
+    "How does protect.js decide a check counts as passed when some checks are skipped?",
+    "Where is the skipped check status mapped in the protection workflow?"
+  ],
+  "body": "Invariant: check runs and workflow runs whose conclusion is \"skipped\" map to STATE.skipped, distinct from STATE.success and STATE.failure. Only \"success\" maps to STATE.success.\nEnforced by: .github/workflows/protect.js:module.exports, in the check-run status mapping and in the workflow-run status mapping (the run.conclusion chain), plus the final gate that requires every status to be success or skipped.\nWhat breaks if skipped: folding skipped back into success hides the distinction in the log (\"⏭️ skipped\" disappears). Letting skipped fall through to failure makes a skipped optional check block protection. Skipped must not be treated as a failure, and must not be reported as success.\nKeep in sync: both mapping sites must handle skipped the same way. The completion message \"All checks passed or were skipped\" is printed only when every status is success or skipped, so a new terminal conclusion needs an explicit branch at both sites.",
+  "applies": "Applies to conclusion-to-status mapping and the merge-gate check inside .github/workflows/protect.js; not to other workflow scripts.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "checks",
+    "skipped",
+    "merge-gate"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25737"
+  },
+  "created": "2026-10-11T08:47:55.645Z",
+  "verified": "2026-10-11T08:47:55.645Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-check-log-order-is-derived-from-state-key-order"
+  ],
+  "says": [
+    "Skipped continuous integration jobs are incorrectly blocking pull requests from passing the protection gate.",
+    "Why are bypassed checks displayed as skipped rather than passed in the merge report?",
+    "Allow omitted optional tests to satisfy the merge requirement without labeling them as passed.",
+    "Show a distinct icon and status for skipped tasks while still allowing pull request approval.",
+    "The protection step should display all checks passed or skipped when optional runs finish."
+  ],
+  "search": "Runs with conclusion 'skipped' map to STATE.skipped in .github/workflows/protect.js, remaining distinct from STATE.success and STATE.failure while satisfying the merge gate. Enforced in .github/workflows/protect.js:module.exports across check-run and workflow-run mappings (run.conclusion) and a final gate requiring success or skipped. Merging skipped into success hides '⏭️ skipped' in logs, while treating it as failure blocks protection on optional checks. Both mapping sites must handle skipped consistently to print 'All checks passed or were skipped', applying only to conclusion mapping and merge-gate logic in protect.js.",
+  "saysFor": "s2:aa8ffe59ddd2791ffcad8181187a9f9a711a53d92e64cca64c747538ab1a2b96"
+}

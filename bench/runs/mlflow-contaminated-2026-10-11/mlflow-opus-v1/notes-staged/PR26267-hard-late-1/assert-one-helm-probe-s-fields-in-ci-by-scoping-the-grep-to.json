@@ -1,0 +1,52 @@
+{
+  "id": "assert-one-helm-probe-s-fields-in-ci-by-scoping-the-grep-to",
+  "title": "Assert one Helm probe's fields in CI by scoping the grep to its block",
+  "kind": "howto",
+  "answers": [
+    "how to test a helm probe override in CI without matching another probe",
+    "helm template grep check for readinessProbe field",
+    "how to check helm probe omission in workflow"
+  ],
+  "body": "The \"Render probes\" step in .github/workflows/helm.yml defines probe_block <probeKey>, an awk helper that prints only the 10-space-indented block under that key (e.g. 'readinessProbe:') until the next sibling key.\nAssert a field by piping through it: echo \"$out\" | probe_block 'readinessProbe:' | grep -q '^            failureThreshold: 9$'. Probe fields sit at 12 spaces and httpGet children at 14, which follow nindent 12 in charts/templates/deployment.yaml.\nTo assert omission, capture render into a variable first, then `if echo \"$disabled\" | grep -q 'startupProbe:'` and exit 1 on match, so a failed helm template stays fatal rather than looking like a correct omission.\nAdd a negative case when scoping: an override routed to the wrong probe must fail the block-scoped check. The PR author verified this.\nIf nindent changes in the template, update the indentation patterns in these greps.",
+  "applies": "Adding render assertions for probe fields in .github/workflows/helm.yml or other chart render checks that must target one probe.",
+  "tags": [
+    "helm",
+    "ci",
+    "github-actions",
+    "probes",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    },
+    {
+      "path": "charts/templates/deployment.yaml",
+      "hash": "sha256:fa682d80dea8282ec07959a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25560"
+  },
+  "created": "2026-10-11T08:50:59.406Z",
+  "verified": "2026-10-11T08:50:59.406Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "helm-chart-render-checks-in-ci-via-helm-yml-render-helper"
+  ],
+  "says": [
+    "Automated chart build checks match settings on the wrong deployment health probe",
+    "Verify deployment readiness and startup probe overrides independently during pipeline validation runs",
+    "Template rendering failures appear as successful probe omissions in the build workflow",
+    "Ensure automated test checks fail if health probe settings route to the wrong probe"
+  ],
+  "search": "In .github/workflows/helm.yml, render assertions for probe fields isolate individual probe blocks using the probe_block awk helper. Matching checks probe keys at 10 spaces, probe fields at 12 spaces, and httpGet children at 14 spaces per nindent 12 in charts/templates/deployment.yaml. To assert probe omission, capture rendered output first and grep for the probe key, exiting with code 1 on match to keep template rendering errors fatal. Scoping must include negative tests ensuring misplaced overrides fail, and grep indentation must be updated if template nindent changes.",
+  "saysFor": "s2:152db6596395ee9dda6adec0258bb32510d7ba5e5668db3643d647ab75c01419"
+}

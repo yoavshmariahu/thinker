@@ -1,0 +1,113 @@
+{
+  "id": "pt2-archives-must-be-validated-before-torch-export-load-when",
+  "title": "pt2 archives must be validated before torch.export.load when pickle deserialization is disallowed",
+  "kind": "rule",
+  "answers": [
+    "pytorch pt2 model loads with MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false",
+    "torch.export.load arbitrary code execution from a crafted pt2 archive",
+    "pt2 model refused to load when pickle is disabled"
+  ],
+  "body": "Symptom: With MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, a PyTorch model saved with serialization_format=\"pt2\" can still execute code embedded in a crafted archive, or fails to load with no clear reason.\nRoot cause: mlflow/pytorch/__init__.py:_load_by_pickle_check guarded only the eager torch.load branch; the pt2 branch passed the archive to torch.export.load, which unpickles sample inputs, weights and constants with weights_only=False.\nFix pattern: when pickle is disallowed, run mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free before torch.export.load. Text/JSON metadata records and raw tensor records marked use_pickle:false pass; every other record must load under torch.load(weights_only=True), else raise MlflowException naming the record.\nConstraints: Refuse pt2 on torch < 2.10. Never mutate torch.serialization safe globals (the weights_only unpickler honors them): statically scan each data.pkl with pickletools via _pickle_globals and reject references to user-registered globals, failing closed on unparseable streams. Read only payload-config JSON up front and validate other records one at a time to bound memory. Skipped in Databricks Runtime and Model Serving via _is_pickle_deserialization_allowed.",
+  "applies": "Any change to the pytorch flavor's pt2 load path or to any loader that calls torch.export.load under the pickle guard.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "security",
+    "pickle",
+    "model-loading"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 836,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_load_by_pickle_check",
+      "hash": "sha256:94a02a2dfb165c1f264371be",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:94a02a2dfb165c1f264371be",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_pickle_globals",
+      "hash": "sha256:6ae281c461223894bdff9bcd",
+      "line": 797,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6ae281c461223894bdff9bcd",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_pt2_raw_tensor_records",
+      "hash": "sha256:b30d8e90c929813b8bb92148",
+      "line": 758,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b30d8e90c929813b8bb92148",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_is_pickle_deserialization_allowed",
+      "hash": "sha256:d31e8a495a90cc09dae4e202",
+      "line": 704,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d31e8a495a90cc09dae4e202",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T10:32:09.154Z",
+  "verified": "2026-10-11T10:32:09.154Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pt2-torch-version-gate-must-stay-in-sync-with-the-pickle-fre"
+  ],
+  "says": [
+    "Loading exported PyTorch models still executes arbitrary code despite disabling insecure deserialization.",
+    "Hardened security settings fail to block untrusted code execution from exported PyTorch archives.",
+    "Exported PyTorch models fail to load when untrusted object deserialization is turned off.",
+    "Block malicious code execution vulnerabilities when loading exported PyTorch models in production.",
+    "Ensure exported PyTorch model packages load safely under strict no-unpickling security policies."
+  ],
+  "search": "When MLFLOW_ALLOW_PICKLE_DESERIALIZATION is false, pt2 archives must be validated with mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free before torch.export.load. Text/JSON metadata and use_pickle:false raw tensors pass, while every other record must load under torch.load(weights_only=True) or raise MlflowException naming the record. The validator refuses pt2 on torch < 2.10, statically scans data.pkl files with pickletools via _pickle_globals to reject user-registered globals without mutating safe globals, reads payload-config JSON up front while validating other records sequentially, and is skipped in Databricks Runtime and Model Serving via _is_pickle_deserialization_allowed.",
+  "saysFor": "s2:bce7a95b433e11203c0a8d3db5efdb4f3a579876776ee744db7d3cda956acfdd"
+}

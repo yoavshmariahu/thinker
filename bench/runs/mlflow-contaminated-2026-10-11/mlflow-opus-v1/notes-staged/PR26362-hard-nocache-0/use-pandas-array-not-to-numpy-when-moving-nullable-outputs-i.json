@@ -1,0 +1,61 @@
+{
+  "id": "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i",
+  "title": "Use pandas .array, not .to_numpy, when moving nullable outputs into the eval table",
+  "kind": "rule",
+  "answers": [
+    "Int64 predictions lose precision in evaluation table",
+    "large integers corrupted to float in eval results table with pd.NA",
+    "nullable integer outputs become wrong values after evaluate",
+    "to_numpy converts pandas nullable dtype and corrupts values"
+  ],
+  "body": "Symptom: Large integer model outputs with missing values (for example Int64 with pd.NA near 2**63-1) come back from the evaluation table with corrupted values.\nRoot cause: converting a nullable pandas Series with `.to_numpy()` coerces it to a lossy dtype (object or float) when NA is present, so integers past float precision change silently.\nFix pattern: Use `.array` (the ExtensionArray) to hand the values to the table builder; it preserves the nullable dtype and the exact values.\nConstraints: Regression coverage is test_evaluation_table_preserves_nullable_integer_outputs in tests/evaluate/test_default_evaluator.py, which checks the value 2**63-1 round-trips with None for the NA. Prefer `.array` over `.to_numpy()` for any output moved into this table.",
+  "applies": "Applies to evaluation-table construction in the default evaluator for pandas extension dtypes (Int64, boolean, etc.); plain numpy-backed Series are unaffected.",
+  "tags": [
+    "evaluation",
+    "pandas",
+    "nullable-dtype",
+    "eval-table"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "hash": "sha256:c4fd9e51075c7776a814d823",
+      "missing": false
+    },
+    {
+      "path": "tests/evaluate/test_default_evaluator.py",
+      "symbol": "test_evaluation_table_preserves_nullable_integer_outputs",
+      "hash": "sha256:e50b2736d914cba394be874b",
+      "line": 2109,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e50b2736d914cba394be874b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25799"
+  },
+  "created": "2026-10-11T08:42:09.295Z",
+  "verified": "2026-10-11T08:42:09.295Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "eval-results-table-attaches-model-outputs-by-position-not-in"
+  ],
+  "says": [
+    "Large integer predictions containing missing values are displayed with corrupted numbers after evaluation.",
+    "Model evaluation results show incorrect values for large numbers when empty rows exist.",
+    "The model evaluation table should preserve exact precision for big numbers with missing entries.",
+    "Large numbers in model predictions unexpectedly convert to inaccurate decimal values during evaluation."
+  ],
+  "search": "In mlflow/models/evaluation/default_evaluator.py, evaluation-table construction must pass pandas extension dtypes using .array rather than .to_numpy(). Converting nullable Series with .to_numpy() coerces missing values into lossy float or object types, corrupting large integers like 2**63-1. Applies to default evaluator table construction for pandas extension dtypes like Int64 and boolean, while plain numpy-backed Series remain unaffected. Regression coverage is enforced by test_evaluation_table_preserves_nullable_integer_outputs in tests/evaluate/test_default_evaluator.py.",
+  "saysFor": "s2:00c34954682a76904e4325a6a678ae4a0e6bcbed0b3f3fcade48e624f83ce533"
+}

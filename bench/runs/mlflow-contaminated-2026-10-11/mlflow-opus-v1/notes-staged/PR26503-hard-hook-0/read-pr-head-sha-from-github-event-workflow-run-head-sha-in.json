@@ -1,0 +1,55 @@
+{
+  "id": "read-pr-head-sha-from-github-event-workflow-run-head-sha-in",
+  "title": "Read PR head SHA from github.event.workflow_run.head_sha in workflow_run-triggered jobs, not from pull_requests or gh pr view",
+  "kind": "rule",
+  "answers": [
+    "how to get the PR head commit in a workflow_run workflow",
+    "fork PR rerun workflow cannot find the pull request",
+    "pull_requests is empty for fork PRs in workflow_run",
+    "replace gh pr view with the workflow run event data"
+  ],
+  "body": "Fix pattern: in a workflow triggered by `workflow_run`, get the PR head commit from `github.event.workflow_run.head_sha` via an env var (`HEAD_SHA: ${{ github.event.workflow_run.head_sha }}`), then use it in `gh api repos/$GH_REPO/commits/$HEAD_SHA/...`.\nConstraints: do not derive the PR from `github.event.workflow_run.pull_requests` or `gh pr view`. `pull_requests` may be empty for fork PRs, so that lookup fails for them.\nThe removed flow also passed the PR number through an uploaded artifact (`pr_number`) and two API calls. Do not reintroduce that: the event payload already carries the data.\nApplies: workflow_run-triggered jobs in .github/workflows/rerun-workflow-run.yml; the trigger job in .github/workflows/rerun.yml sends no data.",
+  "applies": "workflow_run-triggered jobs in .github/workflows/rerun-workflow-run.yml; the trigger job in .github/workflows/rerun.yml sends no data.",
+  "tags": [
+    "github-actions",
+    "workflow_run",
+    "head_sha",
+    "fork-pr",
+    "artifacts"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "hash": "sha256:1123ab8d5531b5e8f2408d10",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:f09960f43d841018af6de4bb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25592"
+  },
+  "created": "2026-10-11T08:50:22.821Z",
+  "verified": "2026-10-11T08:50:22.821Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "approval-gate-for-auto-rerun-is-workflow-run-conclusion-succ",
+    "rerun-job-submits-each-workflow-run-once-and-runs-protect-la"
+  ],
+  "says": [
+    "The rerun workflow fails to find the pull request when triggered from a fork.",
+    "Automated test reruns cannot locate the head commit for external contributor contributions.",
+    "Get the commit hash directly from the run trigger instead of querying pull requests.",
+    "Stop uploading artifact files just to pass pull request numbers between workflows.",
+    "Make the automated rerun workflow work reliably for community pull requests from forks."
+  ],
+  "search": "In workflow_run-triggered workflows like .github/workflows/rerun-workflow-run.yml, read the pull request head commit from github.event.workflow_run.head_sha via the HEAD_SHA environment variable for use in gh api repos/$GH_REPO/commits/$HEAD_SHA/. Do not retrieve the pull request from github.event.workflow_run.pull_requests or gh pr view, because pull_requests can be empty for fork pull requests. Do not pass the pull request number through an uploaded pr_number artifact, and note that the trigger job in .github/workflows/rerun.yml sends no data.",
+  "saysFor": "s2:041b266f3b8aca4bd78830b7f26c5a6e299c4ea93fa3e66cf1cbfc15dbb34d21"
+}

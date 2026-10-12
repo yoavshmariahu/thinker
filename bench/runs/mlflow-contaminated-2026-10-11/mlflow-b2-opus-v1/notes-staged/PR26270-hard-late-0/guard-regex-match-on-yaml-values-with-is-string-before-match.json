@@ -1,0 +1,45 @@
+{
+  "id": "guard-regex-match-on-yaml-values-with-is-string-before-match",
+  "title": "Guard regex.match on YAML values with is_string before matching",
+  "kind": "rule",
+  "answers": [
+    "policy errors on non-string workflow values",
+    "github.token detection fails on boolean or number inputs",
+    "conftest rule crashes on a with: value",
+    "github.token shorthand check false positive"
+  ],
+  "body": "Symptom: The github.token shorthand check misbehaves when a `with:` or `env:` value is not a string (for example a boolean or number from YAML).\nRoot cause: .github/policy.rego:contains_github_token ran regex.match directly on the raw YAML value.\nFix pattern: Add `is_string(value)` as the first condition before `regex.match` in the helper, so non-string values are skipped.\nConstraints: Apply the same guard to any new helper that regex-matches arbitrary YAML values. The PR does not show whether other existing regex checks need it.",
+  "applies": "Helper predicates in .github/policy.rego that run regex over values taken from workflow or action YAML.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-11T10:30:58.666Z",
+  "verified": "2026-10-11T10:30:58.666Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The workflow security policy check crashes when a step parameter is a boolean.",
+    "Automated pipeline validation errors on numeric values configured in action input fields.",
+    "Token compliance scanner fails during pull request checks on non-text workflow inputs.",
+    "Support boolean and number environment settings without triggering workflow policy scanner crashes.",
+    "Pull request validation breaks when pipeline steps pass true or false values."
+  ],
+  "search": "Helper predicates in .github/policy.rego that evaluate YAML workflow values with regex.match must check is_string(value) first. This prevents contains_github_token from crashing or misbehaving when workflow 'with:' or 'env:' inputs contain booleans or numbers. The guard must be applied to any new helper running regular expressions on arbitrary YAML values.",
+  "saysFor": "s2:a4682ca5215b6e2192418e56b98bbdfdf3a690a37d9f016a012baa3869301b41"
+}

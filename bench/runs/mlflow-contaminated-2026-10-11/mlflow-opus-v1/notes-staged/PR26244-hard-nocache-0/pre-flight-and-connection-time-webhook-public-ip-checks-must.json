@@ -1,0 +1,71 @@
+{
+  "id": "pre-flight-and-connection-time-webhook-public-ip-checks-must",
+  "title": "Pre-flight and connection-time webhook public-IP checks must share one classifier",
+  "kind": "rule",
+  "answers": [
+    "where should the webhook public IP check be changed",
+    "how do I add a new blocked address range to webhook SSRF protection",
+    "webhook hostname check and connection check disagree on what is private",
+    "which function decides whether a webhook destination is public"
+  ],
+  "body": "Invariant: Every public-address decision on the webhook outbound path goes through mlflow/utils/validation.py:_is_public_ip; both the pre-flight hostname check (_validate_hostname_resolves_to_public_ips) and the connection-time check (mlflow/webhooks/ssrf.py:_assert_public_peer) must call it.\nEnforced by: mlflow/webhooks/ssrf.py imports `_is_public_ip` from mlflow/utils/validation.py, so the two layers share one definition.\nWhat breaks if skipped: a bypass closed at one layer stays open at the other; this PR fixed the same IPv6-transition gap in both places at once.\nConstraints: Do not add new direct `.is_global` checks on resolved or peer addresses; extend `_embedded_ipv4` or `_is_public_ip` so both layers pick up the change.",
+  "applies": "Changes to how MLflow classifies destination IP addresses for webhook or outbound URL validation.",
+  "tags": [
+    "security",
+    "ssrf",
+    "webhooks",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_is_public_ip",
+      "hash": "sha256:d9a8d134ccca1d14e95b035f",
+      "line": 922,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d9a8d134ccca1d14e95b035f",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/webhooks/ssrf.py",
+      "symbol": "_assert_public_peer",
+      "hash": "sha256:4a5e3e77244ef61a670a3470",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a5e3e77244ef61a670a3470",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25568"
+  },
+  "created": "2026-10-11T08:43:43.165Z",
+  "verified": "2026-10-11T08:43:43.165Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb"
+  ],
+  "says": [
+    "Webhooks can reach private internal network addresses through inconsistent address validation checks.",
+    "Ensure webhook destination verification blocks internal network endpoints during resolution and connection.",
+    "Outbound notifications accept restricted network destinations using alternative address transition formats.",
+    "Block all internal IP ranges consistently when configuring outbound webhook integrations.",
+    "Prevent outbound event webhooks from connecting to private infrastructure after hostname checks pass."
+  ],
+  "search": "All public IP classification for outbound webhooks must centralize in mlflow/utils/validation.py:_is_public_ip across pre-flight resolution and connection-time peer checks. Both _validate_hostname_resolves_to_public_ips and mlflow/webhooks/ssrf.py:_assert_public_peer must use this single helper to prevent SSRF bypasses such as IPv6-transition gaps. Direct .is_global checks must not be added; developers should instead extend _embedded_ipv4 or _is_public_ip.",
+  "saysFor": "s2:d5ef502f45f004b252b83188ebf78acd65cb3eb88a41f0863816bea42898a413"
+}

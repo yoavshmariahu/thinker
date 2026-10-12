@@ -1,0 +1,63 @@
+{
+  "id": "draft-pr-gate-in-workflow-jobs-is-pull-request-draft-false-w",
+  "title": "Draft PR gate in workflow jobs is pull_request.draft == false with no bot-author exception",
+  "kind": "rule",
+  "answers": [
+    "Copilot draft PR does not run CI jobs in GitHub Actions",
+    "why are my workflow jobs skipped on a draft pull request",
+    "can bot-authored draft PRs run the gated workflow jobs"
+  ],
+  "body": "Invariant: a pull_request draft gate in .github/workflows/*.yml is `github.event.pull_request.draft == false` alone. Do not add a bot-author bypass (`user.login == 'Copilot' && user.type == 'Bot'`) to it, so Copilot-authored drafts skip the same gated jobs as any other draft.\nEnforced by: the job-level `if:` of each gated job, e.g. .github/workflows/build-wheel.yml:build, .github/workflows/master.yml:python, .github/workflows/labeling.yml:labeling, .github/workflows/release-note.yml:validate-labeled.\nNon-pull_request events keep their own clause: `github.event_name != 'pull_request' || ...` (push, schedule and workflow_dispatch runs are not draft-gated).\nWhat breaks if skipped: a Copilot clause re-added in one workflow makes Copilot drafts run that workflow's gated jobs while other workflows skip them, so draft CI behaviour diverges between files.\nConstraints: the Copilot check in .github/workflows/ui-preview.yml (the `author_association` / Copilot authorization clause) is a separate authorization check and stays. Labeling, patch and release-note jobs also now wait for the PR to leave draft before running on Copilot PRs.",
+  "applies": "Applies to job `if:` draft gates on pull_request events in .github/workflows; not to Copilot authorization checks, path filters or event triggers.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "draft-pr",
+    "copilot",
+    "workflow-gating"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:e76c2567b5effc6aa95e08bd",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:7a23e9e2645572c59f7793f4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "hash": "sha256:70bd55ca7846f6523eb9c924",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25667"
+  },
+  "created": "2026-10-11T08:49:01.121Z",
+  "verified": "2026-10-11T08:49:01.121Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "download-target-filename-require-path-and-script-name-must-s",
+    "lightweight-api-workflows-fetch-their-script-with-curl-at-gi"
+  ],
+  "says": [
+    "Automated checks are not running on draft pull requests opened by AI bots.",
+    "Continuous integration jobs are skipped whenever a pull request is marked as draft.",
+    "Bot authored pull requests should skip validation pipelines until marked ready for review.",
+    "Prevent automated testing workflows from triggering prematurely on unfinished draft pull requests."
+  ],
+  "search": "Job-level draft gates on pull_request events in .github/workflows/*.yml must check github.event.pull_request.draft == false alone and exclude bot-author bypasses. This ensures Copilot drafts skip gated jobs in files such as build-wheel.yml, master.yml, labeling.yml, and release-note.yml uniformly. Non-pull_request events retain their github.event_name checks, while the separate Copilot authorization check in ui-preview.yml remains intact.",
+  "saysFor": "s2:98f5cb6748a0869de890db42ff6918d76dabad008c2dfdbe3e94d6a9531db0da"
+}

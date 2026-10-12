@@ -1,0 +1,68 @@
+{
+  "id": "schema-enforcement-series-rebuilds-must-keep-the-input-dataf",
+  "title": "Schema-enforcement Series rebuilds must keep the input DataFrame index",
+  "kind": "rule",
+  "answers": [
+    "pyfunc predictions have extra rows or wrong values when input DataFrame was filtered or has a custom index and the signature has Array, Object or Map columns",
+    "model server returns misaligned rows for complex columns after enforcing signature",
+    "why does MLflow schema enforcement change my DataFrame index or add NaN rows",
+    "pd.Series rebuilt without index causes row misalignment in _enforce_named_col_schema"
+  ],
+  "body": "Symptom: A model called with a DataFrame that has a non-default index (for example after filtering with iloc or loc) returns extra rows or places Array/Object/Map values in the wrong rows when the signature includes complex columns.\nRoot cause: mlflow/models/utils.py:_enforce_named_col_schema and _enforce_unnamed_col_schema rebuild complex columns as pd.Series from a list comprehension with no index, so they get a default RangeIndex. pd.DataFrame(new_pf_input) then aligns these Series to the scalar columns by label, which keeps the original index.\nFix pattern: Pass index=pf_input.index to every pd.Series that replaces a column in these functions, in both the named and unnamed branches, next to name=.\nConstraints: Applies to any new branch in these two functions that rebuilds a column from a Python list. Scalar columns that are only cast keep the input index already. The rule is about the Series construction, not the caller.",
+  "applies": "Applies to mlflow/models/utils.py column enforcement in pyfunc predict; any change that rebuilds a DataFrame column from a list must keep the input index.",
+  "tags": [
+    "pyfunc",
+    "schema-enforcement",
+    "pandas",
+    "dataframe-index"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/utils.py",
+      "symbol": "_enforce_named_col_schema",
+      "hash": "sha256:5701c9f9a72468c79d6139a1",
+      "line": 970,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5701c9f9a72468c79d6139a1",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/models/utils.py",
+      "symbol": "_enforce_unnamed_col_schema",
+      "hash": "sha256:ffd2b4676fef9fe3acdef5ac",
+      "line": 950,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffd2b4676fef9fe3acdef5ac",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26181"
+  },
+  "created": "2026-10-11T10:24:03.550Z",
+  "verified": "2026-10-11T10:24:03.550Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Filtered input tables with nested lists return misaligned prediction rows or unexpected missing values.",
+    "Model serving produces extra rows when predicting on a sliced dataset with map fields.",
+    "Predictions scramble values across rows whenever the input table has a custom row index.",
+    "Ensure model inference keeps original row ordering when validating complex column types."
+  ],
+  "search": "In pyfunc model column schema enforcement, rebuilding DataFrame columns from lists must preserve the input index. In mlflow/models/utils.py:_enforce_named_col_schema and _enforce_unnamed_col_schema, pass index=pf_input.index to every pd.Series replacing a column when enforcing signatures with Array, Object, or Map columns. This applies to any branch rebuilding columns from a list, while scalar columns that are only cast already retain the input index.",
+  "saysFor": "s2:cd82ee31dd7079db78cf6382fc17fff91b080ddb999ad82004834decd93e6ed8"
+}

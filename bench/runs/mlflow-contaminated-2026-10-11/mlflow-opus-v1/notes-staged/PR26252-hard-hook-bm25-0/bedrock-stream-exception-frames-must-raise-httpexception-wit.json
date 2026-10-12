@@ -1,0 +1,87 @@
+{
+  "id": "bedrock-stream-exception-frames-must-raise-httpexception-wit",
+  "title": "Bedrock stream exception frames must raise HTTPException with a mapped status, not pass through as data",
+  "kind": "rule",
+  "answers": [
+    "Bedrock throttling mid-stream shows a generic error instead of 429",
+    "Streaming Claude on Bedrock through the gateway drops the error status",
+    "Bedrock event stream binary bytes appear in the SSE response",
+    "Why does the Bedrock stream converter decode botocore EventStreamBuffer frames"
+  ],
+  "body": "Invariant: the Bedrock Anthropic stream converter turns each AWS event-stream \"chunk\" frame into an SSE event and raises HTTPException for any non-event frame. It must not yield exception frames as data.\nEnforced by: mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse and the _BEDROCK_STREAM_EXCEPTION_STATUS map (throttlingException 429, serviceUnavailableException 503, modelTimeoutException 408, anything else 502).\nEach chunk payload is JSON with base64 \"bytes\"; the decoded event type is emitted as \"event: <type>\\ndata: <json>\\n\\n\", which the usage parser in mlflow/gateway/providers/anthropic.py:_extract_anthropic_streaming_token_usage also reads.\nbotocore is imported inside the function, and a missing install raises an ImportError with a pip install boto3 hint.\nWhat breaks if skipped: safe_stream cannot write the real status into the SSE error chunk, and the trace shows no token usage.",
+  "applies": "Streaming Anthropic Messages passthrough on Bedrock; other binary event-stream providers need the same frame-type check.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "streaming",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_event_stream_to_anthropic_sse",
+      "hash": "sha256:6a914e52d652128a8d052bf9",
+      "line": 47,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a914e52d652128a8d052bf9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_streaming_token_usage",
+      "hash": "sha256:323c84d4cfcfda5d5f098029",
+      "line": 100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:323c84d4cfcfda5d5f098029",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_stream_request",
+      "hash": "sha256:2ecc8397fb756cf69ecd1284",
+      "line": 162,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ecc8397fb756cf69ecd1284",
+      "fanout": {
+        "files": 12,
+        "sites": 17,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T08:46:19.348Z",
+  "verified": "2026-10-11T08:46:19.348Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-adapters-silently-drop-request-keys-that-are-not-ren",
+    "bedrock-anthropic-passthrough-anthropic-models-only-api-key",
+    "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn",
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th"
+  ],
+  "says": [
+    "Streaming Claude completions return a generic server error instead of rate limit status 429.",
+    "Mid-stream errors on Bedrock output raw binary stream data instead of clean error events.",
+    "Streaming requests drop the HTTP status code when Bedrock times out or becomes unavailable.",
+    "Ensure streaming responses capture token usage metrics even when stream errors occur."
+  ],
+  "search": "In mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse, AWS event-stream chunk frames are converted to SSE events while non-event exception frames must raise HTTPException using mapped status codes. The _BEDROCK_STREAM_EXCEPTION_STATUS mapping maps throttlingException to 429, serviceUnavailableException to 503, modelTimeoutException to 408, and all others to 502, preventing exception frames from leaking as SSE data. Applies to streaming Anthropic Messages passthrough on Bedrock; failing to raise HTTPException prevents safe_stream from recording true HTTP statuses in SSE error chunks and breaks token usage extraction in mlflow/gateway/providers/anthropic.py:_extract_anthropic_streaming_token_usage.",
+  "saysFor": "s2:1d0a36ee7a7d1d5f82930d139145b55c2929bd07a9ace1594783b8265cd6b560"
+}

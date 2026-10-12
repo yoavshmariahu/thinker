@@ -1,0 +1,70 @@
+{
+  "id": "mlflow-traces-search-order-by-rejects-entries-with-spaces-af",
+  "title": "mlflow traces search --order-by rejects entries with spaces after commas",
+  "kind": "rule",
+  "answers": [
+    "mlflow traces search order-by fails with 'Invalid order_by clause' when I add a space after the comma",
+    "sort traces by two fields from the CLI with a space after the comma does not work",
+    "traces search --order-by 'timestamp_ms DESC, status' errors out",
+    "CLI order by trace search could not be parsed leading whitespace"
+  ],
+  "body": "Symptom: Running `mlflow traces search --order-by \"timestamp_ms DESC, status\"` fails with \"Invalid order_by clause ' status'. Could not be parsed.\", even though the help example uses that exact form.\nRoot cause: mlflow/cli/traces.py:search_traces splits the --order-by value on \",\" without stripping each entry. The leading space reaches the sqlparse-based order-by parser, which rejects any leading or trailing whitespace.\nFix pattern: Normalize each user-supplied comma-separated entry before passing it on, e.g. `[o.strip() for o in order_by.split(\",\")]`, the same way `mlflow datasets search` already handles its order-by option. Do this at the CLI boundary rather than loosening the downstream parser.\nConstraints: Applies to any CLI option that takes a comma-separated list passed to a strict parser. Stripping only trims whitespace around entries; it does not change the parser's validation of field names or DESC/ASC tokens. Test with a space after the comma, e.g. in tests/cli/test_traces.py:test_search_command_strips_spaces_in_order_by.",
+  "applies": "CLI comma-separated list options for trace search; new list-valued CLI options should strip entries the same way.",
+  "tags": [
+    "tracing",
+    "cli",
+    "order-by",
+    "traces-search"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/cli/traces.py",
+      "symbol": "search_traces",
+      "hash": "sha256:4e911882986d1ca7aa410e02",
+      "line": 245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e911882986d1ca7aa410e02",
+      "fanout": {
+        "files": 98,
+        "sites": 557,
+        "refs": 688
+      }
+    },
+    {
+      "path": "tests/cli/test_traces.py",
+      "symbol": "test_search_command_strips_spaces_in_order_by",
+      "hash": "sha256:9d7edf8d6966868b6b86102d",
+      "line": 121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d7edf8d6966868b6b86102d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26192"
+  },
+  "created": "2026-10-11T10:23:56.512Z",
+  "verified": "2026-10-11T10:23:56.512Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-traces-delete-trace-ids-strip-whitespace-around-comma"
+  ],
+  "says": [
+    "Sorting traces by multiple fields fails when including a space after the comma.",
+    "Searching traces with multiple sort options gives an invalid clause syntax error.",
+    "The command line trace search rejects standard multi-field sort arguments containing whitespace.",
+    "Allow spaces after commas when sorting trace search results by several columns."
+  ],
+  "search": "In mlflow/cli/traces.py:search_traces, comma-separated entries in `--order-by` must be stripped of whitespace before reaching the sqlparse-based parser. Unstripped leading spaces cause the parser to reject the clause as invalid, whereas stripping normalizes entries at the CLI boundary similar to `mlflow datasets search`. Stripping only trims surrounding whitespace without loosening parser validation of field names or DESC and ASC tokens, as tested in tests/cli/test_traces.py:test_search_command_strips_spaces_in_order_by.",
+  "saysFor": "s2:e53fa6265051e8e25c3d8484f1150cb04af02384bc44db7dfd2419497afb62e9"
+}

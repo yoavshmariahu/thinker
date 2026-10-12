@@ -1,0 +1,52 @@
+{
+  "id": "ci-auto-retry-eligibility-is-opt-in-via-the-auto-rerun-label",
+  "title": "CI auto-retry eligibility is opt-in via the auto-rerun label, not author or auto-merge",
+  "kind": "rule",
+  "answers": [
+    "Why isn't my PR being automatically rerun after a failed CI run?",
+    "How do I opt a PR into automatic CI retries without enabling auto-merge?",
+    "Which PRs does the retry workflow pick up?"
+  ],
+  "body": "Symptom: a PR that failed CI is never retried automatically, even though it is open, non-draft and recent.\nRoot cause: .github/workflows/retry.yml, the gh api graphql search in the candidate step, selects PRs by the search string `label:auto-rerun` (plus `is:open draft:false created:>=$cutoff`), not by `author:app/dependabot` or an autoMergeRequest.\nFix pattern: to make a PR eligible, add the `auto-rerun` label. Do not reintroduce author or auto-merge filters in the search or the jq `select`.\nConstraints: Only the mergeable != CONFLICTING jq filter, the three-day cutoff, pagination, retry limits and dry-run still apply. The label must exist in the repository before anything applies it.\nApplies: Eligibility for the automatic CI retry sweep in this repository.",
+  "applies": "Candidate selection for the automatic CI retry sweep only; not the retry.sh rerun logic itself.",
+  "tags": [
+    "ci",
+    "retry",
+    "github-actions",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.yml",
+      "symbol": "cutoff",
+      "hash": "sha256:c1e6caafe14b04bf1c264d9d",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26065"
+  },
+  "created": "2026-10-11T10:28:19.942Z",
+  "verified": "2026-10-11T10:28:19.942Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why was my pull request not automatically retried after a continuous integration failure?",
+    "Failed checks are not rerunning automatically on recently updated pull requests.",
+    "How do we opt a pull request into automatic retries without enabling auto merge?",
+    "Add the auto rerun label so that failed build tests trigger an automatic retry.",
+    "Automated test reruns should trigger based on labels rather than pull request author."
+  ],
+  "search": "Candidate selection for the automatic CI retry sweep in .github/workflows/retry.yml relies on the label:auto-rerun search string along with is:open draft:false created:>=$cutoff, rather than filtering by author:app/dependabot or autoMergeRequest. To make an open, non-draft PR eligible for automatic rerun, the auto-rerun label must be added. Constraints including the mergeable != CONFLICTING jq filter, three-day cutoff, pagination, retry limits, and dry-run apply, without reintroducing author or auto-merge checks.",
+  "saysFor": "s2:c74babc74686cf2e82196cfe28a2407d21695db29503e65bbb746a240b509078"
+}

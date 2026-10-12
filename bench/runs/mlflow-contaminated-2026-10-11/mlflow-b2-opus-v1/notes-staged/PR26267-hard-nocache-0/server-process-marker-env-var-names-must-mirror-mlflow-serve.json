@@ -1,0 +1,87 @@
+{
+  "id": "server-process-marker-env-var-names-must-mirror-mlflow-serve",
+  "title": "Server-process marker env var names must mirror mlflow/server/constants.py",
+  "kind": "rule",
+  "answers": [
+    "server-side artifact host policy silently disabled",
+    "renaming the artifact root environment variable breaks SSRF guard",
+    "why is _MLFLOW_SERVER_ARTIFACT_ROOT duplicated in host_policy.py",
+    "how does the registry know it is running in the tracking server"
+  ],
+  "body": "Invariant: mlflow/store/artifact/host_policy.py keeps private copies of the server's artifact-root and artifacts-destination env var names (_SERVER_ARTIFACT_ROOT_ENV_VAR, _SERVER_ARTIFACTS_DESTINATION_ENV_VAR) that must equal mlflow/server/constants.py:ARTIFACT_ROOT_ENV_VAR and ARTIFACTS_DESTINATION_ENV_VAR.\nEnforced by: host_policy.py:is_tracking_server_process checks the marker, and tests/store/artifact/test_host_policy.py pins the strings equal to the server constants.\nWhat breaks if skipped: If either name changes on one side only, is_tracking_server_process() returns False without error, so registry-level enforcement (jobs, runs:/ and models:/ URIs, tracing and scorer loaders) switches off while handler checks still run.\nConstraints: The store layer must not import mlflow.server.constants, because the mlflow.server package pulls in Flask. Keep the two copies in sync by updating the test expectation with them, not by importing across layers.",
+  "applies": "Any rename or change of the env vars that mlflow server exports to its workers, or any new code that reads the server-process marker.",
+  "tags": [
+    "security",
+    "artifacts",
+    "env-vars",
+    "sync",
+    "tracking-server"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "is_tracking_server_process",
+      "hash": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACT_ROOT_ENV_VAR",
+      "hash": "sha256:29d0a68d14c5638bdd0a668a",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACTS_DESTINATION_ENV_VAR",
+      "hash": "sha256:c7d5555af6430939674e8898",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 25
+      }
+    },
+    {
+      "path": "tests/store/artifact/test_host_policy.py",
+      "hash": "sha256:b56c36f7415ca4298c211275",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-11T10:31:28.194Z",
+  "verified": "2026-10-11T10:31:28.194Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "host-addressed-artifact-uris-must-pass-the-host-policy-befor"
+  ],
+  "says": [
+    "Server side artifact host security policies are unexpectedly bypassed when loading logged models.",
+    "Enforce server restrictions on model artifact locations to prevent unapproved external downloads.",
+    "Security scans show artifact location protection is disabled on the tracking server.",
+    "The server allows run artifact downloads from addresses that should be restricted.",
+    "Model registry artifact location checks are silently skipped during server background jobs."
+  ],
+  "search": "Tracking server process detection requires mlflow/store/artifact/host_policy.py private environment variable copies (_SERVER_ARTIFACT_ROOT_ENV_VAR, _SERVER_ARTIFACTS_DESTINATION_ENV_VAR) to match mlflow/server/constants.py constants (ARTIFACT_ROOT_ENV_VAR, ARTIFACTS_DESTINATION_ENV_VAR). If names desynchronize, is_tracking_server_process returns false, silently disabling registry-level URI enforcement for jobs, runs, models, tracing, and scorers. The store layer must not import mlflow.server.constants to avoid pulling in Flask, so synchronization is enforced via tests/store/artifact/test_host_policy.py.",
+  "saysFor": "s2:a027906a8b9a73d6c88c432ee46a3eb455b7439887f515c6916312fe0f11ebd4"
+}

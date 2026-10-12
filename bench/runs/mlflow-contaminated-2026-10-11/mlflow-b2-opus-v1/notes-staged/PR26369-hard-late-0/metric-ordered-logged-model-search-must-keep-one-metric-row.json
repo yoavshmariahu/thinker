@@ -1,0 +1,58 @@
+{
+  "id": "metric-ordered-logged-model-search-must-keep-one-metric-row",
+  "title": "Metric-ordered logged model search must keep one metric row per model before pagination",
+  "kind": "rule",
+  "answers": [
+    "search logged models ordered by metric pagination returns duplicate models",
+    "logged model search page token skips or repeats models when sorting by metric",
+    "tied dataset metrics make logged models appear multiple times in search results"
+  ],
+  "body": "Symptom: Searching logged models sorted by a metric (for example accuracy) with max_results and page tokens returns the same model on several pages, or drops models, when that model has tied latest metric rows, such as the same metric logged for train, val and test datasets.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models ranked metric rows with func.rank() partitioned by model_id. Tied rows all received rank 1, so the outer join produced several rows per logged model before LIMIT/OFFSET pagination ran.\nFix pattern: Use func.row_number() over the same per-model partition, with a deterministic tie-breaker (SqlLoggedModelMetric.run_id.asc() after metric_timestamp_ms desc and metric_step desc), and filter the subquery to row_num == 1 so exactly one row per model reaches the join.\nConstraints: Applies to the metric-ordering subquery in this method. Any new metric-based sort must keep one row per model and a total tie-breaker. Using rank() instead of row_number() reintroduces the duplication.",
+  "applies": "SQLAlchemy tracking store search_logged_models ordering by metrics.<name> in _apply_order_by_search_logged_models.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "pagination",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3591,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-11T10:25:37.627Z",
+  "verified": "2026-10-11T10:25:37.627Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "experiment-and-evaluation-dataset-numeric-filters-must-rejec",
+    "non-ascii-span-content-is-invisible-to-trace-text-search-on",
+    "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg",
+    "logged-model-search-order-by-must-end-with-a-unique-model-id"
+  ],
+  "says": [
+    "Sorting logged models by a metric shows duplicate entries across pages.",
+    "Some models disappear from search results when ordering by validation metrics.",
+    "Navigating pages repeats the same model when sorting by test score.",
+    "Make metric sorting stable when models have metrics across multiple datasets."
+  ],
+  "search": "In SqlAlchemyStore._apply_order_by_search_logged_models, ordering logged models by metric must isolate a single metric row per model using func.row_number() rather than func.rank() before pagination. Using rank() assigns rank 1 to all tied latest metric rows across datasets, producing duplicate model rows in the outer join that cause pagination tokens to skip or repeat models. The subquery must partition by model_id, order by metric_timestamp_ms desc, metric_step desc, and SqlLoggedModelMetric.run_id.asc() as a deterministic tie-breaker, filtering strictly for row_num == 1. Any new metric-ordering implementation must preserve this single-row-per-model constraint with a total tie-breaker.",
+  "saysFor": "s2:4577d71fab009ed98cdb9b123c2d35c47ce7993034d7683cc808a05b940361c3"
+}

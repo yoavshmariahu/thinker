@@ -1,0 +1,49 @@
+{
+  "session_id": "01a12aa4-6ce6-7e90-af2c-43150966ec9c",
+  "turns": 1,
+  "in_tokens": 479286,
+  "cached_tokens": 440320,
+  "out_tokens": 2362,
+  "wall_ms": 84820,
+  "result": "I’ll check how `@latest` and `/latest` resolve versions, update the alias behavior, and add a focused regression test. I’m using the repository’s Python style skill.\nThe SQL registry store returns the first per-stage result for `@latest`, while `/latest` selects the highest numeric version. I’ll make the alias use that same selection rule and cover multiple stages, archived versions, and versions above 9. The existing SQL test fixture runs with workspaces both enabled and disabled.\nThe regression test reproduced the reported failure: `@latest` returned version 1 when version 2 was in Production. I’ve changed the SQL store to select the highest numeric version and am running the focused checks.\nUpdated the SQL registry store so `@latest` selects the highest numeric version across all stages, including Archived, matching `/latest`.\n\nAdded regression coverage for stage combinations, version 10, case-insensitive aliases, and both workspace modes. Prompt behavior remains unchanged.\n\nFocused tests: **39 passed, 1 skipped**. No dependencies installed or full suite run.",
+  "tools": {
+    "calls": 16,
+    "byTool": {
+      "command_execution": 14,
+      "file_change": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 8,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": 2,
+    "greenReached": true
+  },
+  "model": "gpt-6-astra",
+  "budget": null,
+  "arm": "nocache",
+  "task": "PR26291-hard",
+  "rep": 0,
+  "area": "mlflow/store",
+  "id": "PR26291-hard-nocache-0",
+  "session": "01a12aa4-6ce6-7e90-af2c-43150966ec9c",
+  "cost": 0.94808,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/store/model_registry/sqlalchemy_store.py b/mlflow/store/model_registry/sqlalchemy_store.py\nindex 32577cd9e..971bc649b 100644\n--- a/mlflow/store/model_registry/sqlalchemy_store.py\n+++ b/mlflow/store/model_registry/sqlalchemy_store.py\n@@ -1572,7 +1572,7 @@ class SqlAlchemyStore(AbstractStore):\n \n         if alias.lower() == _REGISTERED_MODEL_ALIAS_LATEST:\n             if versions := self.get_latest_versions(name):\n-                return versions[0]\n+                return max(versions, key=lambda mv: int(mv.version))\n             else:\n                 raise MlflowException(\n                     f\"Latest version not found for model {name}.\", RESOURCE_DOES_NOT_EXIST\ndiff --git a/tests/store/model_registry/test_sqlalchemy_store.py b/tests/store/model_registry/test_sqlalchemy_store.py\nindex a687802eb..2439bf859 100644\n--- a/tests/store/model_registry/test_sqlalchemy_store.py\n+++ b/tests/store/model_registry/test_sqlalchemy_store.py\n@@ -1941,6 +1941,31 @@ def test_get_model_version_by_alias(store):\n     assert mv.aliases == [\"test_alias\"]\n \n \n+@pytest.mark.parametrize(\"alias\", [\"latest\", \"LATEST\"])\n+@pytest.mark.parametrize(\n+    \"stages\",\n+    [\n+        [\"None\", \"None\"],\n+        [\"None\", \"Production\"],\n+        [\"Production\", \"None\"],\n+        [\"Production\", \"Archived\"],\n+        [\"Archived\", \"Staging\", \"Production\", \"None\"],\n+        [\"None\"] * 9 + [\"Production\"],\n+    ],\n+)\n+def test_get_model_version_by_latest_alias(store, alias, stages):\n+    name = \"LatestAlias_TestMod\"\n+    store.create_registered_model(name)\n+    for stage in stages:\n+        mv = _mv_maker(store, name)\n+        store.transition_model_version_stage(name, mv.version, stage, archive_existing_versions=False)\n+\n+    latest = store.get_model_version_by_alias(name, alias)\n+\n+    assert int(latest.version) == len(stages)\n+    assert latest.current_stage == stages[-1]\n+\n+\n @pytest.mark.parametrize(\"version\", [2, \"2\"])\n def test_delete_model_version_deletes_alias(store, version):\n     model_name = \"DeleteModelVersionDeletesAlias_TestMod\"\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "e/model_registry/test_sqlalchemy_store.py::test_search_registered_models_by_tag[workspace-enabled]\n0.10s call     tests/store/model_registry/test_sqlalchemy_store.py::test_search_prompts[workspace-enabled]\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                  | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ----------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/store/model_registry/test_sqlalchemy_store.py` | 7.75s    | 222   | 0.003s | 0.830s | 0.035s |\n\n::endgroup::\n\n\u001b[33m======================== \u001b[32m222 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 8.23s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 2,
+    "touched": 1,
+    "missing": [
+      "mlflow/store/model_registry/file_store.py"
+    ]
+  },
+  "fresh_in_tokens": 38966,
+  "costBasis": "list price from token classes"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "example-tests-must-reuse-the-shared-pre-migrated-db-uri-fixt",
+  "title": "Example tests must reuse the shared pre-migrated db_uri fixture",
+  "kind": "rule",
+  "answers": [
+    "tests/examples test is slow on Windows CI because it creates a new sqlite database",
+    "example test reruns database migrations every run",
+    "how do I point an example test at a tracking database without migrating a new file",
+    "reuse db_uri fixture in example tests"
+  ],
+  "body": "Symptom: The example test suite is slow in CI, especially on Windows, because each example test sets up its own tracking database.\nRoot cause: tests/examples/test_examples.py:test_typesafe_judges_example originally pointed MLflow at a brand-new SQLite file under tmp_path, so every run re-applied all database migrations.\nFix pattern: Take the shared pre-migrated `db_uri` fixture as a test argument, call mlflow.set_tracking_uri(db_uri), restore the previous URI with request.addfinalizer, and drop the tmp_path argument.\nConstraints: Applies to example tests that only need a tracking store. A test that must exercise migrations or an empty database is a different case and should not use this shortcut.",
+  "applies": "Tests under tests/examples that call mlflow tracking APIs.",
+  "tags": [
+    "testing",
+    "examples",
+    "tracking-store",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "tests/examples/test_examples.py",
+      "symbol": "test_typesafe_judges_example",
+      "hash": "sha256:5697ce46756f3b4b6208b939",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5697ce46756f3b4b6208b939",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-11T10:27:23.945Z",
+  "verified": "2026-10-11T10:27:23.945Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "run-the-focused-typesafe-example-test-offline-with-k-typesaf"
+  ],
+  "says": [
+    "Example verification tests take too long to run during automated continuous integration builds.",
+    "Continuous integration jobs are extremely slow on Windows when executing sample walkthroughs.",
+    "Speed up sample test suites by avoiding repeated tracking database initialization on each test.",
+    "Sample integration checks stall because database setup migrations run repeatedly during builds."
+  ],
+  "search": "Example tests under tests/examples that call tracking APIs must use the shared pre-migrated db_uri fixture rather than creating a new SQLite database in tmp_path. Creating a fresh SQLite file causes tests to rerun all database migrations, making CI runs slow, especially on Windows runners. Tests pass db_uri to mlflow.set_tracking_uri(db_uri) and restore the previous URI using request.addfinalizer, though tests that explicitly exercise migrations or require an empty store must not use this shortcut.",
+  "saysFor": "s2:430524c5aafe46369c2ddb89cd346beeeb7554d7512b8986b26fa656af67130e"
+}

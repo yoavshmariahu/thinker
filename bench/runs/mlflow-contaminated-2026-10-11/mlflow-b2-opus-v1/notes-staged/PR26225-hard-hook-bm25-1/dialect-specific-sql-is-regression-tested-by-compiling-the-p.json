@@ -1,0 +1,54 @@
+{
+  "id": "dialect-specific-sql-is-regression-tested-by-compiling-the-p",
+  "title": "Dialect-specific SQL is regression-tested by compiling the production query with the target dialect",
+  "kind": "howto",
+  "answers": [
+    "how to test SQL generated for MSSQL without a real database",
+    "regression test for dialect-specific SQLAlchemy syntax",
+    "compile query with mssql dialect literal_binds in pytest",
+    "test MSSQL predicate compilation in label schema store tests"
+  ],
+  "body": "To guard dialect-specific SQL, monkeypatch `sqlalchemy.orm.Query.first` in the test so it captures `query.statement.compile(dialect=mssql.dialect(), compile_kwargs={\"literal_binds\": True})` and returns None. This forces the production path (here, `_ensure_default_label_schema` falling through to INSERT) while recording the real SELECT.\nAssert the compiled string contains the valid form (`is_default = 1`) and does not contain the invalid one (`is_default IS 1`).\nScope the monkeypatch with `monkeypatch.context()` so it does not leak into the rest of the test, then verify end state through the real store query (`store.list_label_schemas`).\nConstraints: This checks compiled SQL only, not execution on a live MSSQL server. Use the same pattern for both standard and workspace-aware tracking store fixtures.\nApplies: Tests in tests/store/tracking/sqlalchemy_store/ that need to verify SQL emitted for a non-default dialect.",
+  "applies": "Pytest regression tests for SQLAlchemy store queries that must compile for MSSQL.",
+  "tags": [
+    "testing",
+    "mssql",
+    "sqlalchemy",
+    "dialect"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py",
+      "symbol": "test_default_question_lookup_uses_mssql_compatible_boolean_predicate",
+      "hash": "sha256:7f844609b8fce35cff56bc81",
+      "line": 430,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7f844609b8fce35cff56bc81",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26093"
+  },
+  "created": "2026-10-11T10:24:52.510Z",
+  "verified": "2026-10-11T10:24:52.510Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Loading default label schemas crashes when using a Microsoft SQL Server database.",
+    "Default question lookup fails on Microsoft SQL Server tracking store backends.",
+    "Label schema queries fail on SQL Server due to incompatible boolean syntax.",
+    "Ensure tracking store label schema queries remain compatible with SQL Server."
+  ],
+  "search": "Dialect-specific SQL in SQLAlchemy store regression tests is verified without a live database by monkeypatching Query.first to compile the query statement with the target dialect. In tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py:test_default_question_lookup_uses_mssql_compatible_boolean_predicate, monkeypatching Query.first with monkeypatch.context() forces _ensure_default_label_schema to record the compiled SELECT with mssql.dialect() and literal_binds=True, asserting is_default = 1 rather than is_default IS 1 before checking store.list_label_schemas. This pattern checks compiled SQL syntax only rather than live database execution, applying to tests in tests/store/tracking/sqlalchemy_store/ that verify queries emitted for non-default dialects across standard and workspace-aware fixtures.",
+  "saysFor": "s2:70133f5a0d49ea0b160807addfadb805070a6c185bfc423f087e1c74d7640c09"
+}

@@ -10,7 +10,7 @@ import { installClient } from '../src/clients.js';
 import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
 import { complete } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
-import { runOracle, goldTouched, codexLoopStats, listCost } from './oracle.js';
+import { runOracle, goldTouched, codexLoopStats, listCost, resetWorktree as resetBase, goldTestsSeen } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -80,10 +80,7 @@ function makeWorktree(i) {
   return wt;
 }
 function resetWorktree(wt) {
-  try {
-    execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt });
-    execFileSync('git', ['clean', '-qfd'], { cwd: wt });
-  } catch {}
+  resetBase(wt);  // a hard reset: the oracle stages the gold tests (bench/oracle.js)
   fs.rmSync(path.join(wt, '.thinker'), { recursive: true, force: true });
   fs.rmSync(path.join(wt, '.codex'), { recursive: true, force: true });
 }
@@ -260,6 +257,8 @@ async function runWorker(cwd) {
       if (!flags['no-judge'] && !task.testCmd) run.grade = await gradePatch(task, run.diff, run.result);
       Object.assign(run.tools, codexLoopStats(run.raw_events));
       run.goldTouched = run.diff ? goldTouched(task, run.diff) : null;
+      run.leak = goldTestsSeen(task, JSON.stringify(run.raw_events || []));  // gold test names the events show: the session had the answer key
+      if (run.leak.length) console.log(`${id} LEAK: the events name gold tests ${run.leak.join(', ')}`);
       run.fresh_in_tokens = run.in_tokens - (run.cached_tokens || 0);
       run.cost = listCost(MODEL, { inTokens: run.in_tokens, cachedTokens: run.cached_tokens, outTokens: run.out_tokens });
       run.costBasis = run.cost != null ? 'list price from token classes' : null;

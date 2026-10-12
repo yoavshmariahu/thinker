@@ -1,0 +1,50 @@
+{
+  "id": "create-github-app-token-repositories-takes-bare-repo-names-n",
+  "title": "create-github-app-token repositories takes bare repo names, not owner/repo",
+  "kind": "rule",
+  "answers": [
+    "GitHub App token has no access to repository after scoping",
+    "why not use github.repository for create-github-app-token repositories",
+    "repositories input format for create-github-app-token",
+    "scoped app token matches no repository"
+  ],
+  "body": "Symptom: after adding repository scope to a GitHub App token step, the issued token matches no repository.\nRoot cause: the `repositories` input of actions/create-github-app-token takes bare repository names; `${{ github.repository }}` expands to `owner/name` (e.g. `mlflow/mlflow`), which matches nothing.\nFix pattern: write literal bare names alongside `owner`, e.g. `owner: mlflow` and `repositories: mlflow`; for several repos use a comma-separated literal such as `repositories: mlflow,internal` as in .github/workflows/nailaopus.yml.\nConstraints: do not derive `repositories` from `github.repository` or other expressions that include the owner prefix; the policy rule only checks that the value is non-empty, so a wrong format passes conftest.",
+  "applies": "Writing or editing with.repositories for actions/create-github-app-token in workflow YAML.",
+  "tags": [
+    "github-actions",
+    "github-app-token",
+    "workflow-config"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/nailaopus.yml",
+      "hash": "sha256:609b817fb4c923f9e65607c6",
+      "missing": false
+    },
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25866"
+  },
+  "created": "2026-10-11T08:46:09.467Z",
+  "verified": "2026-10-11T08:46:09.467Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "A scoped GitHub App token has no access to repositories after restricting permissions.",
+    "Automation steps fail with permission errors because the generated application token matches no repository.",
+    "Why does my scoped application token have access to zero repositories during workflow execution?",
+    "Allow the workflow bot token to access designated repositories without permission denied failures.",
+    "Restricting application token access to specific repositories resulted in an invalid empty scope."
+  ],
+  "search": "The repositories input of actions/create-github-app-token requires literal bare repository names rather than owner-prefixed expressions such as ${{ github.repository }}. Passing owner/name causes the issued token to match no repository, whereas bare names such as owner: mlflow with repositories: mlflow or comma-separated lists correctly grant scope. The policy rule in .github/policy.rego only checks that the input is non-empty, allowing improperly formatted names to pass conftest.",
+  "saysFor": "s2:dcf4194b7b7145ac0a95d60093ec185ee19128672caa40c599f1bb6d7890b4da"
+}

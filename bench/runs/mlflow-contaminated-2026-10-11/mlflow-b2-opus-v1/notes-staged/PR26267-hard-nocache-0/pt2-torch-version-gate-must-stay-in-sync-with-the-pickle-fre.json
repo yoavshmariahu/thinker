@@ -1,0 +1,75 @@
+{
+  "id": "pt2-torch-version-gate-must-stay-in-sync-with-the-pickle-fre",
+  "title": "pt2 torch version gate must stay in sync with the pickle-free docs and test skips",
+  "kind": "rule",
+  "answers": [
+    "which torch version is needed to load pt2 models with pickle disabled",
+    "change the minimum torch version for pt2 weights_only validation",
+    "pt2 docs say torch 2.4 but load fails with pickle disabled"
+  ],
+  "body": "Invariant: the torch version gate in mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free (Version < 2.10, citing CVE-2025-32434 and CVE-2026-24747) must match the documented loading requirement and the test gates.\nEnforced in: that gate raises MlflowException asking to upgrade torch or enable the flag; the pt2 requirements box in docs/docs/classic-ml/tracking/pickle-free-models/index.mdx states torch >= 2.10 to load under the hardened setting.\nWhat breaks if skipped: docs advertising torch >= 2.4 mislead users whose pt2 loads then fail; a lower gate would admit weights_only versions with known bypass or memory-corruption issues.\nKeep in sync: tests/pytorch/test_pytorch_model_export.py pt2 guard tests skip below 2.10, and the unverifiable-torch test patches torch.__version__ to 2.9.1 and matches 'Upgrade to `torch` >= 2.10'.",
+  "applies": "Changing the torch version floor, the pt2 load guard message, or the pickle-free models guide for PyTorch.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "docs",
+    "torch-version",
+    "pickle-free"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 836,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "docs/docs/classic-ml/tracking/pickle-free-models/index.mdx",
+      "hash": "sha256:5629abdae899401b044ed76c",
+      "missing": false
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_load_pt2_model_rejected_on_unverifiable_torch_when_pickle_deserialization_disallowed",
+      "hash": "sha256:5f38de06e773b2ff363fea18",
+      "line": 1331,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f38de06e773b2ff363fea18",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-11T10:32:09.355Z",
+  "verified": "2026-10-11T10:32:09.355Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pt2-archives-must-be-validated-before-torch-export-load-when"
+  ],
+  "says": [
+    "Documentation claims earlier PyTorch versions work, but secure model loading demands a newer version.",
+    "Loading safe PyTorch exported models fails with version errors that contradict published documentation.",
+    "Update model security documentation because stated minimum PyTorch versions fail to load exported models.",
+    "Secure model loading rejects supported PyTorch installations despite meeting documented system requirements."
+  ],
+  "search": "The torch version gate in mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free requiring torch >= 2.10 must stay synchronized with documentation in docs/docs/classic-ml/tracking/pickle-free-models/index.mdx and test gates in tests/pytorch/test_pytorch_model_export.py. The gate cites CVE-2025-32434 and CVE-2026-24747 and raises MlflowException asking to upgrade torch or enable the flag. This applies when changing the torch version floor, pt2 load guard error messages, or the pickle-free models guide, with tests skipping below 2.10 and patching torch.__version__ to 2.9.1 to match the upgrade message.",
+  "saysFor": "s2:b716260cea18cc11405be944bed9ff4f41f89a04087f1ba52d5f9c2b58b29f36"
+}

@@ -1,0 +1,65 @@
+{
+  "id": "negative-assertions-for-lazily-mounted-providers-must-run-af",
+  "title": "Negative assertions for lazily mounted providers must run after waitFor",
+  "kind": "howto",
+  "answers": [
+    "how to test custom view provider is omitted when disabled",
+    "jest test negative assertion async flush sessions page",
+    "waitFor for not.toHaveBeenCalled provider test"
+  ],
+  "body": "In ExperimentSingleChatSessionPage.test.tsx, the disabled-path and outer-definition tests are async and assert inside waitFor.\nThis is needed because the provider is reached through React.lazy and Suspense, so a synchronous not.toHaveBeenCalled can pass before the lazy tree flushes.\nThe test mocks ExperimentCustomViewProvider via jest.mock on the traces-v3 path and clears the mock in beforeEach.\nRun the test with the Jest setup used for the MLflow JS app; the shouldEnableModelTraceExplorerCustomTraceView mock is set per test with mockReturnValue.",
+  "applies": "Jest tests for pages that lazy-load optional providers gated by a feature flag.",
+  "tags": [
+    "testing",
+    "jest",
+    "custom-trace-view",
+    "lazy-loading"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.test.tsx",
+      "symbol": "ExperimentCustomViewProvider",
+      "hash": "sha256:cda3c4200d2ad517a6932d27",
+      "line": 107,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6170cb3ac7b9ffd6735beebd",
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.test.tsx",
+      "symbol": "beforeEach",
+      "hash": "sha256:a2446676d2944d755ef4b709",
+      "line": 125,
+      "missing": false,
+      "fanout": {
+        "files": 370,
+        "sites": 454,
+        "refs": 794
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25779"
+  },
+  "created": "2026-10-11T08:42:18.884Z",
+  "verified": "2026-10-11T08:42:18.884Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The custom trace view still displays in chat sessions when the feature flag is disabled.",
+    "Hide the custom trace explorer view on experiment chat session pages when turned off.",
+    "Custom view component unexpectedly loads on chat session page despite being disabled in settings.",
+    "Ensure turning off the custom trace view feature completely removes it from chat sessions."
+  ],
+  "search": "Jest tests for pages lazy-loading optional providers behind a feature flag must run negative assertions inside waitFor because React.lazy and Suspense can cause synchronous not.toHaveBeenCalled checks to falsely pass before the lazy tree flushes. In ExperimentSingleChatSessionPage.test.tsx, tests mock ExperimentCustomViewProvider via jest.mock on the traces-v3 path and clear the mock in beforeEach. The shouldEnableModelTraceExplorerCustomTraceView mock is configured per test using mockReturnValue.",
+  "saysFor": "s2:ca0a6fb89656e19f7fd572ba64f30ffc96e151c3a304113bb804b30495edb6b0"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "flavor-matrix-default-runner-lives-in-get-runs-on-and-has-no",
+  "title": "Flavor matrix default runner lives in get_runs_on and has no executable test guarding it",
+  "kind": "rule",
+  "answers": [
+    "Where is the default runner for generated flavor matrix jobs set?",
+    "Why would flavor test jobs run on the wrong runner after a runner change?",
+    "How do I change the default runs-on for dynamically generated flavor jobs?"
+  ],
+  "body": "Invariant: the default runner for dynamically generated flavor matrix jobs is the fallback string in dev/flavors/src/flavors/_matrix.py:get_runs_on, passed to `_get_spec_value` when no version-specific `runs_on` is configured.\nChanging that fallback changes every generated flavor job that does not override runner per version.\nReview on this PR noted that dev/flavors/tests/test_matrix.py is globally skipped, so no unskipped test asserts the default or the version-specific override.\nFix pattern: when changing the default, add an unskipped unit test that asserts the default value and that configured version-specific `runs_on` values win.\nConstraints: the pin in this PR was made without such a test; treat the test as a requested follow-up, not an existing guard.",
+  "applies": "Flavor matrix generation in dev/flavors; does not cover hand-written runs-on values in .github/workflows/master.yml.",
+  "tags": [
+    "ci",
+    "flavors",
+    "matrix",
+    "runners",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "dev/flavors/src/flavors/_matrix.py",
+      "symbol": "get_runs_on",
+      "hash": "sha256:84d3b54ab45647ac510f57bb",
+      "line": 234,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:84d3b54ab45647ac510f57bb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "dev/flavors/tests/test_matrix.py",
+      "hash": "sha256:ed1f552160f64a7617bad172",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26183"
+  },
+  "created": "2026-10-11T10:26:58.766Z",
+  "verified": "2026-10-11T10:26:58.766Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated flavor test jobs are executing on the wrong runner after our recent change.",
+    "Flavor matrix tests in the build pipeline should use the updated default test machine.",
+    "Change the default execution runner assigned to dynamically generated flavor test runs.",
+    "Generated flavor tests failed to switch to the new machine across unpinned versions.",
+    "The test matrix pipeline is missing checks to confirm the default runner assignment."
+  ],
+  "search": "The default runner for dynamically generated flavor matrix jobs is defined by the fallback string in dev/flavors/src/flavors/_matrix.py:get_runs_on passed to _get_spec_value when no version-specific runs_on is configured. Changing this fallback alters every generated flavor job lacking a per-version override, but dev/flavors/tests/test_matrix.py is globally skipped and does not assert runner defaults. When modifying the default, add an unskipped unit test verifying the default fallback and ensuring configured version-specific runs_on values take precedence. Applies to flavor matrix generation in dev/flavors, excluding hand-written runs-on values in .github/workflows/master.yml.",
+  "saysFor": "s2:c0a8c40ea53b7c7fc6a23a037ed1c70154f31bcded54380f0a3c361d15d3543b"
+}

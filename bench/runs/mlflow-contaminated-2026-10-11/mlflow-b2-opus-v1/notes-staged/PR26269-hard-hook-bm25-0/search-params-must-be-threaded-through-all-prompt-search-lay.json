@@ -1,0 +1,85 @@
+{
+  "id": "search-params-must-be-threaded-through-all-prompt-search-lay",
+  "title": "Search params must be threaded through all prompt search layers together",
+  "kind": "rule",
+  "answers": [
+    "add a search option to mlflow.genai.search_prompts end to end",
+    "which layers need changes when adding order_by to prompt search",
+    "search_prompts parameter exists in store but not in genai API"
+  ],
+  "body": "Invariant: prompt search has four layers that must expose the same parameters: RegistryClient.search_prompts / AbstractStore.search_prompts (store), MlflowClient.search_prompts (tracking client), _model_registry.fluent.search_prompts (shared fluent path behind mlflow.search_prompts and mlflow.genai.search_prompts), and mlflow.genai.prompts.search_prompts.\nThe store layer already accepted order_by; the three layers above it did not, so the feature was unreachable from user-facing APIs until all three were updated.\nWhen adding a search option, update all four signatures and their docstrings, and forward the argument at each hop.\nConstraints: Unity Catalog's registry accepts order_by but ignores it (its docstring says it is not used), and the fluent docstring notes \"Not honored by Unity Catalog registries\". Do not assume order_by sorts results on UC.",
+  "applies": "Adding or changing arguments on prompt search across store, client, fluent and genai APIs.",
+  "tags": [
+    "prompt-registry",
+    "search",
+    "layering",
+    "order-by"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.search_prompts",
+      "hash": "sha256:789cb06a8951f5e99af60e52",
+      "line": 917,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:789cb06a8951f5e99af60e52",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:c075f2379053a7deb5d91623",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c075f2379053a7deb5d91623",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/genai/prompts/__init__.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:7a8dfd4d603f7cf482db27b7",
+      "line": 146,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7a8dfd4d603f7cf482db27b7",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25967"
+  },
+  "created": "2026-10-11T10:25:26.515Z",
+  "verified": "2026-10-11T10:25:26.515Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "append-new-optional-params-last-on-public-search-prompts-sig",
+    "pagination-wrapper-must-forward-every-search-argument-on-eac"
+  ],
+  "says": [
+    "The prompt catalog search does not let us sort prompt templates by date.",
+    "We need an option to sort prompt search results in the prompt registry.",
+    "Prompt search sorting order is ignored when viewing prompts in Unity Catalog.",
+    "Add sorting controls to the prompt search bar so users can order results.",
+    "Filtering prompts works but ordering search results by updated time fails."
+  ],
+  "search": "Prompt search requires any new or changed parameter to be exposed and forwarded across four layers: RegistryClient.search_prompts or AbstractStore.search_prompts, MlflowClient.search_prompts, _model_registry.fluent.search_prompts, and mlflow.genai.prompts.search_prompts. When adding search options such as order_by, update signatures and docstrings at all four hops. Unity Catalog registries accept order_by in their docstrings but ignore it and do not sort results.",
+  "saysFor": "s2:2fd27812e627a444ef4f41a8dc42200aca319f622ec870677e65dd4723a2cc93"
+}

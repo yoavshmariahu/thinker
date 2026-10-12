@@ -1,0 +1,60 @@
+{
+  "id": "PR26523-hard-hook-1",
+  "task": "PR26523-hard",
+  "area": "mlflow/gateway",
+  "arm": "hook",
+  "rep": 1,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "27a57226-a36e-47d3-a0af-9c87ad80af6f",
+  "turns": 12,
+  "wall_ms": 63545,
+  "api_ms": 43597,
+  "cost": 0.18757339999999997,
+  "in_tokens": 223421,
+  "out_tokens": 3415,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 10,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 10,
+    "callsBeforeFirstEdit": 4,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": 2,
+    "greenReached": true,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "===============\n1.12s setup    tests/gateway/providers/test_anthropic_adapter.py::test_chat_parallel_tool_calls[auto-False-expected_tool_choice0]\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\n========================= per-file durations (sorted) ==========================\n::group::per-file durations (sorted)\n\n| Rank | File                                                | Duration | Tests | Min    | Max    | Avg    |\n| ---- | --------------------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/gateway/providers/test_anthropic_adapter.py` | 1.14s    | 6     | 0.002s | 1.125s | 0.189s |\n\n::endgroup::\n\n\u001b[33m========================= \u001b[32m6 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.17s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "result": "The Gateway no longer forwards `parallel_tool_calls` to Anthropic or to Claude on Vertex. When it is `False`, it now turns into Anthropic's own flag inside the tool choice. The new tests and the existing Anthropic, Vertex AI and Bedrock provider test files all pass.\n\n**The change** is in `AnthropicAdapter.chat_to_model` in `mlflow/gateway/providers/anthropic.py`, right after the existing tool-choice conversion. Claude on Vertex uses an adapter built on this one, so it gets the fix too.\n- `parallel_tool_calls` is always removed from the request, whatever its value.\n- If it is `False` and the tool choice is automatic, required or a named tool, `disable_parallel_tool_use: True` is added to the tool choice. A named tool, for example, becomes `{\"type\": \"tool\", \"name\": ..., \"disable_parallel_tool_use\": True}`.\n- If the tool choice is `\"none\"` or not given, the tool choice is left as it is and the request still goes through without the field.\n\n**Tests:**\n- `tests/gateway/providers/test_anthropic.py`: a new parametrized test, `test_chat_to_model_parallel_tool_calls`, covers automatic, required and named choices with the flag off; the flag on; a `\"none\"` choice; and no choice. Each case checks that the field is gone.\n- `tests/gateway/providers/test_vertex_ai.py`: `test_claude_adapter_translates_parallel_tool_calls` checks the same behaviour through the Vertex Claude adapter.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py\nindex e2918bfb1..043abd6dc 100644\n--- a/mlflow/gateway/providers/anthropic.py\n+++ b/mlflow/gateway/providers/anthropic.py\n@@ -288,6 +288,16 @@ class AnthropicAdapter(ProviderAdapter):\n                 case {\"type\": \"function\", \"function\": {\"name\": name}}:\n                     payload[\"tool_choice\"] = {\"type\": \"tool\", \"name\": name}\n \n+        # `parallel_tool_calls` is OpenAI-only and rejected by Anthropic. When it's False,\n+        # map it to `disable_parallel_tool_use` on tool_choice; \"none\" has no such flag.\n+        parallel_tool_calls = payload.pop(\"parallel_tool_calls\", None)\n+        if (\n+            parallel_tool_calls is False\n+            and (anthropic_tool_choice := payload.get(\"tool_choice\"))\n+            and anthropic_tool_choice.get(\"type\") in (\"auto\", \"any\", \"tool\")\n+        ):\n+            anthropic_tool_choice[\"disable_parallel_tool_use\"] = True\n+\n         # Transform response_format for Anthropic structured outputs\n         # Anthropic uses output_config.format with {\"type\": \"json_schema\", \"schema\": {...}}\n         if response_format := payload.pop(\"response_format\", None):\ndiff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py\nindex bcc88ec50..e9fbd5ca8 100644\n--- a/tests/cli/test_traces.py\n+++ b/tests/cli/test_traces.py\n@@ -158,6 +158,19 @@ def test_delete_command(runner):\n         assert \"Deleted 5 trace(s)\" in result.output\n \n \n+def test_delete_command_strips_spaces_in_trace_ids(runner):\n+    with mock.patch(\"mlflow.cli.traces.TracingClient\") as mock_client:\n+        mock_client.return_value.delete_traces.return_value = 2\n+        result = runner.invoke(\n+            commands,\n+            [\"delete\", \"--experiment-id\", \"1\", \"--trace-ids\", \"tr-1, tr-2\"],\n+        )\n+\n+    assert result.exit_code == 0\n+    _, kwargs = mock_client.return_value.delete_traces.call_args\n+    assert kwargs[\"trace_ids\"] == [\"tr-1\", \"tr-2\"]\n+\n+\n def test_field_validation_error(runner):\n     trace_location = TraceLocation(\n         type=TraceLocationType.MLFLOW_EXPERIMENT,\ndiff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py\nindex 24cd52cff..e71bcbab5 100644\n--- a/tests/gateway/providers/test_anthropic.py\n+++ b/tests/gateway/providers/test_anthropic.py\n@@ -555,6 +555,34 @@ async def test_chat_function_calling_with_tool_choice(openai_tool_choice, anthro\n         assert call_kwargs[\"json\"][\"tool_choice\"] == anthropic_tool_choice\n \n \n+@pytest.mark.parametrize(\n+    (\"openai_tool_choice\", \"parallel_tool_calls\", \"anthropic_tool_choice\"),\n+    [\n+        (\"auto\", False, {\"type\": \"auto\", \"disable_parallel_tool_use\": True}),\n+        (\"required\", False, {\"type\": \"any\", \"disable_parallel_tool_use\": True}),\n+        (\n+            {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+            False,\n+            {\"type\": \"tool\", \"name\": \"get_weather\", \"disable_parallel_tool_use\": True},\n+        ),\n+        (\"auto\", True, {\"type\": \"auto\"}),\n+        (\"none\", False, {\"type\": \"none\"}),\n+        (None, False, None),\n+    ],\n+)\n+def test_chat_to_model_parallel_tool_calls(\n+    openai_tool_choice, parallel_tool_calls, anthropic_tool_choice\n+):\n+    payload = chat_function_calling_payload()\n+    payload[\"parallel_tool_calls\"] = parallel_tool_calls\n+    if openai_tool_choice is not None:\n+        payload[\"tool_choice\"] = openai_tool_choice\n+    formatted = AnthropicAdapter.chat_to_model(payload, EndpointConfig(**chat_config()))\n+\n+    assert \"parallel_tool_calls\" not in formatted\n+    assert formatted.get(\"tool_choice\") == anthropic_tool_choice\n+\n+\n def test_model_to_chat_content_normalization():\n     config = chat_config()\n     provider = AnthropicProvider(EndpointConfig(**config))\ndiff --git a/tests/gateway/providers/test_vertex_ai.py b/tests/gateway/providers/test_vertex_ai.py\nindex 630d60f30..d51f6b02b 100644\n--- a/tests/gateway/providers/test_vertex_ai.py\n+++ b/tests/gateway/providers/test_vertex_ai.py\n@@ -720,6 +720,24 @@ def test_claude_adapter_applies_vertex_fields_via_judge_provider_resolution(monk\n     assert \"model\" not in formatted\n \n \n+def test_claude_adapter_translates_parallel_tool_calls():\n+    provider = _make_claude_provider()\n+    payload = {\n+        \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}],\n+        \"max_tokens\": 16,\n+        \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+        \"parallel_tool_calls\": False,\n+    }\n+\n+    formatted = provider.adapter_class.chat_to_model(dict(payload), provider.config)\n+    assert \"parallel_tool_calls\" not in formatted\n+    assert formatted[\"tool_choice\"] == {\n+        \"type\": \"tool\",\n+        \"name\": \"get_weather\",\n+        \"disable_parallel_tool_use\": True,\n+    }\n+\n+\n def _claude_passthrough_payload(**overrides):\n     return {\"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}], \"max_tokens\": 64, **overrides}\n \n",
+  "distill": null,
+  "cache_read_tokens": 213847,
+  "cache_write_tokens": 9552,
+  "fresh_in_tokens": 22,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

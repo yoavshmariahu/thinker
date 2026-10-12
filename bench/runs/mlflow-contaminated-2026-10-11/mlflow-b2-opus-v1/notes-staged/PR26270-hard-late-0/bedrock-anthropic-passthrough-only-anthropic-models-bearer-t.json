@@ -1,0 +1,86 @@
+{
+  "id": "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t",
+  "title": "Bedrock Anthropic passthrough: only Anthropic models, bearer-token auth, and client credentials dropped",
+  "kind": "rule",
+  "answers": [
+    "Bedrock passthrough returns 501 for IAM role or access key endpoint",
+    "gateway messages route rejects non-Claude model on Bedrock with 400",
+    "client authorization header leaks to Bedrock",
+    "why does anthropic passthrough not work for SigV4 Bedrock endpoints"
+  ],
+  "body": "Invariant: `AmazonBedrockProvider._passthrough` accepts only Anthropic models (`self._underlying_provider == AmazonBedrockModelProvider.ANTHROPIC`, else 400) and only bearer-token auth (`self._is_token_auth`, else 501, the same status the provider uses for unsupported auth modes).\nInvariant: client auth headers are always removed with `_drop_client_auth_headers` before `self._get_token_auth_headers()` is merged in, so the endpoint's Bedrock key is the only credential sent. A credential agent's own key is dropped too.\nWhat breaks if skipped: a SigV4 endpoint would get a bearer-token request it cannot authenticate, a non-Anthropic model would be sent Anthropic-shaped bodies, and a client key would reach Bedrock.\nConstraints: SigV4 support (boto3 `invoke_model`) was explicitly left out of that change, so the 501 is intentional for now.",
+  "applies": "Changes to the Bedrock passthrough auth/model guards or to passthrough header handling in the gateway providers.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "auth",
+    "passthrough"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "_drop_client_auth_headers",
+      "hash": "sha256:513b52d4af8168f2b04cbaf5",
+      "line": 78,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:513b52d4af8168f2b04cbaf5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockModelProvider.ANTHROPIC",
+      "hash": "sha256:a44409c59703428e11aa4f8e",
+      "line": 237,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-11T10:32:16.535Z",
+  "verified": "2026-10-11T10:32:16.535Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta",
+    "bedrock-streaming-exception-frames-must-raise-httpexception",
+    "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t",
+    "vertex-delegates-always-drop-the-client-s-auth-headers-befor"
+  ],
+  "says": [
+    "Bedrock gateway endpoints configured with IAM roles or access keys return 501 errors.",
+    "Sending non-Claude models through the Bedrock chat messages route returns bad request.",
+    "Client authentication tokens are unexpectedly forwarding directly to upstream Bedrock services.",
+    "Support AWS credentials and IAM authentication on Bedrock passthrough gateway routes.",
+    "Strip caller authorization headers so Bedrock routes only use endpoint credentials."
+  ],
+  "search": "Bedrock Anthropic passthrough requires Anthropic models and bearer-token authentication while stripping client authorization headers. AmazonBedrockProvider._passthrough in mlflow/gateway/providers/bedrock.py returns 400 for non-Anthropic providers and 501 when token authentication is not enabled, intentionally excluding SigV4 and boto3 invoke_model. Before merging token auth headers, _drop_client_auth_headers from mlflow/gateway/providers/base.py removes client and credential agent credentials so only the endpoint Bedrock key is sent.",
+  "saysFor": "s2:a7d40b744aea0f20de20231435f2fa993d248996401f6ed8c879495fa6144445"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "PR26082-hard-hook-bm25-0",
+  "task": "PR26082-hard",
+  "area": "mlflow/genai",
+  "arm": "hook-bm25",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": null,
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "isolatedSettings": true,
+  "noSubagents": true,
+  "strictModel": true,
+  "toolSearch": "on",
+  "session": "1a0837ae-3560-4976-976d-574bd2d3e160",
+  "turns": 8,
+  "wall_ms": 46589,
+  "api_ms": 25913,
+  "cost": 0.16619479999999998,
+  "in_tokens": 148672,
+  "out_tokens": 1975,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 6,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 3,
+    "attemptsToGreen": 1,
+    "greenReached": true,
+    "injected": [
+      "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "tests": "pass",
+    "testTail": "=====\n::group::per-file durations (sorted)\n\n| Rank | File                                     | Duration | Tests | Min    | Max    | Avg    |\n| ---- | ---------------------------------------- | -------- | ----- | ------ | ------ | ------ |\n| 1    | `tests/genai/discovery/test_pipeline.py` | 2.84s    | 70    | 0.002s | 0.927s | 0.041s |\n\n::endgroup::\n\n\u001b[33m============================== Remaining threads ===============================\u001b[0m\n1: <TMonitor(tqdm_monitor, started daemon 6111080448)>\n\u001b[33m========================== Remaining child processes ===========================\u001b[0m\n1: psutil.Process(pid=54562, name='python3.12', status='running', started='03:05:10')\n\u001b[33m======================== \u001b[32m70 passed\u001b[0m, \u001b[33m\u001b[1m2 warnings\u001b[0m\u001b[33m in 2.92s\u001b[0m\u001b[33m ========================\u001b[0m\n"
+  },
+  "result": "I fixed `_dedup_issues` in `mlflow/genai/discovery/pipeline.py` so it checks each proposed group before the group changes anything. All 24 dedup tests pass, including the new ones. Across `tests/genai/discovery` I got 148 passed and 2 failed. The failures are in `test_clustering.py`, a different file, and both fail with `ModuleNotFoundError: No module named 'litellm'` because `litellm` isn't installed in the venv.\n\n**The change:** in the loop over the model's groups, a group is now skipped entirely if any of these is true:\n- it has fewer than two references;\n- it repeats a reference;\n- any reference is negative or out of range.\n\nEach skipped group gets a debug-level log entry with its references and the number of candidate issues.\n\n**What this fixes:**\n- **Crash:** a reference past the end of the list, like the fourth item when only three exist, used to raise an index error and stop the whole run. That group is now skipped.\n- **Negative references:** Python counts negative indices from the end of the list, so a group with a negative reference could merge the wrong findings. It is now rejected.\n- **Repeated references:** a group like `[0, 0]` used to pass the \"at least two\" check and overwrite issue 0's name and description without merging anything. It is now rejected.\n- **No partial merges:** the check runs before a group touches the merge bookkeeping or claims an issue, so a bad group changes nothing. Its candidate issues stay free for other valid groups, whichever order the groups come in.\n\nValid groups work as before, including overlapping groups that merge transitively, and merged findings keep all their supporting examples.\n\n**Tests:** the tests for this were already staged in `tests/genai/discovery/test_pipeline.py`, so I didn't add any. They cover:\n- each kind of malformed group leaving the issues unchanged;\n- an invalid group appearing before or after a valid one;\n- an invalid group not being able to overwrite a valid merge's name or description.",
+  "is_error": false,
+  "diff": "diff --git a/mlflow/genai/discovery/pipeline.py b/mlflow/genai/discovery/pipeline.py\nindex f8cf1194c..d7022dc17 100644\n--- a/mlflow/genai/discovery/pipeline.py\n+++ b/mlflow/genai/discovery/pipeline.py\n@@ -394,7 +394,16 @@ def _dedup_issues(\n \n     group_by_root: dict[int, _DedupGroup] = {}\n     for group in result.groups:\n-        if len(group.indices) < 2:\n+        # Skip malformed groups entirely; partially applying them could attach a\n+        # consolidated description written for a different set of issues.\n+        if (\n+            len(group.indices) < 2\n+            or len(set(group.indices)) != len(group.indices)\n+            or any(not 0 <= idx < len(issues) for idx in group.indices)\n+        ):\n+            _logger.debug(\n+                \"Skipping invalid dedup group %r for %d issues\", group.indices, len(issues)\n+            )\n             continue\n         root = min(group.indices)\n         group_by_root[root] = group\ndiff --git a/tests/genai/discovery/test_pipeline.py b/tests/genai/discovery/test_pipeline.py\nindex bc78a49bd..ef20f2d9f 100644\n--- a/tests/genai/discovery/test_pipeline.py\n+++ b/tests/genai/discovery/test_pipeline.py\n@@ -1246,6 +1246,73 @@ def test_dedup_issues_dissimilar_issues_not_merged():\n     assert len(result) == 2\n \n \n+@pytest.mark.parametrize(\n+    \"indices\",\n+    [[], [0], [0, 3], [0, -1], [-4, 0], [0, 0], [0, 1, 1]],\n+    ids=[\"empty\", \"singleton\", \"out-of-range\", \"negative\", \"below-range\", \"self-merge\", \"repeated\"],\n+)\n+def test_dedup_issues_invalid_group_preserves_issues(indices):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(3)]\n+    original = [issue.model_dump() for issue in issues]\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response([indices]),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert [issue.model_dump() for issue in result] == original\n+    mock_call.assert_called_once()\n+\n+\n+@pytest.mark.parametrize(\"invalid_indices\", [[0, 1, 4], [0, 1, -1], [0, 1, 1]])\n+@pytest.mark.parametrize(\"invalid_first\", [True, False])\n+def test_dedup_issues_skips_invalid_group_and_merges_valid_group(invalid_indices, invalid_first):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(4)]\n+    original = [issue.model_dump() for issue in issues]\n+    groups = [invalid_indices, [2, 3]] if invalid_first else [[2, 3], invalid_indices]\n+    names = (\n+        [\"Issue: Invalid\", \"Issue: Valid\"] if invalid_first else [\"Issue: Valid\", \"Issue: Invalid\"]\n+    )\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response(groups, names=names),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert len(result) == 3\n+    assert [issue.model_dump() for issue in result[:2]] == original[:2]\n+    assert result[2].name == \"Issue: Valid\"\n+    assert result[2].description == \"Merged description\"\n+    assert result[2].root_cause == \"Merged root cause\"\n+    assert set(result[2].example_indices) == {2, 3}\n+    mock_call.assert_called_once()\n+\n+\n+@pytest.mark.parametrize(\"invalid_first\", [True, False], ids=[\"invalid-first\", \"invalid-last\"])\n+def test_dedup_issues_invalid_group_cannot_overwrite_valid_merge(invalid_first):\n+    issues = [create_identified_issue(name=f\"Issue: {i}\", example_indices=[i]) for i in range(3)]\n+    untouched = issues[2].model_dump()\n+    groups = [[0, 2, 3], [0, 1]] if invalid_first else [[0, 1], [0, 2, 3]]\n+    names = (\n+        [\"Issue: Invalid\", \"Issue: Valid\"] if invalid_first else [\"Issue: Valid\", \"Issue: Invalid\"]\n+    )\n+    with patch(\n+        \"mlflow.genai.discovery.pipeline._call_llm\",\n+        return_value=_make_dedup_response(\n+            groups, names=names, descriptions=names, root_causes=names\n+        ),\n+    ) as mock_call:\n+        result = _dedup_issues(issues)\n+\n+    assert len(result) == 2\n+    assert set(result[0].example_indices) == {0, 1}\n+    assert result[0].name == \"Issue: Valid\"\n+    assert result[0].description == \"Issue: Valid\"\n+    assert result[0].root_cause == \"Issue: Valid\"\n+    assert result[1].model_dump() == untouched\n+    mock_call.assert_called_once()\n+\n+\n def test_dedup_issues_merges_example_indices_deduped():\n     issue1 = create_identified_issue(example_indices=[0, 1])\n     issue2 = create_identified_issue(example_indices=[1, 2])\n",
+  "distill": null,
+  "cache_read_tokens": 136234,
+  "cache_write_tokens": 12424,
+  "fresh_in_tokens": 14,
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  }
+}

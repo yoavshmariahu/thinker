@@ -1,0 +1,56 @@
+{
+  "id": "docker-compose-logs-and-teardown-must-run-from-an-exit-trap",
+  "title": "Docker compose logs and teardown must run from an EXIT trap in the artifacts example test",
+  "kind": "rule",
+  "answers": [
+    "GitHub Actions runner disk full after failed artifacts example run",
+    "docker images left behind when the artifacts example test exits early",
+    "why does docker compose down not run after a failed pull in test_mlflow_artifacts",
+    "cleanup skipped on failure in mlflow artifacts integration test"
+  ],
+  "body": "Symptom: After a failed artifacts example run on CI, Docker images and containers are left on the runner, and the logs needed for debugging are missing.\nRoot cause: The old script set err=1 via `trap 'err=1' ERR`, then ran logs and down as plain lines. Any early exit (for example a failed pull) skipped both, so `--rmi all` never ran.\nFix pattern: Put `docker compose logs` and `docker compose down {rmi_option} --volumes --remove-orphans` in an `EXIT` trap in tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example. The trap captures $? first, runs each step with `|| status=1`, and ends with `exit \"$status\"`, so the original failure code is kept and cleanup failures still fail the test.\nConstraints: Cleanup must stay in the EXIT trap so it runs exactly once on every exit path. Do not add separate cleanup calls before `exit` in the script, which would bypass it or run it twice.",
+  "applies": "Applies to the embedded shell script in tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example and any similar compose-based example test.",
+  "tags": [
+    "testing",
+    "docker",
+    "ci",
+    "cleanup"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "test_mlflow_artifacts_example",
+      "hash": "sha256:d030592902a606b59629b020",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e8d65e452d935a5cb0d39bd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25910"
+  },
+  "created": "2026-10-11T08:44:46.611Z",
+  "verified": "2026-10-11T08:44:46.611Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-transient-docker-hub-pull-failures-before-building-the"
+  ],
+  "says": [
+    "Continuous integration build machine runs out of disk space when artifact examples fail.",
+    "Leftover containers and storage volumes clutter the test runner after an early abort.",
+    "Diagnostic logs are missing from the build output whenever an example job fails.",
+    "Ensure automated tests always clean up their background containers even when crashing unexpectedly."
+  ],
+  "search": "In tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example and similar compose-based example tests, docker compose logs and docker compose down with volume and orphan removal must run inside an EXIT trap. The trap captures $? first, executes each step with || status=1, and ends with exit \"$status\" to preserve failure codes without separate pre-exit cleanup calls.",
+  "saysFor": "s2:20db6bad80f74eaae3a128824698eed8507c5f9df6dde669dea61de0e3564d06"
+}

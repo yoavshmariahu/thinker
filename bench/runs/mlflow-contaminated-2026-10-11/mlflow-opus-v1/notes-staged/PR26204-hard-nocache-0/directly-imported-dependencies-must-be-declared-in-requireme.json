@@ -1,0 +1,59 @@
+{
+  "id": "directly-imported-dependencies-must-be-declared-in-requireme",
+  "title": "Directly imported dependencies must be declared in requirements/skinny-requirements.yaml and propagated to the derived pyproject files and uv.lock",
+  "kind": "rule",
+  "answers": [
+    "mlflow-skinny dependency not declared but imported directly",
+    "how do I add a runtime dependency to mlflow skinny",
+    "why does pip install mlflow pick a broken transitive package version",
+    "where do I put an anyio or other transitive package constraint"
+  ],
+  "body": "Invariant: a package that mlflow imports directly must be declared in requirements/skinny-requirements.yaml, not left to arrive transitively via starlette or another dependency.\nEnforced at: requirements/skinny-requirements.yaml (per-package block with pip_release, minimum, max_major_version, unsupported), which generates the dependencies list in pyproject.toml and libs/skinny/pyproject.toml, and the resolved entries in uv.lock.\nWhat breaks if skipped: an undeclared package can be upgraded by any transitive resolver to a release that breaks mlflow at import or request time. A pin in uv.lock does not protect users who run pip install mlflow, because pip resolves live from PyPI and reads only the published mlflow-skinny metadata.\nConstraints: edit the YAML and regenerate the derived files rather than hand-editing pyproject.toml. Put exclusions of known-broken releases in the YAML unsupported list so the != specifier reaches the published metadata. Keep the lockfile churn to the affected package.",
+  "applies": "Any change to the runtime dependency set of mlflow or mlflow-skinny.",
+  "tags": [
+    "dependencies",
+    "skinny",
+    "packaging",
+    "anyio"
+  ],
+  "deps": [
+    {
+      "path": "requirements/skinny-requirements.yaml",
+      "hash": "sha256:b7fc58b978fc79464fa8fd60",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:9648968a65ac7bb2f0e26d96",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25559"
+  },
+  "created": "2026-10-11T08:51:00.497Z",
+  "verified": "2026-10-11T08:51:00.497Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "version-bounds-must-be-kept-in-sync-across-ml-package-versio",
+    "anyio-4-15-0-removed-from-thread-so-every-server-request-ret"
+  ],
+  "says": [
+    "Installing the client package pulls an incompatible dependency that crashes at startup.",
+    "Fresh installation fails during server requests because an underlying dependency is broken.",
+    "The application crashes on import after installing because a direct dependency was omitted.",
+    "Ensure package installations exclude known broken third party library releases automatically.",
+    "Why does installing the lightweight package fail when indirect dependencies get upgraded?"
+  ],
+  "search": "Every package directly imported by mlflow must be explicitly declared in requirements/skinny-requirements.yaml rather than relying on transitive dependencies from libraries like starlette. Declarations in requirements/skinny-requirements.yaml configure pip_release, minimum, max_major_version, and unsupported lists to generate dependencies in pyproject.toml, libs/skinny/pyproject.toml, and uv.lock. Developers must modify the YAML file and regenerate derived files instead of hand-editing pyproject.toml, ensuring known-broken package releases are placed in the unsupported list so != specifiers reach published metadata. This rule applies to any runtime dependency change for mlflow or mlflow-skinny, protecting pip install users where lockfile pins do not govern live PyPI resolution.",
+  "saysFor": "s2:78ba445009334f75b127461b58a6d63594c1635634c76312d5e5e87944d0eae4"
+}

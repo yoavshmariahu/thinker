@@ -1,0 +1,52 @@
+{
+  "id": "use-the-repo-standard-workflow-concurrency-group-not-github",
+  "title": "Use the repo-standard workflow concurrency group, not github.run_id",
+  "kind": "rule",
+  "answers": [
+    "how should I set concurrency for a GitHub Actions workflow in mlflow",
+    "why does my workflow concurrency group never cancel older runs",
+    "github.run_id concurrency group is a no-op",
+    "pull_request and workflow_dispatch concurrency separation in workflow yml"
+  ],
+  "body": "Convention: workflows in .github/workflows use `concurrency: group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}` with `cancel-in-progress: true`.\nDo not key the group on `${{ github.run_id }}`: every run has a unique id, so the group never shares runs and cancels nothing (a no-op).\n`github.event_name` keeps pull_request and workflow_dispatch runs in separate groups; for pull_request, `github.ref` is the PR merge ref, which isolates each PR.\nThe two Copilot workflows (copilot-code-review.yml, copilot-setup-steps.yml) were moved to this group for consistency with the standard; their path filters make cancellation rare, so the reason is consistency, not runner time.\nConstraints: the diff shows only these two files and the PR description calls the group 'repository-standard'; it does not say whether workflows that must serialize (e.g. releases, deploys) should keep cancel-in-progress false, so do not assume this applies there.",
+  "applies": "Workflow files under .github/workflows in mlflow/mlflow that are triggered by pull_request or workflow_dispatch; not evidence for non-PR serialization workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-code-review.yml",
+      "hash": "sha256:220e516fb4429e99b8cbcf98",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25616"
+  },
+  "created": "2026-10-11T08:49:52.137Z",
+  "verified": "2026-10-11T08:49:52.137Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "find-recent-copilot-cloud-agent-and-code-review-runs-with-gh"
+  ],
+  "says": [
+    "Pushing new commits to a pull request fails to cancel outdated automated review checks.",
+    "Older automated code review runs keep finishing instead of stopping on new pushes.",
+    "Automatically cancel superseded pull request validation runs when fresh changes are submitted.",
+    "Stop duplicate automated check runs from executing concurrently on the same pull request."
+  ],
+  "search": "Workflows in .github/workflows triggered by pull_request or workflow_dispatch must set concurrency group to `${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}` with `cancel-in-progress: true` rather than keying on `${{ github.run_id }}`. Keying on github.run_id makes concurrency a no-op because each run has a unique identifier, whereas github.event_name separates dispatch from pull requests and github.ref isolates individual PR merge references. This standard was applied to .github/workflows/copilot-code-review.yml and .github/workflows/copilot-setup-steps.yml for consistency, not runner time savings. It applies to pull_request or workflow_dispatch workflows in mlflow/mlflow, with no evidence that workflows requiring serialization such as releases or deploys should use cancel-in-progress.",
+  "saysFor": "s2:683532e12be6fb6b5039511a48e678b74f3f30a8ed07f49c7844b527f0c6dc4c"
+}

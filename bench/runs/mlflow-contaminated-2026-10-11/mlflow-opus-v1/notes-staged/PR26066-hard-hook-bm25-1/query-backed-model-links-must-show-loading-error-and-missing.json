@@ -1,0 +1,63 @@
+{
+  "id": "query-backed-model-links-must-show-loading-error-and-missing",
+  "title": "Query-backed model links must show loading, error and missing-data states separately",
+  "kind": "rule",
+  "answers": [
+    "model version page shows raw model id before the name loads",
+    "deleted source model shows an id with no error",
+    "source model link flashes the m- hash then changes",
+    "logged model fetch failure not visible on model version page"
+  ],
+  "body": "Symptom: On the model version page the raw `m-…` model ID flashes before the model name appears. A deleted or unreachable source model silently shows the ID, so it looks like a slow load.\nRoot cause: mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx:ModelVersionSourceModelLink read only `data` from useGetLoggedModelQuery. Loading, fetch error and a missing `info.experiment_id` all rendered the same bare-ID span.\nFix pattern: branch on `isLoading` first and render a labelled ParagraphSkeleton. Then fall back to the plain ID only for `error` or a missing `experiment_id`. Render the Link only when the experiment ID is known. Use the model ID as link text when `name` is empty.\nConstraints: the plain-ID fallback is for error or missing experiment only, not for loading. Do not discard `isLoading`/`error` from a query hook when rendering its data.",
+  "applies": "Any component that renders data from a react-query hook in the model registry UI where a fallback is shown.",
+  "tags": [
+    "model-registry",
+    "frontend",
+    "react-query",
+    "loading-state"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx",
+      "symbol": "ModelVersionSourceModelLink",
+      "hash": "sha256:d051c4bb25826067ad8337f3",
+      "line": 7,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d051c4bb25826067ad8337f3",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-11T08:48:15.581Z",
+  "verified": "2026-10-11T08:48:15.581Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "component-tests-assert-visible-output-and-mock-hooks-with-th",
+    "new-link-componentids-and-version-page-strings-must-be-regis"
+  ],
+  "says": [
+    "The source model link flashes an ugly ID code before loading the real name.",
+    "Show a placeholder skeleton while fetching the source model on the model version page.",
+    "Deleted source models silently show raw identifiers instead of reporting an error.",
+    "Display an explicit fetch failure when the source model cannot be loaded.",
+    "Only render a clickable source link when its experiment details are known."
+  ],
+  "search": "In model registry UI components using react-query hooks like useGetLoggedModelQuery in ModelVersionSourceModelLink.tsx, query-backed source model links must explicitly branch on isLoading to render a ParagraphSkeleton instead of showing raw IDs while loading. Fall back to rendering a plain model ID only when error occurs or info.experiment_id is missing, using the model ID as link text if name is empty, and only render the Link when the experiment ID is known. Applies when rendering react-query hook data with fallbacks; do not discard isLoading or error, and never use the plain-ID fallback during loading.",
+  "saysFor": "s2:b888d8db1a9238821eb5b7502cf8bd5857ebb4d1fa5382ba6afca3e317d1c653",
+  "lastUsed": "2026-10-11T10:26:42.226Z",
+  "servedIn": [
+    "codex-mlflow-astra-v1-PR26066-hard-0",
+    "99233e2a-8930-4cd2-8f0f-dcba6baad9d5"
+  ]
+}

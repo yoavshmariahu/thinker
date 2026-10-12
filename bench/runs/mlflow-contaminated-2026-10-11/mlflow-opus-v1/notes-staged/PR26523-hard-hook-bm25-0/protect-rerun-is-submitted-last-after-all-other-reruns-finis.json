@@ -1,0 +1,48 @@
+{
+  "id": "protect-rerun-is-submitted-last-after-all-other-reruns-finis",
+  "title": "Protect rerun is submitted last, after all other reruns finish requesting",
+  "kind": "rule",
+  "answers": [
+    "why is protect.yml rerun submitted after the others",
+    "order of workflow reruns in the retry script",
+    "Protect job retried too early and consumes an attempt",
+    "how the retry script handles protect.yml"
+  ],
+  "body": "Invariant: the protect.yml run is never rerun in parallel with the others. It is captured in the loop and submitted only after `wait` in .github/workflows/retry.sh (the read loop with protect_id, then `rerun \"$protect_id\"`).\nNon-Protect reruns go to background `rerun ... &`, and `wait` covers only the rerun requests, not the workflows themselves.\nReview follow-up (claimed fixed in 0009b8d92e852d3ee34f77ee0a12047078a282e0, not visible in the diff shown): Protect should be submitted only if every preceding rerun request succeeded, so a failed rerun does not burn a Protect attempt. Keep the nonzero exit status in that case.\nConstraints: Matched by resourcePath ending in \"/protect.yml\". Applies to the reruns of one commit, not the cross-PR loop in retry.yml.",
+  "applies": "Changes to the parallel rerun loop or to how Protect is identified in retry.sh.",
+  "tags": [
+    "ci",
+    "protect",
+    "retry",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:e780fbf9790f79245d30bb51",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-11T08:43:57.006Z",
+  "verified": "2026-10-11T08:43:57.006Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-guards-are-evaluated-per-commit-on-the-latest-run-per"
+  ],
+  "says": [
+    "The protection check retries prematurely and wastes an attempt before other jobs trigger.",
+    "Only retry the gatekeeper check after all individual failed jobs have been successfully restarted.",
+    "Retrying failed workflow runs burns a protection attempt when earlier rerun requests fail.",
+    "Why is the pull request gate rerun submitted last instead of with other builds?",
+    "Prevent re-running the merge protection check if restarting earlier failed tests did not succeed."
+  ],
+  "search": "In .github/workflows/retry.sh, the protect.yml run (matched by resourcePath ending in '/protect.yml') is never rerun in parallel, but submitted after wait finishes background rerun requests. The wait command covers rerun requests rather than the running workflows. Protect is submitted only if all preceding rerun requests succeeded, preserving nonzero exit status so failed reruns do not burn a Protect attempt. Applies to commit reruns in retry.sh and Protect identification, not the cross-PR loop in retry.yml.",
+  "saysFor": "s2:14f67fb95ba53312626de33ee65960a8655b166462afc801698a7e733c82549c"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "malformed-dedup-group-indices-crash-issue-discovery-or-silen",
+  "title": "Malformed dedup group indices crash issue discovery or silently merge wrong findings",
+  "kind": "rule",
+  "answers": [
+    "issue discovery crashed with IndexError during deduplication",
+    "discovery merged the wrong findings together",
+    "duplicate example index overwrote an issue description",
+    "dedup group references a nonexistent or negative issue index"
+  ],
+  "body": "Symptom: Issue discovery crashes when the model proposes a merge containing an out-of-range index (e.g. [0, 3] for three issues). Negative indices silently merge the wrong findings, and repeated indices overwrite an issue's description without merging distinct findings.\nRoot cause: mlflow/genai/discovery/pipeline.py:_dedup_issues only checked len(group.indices) < 2 before computing root = min(group.indices) and writing the group into group_by_root.\nFix pattern: Validate each proposed group in full (at least two indices, no duplicates, 0 <= idx < len(issues)) before any mutation. On failure, skip the whole group with _logger.debug and leave its candidates available for other valid merges.\nConstraints: Do not drop only the invalid indices; the proposed description was written for the full set and could be applied to a different set of issues. No extra model call or prompt/API change is needed.",
+  "applies": "Applies to the dedup merge-proposal handling in mlflow/genai/discovery/pipeline.py; not to other LLM response parsing.",
+  "tags": [
+    "genai",
+    "discovery",
+    "dedup",
+    "validation",
+    "evaluation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/discovery/pipeline.py",
+      "symbol": "_dedup_issues",
+      "hash": "sha256:949404fa048c659f34dccbe4",
+      "line": 360,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:949404fa048c659f34dccbe4",
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26082"
+  },
+  "created": "2026-10-11T10:24:55.246Z",
+  "verified": "2026-10-11T10:24:55.246Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dedup-merge-proposals-must-be-validated-before-any-merge-sta"
+  ],
+  "says": [
+    "Issue discovery crashes unexpectedly while grouping and deduplicating findings.",
+    "Discovered issues are improperly merged together into unrelated categories.",
+    "Finding descriptions get overwritten when the issue discovery pipeline runs.",
+    "Prevent discovery from failing when grouping proposed issue findings."
+  ],
+  "search": "Deduplication merge proposals in mlflow/genai/discovery/pipeline.py:_dedup_issues must validate group indices before performing mutations. Proposed merge groups require at least two distinct indices within the valid range of zero to the issues length to avoid crashes from out-of-range indices, silent merges from negative indices, or overwritten descriptions from duplicates. If validation fails, the entire proposed group must be skipped with _logger.debug rather than dropping invalid indices, keeping candidate issues eligible for other merges. This rule applies specifically to deduplication proposal handling in issue discovery without altering prompts or making additional model calls.",
+  "saysFor": "s2:888390316ce685ea7304be967e2a24a2ec169c80996255316c812ab69619131d"
+}

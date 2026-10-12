@@ -1,0 +1,99 @@
+{
+  "id": "redis-budget-window-must-carry-and-match-the-duration-that-p",
+  "title": "Redis budget window must carry and match the duration that produced its bounds",
+  "kind": "rule",
+  "answers": [
+    "budget policy edited to a new duration still gives 429 with the old window",
+    "Redis budget window stuck on monthly bounds after switching to daily limit",
+    "gateway processes disagree on budget window after policy duration change",
+    "wrong daily limit message 429 resets a month out"
+  ],
+  "body": "Symptom: After a budget policy's duration is edited (e.g. 1 MONTHS/$500 to 1 DAYS/$100), requests are rejected with HTTP 429 against a window spanning a month, and the message quotes a daily limit resetting far away.\nRoot cause: mlflow/gateway/budget_tracker/redis.py:_ENSURE_WINDOW_LUA compared only window_start, and RedisBudgetTracker.should_reject_request evaluated any stored window against the local policy, so a process on an older policy version rewrote bounds the newer version then measured against its own limit.\nFix pattern: Store duration_unit and duration_value in the window hash alongside the bounds. _ENSURE_WINDOW_LUA rolls the window when either field differs from the applied policy, and should_reject_request skips a window whose duration fails _window_duration_matches, the same way it skips an ended window.\nConstraints: Windows with no duration fields roll once on upgrade and are reseeded from trace history by maybe_refresh_budget_policies. Comparing window_start alone is insufficient because a monthly and a daily window can begin at the same instant (1st of a month). Brief cross-process disagreement can still under-count spend for one refresh interval; this is accepted as fail-open.",
+  "applies": "Any change to RedisBudgetTracker window creation, rollover, or rejection logic in mlflow/gateway/budget_tracker/redis.py.",
+  "tags": [
+    "gateway",
+    "budget",
+    "redis",
+    "window",
+    "rollover"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "_ENSURE_WINDOW_LUA",
+      "hash": "sha256:d014675f45bd7f27876ae4d9",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "_window_duration_matches",
+      "hash": "sha256:db1602f8f60f812a9c40540b",
+      "line": 97,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:db1602f8f60f812a9c40540b",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "RedisBudgetTracker.should_reject_request",
+      "hash": "sha256:da5ef606df66f3b9e8800df4",
+      "line": 305,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:da5ef606df66f3b9e8800df4",
+      "fanout": {
+        "files": 3,
+        "sites": 32,
+        "refs": 32
+      }
+    },
+    {
+      "path": "mlflow/gateway/budget_tracker/redis.py",
+      "symbol": "RedisBudgetTracker._ensure_window",
+      "hash": "sha256:09572b10e4c5ea374e08b50b",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09572b10e4c5ea374e08b50b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26075"
+  },
+  "created": "2026-10-11T10:28:01.231Z",
+  "verified": "2026-10-11T10:28:01.231Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "budget-amount-is-deliberately-not-part-of-window-identity",
+    "test-multi-process-budget-behavior-with-two-trackers-on-one"
+  ],
+  "says": [
+    "Changing our budget policy to daily still blocks requests until next month.",
+    "The gateway rate limit error says our daily spending cap resets weeks away.",
+    "Switching spend limits from monthly to daily should reset our quota window immediately.",
+    "After updating budget duration, API calls fail with the previous period rate limit.",
+    "Ensure gateway spend limits honor newly edited billing cycles instead of old bounds."
+  ],
+  "search": "Redis budget tracking window management in mlflow/gateway/budget_tracker/redis.py must store duration_unit and duration_value in the window hash so _ENSURE_WINDOW_LUA rolls windows when policy duration changes and RedisBudgetTracker.should_reject_request skips windows failing _window_duration_matches. Applies to changes in RedisBudgetTracker window creation, rollover, or rejection logic, where checking window_start alone is insufficient because different durations can share start timestamps. Legacy windows missing duration fields roll once on upgrade and are reseeded by maybe_refresh_budget_policies, tolerating brief cross-process under-counts as fail-open.",
+  "saysFor": "s2:d4d1f800f53754285a034efd0899735c58eb5952a17d4ad1824f120c6cc71793"
+}

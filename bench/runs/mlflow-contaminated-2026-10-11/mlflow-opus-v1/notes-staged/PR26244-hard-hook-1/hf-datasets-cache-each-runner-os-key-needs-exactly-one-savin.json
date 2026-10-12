@@ -1,0 +1,59 @@
+{
+  "id": "hf-datasets-cache-each-runner-os-key-needs-exactly-one-savin",
+  "title": "HF datasets cache: each runner.os key needs exactly one saving job; consumers set restore-only",
+  "kind": "rule",
+  "answers": [
+    "CI hits Hugging Face 429 rate limits when fetching datasets",
+    "how do I make a job read the shared hf datasets cache without writing it",
+    "restore-only input for cache-hf action",
+    "Windows Hugging Face datasets cache never gets saved"
+  ],
+  "body": "Symptom: CI jobs fetch Hugging Face datasets anew and get rate limited (429), or the shared datasets cache for one platform never gets populated.\nRoot cause: .github/actions/cache-hf/action.yml:runs.steps uses actions/cache, which also saves the cache when the job ends, so every caller of the composite writes the key.\nFix pattern: The `restore-only` input (default \"false\") makes the composite use actions/cache/restore instead, gated by `if: inputs.restore-only == 'true'`. Set `with: restore-only: true` on consumer jobs such as .github/workflows/protobuf-cross-test.yml and .github/workflows/test-requirements.yml.\nConstraints: The key is `${{ runner.os }}-hf-datasets-<hash>`, so each OS needs its own saver. master.yml (ubuntu-latest) is the only Linux writer. The Windows job in .github/workflows/slow-tests.yml must stay save-enabled because it is the only writer of the Windows key; restore-only there means that key is never populated. Before marking a caller restore-only, confirm another job saves the same runner.os key.",
+  "applies": "Any workflow that calls .github/actions/cache-hf, on any runner OS.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "cache",
+    "huggingface",
+    "single-writer"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/cache-hf/action.yml",
+      "hash": "sha256:adb499f90da20ab3de358763",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/slow-tests.yml",
+      "hash": "sha256:3b4c714d6c11ca0a1af414ae",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:7a23e9e2645572c59f7793f4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25787"
+  },
+  "created": "2026-10-11T08:47:32.068Z",
+  "verified": "2026-10-11T08:47:32.068Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cache-hf-keys-have-one-write-job-each-restore-only-consumers"
+  ],
+  "says": [
+    "Automated test runs are hitting rate limits when downloading external datasets.",
+    "Windows test builds never cache shared datasets and download them repeatedly every run.",
+    "Prevent consumer build jobs from overwriting the shared dataset cache during pipeline runs.",
+    "Continuous integration jobs are failing because dataset requests receive too many requests errors.",
+    "Share downloaded datasets across pull request checks to avoid reaching external download limits."
+  ],
+  "search": "In .github/actions/cache-hf, each runner.os cache key requires exactly one saving job while consumer workflows must configure restore-only. Because actions/cache saves on job completion, consumer jobs like .github/workflows/protobuf-cross-test.yml and .github/workflows/test-requirements.yml should pass restore-only: true to invoke actions/cache/restore instead. Each operating system has a separate ${{ runner.os }}-hf-datasets-<hash> key; .github/workflows/master.yml on ubuntu-latest is the sole Linux saver, while the Windows job in .github/workflows/slow-tests.yml must retain cache saving. Setting restore-only on a runner OS without an existing saver prevents its cache from ever being populated, leading to Hugging Face 429 rate limit errors.",
+  "saysFor": "s2:96f0316a2f6006673955adf354b2137c6419af19c37858f4a9fa74f35d1ba1c1"
+}

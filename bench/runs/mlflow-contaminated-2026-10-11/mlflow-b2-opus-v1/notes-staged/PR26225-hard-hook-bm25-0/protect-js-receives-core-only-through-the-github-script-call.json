@@ -1,0 +1,56 @@
+{
+  "id": "protect-js-receives-core-only-through-the-github-script-call",
+  "title": "protect.js receives core only through the github-script call in protect.yml",
+  "kind": "rule",
+  "answers": [
+    "core is undefined inside protect.js",
+    "how do I call core.warning or core.setFailed from the Protect script",
+    "how does protect.js get github and context objects"
+  ],
+  "body": "Invariant: the arguments destructured by the Protect handler must match the object literal that protect.yml passes to it.\nEnforcement: .github/workflows/protect.js:module.exports takes { github, context, core }; the actions/github-script step in .github/workflows/protect.yml calls script({ github, context, core }).\nWhat breaks: using core.* in protect.js while protect.yml omits core leaves core undefined, so the Protect check fails at runtime instead of reporting the intended warning or error.\nChanging one side without the other is the failure mode; update both in the same commit.",
+  "applies": "Any change to the Protect script's injected arguments or to code in protect.js that calls core, github, or context.",
+  "tags": [
+    "protect",
+    "github-script",
+    "workflow-config"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "hash": "sha256:df8e3ecad14475c77eda2862",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/protect.yml",
+      "symbol": "script",
+      "hash": "sha256:d860466be34b31376cc4b049",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26118"
+  },
+  "created": "2026-10-11T10:27:45.312Z",
+  "verified": "2026-10-11T10:27:45.312Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-js-expected-protect-failures-are-reported-with-core"
+  ],
+  "says": [
+    "The merge protection check crashes at runtime instead of reporting warning or failure notices.",
+    "Pull request gate fails with an execution error when logging check status warnings.",
+    "Protection check stops unexpectedly before it can publish warnings about missing test runs."
+  ],
+  "search": "The argument signature in .github/workflows/protect.js must match the arguments passed by the github-script step in .github/workflows/protect.yml. Applies to changes involving destructured core, github, or context parameters in module.exports, which must be updated simultaneously in both files. Omitting core in the workflow invocation leaves it undefined in the script, causing runtime failures when core functions are invoked.",
+  "saysFor": "s2:7e020c7b75680c51adf95ed2c0b3171fce0173a70359e4c7bc7e49b1f3a4585d"
+}

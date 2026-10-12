@@ -1,0 +1,84 @@
+{
+  "id": "tests-that-run-basic-auth-through-run-server-must-set-the-se",
+  "title": "tests that run basic-auth through _run_server must set the secret key",
+  "kind": "rule",
+  "answers": [
+    "basic-auth server test fails with secret key error",
+    "how to test _run_server with app_name basic-auth",
+    "test_init pre-flight raises MLFLOW_FLASK_SERVER_SECRET_KEY"
+  ],
+  "body": "Convention: tests in tests/server/test_init.py that call server._run_server with app_name=\"basic-auth\" must set MLFLOW_FLASK_SERVER_SECRET_KEY with monkeypatch.setenv.\nReason: the pre-flight in mlflow/server/__init__.py:_bootstrap_basic_auth now raises before the mocked mlflow.server.auth.bootstrap_admin_user is reached, so the test fails for the wrong reason.\nTo test the missing-key path, use monkeypatch.delenv with raising=False and assert bootstrap is not called and exec_cmd is not called.",
+  "applies": "Tests of basic-auth startup in tests/server/test_init.py.",
+  "tags": [
+    "tests",
+    "server",
+    "basic-auth",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/test_init.py",
+      "symbol": "test_run_server_bootstraps_basic_auth_admin_before_spawning_workers",
+      "hash": "sha256:05d9f415e77d50ce6f619988",
+      "line": 331,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:05d9f415e77d50ce6f619988",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/test_init.py",
+      "symbol": "test_run_server_fails_before_spawning_workers_when_secret_key_missing",
+      "hash": "sha256:d8bef1572b2dd19e25462785",
+      "line": 380,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d8bef1572b2dd19e25462785",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/__init__.py",
+      "symbol": "_bootstrap_basic_auth",
+      "hash": "sha256:9f16b2ff83d01eaa73177535",
+      "line": 330,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f16b2ff83d01eaa73177535",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25754"
+  },
+  "created": "2026-10-11T08:42:37.905Z",
+  "verified": "2026-10-11T08:42:37.905Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-pre-flight-checks-the-secret-key-before-the-admin",
+    "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare",
+    "basic-auth-admin-bootstrap-runs-in-the-mlflow-server-cli-pro"
+  ],
+  "says": [
+    "The tracking server fails to start with basic authentication when secret keys are missing.",
+    "Require an encryption secret key before launching the server with basic authentication.",
+    "Basic authentication server startup crashes during preflight checks before creating admin accounts."
+  ],
+  "search": "Tests running basic-auth through server._run_server in tests/server/test_init.py must set MLFLOW_FLASK_SERVER_SECRET_KEY using monkeypatch.setenv. The pre-flight check in mlflow/server/__init__.py:_bootstrap_basic_auth raises when the secret key is missing before reaching mocked bootstrap_admin_user. To test the missing-key path, use monkeypatch.delenv with raising=False and assert that bootstrap and exec_cmd are not called.",
+  "saysFor": "s2:6ebca2255097f9b1bfbf474422fce306ea72f986f56e00ac6f97b2033250a65c"
+}

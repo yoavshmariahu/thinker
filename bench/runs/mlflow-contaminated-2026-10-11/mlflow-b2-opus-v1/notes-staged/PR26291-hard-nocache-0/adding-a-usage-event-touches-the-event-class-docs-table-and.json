@@ -1,0 +1,107 @@
+{
+  "id": "adding-a-usage-event-touches-the-event-class-docs-table-and",
+  "title": "Adding a usage event touches the event class, docs table, and parse tests together",
+  "kind": "rule",
+  "answers": [
+    "how do I add a new telemetry event",
+    "what files must change when a usage event is added",
+    "new event missing from usage tracking docs",
+    "where do end-to-end events for log_model and register_model live"
+  ],
+  "body": "A new usage event changes several places together:\n- An Event subclass in mlflow/telemetry/events.py with name and a parse() that returns only bounded params. Its comment should say what it covers versus the sub-step event (for example, LogModelEvent vs CreateLoggedModelEvent).\n- A top-level public function is wrapped with @record_usage_event(EventClass) from mlflow/telemetry/track.py. Sub-steps that need their own event call _record_event directly (see env_pack).\n- A row in docs/docs/community/usage-tracking.mdx with the event's params example.\n- Parse parametrized tests and name assertions in tests/telemetry/test_events.py, plus an end-to-end check in tests/telemetry/test_tracked_events.py.\nImport events lazily inside functions in model and env modules. events.py imports env_pack lazily to avoid the cycle events -> env_pack -> models.model -> events.",
+  "applies": "Adding or renaming any usage event in mlflow/telemetry and the modules that emit it.",
+  "tags": [
+    "telemetry",
+    "usage-tracking",
+    "checklist"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/telemetry/track.py",
+      "symbol": "record_usage_event",
+      "hash": "sha256:f30bcd26a06ef25a022e95a3",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f30bcd26a06ef25a022e95a3",
+      "fanout": {
+        "files": 25,
+        "sites": 60,
+        "refs": 86
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "LogModelEvent",
+      "hash": "sha256:8d5a74aa013c98f3f31f056c",
+      "line": 280,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8d5a74aa013c98f3f31f056c",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/telemetry/test_events.py",
+      "symbol": "test_register_model_parse_params",
+      "hash": "sha256:fa34ec485af4bc339626118c",
+      "line": 214,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fa34ec485af4bc339626118c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "docs/docs/community/usage-tracking.mdx",
+      "hash": "sha256:0520fe18db7e057d76734f9a",
+      "missing": false
+    },
+    {
+      "path": "tests/telemetry/test_tracked_events.py",
+      "hash": "sha256:3e1ea099073ebdfb42e59069",
+      "missing": false
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "parse",
+      "hash": "sha256:1c18b286cf887d42723de9d4",
+      "line": 113,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c18b286cf887d42723de9d4",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-11T10:30:30.925Z",
+  "verified": "2026-10-11T10:30:30.925Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "telemetry-event-parameters-must-be-bounded-to-enums-booleans"
+  ],
+  "says": [
+    "Add telemetry instrumentation to track how often users save or register models.",
+    "The public privacy documentation is missing newly tracked product telemetry metrics.",
+    "Track usage analytics for model logging operations to understand feature adoption.",
+    "Document collected telemetry parameters in the community privacy and usage tracking guide."
+  ],
+  "search": "Adding or renaming a usage tracking event requires updating an Event subclass with bounded parse() params in mlflow/telemetry/events.py, decorating top-level functions with @record_usage_event, adding a documentation row in docs/docs/community/usage-tracking.mdx, and adding tests. Sub-steps call _record_event directly, while tests in tests/telemetry/test_events.py and test_tracked_events.py cover parameter parsing and end-to-end tracking. Events must be imported lazily inside functions in model and env modules, and events.py imports env_pack lazily to prevent circular imports.",
+  "saysFor": "s2:0a6bec37a9f6ac9ce82283ef8b75077eabf71a2a8b5f280bc338e1aa1eff044f"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "tests-db-shell-scripts-run-with-set-e-only-and-uv-steps-are",
+  "title": "tests/db shell scripts run with set -e only, and uv steps are quiet, to keep DB CI logs readable",
+  "kind": "rule",
+  "answers": [
+    "Why does the database CI log print every shell command or a huge package list?",
+    "Should I add set -x to the tests/db entrypoint or compose scripts for debugging?",
+    "How do I keep uv output out of the database CI job logs?",
+    "Which flags should tests/db shell scripts use so only pytest output and errors show?"
+  ],
+  "body": "Convention: the tests/db scripts use `set -e` (not `set -ex`), so the CI log has no per-command trace lines.\nQuiet uv: `uv sync` in tests/db/entrypoint.sh and `uv export` / `uv run` in tests/db/check_migration.sh take `--quiet`, and the export's stdout is sent to `/dev/null`.\nThe installed-package listing (`uv pip list`) was removed from tests/db/entrypoint.sh, so nothing dumps a dependency list per container.\nCompose wrapper tests/db/compose.sh also uses `set -e` only; its `down --volumes` step keeps its output redirected to `/dev/null`.\nPytest output and errors must stay visible: do not add quiet or redirect flags to the test command itself.\nConstraint: the trace is removed for CI noise, not for correctness, so if a run fails, re-add `-x` locally rather than committing it.",
+  "applies": "Shell scripts under tests/db used by the database CI job and its compose stack; not for other CI jobs or the repository's general scripts.",
+  "tags": [
+    "ci",
+    "database",
+    "shell",
+    "logging",
+    "tests/db"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/entrypoint.sh",
+      "hash": "sha256:c8272ad3a3b7c4d9410bed19",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    },
+    {
+      "path": "tests/db/check_migration.sh",
+      "hash": "sha256:6bd7b4e41c3fa587548bd54b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26304"
+  },
+  "created": "2026-10-11T10:25:59.975Z",
+  "verified": "2026-10-11T10:25:59.975Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "db-test-containers-must-run-commands-through-the-locked-uv-p",
+    "run-check-migration-with-pypi-mlflow-pre-migration-and-the-l"
+  ],
+  "says": [
+    "Database build logs print every shell command instead of just test failures.",
+    "Automated database test runs show massive package lists that drown out errors.",
+    "Make database continuous integration logs cleaner so failures are easy to spot.",
+    "Hide dependency sync traces from the database test job console output.",
+    "Database pipeline run history shows verbose command execution traces during builds."
+  ],
+  "search": "Shell scripts under tests/db (entrypoint.sh, compose.sh, check_migration.sh) use set -e without -x and run uv commands with --quiet or output sent to /dev/null to keep database CI logs readable. Package listings via uv pip list are omitted from entrypoint.sh, and compose wrapper down commands redirect output to /dev/null, while pytest output and errors must stay visible. The trace is removed for CI noise rather than correctness, so -x may be added locally when debugging but must not be committed.",
+  "saysFor": "s2:b7a1b105090c148f292d12985cdd57f0c1b1cbd4d1e4d9d9a8127f81d82eeb99"
+}

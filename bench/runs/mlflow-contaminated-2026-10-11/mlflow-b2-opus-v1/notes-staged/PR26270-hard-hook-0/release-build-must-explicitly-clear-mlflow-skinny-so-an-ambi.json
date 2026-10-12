@@ -1,0 +1,54 @@
+{
+  "id": "release-build-must-explicitly-clear-mlflow-skinny-so-an-ambi",
+  "title": "Release build must explicitly clear MLFLOW_SKINNY so an ambient value cannot produce mlflow-skinny",
+  "kind": "rule",
+  "answers": [
+    "release build produced mlflow-skinny instead of mlflow",
+    "full mlflow wheel built as skinny when MLFLOW_SKINNY is set in the environment",
+    "legacy 2.11 setup.py chooses the wrong package name",
+    "how do I make dev/build.py build the full mlflow package regardless of env vars"
+  ],
+  "body": "Symptom: the release workflow's `--package-type release` run publishes a skinny package (mlflow-skinny) when the CI or shell environment has MLFLOW_SKINNY set.\nRoot cause: dev/build.py:build starts from `{**os.environ, **extra_env}`, so any ambient MLFLOW_SKINNY leaks into the release build, and the legacy setup.py selects mlflow-skinny whenever `bool(os.environ.get(\"MLFLOW_SKINNY\"))` is true.\nFix pattern: every package-type branch in dev/build.py:main passes the package-selecting variable explicitly (`{\"MLFLOW_SKINNY\": \"\"}` for release, `{\"MLFLOW_SKINNY\": \"1\"}` for skinny), so the child process never inherits a stale value.\nConstraints: applies to the legacy single-setup.py layout on branch-2.11. An empty string is falsey under the setup.py check; a new package-selecting env var must get the same explicit treatment in both branches.",
+  "applies": "branch-2.11 legacy single-setup.py packaging only; v3+ branches have their own dev/build.py.",
+  "tags": [
+    "build",
+    "release",
+    "packaging",
+    "env-var"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26073"
+  },
+  "created": "2026-10-11T10:28:05.872Z",
+  "verified": "2026-10-11T10:28:05.872Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "branch-2-13-package-builds-go-through-dev-build-sh-dev-build",
+    "release-package-requires-the-pre-built-js-ui-dev-build-py-gu",
+    "legacy-2-11-wheel-is-built-from-the-source-tree-before-the-s"
+  ],
+  "says": [
+    "The release pipeline published a lightweight package instead of the full platform package.",
+    "Our production release build produced the slim package rather than standard installation.",
+    "Why did the full package release publish missing dependencies like the slim variant?",
+    "Ensure the official release artifact builds the complete package despite inherited environment settings.",
+    "The automated release run created the lightweight distribution instead of the full wheel."
+  ],
+  "search": "Release packaging in dev/build.py:main must explicitly pass MLFLOW_SKINNY as an empty string for release and 1 for skinny packages so builds do not inherit ambient environment variables. This applies strictly to branch-2.11 legacy single-setup.py packaging, where setup.py selects mlflow-skinny whenever MLFLOW_SKINNY evaluates to true. Any new package-selecting environment variable must receive identical explicit assignment in both package-type branches.",
+  "saysFor": "s2:ae36ff907ca610d6d3fb82d00c4022fb0b7ac424e8d9b1babf36326bf2ee9214"
+}

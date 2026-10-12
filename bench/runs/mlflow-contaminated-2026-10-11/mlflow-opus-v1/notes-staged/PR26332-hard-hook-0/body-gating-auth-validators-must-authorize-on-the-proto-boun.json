@@ -1,0 +1,144 @@
+{
+  "id": "body-gating-auth-validators-must-authorize-on-the-proto-boun",
+  "title": "Body-gating auth validators must authorize on the proto-bound request fields, not raw JSON keys",
+  "kind": "rule",
+  "answers": [
+    "validator checks raw json key but handler accepts alias",
+    "how to write auth validator for request body ids in basic-auth",
+    "nonexistent run id returns 404 instead of 403 in auth",
+    "empty run_id bypasses permission check"
+  ],
+  "body": "Invariant: a basic-auth validator that authorizes on ids in the request body must parse the body through the same proto the handler uses, then authorize the bound values. Raw-JSON key checks miss proto aliases such as `runId` / `modelId`, so the check is skipped while the handler still acts on the id.\nEnforced in: mlflow/server/auth/__init__.py:validate_can_create_model_version (uses `_get_request_message`, `HasField`), also the same pattern in validate_can_log_metric, validate_can_log_batch and validate_can_update_run_or_logged_model.\nPresence rule: use `HasField` so an explicitly empty id is denied rather than treated as absent.\nNonexistent ids: wrap the permission lookup in mlflow/server/auth/__init__.py:_can_read_model_version_source, which maps RESOURCE_DOES_NOT_EXIST to False so the response is a uniform 403 and cannot be used to probe which run or model ids exist.\nBreaks if skipped: the READ check is bypassed for the alias, or the 403/404 difference reveals existence.\nTests: tests/server/auth/test_auth.py:test_create_model_version_empty_source_id_does_not_bypass and test_create_model_version_nonexistent_source_id_is_denied, parametrized over snake_case and camelCase keys.",
+  "applies": "Any new or edited basic-auth validator in mlflow/server/auth/__init__.py that reads an id from a request body.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "validators",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:663eee91caf89cba39c283c9",
+      "line": 1400,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:663eee91caf89cba39c283c9",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_metric",
+      "hash": "sha256:43c8b13e1d7cccd82fe297a1",
+      "line": 1254,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:43c8b13e1d7cccd82fe297a1",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_batch",
+      "hash": "sha256:a053f43883fb6b8bda406d67",
+      "line": 1263,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a053f43883fb6b8bda406d67",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_run_or_logged_model",
+      "hash": "sha256:4d0074956c77de56cc0aa5f2",
+      "line": 1309,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4d0074956c77de56cc0aa5f2",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_can_read_model_version_source",
+      "hash": "sha256:4c6f7a309ecfe51d60883997",
+      "line": 1427,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4c6f7a309ecfe51d60883997",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:663eee91caf89cba39c283c9",
+      "line": 1400,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:663eee91caf89cba39c283c9",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_create_model_version_empty_source_id_does_not_bypass",
+      "hash": "sha256:0c1582fe84ff08d5ad3df8b6",
+      "line": 1781,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0c1582fe84ff08d5ad3df8b6",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25892"
+  },
+  "created": "2026-10-11T08:45:31.665Z",
+  "verified": "2026-10-11T08:45:31.665Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-body-supplied-gateway-secret-id-must-be-authorized-thr",
+    "plain-flask-ui-routes-need-an-explicit-authenticated-only-va",
+    "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker",
+    "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ"
+  ],
+  "says": [
+    "Users can bypass permission checks by submitting camelCase field names in request bodies.",
+    "Submitting an empty run identifier bypasses authorization when logging metrics or creating models.",
+    "Access checks return 404 instead of 403, allowing attackers to probe existing run identifiers.",
+    "Ensure permission validators properly enforce read access when registering model versions from runs.",
+    "Unauthorized updates to runs or logged models succeed when using alternate parameter casing."
+  ],
+  "search": "Basic-auth request body validators in mlflow/server/auth/__init__.py must bind request fields through protobuf messages using _get_request_message and HasField rather than inspecting raw JSON keys. This ensures proto aliases like runId or modelId are not bypassed, explicitly empty identifiers are denied, and nonexistent entities are mapped via _can_read_model_version_source to return a uniform 403 instead of revealing existence through 404. Applies to validate_can_create_model_version, validate_can_log_metric, validate_can_log_batch, and validate_can_update_run_or_logged_model, with tests in tests/server/auth/test_auth.py covering camelCase and snake_case variants.",
+  "saysFor": "s2:6f0142abc3e5602b46baf029bd84e132f2276693d696c79c0605553f3d9c3dac"
+}

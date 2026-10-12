@@ -1,0 +1,69 @@
+{
+  "id": "is-databricks-uri-must-match-scheme-case-insensitively-only",
+  "title": "is_databricks_uri must match scheme case-insensitively; only the bare 'databricks' string is a literal fast path",
+  "kind": "rule",
+  "answers": [
+    "why does DATABRICKS://PROFILE not get detected as a Databricks URI",
+    "is_databricks_uri uppercase scheme handling",
+    "how to add a fast path to is_databricks_uri without breaking profile URIs",
+    "databricks tracking URI detection misses profile or mixed-case URIs"
+  ],
+  "body": "Invariant: is_databricks_uri must still parse the scheme for everything except the exact string \"databricks\". Profile URIs (\"databricks://profile\") and uppercase schemes (\"DATABRICKS://PROFILE\") must return True.\nEnforcement: mlflow/utils/uri.py:is_databricks_uri returns `uri == \"databricks\" or urllib.parse.urlparse(uri).scheme == \"databricks\"`. urlparse lowercases the scheme, so the parser branch is what handles case.\nWhat breaks if skipped: a string-prefix or lowercase-only shortcut (e.g. uri.startswith(\"databricks\") or a case-sensitive compare) would either misclassify non-Databricks URIs or miss uppercase schemes.\nConstraints: the short-circuit is an exact equality check, so it does not cover \"databricks:whatever\" or \"databricks://x\"; those still go through urlparse. Keep the short-circuit ordering: the equality check goes first and the parser call second.\nApplies: Any change to is_databricks_uri or to the URI-classification helpers in mlflow/utils/uri.py.",
+  "applies": "Changes to is_databricks_uri or other scheme-detection helpers in mlflow/utils/uri.py.",
+  "tags": [
+    "uri",
+    "databricks",
+    "tracking-uri",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_databricks_uri",
+      "hash": "sha256:b235fb617d03933baf7f25b5",
+      "line": 82,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b235fb617d03933baf7f25b5",
+      "fanout": {
+        "files": 57,
+        "sites": 67,
+        "refs": 141
+      }
+    },
+    {
+      "path": "tests/utils/test_uri.py",
+      "symbol": "test_is_databricks_uri",
+      "hash": "sha256:7718589df6dcc7c488df6daa",
+      "line": 139,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7718589df6dcc7c488df6daa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25725"
+  },
+  "created": "2026-10-11T08:48:04.807Z",
+  "verified": "2026-10-11T08:48:04.807Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Tracking server connection fails when using uppercase letters in the Databricks scheme.",
+    "Databricks workspace profile tracking address is not recognized as a valid connection target.",
+    "Allow uppercase and mixed-case schemes when entering the Databricks tracking address.",
+    "Connecting to a Databricks tracking server fails when the scheme is capitalized.",
+    "Tracking setup should accept capitalized Databricks profile addresses without error."
+  ],
+  "search": "Databricks URI classification in mlflow/utils/uri.py:is_databricks_uri must parse schemes case-insensitively via urllib.parse.urlparse while maintaining an exact-string fast path only for literal databricks. The fast-path equality check must run first, leaving profile URIs like databricks://profile and uppercase schemes like DATABRICKS://PROFILE to urllib.parse.urlparse. Prefix shortcuts or case-sensitive comparisons break uppercase schemes or misclassify non-Databricks URIs. The rule applies to mlflow/utils/uri.py and tests/utils/test_uri.py:test_is_databricks_uri when modifying scheme-detection helpers.",
+  "saysFor": "s2:6f51927ab5002a80b5885e3c8bf24335117fdc3894bb35b86152f18fb6f14a89"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "spark-scoring-server-tests-must-cancel-jobs-and-join-backgro",
+  "title": "Spark/scoring-server tests must cancel jobs and join background threads in a finally block",
+  "kind": "rule",
+  "answers": [
+    "Spark test leaks job or server after readiness timeout",
+    "retries of the Spark scoring test fail because the previous run is still running",
+    "background Spark job thread still alive after test failure",
+    "scoring server port still in use in CI after wait_server_ready timeout"
+  ],
+  "body": "Symptom: The Spark scoring-server test fails on a readiness timeout, and retries on the shared Spark session and fixed port then fail too, because the earlier run's Spark job and server are still active.\nRoot cause: tests/pyfunc/test_spark.py:run_job (the background job thread) is cleaned up only on the success path; client.wait_server_ready(timeout=20) raising skips cancelAllJobs(), job_thread.join(), and the port-release sleep.\nFix pattern: Wrap the readiness wait in try/finally. In finally, call spark.sparkContext.cancelAllJobs(), join the job thread with a bounded timeout, assert it is no longer alive, then sleep for server shutdown and port release.\nConstraints: Keep the readiness timeout unchanged. This only prevents leaked work after a failure; it does not fix slow startup. Other test helpers that start a thread or server on a shared Spark session or fixed port should follow the same pattern.",
+  "applies": "Tests in tests/pyfunc/test_spark.py that start background Spark jobs and a scoring server on a fixed port.",
+  "tags": [
+    "testing",
+    "spark",
+    "scoring-server",
+    "flaky-tests",
+    "cleanup"
+  ],
+  "deps": [
+    {
+      "path": "tests/pyfunc/test_spark.py",
+      "symbol": "run_job",
+      "hash": "sha256:790a929a0d1c0fd65cadc5be",
+      "line": 851,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:790a929a0d1c0fd65cadc5be",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25996"
+  },
+  "created": "2026-10-11T08:41:29.770Z",
+  "verified": "2026-10-11T08:41:29.770Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration build retries fail because the earlier scoring service is still active.",
+    "Timing out during readiness checks leaves background worker tasks running and blocks rerun attempts.",
+    "Subsequent test executions fail due to the model server port remaining in use.",
+    "Clean up background threads and release ports whenever a scoring test readiness check fails."
+  ],
+  "search": "Tests in tests/pyfunc/test_spark.py that run background Spark jobs and a scoring server must wrap client.wait_server_ready in try/finally to call spark.sparkContext.cancelAllJobs(), join the job thread, assert it stopped, and sleep for port release. This cleans up leaked jobs and the fixed port when readiness times out so test retries on the shared Spark session can succeed. Keep the readiness timeout unchanged; this pattern does not fix slow startup and should also be followed by other test helpers sharing the Spark session or port.",
+  "saysFor": "s2:f5f87ebfb71caac23617ba4a878a6f00bd3421600b2a06e7f6edb1081ccfb870"
+}

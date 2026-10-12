@@ -1,0 +1,117 @@
+{
+  "id": "trace-filter-correlation-must-pass-experiment-ids-to-trace-i",
+  "title": "Trace filter correlation must pass experiment IDs to trace_info as integers, not str",
+  "kind": "rule",
+  "answers": [
+    "trace filter correlation fails on PostgreSQL with psycopg 3",
+    "calculate_trace_filter_correlation varchar vs integer error",
+    "trace correlation joint count error on postgres psycopg3",
+    "why does trace filter correlation break with string experiment ids"
+  ],
+  "body": "Symptom: Trace filter correlation (the joint/filter1/filter2 counts comparing two trace filters) errors out or returns a failure on PostgreSQL with psycopg 3, while it works on SQLite.\nRoot cause: mlflow/store/tracking/sqlalchemy_store.py:calculate_trace_filter_correlation converted the validated experiment IDs back to str before they reached trace_info.experiment_id.in_(...) in _build_trace_filter_subquery and _get_trace_correlation_counts. psycopg v3 binds str as VARCHAR, which PostgreSQL will not compare to the INTEGER column.\nFix pattern: Keep IDs as int after _filter_experiment_ids (the public API still accepts strings, so coerce once at entry with int(e)), and type the helpers as list[int]. Do not add a str() round-trip back.\nConstraints: Applies to every SQL filter that binds experiment IDs against trace_info.experiment_id (INTEGER). The same driver rule is in the numeric-search-filter note; this path had no coercion left to catch it. Regression test: tests/db/test_workspace_tracking_store.py:test_trace_filter_correlation_binds_integer_experiment_ids, which runs only against PostgreSQL with psycopg 3.\nApplies: SQLAlchemy tracking store trace-correlation and trace-filter subquery code; any new trace query that filters on experiment_id.",
+  "applies": "Trace correlation and trace filter queries in SqlAlchemyStore that bind experiment IDs against the INTEGER trace_info.experiment_id column.",
+  "tags": [
+    "tracing",
+    "sqlalchemy",
+    "postgresql",
+    "psycopg3",
+    "trace-correlation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.calculate_trace_filter_correlation",
+      "hash": "sha256:3e657777f3ca0630c19d5f1a",
+      "line": 5512,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3e657777f3ca0630c19d5f1a",
+      "fanout": {
+        "files": 10,
+        "sites": 30,
+        "refs": 42
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._build_trace_filter_subquery",
+      "hash": "sha256:8f548fcd12251bac71c64cad",
+      "line": 5574,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f548fcd12251bac71c64cad",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._get_trace_correlation_counts",
+      "hash": "sha256:5f83efd8be03a30613d20eea",
+      "line": 5603,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f83efd8be03a30613d20eea",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "calculate_trace_filter_correlation",
+      "hash": "sha256:3e657777f3ca0630c19d5f1a",
+      "line": 5512,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3e657777f3ca0630c19d5f1a",
+      "fanout": {
+        "files": 10,
+        "sites": 30,
+        "refs": 42
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "test_trace_filter_correlation_binds_integer_experiment_ids",
+      "hash": "sha256:2f71dff2a9c2fcd4180a830c",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2f71dff2a9c2fcd4180a830c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26179"
+  },
+  "created": "2026-10-11T10:26:54.140Z",
+  "verified": "2026-10-11T10:26:54.140Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "metric-comparisons-in-logged-model-filter-string-must-join-o",
+    "logged-model-search-must-eager-load-every-child-relationship",
+    "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b",
+    "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back"
+  ],
+  "says": [
+    "Comparing two trace search filters crashes when using a PostgreSQL tracking database.",
+    "Trace filter correlation reports a database type error instead of showing matching counts.",
+    "Joint trace filter comparison fails on Postgres while working normally on SQLite.",
+    "Viewing correlation counts between trace filters results in an internal server error.",
+    "Fix trace comparison queries failing due to experiment identifier type mismatch on Postgres."
+  ],
+  "search": "Trace filter correlation queries in SqlAlchemyStore must bind experiment IDs as integers when filtering against the INTEGER trace_info.experiment_id column. In mlflow/store/tracking/sqlalchemy_store.py:calculate_trace_filter_correlation, converting IDs to str caused psycopg v3 on PostgreSQL to bind VARCHAR parameters that fail comparison with INTEGER columns. Helpers _build_trace_filter_subquery and _get_trace_correlation_counts must take list[int] without round-tripping back to str, while public APIs still coerce incoming strings via int(e). This rule applies to all SQL filters matching trace_info.experiment_id and is tested by test_trace_filter_correlation_binds_integer_experiment_ids on PostgreSQL with psycopg 3.",
+  "saysFor": "s2:443adef8c94d9a5eb14e8d2014ffa03623a813c87d4e34b13dbcf94264f3c9a0"
+}

@@ -1,0 +1,63 @@
+{
+  "id": "verify-the-hosted-wizard-installer-url-is-live-before-mergin",
+  "title": "Verify the hosted wizard installer URL is live before merging onboarding changes that reference it",
+  "kind": "howto",
+  "answers": [
+    "how do I check the setup.sh wizard URL works before release",
+    "the curl wizard command returns 403 or 404 in the docs",
+    "how to validate mlflow.org/wizard/setup.sh installer",
+    "verify installer script before publishing onboarding command"
+  ],
+  "body": "The wizard URL https://mlflow.org/wizard/setup.sh is served by the separate mlflow-website deployment, not by this repo. A merged README/docs/UI change that points to it is broken until that deployment is live.\nBefore merging, confirm the production URL returns HTTP 200 (for example with curl -I) and that the script parses with `sh -n` on the downloaded file. Do not run the installer itself just to verify it.\nIf the URL returns 403 or is not yet published, deploy the website change first; the docs and AgentActionCard command strings will otherwise lead users to a command that cannot run.",
+  "applies": "Any PR that changes the public mlflow.org/wizard installer command in README, docs, or the OSS onboarding card.",
+  "tags": [
+    "docs",
+    "release",
+    "installer",
+    "verification"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "README.md",
+      "hash": "sha256:e9b30b8aee35e78fb87bdbbf",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-11T10:25:28.482Z",
+  "verified": "2026-10-11T10:25:28.482Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "onboarding-setup-command-is-copied-into-generated-readme-doc",
+    "the-hosted-mlflow-setup-wizard-connects-and-launches-an-agen"
+  ],
+  "says": [
+    "The quickstart installation command copied from the onboarding screen returns a not found error.",
+    "New users cannot run the setup wizard script suggested on the welcome card.",
+    "The terminal command in the getting started guide fails with an access forbidden error.",
+    "Confirm the hosted setup wizard script is published before updating the onboarding instructions.",
+    "Ensure the installer command on the product dashboard downloads a valid executable script."
+  ],
+  "search": "Pull requests updating the wizard installer URL https://mlflow.org/wizard/setup.sh in README.md, docs, or AgentActionCard.tsx must verify the URL is live on the mlflow-website deployment before merging. Verification requires checking that the URL returns HTTP 200 with curl -I and that the script passes sh -n syntax parsing on the downloaded file without executing the installer itself. If the URL yields 403 or is unpublished, deploy the website change first so onboarding commands do not break.",
+  "saysFor": "s2:954a7953cfba2a096882fb156434a30884bb9b13d076cc47784ad37ae7bc8193"
+}

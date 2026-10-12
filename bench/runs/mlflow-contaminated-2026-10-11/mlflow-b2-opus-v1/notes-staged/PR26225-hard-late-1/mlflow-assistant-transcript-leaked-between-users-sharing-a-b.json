@@ -1,0 +1,58 @@
+{
+  "id": "mlflow-assistant-transcript-leaked-between-users-sharing-a-b",
+  "title": "MLflow Assistant transcript leaked between users sharing a browser origin",
+  "kind": "rule",
+  "answers": [
+    "assistant chat history shows previous user's messages after sign-in",
+    "MLflow Assistant conversation visible to another user on same browser",
+    "assistant transcript persists across user logout and login",
+    "cross-user chat leak in the Assistant panel localStorage"
+  ],
+  "body": "Symptom: After user A signs out and user B signs in on the same browser, the Assistant panel shows A's conversation.\nRoot cause: mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider persisted the transcript under one fixed key (CHAT_STORAGE_KEY_BASE) via useLocalStorage, which is not scoped to a user.\nFix pattern: Derive chatStorageKey as `${CHAT_STORAGE_KEY_BASE}.${username}` from useCurrentUserQuery; use the base key only when there is no username (auth off). Read and write that key with getLocalStorageItem/setLocalStorageItem, because useLocalStorage reads its key once and cannot follow an identity change.\nConstraints: Auth-off local operator must keep the base key (no behavior change). Do not seed or persist while the current user query is still loading.",
+  "applies": "Any change to the Assistant chat persistence or to per-user client state stored in localStorage in mlflow/server/js/src/assistant.",
+  "tags": [
+    "assistant",
+    "auth",
+    "localstorage",
+    "privacy",
+    "uiux"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "AssistantProvider",
+      "hash": "sha256:e53277cf544973312743edd7",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e53277cf544973312743edd7",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26009"
+  },
+  "created": "2026-10-11T10:29:10.666Z",
+  "verified": "2026-10-11T10:29:10.666Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-transcript-persist-write-must-be-gated-on-the-seed",
+    "identity-switch-resets-the-backend-session-not-just-the-tran"
+  ],
+  "says": [
+    "The assistant panel displays the previous user's chat history after switching accounts.",
+    "Signing in as another user still shows the earlier person's assistant messages.",
+    "Clear or isolate the assistant conversation history when a different account logs in.",
+    "Assistant chat transcripts persist in the browser across user logout and login."
+  ],
+  "search": "In mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider, chat persistence must derive chatStorageKey as `${CHAT_STORAGE_KEY_BASE}.${username}` from useCurrentUserQuery and access it via getLocalStorageItem and setLocalStorageItem. When authentication is off, it uses CHAT_STORAGE_KEY_BASE, and it must not seed or persist while useCurrentUserQuery is loading. useLocalStorage is avoided because it reads its key only once and fails to follow identity changes.",
+  "saysFor": "s2:6843e001b44cd87da0a51e05b64c8fcaa210e43ffce0930257fd3474bb8233c4"
+}

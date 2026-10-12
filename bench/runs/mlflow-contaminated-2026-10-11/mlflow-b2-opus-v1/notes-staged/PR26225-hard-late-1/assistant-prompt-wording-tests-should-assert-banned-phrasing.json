@@ -1,0 +1,51 @@
+{
+  "id": "assistant-prompt-wording-tests-should-assert-banned-phrasing",
+  "title": "Assistant prompt wording tests should assert banned phrasings are absent in every prompt variant",
+  "kind": "rule",
+  "answers": [
+    "How do I test that the Assistant system prompt no longer contains a phrase?",
+    "Where are the tests for MLflow Assistant response padding and follow-up offers?",
+    "How should I write a regression test for a system prompt wording change?"
+  ],
+  "body": "Convention: prompt wording is guarded by tests/assistant/providers/test_prompts.py, which asserts both presence of the new directive and absence of the old conflicting phrasing.\nNegative assertions (the old conflicting directive such as \"ALWAYS offer to complete tasks\" must not appear) run inside the shared loop over both system prompt variants, so they cover claude_code.py and prompts.py together.\nPositive assertions for wording that exists only in one variant may stay specific to that variant.\nA test that only checks the new sentence can pass while a contradictory sentence elsewhere in the prompt remains, so banned-phrase checks are needed alongside the positive check.\nConstraints: the test file is the place for prompt wording assertions; the provider suite (86 tests in tests/assistant/providers) is the validation target.",
+  "applies": "Tests of Assistant system prompt text in tests/assistant/providers/.",
+  "tags": [
+    "assistant",
+    "tests",
+    "system-prompt"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "hash": "sha256:39e47f19395d2966a10d0aac",
+      "missing": false
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-11T10:30:16.797Z",
+  "verified": "2026-10-11T10:30:16.797Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "assistant-system-prompts-new-behavioral-directives-must-be-c"
+  ],
+  "says": [
+    "The assistant chatbot keeps adding unrequested follow-up offers to every response.",
+    "Automated tests should verify the virtual assistant never includes retired prompt wording.",
+    "The AI helper still offers to perform extra work after being told not to.",
+    "Ensure test suites catch banned conversational phrases across all supported assistant providers.",
+    "Make sure tests fail if contradictory directives remain in the assistant prompt."
+  ],
+  "search": "In tests/assistant/providers/test_prompts.py, prompt wording tests must assert both the presence of new directives and the absence of old conflicting phrasings across both system prompt variants. Negative assertions for retired directives such as 'ALWAYS offer to complete tasks' run inside a shared loop covering claude_code.py and prompts.py together, whereas positive assertions for variant-specific wording may remain specific to that variant. This applies to prompt wording assertions within the 86 tests in tests/assistant/providers to ensure contradictory instructions elsewhere in the prompt do not allow passing tests.",
+  "saysFor": "s2:7f8a9447afd1150067d6a1c950d46076f2375fae6c5e38430b338e935336f320"
+}

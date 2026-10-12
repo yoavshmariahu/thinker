@@ -1,0 +1,44 @@
+{
+  "id": "helm-probe-fields-use-haskey-not-with-so-explicit-0-values-r",
+  "title": "Helm probe fields: use hasKey, not `with`, so explicit 0 values render",
+  "kind": "rule",
+  "answers": [
+    "helm chart probe initialDelaySeconds 0 missing from rendered deployment",
+    "why does my zero probe value disappear in the Helm template output",
+    "MLflow chart probe timing override of 0 ignored"
+  ],
+  "body": "Symptom: a probe timing field set to 0 (e.g. startupProbe initialDelaySeconds: 0) is missing from the rendered Deployment, so the manifest does not match the value documented in values.yaml and README.\nRoot cause: charts/templates/_helpers.tpl:mlflow.probe guarded each timing field with `with`, and Go templates treat 0 as empty, so the line is dropped.\nFix pattern: guard each optional probe field with `{{- if hasKey .probe \"<field>\" }}` instead of `with`, so an explicit 0 is emitted and only an absent key is omitted.\nConstraints: apply to any numeric probe field where 0 is a legal value. Kubernetes' default for initialDelaySeconds is also 0, so the bug is harmless for that field today and mostly shows up as a mismatch between output and docs. The CI probe step in .github/workflows/helm.yml asserts the startup initialDelaySeconds: 0 line.",
+  "applies": "Any new or edited probe field in the MLflow Helm chart templates (charts/templates/_helpers.tpl).",
+  "tags": [
+    "helm",
+    "charts",
+    "probes",
+    "templates"
+  ],
+  "deps": [
+    {
+      "path": "charts/templates/_helpers.tpl",
+      "hash": "sha256:eebcb555aff92a6e368b251c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25560"
+  },
+  "created": "2026-10-11T08:50:59.292Z",
+  "verified": "2026-10-11T08:50:59.292Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Configuring a zero second initial delay on health probes is dropped from deployments.",
+    "Deployed container manifests do not reflect explicit zero values set for probe intervals.",
+    "Why is my zero delay startup health check setting missing after installation?",
+    "Allow setting probe timing parameters to zero without the configuration being ignored."
+  ],
+  "search": "Probe template helpers in charts/templates/_helpers.tpl:mlflow.probe must guard optional numeric probe fields with {{- if hasKey .probe \"<field>\" }} instead of with. Go templates treat 0 as empty, so with drops explicit 0 values such as startupProbe initialDelaySeconds: 0 and causes deployment manifests to mismatch values.yaml and README documentation. Applies to any new or edited probe field in charts/templates/_helpers.tpl where 0 is legal, with initialDelaySeconds: 0 asserted in .github/workflows/helm.yml.",
+  "saysFor": "s2:bfaf96a6c34adc31905d1d2f95d256b1fe2ac2d0041094c0277f7f1457c9e624"
+}

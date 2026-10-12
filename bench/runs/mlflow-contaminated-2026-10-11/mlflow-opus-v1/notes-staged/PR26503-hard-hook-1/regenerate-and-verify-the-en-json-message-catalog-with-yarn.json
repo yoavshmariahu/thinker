@@ -1,0 +1,46 @@
+{
+  "id": "regenerate-and-verify-the-en-json-message-catalog-with-yarn",
+  "title": "Regenerate and verify the en.json message catalog with yarn i18n and yarn i18n:check",
+  "kind": "howto",
+  "answers": [
+    "how do I update en.json after changing UI strings",
+    "yarn i18n:check fails what do I run",
+    "how to regenerate the default message catalog in mlflow frontend",
+    "localized strings catalog out of date"
+  ],
+  "body": "After changing any FormattedMessage defaultMessage/description or intl.formatMessage call in the web-shared trace explorer, run `yarn i18n` from mlflow/server/js to regenerate mlflow/server/js/src/lang/default/en.json.\nRun `yarn i18n:check` to confirm the catalog is up to date; CI-style lint checks rely on it.\nThe regenerated file adds new hashed keys (e.g. for 'Jump to linked span', 'See more') and drops old ones; commit that output with the component change rather than editing keys by hand.\nRun `yarn lint`, `yarn prettier:check`, and `yarn type-check` alongside it, as the PR did.",
+  "applies": "Frontend changes under mlflow/server/js that touch user-visible strings; not needed for non-visible code changes.",
+  "tags": [
+    "i18n",
+    "frontend",
+    "tooling",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:8ef7fb523a1fe42462728e43",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25580"
+  },
+  "created": "2026-10-11T08:50:34.684Z",
+  "verified": "2026-10-11T08:50:34.684Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Frontend continuous integration checks fail because localized user interface strings are out of date.",
+    "Update the default translation catalog after modifying visible button labels in trace explorer.",
+    "New text labels like jump to linked span are missing from translations.",
+    "Automatically verify that all user facing strings match the generated localization messages.",
+    "Include updated interface message files whenever changing display text in the trace viewer."
+  ],
+  "search": "After editing FormattedMessage defaultMessage or description attributes or intl.formatMessage calls in frontend code under mlflow/server/js, run yarn i18n from mlflow/server/js to regenerate the message catalog in mlflow/server/js/src/lang/default/en.json. Run yarn i18n:check to verify the catalog is current for CI lint checks, and run yarn lint, yarn prettier:check, and yarn type-check alongside it. Commit the regenerated file rather than editing hashed keys manually; this applies only to changes touching user-visible strings like in the web-shared trace explorer, not to non-visible code changes.",
+  "saysFor": "s2:762d2d19eba3acac3f113305427c0ee898e58df8834ef10afcea0e4e4793e39c"
+}

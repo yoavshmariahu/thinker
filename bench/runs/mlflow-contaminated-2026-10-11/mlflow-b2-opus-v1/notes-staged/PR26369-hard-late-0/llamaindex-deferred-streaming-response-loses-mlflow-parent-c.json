@@ -1,0 +1,112 @@
+{
+  "id": "llamaindex-deferred-streaming-response-loses-mlflow-parent-c",
+  "title": "LlamaIndex deferred streaming response loses MLflow parent context and splits or leaves the trace open",
+  "kind": "rule",
+  "answers": [
+    "LlamaIndex streaming query trace shows up as a separate trace or never finishes",
+    "streamed LlamaIndex response creates a new trace with newer llama-index-core",
+    "MLflow tracing LlamaIndex streaming chat is incomplete after llama-index-core upgrade"
+  ],
+  "body": "Symptom: With llama-index-core 0.14.25+, streamed query/chat responses produce a second trace, or the original streaming trace stays unfinished.\nRoot cause: mlflow/llama_index/tracer.py:StreamResolver.register_stream_span. LlamaIndex clears its span context before its deferred generator resumes, so spans created while chunks are pulled have no parent. MlflowSpanHandler.new_span only looked up open_spans, not _pending_spans, so pending parents were ignored.\nFix pattern: wrap the deferred generator with StreamResolver._with_span_context so every next()/__anext__() runs inside _stream_span_context, which restores the MLflow span and the LlamaIndex active_span_id for that step only. Make MlflowSpanHandler.new_span resolve the parent from _pending_spans as well as open_spans.\nConstraints: applies only to StreamingResponse/AsyncStreamingResponse results. If the generator belongs to an already-pending child, the innermost pending span is used as the context. Without llama_index.core.instrumentation.span.active_span_id (older releases) the LlamaIndex context is skipped.",
+  "applies": "Any change to LlamaIndex streaming result handling or span parenting in mlflow/llama_index/tracer.py.",
+  "tags": [
+    "llama_index",
+    "tracing",
+    "streaming",
+    "context"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "StreamResolver._with_span_context",
+      "hash": "sha256:9f6475b67cd7f0ceb43cc9f4",
+      "line": 699,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f6475b67cd7f0ceb43cc9f4",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "_stream_span_context",
+      "hash": "sha256:0cb02181fb889a27ce628bc6",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0cb02181fb889a27ce628bc6",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "MlflowSpanHandler.new_span",
+      "hash": "sha256:9805063a7fbe5148428551af",
+      "line": 207,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9805063a7fbe5148428551af",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "StreamResolver.register_stream_span",
+      "hash": "sha256:1ee90df7dabad577b58181b0",
+      "line": 641,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1ee90df7dabad577b58181b0",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/llama_index/test_llama_index_tracer.py",
+      "symbol": "test_stream_resolver_restores_pending_parent_context",
+      "hash": "sha256:8dc0f19d16c05fb9ae03d0ab",
+      "line": 888,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8dc0f19d16c05fb9ae03d0ab",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26293"
+  },
+  "created": "2026-10-11T10:23:47.938Z",
+  "verified": "2026-10-11T10:23:47.938Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-and-llamaindex-span-contexts-must-be-attached-and-res",
+    "mlflowspanhandler-open-spans-and-pending-spans-are-guarded-b"
+  ],
+  "says": [
+    "Streaming chat responses split into multiple separate traces in the trace UI.",
+    "The trace timeline for streaming queries stays open indefinitely and never finishes.",
+    "Streaming query traces appear fragmented into two separate entries in the experiment view.",
+    "Streaming chat interactions do not nest properly under the parent trace in tracking."
+  ],
+  "search": "In mlflow/llama_index/tracer.py, StreamResolver._with_span_context wraps deferred streaming generators so _stream_span_context restores span context during iteration. MlflowSpanHandler.new_span resolves parent spans from both open_spans and _pending_spans for StreamingResponse and AsyncStreamingResponse results, using the innermost pending span when applicable. Restoring the LlamaIndex active_span_id is skipped if llama_index.core.instrumentation.span.active_span_id is unavailable on older versions.",
+  "saysFor": "s2:6fda5a43a554d408e302a75057c5aa51ba415cac5cfb28332a76f434cf871cdf"
+}

@@ -1,0 +1,85 @@
+{
+  "id": "suppress-session-level-aggregates-when-a-grouped-table-page",
+  "title": "Suppress session-level aggregates when a grouped table page may be incomplete",
+  "kind": "rule",
+  "answers": [
+    "grouped session header shows wrong token total across pages",
+    "collapsed session total is lower than real when session spans pages",
+    "why is the session row token count blank on paginated traces",
+    "partial session aggregate in traces table with pagination"
+  ],
+  "body": "Symptom: A collapsed session row in the grouped Traces table shows a token total smaller than the real session total when the session's traces are split across result pages.\nRoot cause: TracesTable.tsx:TracesTable sums session column aggregates (sessionCellRenderers) over only the traces loaded on the current page; grouped V4 queries are capped at 500 traces, so a session can straddle pages.\nFix pattern: Derive a completeness flag in TracesV4PageContent.tsx:TracesV4PageContent (controller.isGroupedBySession && (page.hasNext || page.hasPrev)) and pass it as sessionsMayBeIncomplete through TracesTableView.tsx:TracesTableView to TracesTable, which renders null instead of calling the session renderer.\nConstraints: Applies to every session-level aggregate in grouped mode; per-trace cells are unaffected. Blank is chosen over a partial number, mirroring the onToggleBulkRows suppression. The PR does not show when the flag can be lifted for a single-page session.",
+  "applies": "Grouped-by-session traces table in the V4 experiment traces page and any shared table consumer that sets isGroupedBySession.",
+  "tags": [
+    "traces-table",
+    "grouped-sessions",
+    "pagination",
+    "tokens"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TracesTable.tsx",
+      "symbol": "TracesTable",
+      "hash": "sha256:a0052e6205de0a5ab67233b1",
+      "line": 318,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a0052e6205de0a5ab67233b1",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4PageContent.tsx",
+      "symbol": "TracesV4PageContent",
+      "hash": "sha256:1a546cf4772b14cdf82086b8",
+      "line": 63,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1a546cf4772b14cdf82086b8",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/traces-table/TracesTableView.tsx",
+      "symbol": "TracesTableView",
+      "hash": "sha256:1dc9f7e9c70884e5f40d7f82",
+      "line": 130,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1dc9f7e9c70884e5f40d7f82",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25608"
+  },
+  "created": "2026-10-11T08:43:24.517Z",
+  "verified": "2026-10-11T08:43:24.517Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "register-session-header-aggregates-per-column-via-rendersess"
+  ],
+  "says": [
+    "Grouped session headers in the traces table show incorrect token totals across multiple pages.",
+    "Collapsed session rows display token sums smaller than the real total when paginated.",
+    "Why is the session summary token count blank on paginated traces tables?",
+    "Hide incomplete session aggregate numbers when traces for a session span across pages.",
+    "Session-level token totals in the grouped experiment traces view appear inaccurate after pagination."
+  ],
+  "search": "In the V4 experiment traces table and shared grouped tables, suppress session-level column aggregates by rendering null when sessions may span across result pages. TracesV4PageContent.tsx derives sessionsMayBeIncomplete from controller.isGroupedBySession and page navigation flags, passing it via TracesTableView.tsx to TracesTable.tsx. This prevents displaying partial session token sums caused by page limits, applying to all session aggregates while leaving per-trace cells intact.",
+  "saysFor": "s2:4cfefce548f21285bbf62478da2685f8aa8b648ae656ecd3981268b182a9b019"
+}

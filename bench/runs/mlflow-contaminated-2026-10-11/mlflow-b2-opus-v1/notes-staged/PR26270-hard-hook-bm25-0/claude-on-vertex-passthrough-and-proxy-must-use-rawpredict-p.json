@@ -1,0 +1,89 @@
+{
+  "id": "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p",
+  "title": "Claude-on-Vertex passthrough and proxy must use rawPredict paths with anthropic_version in the body",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI Claude passthrough rejected because model is in the request body",
+    "Anthropic messages proxy on Vertex returns 404 or wrong URL",
+    "Vertex Claude streaming passthrough hits wrong endpoint",
+    "Gateway proxy for non-messages path on Claude Vertex endpoint"
+  ],
+  "body": "Symptom: Anthropic-format passthrough or proxy calls to a Claude model on Vertex AI fail, because the request goes to the wrong URL or carries a model field that Vertex rejects.\nRoot cause: AnthropicProvider._passthrough posts to base_url + \"messages\" with the model in the body. AnthropicProvider._proxy runs proxy_root_url() on the base URL and strips the /models segment.\nFix pattern: _VertexAIClaudeProvider._passthrough calls _prepare_payload, then _get_passthrough_path (_get_chat_path or _get_chat_stream_path, chosen by payload stream flag). It posts to {model}:rawPredict or :streamRawPredict with anthropic_version in the body and no model field. _VertexAIClaudeProvider._proxy maps v1/messages onto the same paths and returns 501 for any other path.\nConstraints: Vertex exposes only the Messages API for Claude, so other proxy paths must return 501 rather than be appended to base_url. MaaS models do not use this path; their raw proxy still goes through proxy_root_url() and is handled separately.",
+  "applies": "Changes to Anthropic-format request URL, body, or proxy path mapping for Claude models on Vertex AI.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "anthropic",
+    "passthrough",
+    "proxy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._passthrough",
+      "hash": "sha256:5d6392e4e9f534d73f30587f",
+      "line": 221,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5d6392e4e9f534d73f30587f",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._proxy",
+      "hash": "sha256:e32f29c87d3127d7a36c7681",
+      "line": 250,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e32f29c87d3127d7a36c7681",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._get_passthrough_path",
+      "hash": "sha256:41645719920e4810474201ad",
+      "line": 218,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:41645719920e4810474201ad",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T10:32:47.012Z",
+  "verified": "2026-10-11T10:32:47.012Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla",
+    "vertex-ai-claude-passthrough-must-filter-client-anthropic-be",
+    "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the",
+    "vertex-delegates-always-drop-the-client-s-auth-headers-befor"
+  ],
+  "says": [
+    "Claude calls routed through the AI gateway on Vertex fail with invalid model errors.",
+    "Streaming Claude completions through the gateway target the wrong endpoint on Google Cloud.",
+    "Anthropic format requests forwarded to Vertex return not found or invalid URL errors.",
+    "The AI gateway should reject proxy requests outside the messages API for Claude.",
+    "Allow direct Claude requests through the gateway without rejecting the model payload."
+  ],
+  "search": "Claude on Vertex AI passthrough and proxy routing must target rawPredict or streamRawPredict endpoints with anthropic_version in the request body and no model field. This applies to changes in mlflow/gateway/providers/vertex_ai.py (_VertexAIClaudeProvider._passthrough, _VertexAIClaudeProvider._proxy, and _VertexAIClaudeProvider._get_passthrough_path) when modifying Anthropic-format request URLs, bodies, or proxy path mappings. Vertex exposes only the Messages API for Claude so other proxy paths must return 501, whereas MaaS models are handled separately via proxy_root_url().",
+  "saysFor": "s2:fe0d5e038f4ebc7265db621eaaafea8e42d456f393f6c3889ffa80009cb64fe6"
+}

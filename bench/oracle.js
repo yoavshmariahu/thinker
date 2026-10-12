@@ -29,6 +29,31 @@ export function testGreen(output, exitCode) {
   return !TEST_FAILED.test(o) && /passed|ok\b|PASS/.test(o);
 }
 
+// Puts a benchmark worktree back to its base between sessions. `git reset --hard` and not
+// `git checkout -- .`: the oracle's `git apply --3way` stages the gold tests (--3way implies
+// --index), and a checkout restores the working tree from that index, so the next sessions in the
+// worktree found the answer key with `git diff --cached` (mlflow, 2026-10-11: 121 of 152 Opus
+// sessions and the third and fourth Codex session of every task). `-x` also drops ignored
+// leftovers such as a tracking database.
+export function resetWorktree(wt) {
+  execFileSync('git', ['reset', '-q', '--hard'], { cwd: wt, stdio: 'ignore' });
+  execFileSync('git', ['clean', '-qfdx'], { cwd: wt, stdio: 'ignore' });
+  execFileSync('git', ['diff', '--cached', '--quiet'], { cwd: wt, stdio: 'ignore' });  // throws when anything is still staged
+}
+
+// The names of the tests the gold diff adds; a session that saw one had the answer key.
+export function goldTestNames(task) {
+  if (!task.goldDiff) return [];
+  const diff = fs.readFileSync(path.join(HERE, '..', task.goldDiff), 'utf8');
+  const hunks = diff.split(/^(?=diff --git )/m).filter(h => { const m = h.match(/^diff --git a\/(\S+) b\/(\S+)/); return m && isTestPath(m[2]); }).join('');
+  return [...new Set([...hunks.matchAll(/^\+\s*(?:async\s+)?def (test_\w+)/gm)].map(m => m[1]))];
+}
+// The gold test names that appear in a session's transcript or event stream: [] for a clean session.
+export function goldTestsSeen(task, text) {
+  const t = String(text || '');
+  return goldTestNames(task).filter(n => t.includes(n));
+}
+
 // The task's own tests, as the merged change left them, put into the worktree over whatever the
 // agent did to those files, so the oracle is the same for every arm. Other test files the agent
 // wrote stay. Hunks come from the stored gold diff.

@@ -1,0 +1,47 @@
+{
+  "session_id": "01a12a77-8a90-7040-8ebd-141f702c3a91",
+  "turns": 1,
+  "in_tokens": 187628,
+  "cached_tokens": 168320,
+  "out_tokens": 1907,
+  "wall_ms": 62397,
+  "result": "I’ll check both provider adapters, update the tool-choice translation, and run focused tests. I’m using the repository’s Python style skill for this change.\nClaude on Vertex uses the shared Anthropic adapter, so one change will cover both providers and streaming requests. I’ll add regression cases for named, automatic, required, disabled, and omitted tool choices, with `parallel_tool_calls` set to false, true, null, or omitted.\nThe fix and regression tests are in place. The focused test files could not collect because the environment lacks `slowapi`; I won’t install it, per your instruction. I’ll check the adapter behavior directly using the existing environment.\nUpdated the shared Anthropic adapter, covering Anthropic and Claude on Vertex:\n\n- Always removes `parallel_tool_calls`.\n- When false, adds `disable_parallel_tool_use: true` to named, automatic, or required tool choices.\n- Leaves disabled or omitted tool choices unchanged.\n\nAdded regression tests covering both providers and streaming paths. All 80 direct adapter checks passed. Focused pytest files were blocked by missing `slowapi`; no dependencies were installed.",
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "command_execution": 6,
+      "file_change": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [],
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "hook",
+  "task": "PR26523-hard",
+  "rep": 0,
+  "area": "mlflow/gateway",
+  "id": "PR26523-hard-hook-0",
+  "session": "01a12a77-8a90-7040-8ebd-141f702c3a91",
+  "cost": 0.45675,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py\nindex e2918bfb1..b0d5c8eed 100644\n--- a/mlflow/gateway/providers/anthropic.py\n+++ b/mlflow/gateway/providers/anthropic.py\n@@ -288,6 +288,11 @@ class AnthropicAdapter(ProviderAdapter):\n                 case {\"type\": \"function\", \"function\": {\"name\": name}}:\n                     payload[\"tool_choice\"] = {\"type\": \"tool\", \"name\": name}\n \n+        if payload.pop(\"parallel_tool_calls\", None) is False:\n+            match payload.get(\"tool_choice\"):\n+                case {\"type\": \"auto\" | \"any\" | \"tool\"} as tool_choice:\n+                    tool_choice[\"disable_parallel_tool_use\"] = True\n+\n         # Transform response_format for Anthropic structured outputs\n         # Anthropic uses output_config.format with {\"type\": \"json_schema\", \"schema\": {...}}\n         if response_format := payload.pop(\"response_format\", None):\ndiff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py\nindex 24cd52cff..cf09fb565 100644\n--- a/tests/gateway/providers/test_anthropic.py\n+++ b/tests/gateway/providers/test_anthropic.py\n@@ -19,6 +19,7 @@ from mlflow.gateway.providers.anthropic import (\n     _UnsupportedSchemaError,\n )\n from mlflow.gateway.providers.base import PassthroughAction, _client_provides_auth\n+from mlflow.gateway.providers.vertex_ai import _VertexAIClaudeAdapter\n from mlflow.gateway.schemas import chat, completions, embeddings\n \n from tests.gateway.tools import MockAsyncResponse, MockAsyncStreamingResponse, mock_http_client\n@@ -555,6 +556,44 @@ async def test_chat_function_calling_with_tool_choice(openai_tool_choice, anthro\n         assert call_kwargs[\"json\"][\"tool_choice\"] == anthropic_tool_choice\n \n \n+@pytest.mark.parametrize(\"adapter\", [AnthropicAdapter, _VertexAIClaudeAdapter])\n+@pytest.mark.parametrize(\"streaming\", [False, True])\n+@pytest.mark.parametrize(\"parallel_tool_calls\", [False, True, None, \"omitted\"])\n+@pytest.mark.parametrize(\n+    (\"tool_choice\", \"expected_tool_choice\"),\n+    [\n+        (None, None),\n+        (\"none\", {\"type\": \"none\"}),\n+        (\"auto\", {\"type\": \"auto\"}),\n+        (\"required\", {\"type\": \"any\"}),\n+        (\n+            {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n+            {\"type\": \"tool\", \"name\": \"get_weather\"},\n+        ),\n+    ],\n+)\n+def test_chat_parallel_tool_calls(\n+    adapter, streaming, parallel_tool_calls, tool_choice, expected_tool_choice\n+):\n+    payload = chat_function_calling_payload()\n+    if tool_choice is not None:\n+        payload[\"tool_choice\"] = tool_choice\n+    if parallel_tool_calls != \"omitted\":\n+        payload[\"parallel_tool_calls\"] = parallel_tool_calls\n+\n+    transform = adapter.chat_streaming_to_model if streaming else adapter.chat_to_model\n+    result = transform(payload, EndpointConfig(**chat_config()))\n+\n+    assert \"parallel_tool_calls\" not in result\n+    if expected_tool_choice is None:\n+        assert \"tool_choice\" not in result\n+    else:\n+        expected = dict(expected_tool_choice)\n+        if parallel_tool_calls is False and tool_choice != \"none\":\n+            expected[\"disable_parallel_tool_use\"] = True\n+        assert result[\"tool_choice\"] == expected\n+\n+\n def test_model_to_chat_content_normalization():\n     config = chat_config()\n     provider = AnthropicProvider(EndpointConfig(**config))\ndiff --git a/tests/utils/test_proto_json_utils.py b/tests/utils/test_proto_json_utils.py\nindex c60c3c131..4f23d9016 100644\n--- a/tests/utils/test_proto_json_utils.py\n+++ b/tests/utils/test_proto_json_utils.py\n@@ -22,6 +22,7 @@ from mlflow.utils.proto_json_utils import (\n     cast_df_types_according_to_schema,\n     dataframe_from_parsed_json,\n     dataframe_from_raw_json,\n+    dump_input_data,\n     message_to_json,\n     parse_dict,\n     parse_tf_serving_input,\n@@ -30,6 +31,35 @@ from mlflow.utils.proto_json_utils import (\n from tests.protos.test_message_pb2 import SampleMessage\n \n \n+@pytest.mark.parametrize(\n+    (\"data\", \"expected\"),\n+    [\n+        ({\"x\": np.array([1, 2])}, {\"inputs\": {\"x\": [1, 2]}}),\n+        (\n+            {\"ab\": np.array([[1, 2], [3, 4]]), \"column\": np.array([5.0])},\n+            {\"inputs\": {\"ab\": [[1, 2], [3, 4]], \"column\": [5.0]}},\n+        ),\n+    ],\n+)\n+def test_dump_input_data_dict(data, expected):\n+    assert json.loads(dump_input_data(data)) == expected\n+\n+\n+def test_dump_input_data_dict_with_custom_key_and_params():\n+    data = {\"x\": np.array([1, 2])}\n+    assert json.loads(\n+        dump_input_data(data, inputs_key=\"instances\", params={\"temperature\": 0.5})\n+    ) == {\n+        \"instances\": {\"x\": [1, 2]},\n+        \"params\": {\"temperature\": 0.5},\n+    }\n+\n+\n+def test_dump_input_data_dict_rejects_unsupported_value():\n+    with pytest.raises(MlflowException, match=\"Incompatible input type:.* for input x\"):\n+        dump_input_data({\"x\": [1, 2]})\n+\n+\n def test_message_to_json():\n     json_out = message_to_json(Experiment(\"123\", \"name\", \"arty\", \"active\").to_proto())\n     assert json.loads(json_out) == {\n",
+  "grade": {
+    "tests": "pass",
+    "testTail": "n a future release.  This option produces incorrect results by returning ``None`` for related items. (deprecated since: 2.1) (This warning originated from the `configure_mappers()` process, which was invoked automatically in response to a user-initiated operation.)\n    num_metric_entries = session.query(SqlMetric).count()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============================= slowest 10 durations =============================\n0.95s setup    tests/gateway/providers/test_anthropic_adapter.py::test_chat_parallel_tool_calls[auto-False-expected_tool_choice0]\n\n(9 durations < 0.005s hidden.  Use -vv to show these durations.)\n\u001b[33m========================= \u001b[32m6 passed\u001b[0m, \u001b[33m\u001b[1m1 warning\u001b[0m\u001b[33m in 1.00s\u001b[0m\u001b[33m =========================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 1,
+    "touched": 1,
+    "missing": []
+  },
+  "fresh_in_tokens": 19308,
+  "costBasis": "list price from token classes"
+}

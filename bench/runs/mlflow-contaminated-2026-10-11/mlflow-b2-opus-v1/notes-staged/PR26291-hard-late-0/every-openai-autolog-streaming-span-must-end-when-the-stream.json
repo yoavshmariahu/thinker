@@ -1,0 +1,71 @@
+{
+  "id": "every-openai-autolog-streaming-span-must-end-when-the-stream",
+  "title": "Every OpenAI autolog streaming span must end when the stream stops yielding",
+  "kind": "rule",
+  "answers": [
+    "every streamed OpenAI call must produce a trace even on error",
+    "span never ended for streaming OpenAI response",
+    "trace dropped after OpenAI stream finishes or errors"
+  ],
+  "body": "Invariant: each span OpenAI autolog starts for a streaming response must be ended once the wrapped stream stops yielding, whether it completes normally or raises.\nEnforced in mlflow/openai/autolog.py:_stream_output_logging_hook (sync and async); both the success path (_process_last_chunk) and the exception path (_end_span_on_exception) must end the span.\nWhat breaks if skipped: the span stays open, so a root-level call is never exported and the trace lingers until timeout.\nConstraints: early consumer stop (break / close(), GeneratorExit) is intentionally not covered by this invariant.",
+  "applies": "Any new or changed streaming wrapper in the OpenAI autolog integration, including the Responses API path.",
+  "tags": [
+    "openai",
+    "autolog",
+    "tracing",
+    "streaming",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_stream_output_logging_hook",
+      "hash": "sha256:80def39bcaacc0fecf39ddfb",
+      "line": 345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80def39bcaacc0fecf39ddfb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_process_last_chunk",
+      "hash": "sha256:0826621cbeae96a7def70f07",
+      "line": 385,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0826621cbeae96a7def70f07",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26305"
+  },
+  "created": "2026-10-11T10:26:04.457Z",
+  "verified": "2026-10-11T10:26:04.457Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openai-autolog-streaming-span-left-open-when-the-stream-rais",
+    "openai-autolog-stream-hook-must-bind-loop-variable-before-th"
+  ],
+  "says": [
+    "Traces for streamed model responses stay open and time out instead of finishing.",
+    "Streaming generation calls never appear in the trace log when an error occurs.",
+    "Completed streaming requests linger indefinitely instead of closing their execution trace.",
+    "Ensure streaming responses immediately export their run trace once the output finishes."
+  ],
+  "search": "Spans started by OpenAI autolog for streaming responses must be explicitly closed in mlflow/openai/autolog.py:_stream_output_logging_hook when the wrapped stream stops yielding. Both the normal completion path in _process_last_chunk and the exception path in _end_span_on_exception must end the span, otherwise root-level calls are never exported and linger until timeout. The rule applies to sync and async streaming wrappers including the Responses API path, but intentionally excludes early consumer stops via GeneratorExit, break, or close().",
+  "saysFor": "s2:c38aedcbebe910a4d671b84e2a761acb8374332344a73546f1b88cfa7de4fcb3"
+}

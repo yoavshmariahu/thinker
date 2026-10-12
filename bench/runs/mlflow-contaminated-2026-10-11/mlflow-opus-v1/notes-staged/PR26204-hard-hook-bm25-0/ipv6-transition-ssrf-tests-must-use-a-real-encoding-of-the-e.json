@@ -1,0 +1,69 @@
+{
+  "id": "ipv6-transition-ssrf-tests-must-use-a-real-encoding-of-the-e",
+  "title": "IPv6-transition SSRF tests must use a real encoding of the embedded IPv4",
+  "kind": "rule",
+  "answers": [
+    "how to write a test for IPv6 6to4 SSRF handling",
+    "test for NAT64 webhook blocking passes even without the fix",
+    "which IPv6 address to use in webhook SSRF tests",
+    "mock assertion rule for SSRF validation tests"
+  ],
+  "body": "Convention: Test cases for transition-address handling use an address that `ipaddress` actually decodes, e.g. 6to4 `2002:a9fe:a9fe::` for 169.254.169.254 (`.sixtofour` returns it), not a documentation-prefix address such as 2001:db8::/32.\nWhy: documentation-prefix addresses are already non-public and have `sixtofour=None`, so the test passes even if the decoding branch is removed (raised in review and verified load-bearing in 295d1e0).\nMocks: each `mock.patch` in these tests (`socket.getaddrinfo`, `socket.socket.getpeername`) is captured and asserted called, per the repo's mock-assertion rule.\nPositive cases such as `::ffff:8.8.8.8` and `2001:4860:4860::8888` belong alongside the blocked cases so the test fails on over-blocking too.",
+  "applies": "Tests for webhook URL validation and the connection-time SSRF guard.",
+  "tags": [
+    "testing",
+    "ssrf",
+    "webhooks",
+    "ipv6",
+    "mocks"
+  ],
+  "deps": [
+    {
+      "path": "tests/utils/test_validation.py",
+      "symbol": "test_validate_public_https_url_rejects_ipv6_transition_addresses_with_private_ipv4",
+      "hash": "sha256:32ea62ff80cd0facb1b23f37",
+      "line": 802,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:32ea62ff80cd0facb1b23f37",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/webhooks/test_ssrf.py",
+      "symbol": "test_ipv6_transition_addresses_embedding_private_ipv4_are_blocked",
+      "hash": "sha256:be8bc515547162c868930e81",
+      "line": 142,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:be8bc515547162c868930e81",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25568"
+  },
+  "created": "2026-10-11T08:43:43.400Z",
+  "verified": "2026-10-11T08:43:43.400Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Outgoing webhooks reach internal cloud metadata endpoints when using IPv6 transition formats.",
+    "Webhook endpoint validation should block embedded private network addresses disguised in IPv6.",
+    "Webhook delivery security fails to catch internal server destinations wrapped in transition formats.",
+    "Valid public IPv6 webhook destinations are incorrectly rejected by outgoing security checks."
+  ],
+  "search": "Tests for webhook URL validation and connection-time SSRF guards handling IPv6 transition addresses must use real decodable addresses such as 6to4 2002:a9fe:a9fe:: for 169.254.169.254 rather than documentation-prefix addresses like 2001:db8::/32. Documentation prefixes already count as non-public with sixtofour returning None, allowing tests to pass even if decoding branches are removed. Per repo mock-assertion rules, every mock.patch on socket.getaddrinfo and socket.socket.getpeername must be captured and asserted called. Positive cases including ::ffff:8.8.8.8 and 2001:4860:4860::8888 must be included alongside blocked cases to detect over-blocking in tests/utils/test_validation.py and tests/webhooks/test_ssrf.py.",
+  "saysFor": "s2:3f85597e2e624c4a5d880f3ceeb12fe4b3250f76d5d4318ffad88a876fc5b0d3"
+}

@@ -1,0 +1,73 @@
+{
+  "id": "sanitize-value-cycle-guard-and-fail-closed-placeholder-for-a",
+  "title": "_sanitize_value cycle guard and fail-closed placeholder for autolog serialization",
+  "kind": "rule",
+  "answers": [
+    "crewai autolog infinite recursion Agent Crew cycle",
+    "what does crewai sanitizer return on error",
+    "why does crewai trace show omitted sanitization failed",
+    "agent.crew circular reference in crewai trace"
+  ],
+  "body": "Invariant: _sanitize_value walks pydantic models recursively, so it must keep a reference-cycle guard. Agent.crew -> Crew.agents -> Agent is a real cycle, and the back-reference is replaced by the class name string \"Agent\".\nFail-closed: if walking a value raises, _sanitize_value returns the placeholder \"<dict: omitted, sanitization failed>\" instead of the raw value, so a sanitizer error cannot leak the original object into the trace.\nEnforced in: mlflow/crewai/autolog.py:_sanitize_value, covered by tests test_sanitize_value_handles_reference_cycles and test_sanitize_value_fails_closed_when_sanitization_raises in tests/crewai/test_crewai_autolog.py.\nBreaks if skipped: infinite recursion on Agent/Crew graphs, or raw credentials emitted when a sanitizer error is swallowed.",
+  "applies": "Applies to any change to the recursive sanitizer or to new CrewAI object types that are attached to spans.",
+  "tags": [
+    "tracing",
+    "crewai",
+    "security",
+    "autologging",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_sanitize_value",
+      "hash": "sha256:146957bfaa024d59b079b2f4",
+      "line": 491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:146957bfaa024d59b079b2f4",
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/crewai/test_crewai_autolog.py",
+      "symbol": "test_sanitize_value_handles_reference_cycles",
+      "hash": "sha256:25aa2562787b5b43bf983ebc",
+      "line": 886,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:25aa2562787b5b43bf983ebc",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25845"
+  },
+  "created": "2026-10-11T08:46:52.165Z",
+  "verified": "2026-10-11T08:46:52.165Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "crewai-autolog-leaked-llm-api-key-into-agent-crew-span-attri",
+    "credential-key-filter-must-run-on-the-key-before-the-value-i"
+  ],
+  "says": [
+    "Agent run tracing freezes indefinitely when logging multi-agent workflows with mutual references.",
+    "Traces display an omitted sanitization failed message instead of capturing the agent output.",
+    "Prevent automated tracing from leaking sensitive credentials into execution traces when serialization fails.",
+    "Trace logging hangs on infinite loops when recording interactions between agents and crews.",
+    "Show sanitized placeholders in the trace viewer whenever scrubbing agent run metadata fails."
+  ],
+  "search": "_sanitize_value in mlflow/crewai/autolog.py must maintain a reference-cycle guard when recursively walking Pydantic models and fail closed on errors. Circular references like Agent.crew to Crew.agents to Agent replace the back-reference with the string 'Agent' to prevent infinite recursion. If value walking raises, it returns the placeholder '<dict: omitted, sanitization failed>' to prevent leaking raw objects or credentials into traces, applying to sanitizer changes and new CrewAI span objects.",
+  "saysFor": "s2:a8e44bcef3cb941233547e9693c16759da65a1df809c776683409fd9df5bdfbe"
+}

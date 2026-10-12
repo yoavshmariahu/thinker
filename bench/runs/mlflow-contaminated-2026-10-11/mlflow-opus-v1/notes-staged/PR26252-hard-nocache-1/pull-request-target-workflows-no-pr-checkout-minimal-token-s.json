@@ -1,0 +1,45 @@
+{
+  "id": "pull-request-target-workflows-no-pr-checkout-minimal-token-s",
+  "title": "pull_request_target workflows: no PR checkout, minimal token, serialized per PR",
+  "kind": "rule",
+  "answers": [
+    "can stack nudge check out the PR branch",
+    "pull_request_target workflow permissions",
+    "why is the nudge workflow concurrency queued",
+    "safe way to comment on fork PRs from a workflow"
+  ],
+  "body": "Invariant: the Stack Nudge workflow runs on `pull_request_target` but does not check out the repository or PR code. It only runs inline bash and `gh` against the PR number and repo.\nEnforced in: .github/workflows/stack-nudge.yml (no checkout step; top-level `permissions: {}`; job-level `permissions: pull-requests: write`; `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` on the Nudge step).\nWhat breaks if skipped: checking out PR head under `pull_request_target` runs untrusted PR code with a write-scoped token and repository secrets.\nOrdering: `concurrency` is keyed per PR number, with `cancel-in-progress: false` and `queue: max`, so runs for successive edits are queued and not cancelled. This keeps the dedupe check and the comment post from racing on the same PR.",
+  "applies": "Any new or edited workflow triggered by pull_request_target in this repository.",
+  "tags": [
+    "github-actions",
+    "security",
+    "pull_request_target",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-11T08:46:46.324Z",
+  "verified": "2026-10-11T08:46:46.324Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Ensure automated PR reminder comments on external forks cannot execute untrusted contributor code.",
+    "Stack nudge bot posts overlapping duplicate comments when an author pushes several commits quickly.",
+    "Queue automated stack suggestions sequentially per pull request instead of cancelling intermediate updates.",
+    "Limit automated bot permissions so pull request nudges only have write access for comments."
+  ],
+  "search": "Workflows triggered by pull_request_target, such as .github/workflows/stack-nudge.yml, must not check out the repository or PR head code to avoid executing untrusted code with write permissions. The workflow configures top-level permissions: {}, job-level permissions: pull-requests: write, and passes GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} to an inline bash and gh step. Concurrency is keyed per PR number with cancel-in-progress: false and queue: max so runs for successive edits queue without racing.",
+  "saysFor": "s2:23a63797e93286b284f3f9ede1d792649529bedbd39d03250084c6ae893adb7d"
+}

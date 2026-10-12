@@ -1,0 +1,52 @@
+{
+  "id": "guard-a-while-read-over-a-herestring-with-n-when-the-input-m",
+  "title": "Guard a while-read over a herestring with [ -n ] when the input may be empty",
+  "kind": "rule",
+  "answers": [
+    "rerun workflow calls gh run rerun with an empty id when no checks qualify",
+    "bash while read loop runs once on an empty herestring",
+    "spurious 'Failed to rerun' log in the approval rerun workflow when no jobs failed"
+  ],
+  "body": "Symptom: when no check runs qualify for rerun, the approval rerun workflow logs a rerun line with no run ID and a 'Failed to rerun' message, even though nothing failed.\nRoot cause: .github/workflows/rerun-workflow-run.yml (rerun step, the `rows=$(...)` capture read by `while read -r id name ... done <<< \"$rows\"`): a herestring of an empty string still feeds one empty line to `read`, so the loop body runs once with an empty id.\nFix pattern: wrap the read loop in `if [ -n \"$rows\" ]; then ... fi`, so empty command output makes no `rerun` calls.\nConstraints: only needed when the captured variable can be empty; non-empty output is unaffected. Applies to loops over command-substitution output in this workflow; the symptom wording is inferred from the guard's stated purpose, not a reported incident.",
+  "applies": "Shell loops over captured command output in .github/workflows/rerun-workflow-run.yml only.",
+  "tags": [
+    "github-actions",
+    "bash",
+    "rerun-workflow",
+    "shell-loop"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "symbol": "rows",
+      "hash": "sha256:3d19ae1622882750d3673ac6",
+      "line": 69,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25591"
+  },
+  "created": "2026-10-11T08:50:18.666Z",
+  "verified": "2026-10-11T08:50:18.666Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "rerun-job-submits-each-workflow-run-once-and-runs-protect-la"
+  ],
+  "says": [
+    "Approval rerun workflow displays a failed rerun error even though no checks failed.",
+    "Build logs show an empty job rerun attempt when all checks have already passed.",
+    "Stop logging spurious rerun failure warnings when no workflow runs require retry."
+  ],
+  "search": "In .github/workflows/rerun-workflow-run.yml, wrap the while-read loop over captured command herestring rows in if [ -n \"$rows\" ]; then ... fi. This prevents running an iteration with an empty run ID and logging a spurious 'Failed to rerun' message when no check runs qualify. Applies only to loops over captured command-substitution output in .github/workflows/rerun-workflow-run.yml where the variable can be empty.",
+  "saysFor": "s2:95a5b34ba513ba53bd316a2c07690a3d8ed994a700d53d0b35862d67b3b0cb6e"
+}

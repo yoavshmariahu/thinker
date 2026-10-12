@@ -1,0 +1,66 @@
+{
+  "id": "dev-function-signature-check-is-linux-only-skip-its-tests-on",
+  "title": "dev/ function-signature check is Linux-only; skip its tests on Windows instead of adding Windows path handling",
+  "kind": "rule",
+  "answers": [
+    "Why does the function signature test skip on Windows?",
+    "How do I handle Windows paths in dev/check_function_signatures.py?",
+    "Should I add Windows path support to the function signature checker?",
+    "Why is test_check_function_signatures skipped on win32?"
+  ],
+  "body": "Convention: the function-signature compatibility check runs only in the Ubuntu lint job, so its test module is skipped on Windows via a module-level pytestmark skipif on sys.platform == \"win32\".\nWhere: tests/dev/test_check_function_signatures.py:pytestmark gates the whole module; dev/check_function_signatures.py:check_signature_compatibility is left unchanged.\nFix pattern: when a dev/ lint script's tests fail on Windows, skip the module with a reason string rather than adding Windows-specific path logic (e.g. normalizing git object specs or WindowsPath handling) to the script.\nConstraints: this was a CI-driven choice. It applies only while the script is not executed on Windows runners. If the check is ever wired into a Windows job, the skip must be removed and Windows path behavior (such as forward-slash git object specs like HEAD^1:mlflow/foo.py) needs real coverage.",
+  "applies": "Applies to dev/check_function_signatures.py and its tests under tests/dev/; not to product code under mlflow/.",
+  "tags": [
+    "testing",
+    "windows",
+    "ci",
+    "dev-scripts",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/dev/test_check_function_signatures.py",
+      "symbol": "pytestmark",
+      "hash": "sha256:9aebc85110f80cbe9ebeef40",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 46,
+        "sites": 0,
+        "refs": 46
+      }
+    },
+    {
+      "path": "dev/check_function_signatures.py",
+      "symbol": "check_signature_compatibility",
+      "hash": "sha256:b0ee1cfb3f412e93d5e7b75f",
+      "line": 117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b0ee1cfb3f412e93d5e7b75f",
+      "fanout": {
+        "files": 2,
+        "sites": 19,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25765"
+  },
+  "created": "2026-10-11T08:47:39.632Z",
+  "verified": "2026-10-11T08:47:39.632Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Function signature compatibility verification tests are skipped on Windows development machines.",
+    "Why does the API signature compatibility check not run on Windows?",
+    "Enable API signature verification on Windows instead of skipping the test suite."
+  ],
+  "search": "Function-signature compatibility checks run only in Ubuntu lint jobs, gating tests/dev/test_check_function_signatures.py with a module-level pytestmark skipif on sys.platform == 'win32' rather than modifying dev/check_function_signatures.py:check_signature_compatibility with Windows path logic. When dev/ lint script tests fail on Windows, developers must skip the test module with a reason string instead of introducing Windows-specific path normalization or WindowsPath handling. This rule applies strictly to dev/check_function_signatures.py and tests/dev/ tests rather than product code under mlflow/. If the check is ever executed on Windows runners, the skip must be removed to provide real coverage for forward-slash git object specs.",
+  "saysFor": "s2:34037f47ea351eec5e78ce7921bc5516405196f888a7fa83096eb0ab15b961c5"
+}

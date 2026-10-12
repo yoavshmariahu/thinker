@@ -1,0 +1,52 @@
+{
+  "id": "curl-flags-for-fetching-workflow-scripts-f-bounded-retries-t",
+  "title": "Curl flags for fetching workflow scripts: -f, bounded retries, timeouts and timing output",
+  "kind": "howto",
+  "answers": [
+    "how to curl a file in a github actions step safely",
+    "why does the script download step use -f and --retry",
+    "how to time a curl download in CI",
+    "curl flags for workflow script download"
+  ],
+  "body": "Use: curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 --write-out 'curl: %{time_total}s\\n' \"https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/workflows/<name>.js\" -o <name>.js\nNon-obvious: -f makes an HTTP error (for example a 404 for a missing script) fail the step instead of saving an error page as the .js file.\nNon-obvious: --retry 3 with --connect-timeout 10 and --max-time 30 bounds total wait so a slow raw.githubusercontent.com response cannot hang the job.\nNon-obvious: --write-out with %{time_total} reports download time in the job log, which is how the PR compared checkout latency.\nUse $GITHUB_REPOSITORY and $GITHUB_SHA as env vars in the run block, not ${{ github.sha }} interpolation, as in the approval.yml step.",
+  "applies": "Shell download steps in GitHub Actions workflows that fetch a single file from the repository at the event commit.",
+  "tags": [
+    "github-actions",
+    "curl",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/approval.yml",
+      "hash": "sha256:6e2b36e9fe16d316e1281fa8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25705"
+  },
+  "created": "2026-10-11T08:48:32.486Z",
+  "verified": "2026-10-11T08:48:32.486Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "download-target-filename-require-path-and-script-name-must-s",
+    "lightweight-api-workflows-fetch-their-script-with-curl-at-gi"
+  ],
+  "says": [
+    "Automated workflow jobs hang indefinitely when fetching scripts during pipeline runs.",
+    "The build step saves an error page instead of failing when a script is missing.",
+    "Pull request checks should record script download durations inside the step logs.",
+    "Prevent automated pipeline checks from timing out on slow script downloads."
+  ],
+  "search": "GitHub Actions workflow shell steps fetching scripts at the event commit must use curl with -fsSL, --retry 3, --connect-timeout 10, --max-time 30, and --write-out 'curl: %{time_total}s\\n'. The -f flag fails on HTTP errors to avoid writing error pages as scripts, timeout bounds prevent hanging on slow raw.githubusercontent.com responses, and timing output reports latency in job logs. Implemented in .github/workflows/approval.yml and labeling.yml using $GITHUB_REPOSITORY and $GITHUB_SHA environment variables instead of context interpolation.",
+  "saysFor": "s2:23177373085d8c2736a7c9a0a87f81d6bc2c90d55dd01b8763c7fdaf6fff91e5"
+}

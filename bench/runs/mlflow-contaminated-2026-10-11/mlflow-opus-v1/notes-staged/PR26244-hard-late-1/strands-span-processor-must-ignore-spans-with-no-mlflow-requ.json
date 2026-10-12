@@ -1,0 +1,56 @@
+{
+  "id": "strands-span-processor-must-ignore-spans-with-no-mlflow-requ",
+  "title": "Strands span processor must ignore spans with no MLflow request ID",
+  "kind": "rule",
+  "answers": [
+    "strands autolog crashes with KeyError None on shared OpenTelemetry provider",
+    "strands autologging errors when another library's spans share the tracer provider",
+    "foreign span causes KeyError in Strands tracing",
+    "Strands agent tracing breaks when OTel spans from other instrumentation are present"
+  ],
+  "body": "Symptom: With a shared OpenTelemetry provider, enabling Strands autologging raises an error when a span from other instrumentation (e.g. a remote-parent server span) is created in the same process.\nRoot cause: mlflow/strands/autolog.py:on_start calls tracer.span_processor.on_start, then reads SpanAttributeKey.REQUEST_ID. The base MLflow processor skips unknown child spans, so the attribute is None, and create_mlflow_span/register_span was still called with it, raising KeyError(None).\nFix pattern: After reading the request ID in on_start, return early when it is None, before create_mlflow_span and InMemoryTraceManager.register_span. Keep the early return inside the try/finally so the existing cleanup still runs.\nConstraints: Applies only to the Strands processor's on_start. Any new span-processing path in this area that registers spans must perform the same None check, or foreign spans will crash it.",
+  "applies": "mlflow/strands/autolog.py span processor used when MLflow shares a global OpenTelemetry tracer provider.",
+  "tags": [
+    "tracing",
+    "strands",
+    "autolog",
+    "opentelemetry",
+    "shared-provider"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/strands/autolog.py",
+      "symbol": "on_start",
+      "hash": "sha256:e2fef016a25246538fbf4010",
+      "line": 43,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e2fef016a25246538fbf4010",
+      "fanout": {
+        "files": 15,
+        "sites": 24,
+        "refs": 35
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25807"
+  },
+  "created": "2026-10-11T08:41:58.272Z",
+  "verified": "2026-10-11T08:41:58.272Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Strands autologging crashes when other tracing libraries share the same process.",
+    "Enabling agent tracing causes errors whenever foreign instrumentation spans are created.",
+    "Automatic tracing fails with missing key errors on shared OpenTelemetry tracer providers.",
+    "Ignore unrelated external spans instead of crashing during Strands agent monitoring.",
+    "Third-party server spans break Strands autologging when running in the same application."
+  ],
+  "search": "In mlflow/strands/autolog.py:on_start, the span processor must return early when SpanAttributeKey.REQUEST_ID is None before calling create_mlflow_span or InMemoryTraceManager.register_span. When sharing an OpenTelemetry tracer provider, foreign spans lack the request ID attribute and cause KeyError(None) if not skipped. The early return must remain inside try/finally to preserve cleanup, and any future span-processing path that registers spans must include the same None check.",
+  "saysFor": "s2:ab9302d9204cbf1020a7f319bb98148135711cc2f3fd6843adcc6f0aedb7973f"
+}

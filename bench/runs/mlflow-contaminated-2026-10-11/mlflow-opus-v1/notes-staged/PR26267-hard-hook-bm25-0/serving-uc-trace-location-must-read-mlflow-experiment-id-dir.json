@@ -1,0 +1,75 @@
+{
+  "id": "serving-uc-trace-location-must-read-mlflow-experiment-id-dir",
+  "title": "Serving UC trace location must read MLFLOW_EXPERIMENT_ID directly, not via _get_experiment_id",
+  "kind": "rule",
+  "answers": [
+    "Why do traces for a Unity Catalog experiment go to the inference table in Databricks Model Serving?",
+    "UC trace location not resolved in model serving, spans missing from the otel_spans table",
+    "_resolve_experiment_uc_location fails in serving because the experiment is not in the local store",
+    "Serving traces fall back to inference tables instead of UC experiment tables"
+  ],
+  "body": "Symptom: In Databricks Model Serving, traces for an experiment bound to Unity Catalog are written to the inference-table path instead of the UC-backed experiment table.\nRoot cause: mlflow/tracing/provider.py:_resolve_experiment_uc_location called _get_experiment_id(), which validates the experiment against the local tracking store. In serving that store does not contain the experiment, so the lookup fails; the surrounding try/except returns None, so resolution silently falls through to the inference-table path with no error surfaced.\nFix pattern: Branch on the serving flag and take the id from MLFLOW_EXPERIMENT_ID.get() in serving; keep _get_experiment_id() for every other environment. The serving branch is the only place that skips local validation.\nConstraints: Applies only when in_serving is true. Do not remove the local-store path for non-serving callers, and do not add local-store validation to the serving branch, or UC routing silently regresses.",
+  "applies": "mlflow/tracing/provider.py experiment-id resolution for UC trace location; serving branch only.",
+  "tags": [
+    "tracing",
+    "serving",
+    "unity-catalog",
+    "databricks",
+    "area/tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/provider.py",
+      "symbol": "_resolve_experiment_uc_location",
+      "hash": "sha256:19006da50fce71a40ff5ec8d",
+      "line": 768,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19006da50fce71a40ff5ec8d",
+      "fanout": {
+        "files": 2,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_EXPERIMENT_ID",
+      "hash": "sha256:4a558839c3a77298b9e96065",
+      "line": 542,
+      "missing": false,
+      "fanout": {
+        "files": 34,
+        "sites": 0,
+        "refs": 112
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25884"
+  },
+  "created": "2026-10-11T08:44:45.138Z",
+  "verified": "2026-10-11T08:45:38.300Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-11T08:45:38.308Z",
+      "reason": "extended by a new session",
+      "prevBody": "Symptom: In Databricks Model Serving, traces for an experiment bound to Unity Catalog are written to the inference-table path instead of the UC-backed experiment table.\nRoot cause: mlflow/tracing/provider.py:_resolve_experiment_uc_location called _get_experiment_id(), which validates the experiment against the local tracking store. In serving that store does not contain the experiment, so the lookup fails and resolution falls through to the inference-table path.\nFix pattern: Branch on the serving flag and take the id from MLFLOW_EXPERIMENT_ID.get() in serving; keep _get_experiment_id() for every other environment. The serving branch is the only place that skips local validation.\nConstraints: Applies only when in_serving is true. Do not remove the local-store path for non-serving callers, and do not add local-store validation to the serving branch, or UC routing silently regresses."
+    }
+  ],
+  "says": [
+    "Model serving traces are written to inference tables instead of catalog experiment tables.",
+    "Inference spans from deployed model endpoints are missing from catalog trace tables.",
+    "Traces for catalog experiments silently fall back to standard inference tables during serving.",
+    "Route model serving inference traces to Unity Catalog experiment tables properly.",
+    "Model serving endpoints fail to send trace data to catalog experiments."
+  ],
+  "search": "In Databricks Model Serving, mlflow/tracing/provider.py:_resolve_experiment_uc_location must read the experiment ID directly from MLFLOW_EXPERIMENT_ID.get() rather than calling _get_experiment_id(). Calling _get_experiment_id() performs local tracking store validation that fails in model serving, silently falling back to the inference-table path instead of the Unity Catalog experiment table. Skipping local-store validation is restricted to when in_serving is true, while all non-serving callers must retain the local-store path. Applies to mlflow/tracing/provider.py experiment ID resolution for Unity Catalog trace locations in the serving branch only.",
+  "saysFor": "s2:6c5fbc738d1d9a9e7663c893a13dd9abf7e7fef60df978f15eee944351a56470"
+}

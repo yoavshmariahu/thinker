@@ -1,0 +1,54 @@
+{
+  "id": "copilot-setup-cache-restores-must-mirror-lint-yml-keys-and-p",
+  "title": "Copilot setup cache restores must mirror lint.yml keys and paths; restore-only",
+  "kind": "rule",
+  "answers": [
+    "copilot setup cache miss or restore not hitting",
+    "change a lint cache key or path in the copilot setup steps",
+    "why does copilot agent setup reinstall pre-commit hooks",
+    "add a cache restore to copilot-setup-steps"
+  ],
+  "body": "Invariant: the four restore steps in copilot-setup-steps.yml (action pins, mypy, install-bin, pre-commit hooks) must use the same path and key expressions that lint.yml saves, or restores silently miss.\nEnforced by: .github/workflows/copilot-setup-steps.yml restore steps (actions/cache/restore keys and paths) and their counterparts in .github/workflows/lint.yml.\nRestore-only: do not add an actions/cache save step to copilot-setup-steps.yml; lint.yml is the sole writer of these caches.\nSetup-python here must keep pin-micro-version: false, matching lint.yml, so the interpreter matches the one the cached pre-commit environments were built under.\nBreaks if skipped: key or path drift means all restores miss or hit with stale content, pre-commit rebuilds hook environments, and the agent setup time returns to roughly 48s.",
+  "applies": "Only the Copilot setup steps workflow in mlflow/mlflow and its cache keys shared with lint.yml; not a general rule for other workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "cache",
+    "copilot",
+    "lint"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25542"
+  },
+  "created": "2026-10-11T08:51:15.878Z",
+  "verified": "2026-10-11T08:51:15.878Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-setup-pre-commit-cache-misses-when-setup-python-down"
+  ],
+  "says": [
+    "Coding agent sessions take almost a minute to start because cached tools are missed.",
+    "The automated assistant rebuilds its code checking environment every time a session begins.",
+    "Speed up agent workspace startup by properly restoring cached dependencies and tools.",
+    "Assistant session setup has become noticeably slower and re-downloads tools from scratch.",
+    "Why does the coding agent reinstall all code analysis tools during environment initialization?"
+  ],
+  "search": "In .github/workflows/copilot-setup-steps.yml, the four cache restore steps for action pins, mypy, install-bin, and pre-commit hooks must exactly mirror the path and key expressions saved by .github/workflows/lint.yml. The setup workflow is restore-only and must never include cache save steps. In addition, setup-python must set pin-micro-version: false to match the interpreter under which lint.yml built the cached pre-commit environments. Skipping these alignments causes silent cache misses and forces pre-commit hook rebuilds that extend setup time to roughly 48 seconds.",
+  "saysFor": "s2:8d695196e6d965116ff4a2745c1b158611ffd0170b222bd787511a6595b30210"
+}

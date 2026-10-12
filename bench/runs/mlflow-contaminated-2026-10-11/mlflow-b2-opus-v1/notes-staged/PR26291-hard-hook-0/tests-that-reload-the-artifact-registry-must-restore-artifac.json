@@ -1,0 +1,56 @@
+{
+  "id": "tests-that-reload-the-artifact-registry-must-restore-artifac",
+  "title": "Tests that reload the artifact registry must restore _artifact_repository_registry via monkeypatch",
+  "kind": "rule",
+  "answers": [
+    "artifact repository registry missing file scheme after test reload",
+    "test passes alone but fails after another test in same shard, artifact registry",
+    "file-plugin not registered in later tests",
+    "restore artifact repository registry after mocked entry point test"
+  ],
+  "body": "Symptom: Tests run in one worker/shard fail intermittently because a later test cannot find an artifact repository scheme such as file, even though the plugin is installed.\nRoot cause: tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry reloads the artifact_repository_registry module with mocked entry points, which replaces the module global _artifact_repository_registry and drops the installed plugin registrations (e.g. file-plugin) for every later test in the process.\nFix pattern: Before the reload, snapshot the global with monkeypatch.setattr(module, \"_artifact_repository_registry\", module._artifact_repository_registry). pytest restores it on teardown, including on failure, so the reload cannot leak.\nConstraints: Applies to any test that reloads this module or otherwise rebinds its module-level registry. Not needed for tests that only patch entry points without reloading, since those do not replace the global.",
+  "applies": "Test code under tests/store/artifact/ that reloads or rebinds the artifact repository registry module globals.",
+  "tags": [
+    "tests",
+    "artifact",
+    "registry",
+    "monkeypatch",
+    "test-isolation"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/artifact/test_artifact_repository_registry.py",
+      "symbol": "test_standard_artifact_registry",
+      "hash": "sha256:746d187beefc4465302ca77e",
+      "line": 17,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:746d187beefc4465302ca77e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26013"
+  },
+  "created": "2026-10-11T10:28:57.296Z",
+  "verified": "2026-10-11T10:28:57.296Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Artifact storage tests pass individually but fail intermittently when run in shared test workers.",
+    "Later tests cannot find the local file storage scheme after earlier tests finish.",
+    "Installed file storage plugins unexpectedly disappear during test suite execution.",
+    "Prevent artifact repository tests from breaking storage scheme registrations for subsequent tests.",
+    "Flaky test worker failures report missing file artifact schemes despite plugins being installed."
+  ],
+  "search": "Tests reloading the artifact repository registry module must snapshot and restore _artifact_repository_registry using monkeypatch.setattr to prevent dropping installed scheme registrations like file-plugin across test workers. Reloading the module with mocked entry points replaces the global registry and causes later tests in the same process to fail when looking up schemes like file. Applies to tests under tests/store/artifact/ that reload or rebind module globals, but is not needed for tests that patch entry points without reloading.",
+  "saysFor": "s2:d71d3b4ab87270827ebdc4b2b28315d9943fb322e75e78c6952a152376b56b81"
+}

@@ -1,0 +1,63 @@
+{
+  "id": "do-not-decorate-artifact-repo-helpers-with-catch-mlflow-exce",
+  "title": "Do not decorate artifact-repo helpers with catch_mlflow_exception",
+  "kind": "rule",
+  "answers": [
+    "artifact download returns an error response that is treated as a repository",
+    "why was the catch_mlflow_exception decorator removed from _get_artifact_repo",
+    "helper returning a Flask Response instead of an artifact repository"
+  ],
+  "body": "Symptom: when building the artifact repository for a run failed, the error could come back as a Flask Response, and the calling handler then used that Response as if it were an artifact repository.\nRoot cause: mlflow/server/handlers.py:_get_artifact_repo was wrapped in @catch_mlflow_exception even though it is an internal helper, not a handler.\nFix pattern: Keep the decorator off internal helpers that return objects. Let the exception propagate to the decorated handler, which already converts it to a response.\nConstraints: Only valid while every caller is itself a decorated handler. The name _get_artifact_repo is kept as a mocking seam: tests/server/test_handlers.py patches mlflow.server.handlers._get_artifact_repo at about ten sites, so renaming or inlining it touches those tests.",
+  "applies": "Internal helpers in mlflow/server/handlers.py that return repositories or other non-response values.",
+  "tags": [
+    "server",
+    "handlers",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_artifact_repo",
+      "hash": "sha256:27992ebb1163798e27bdec34",
+      "line": 2778,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:27992ebb1163798e27bdec34",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "hash": "sha256:c791341fd717e60f2248388c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-11T08:45:47.201Z",
+  "verified": "2026-10-11T08:45:47.201Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "every-serialized-scorer-entry-point-must-run-validate-serial",
+    "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a",
+    "the-three-invoke-handlers-share-one-trace-ids-input-contract",
+    "artifact-uris-that-make-the-server-connect-to-a-named-host-m"
+  ],
+  "says": [
+    "Downloading run artifacts crashes the server instead of returning a proper error.",
+    "Clicking to view experiment run files causes an unhandled internal server error.",
+    "Failed artifact repository connections crash the backend rather than showing an error page.",
+    "Accessing missing run artifacts breaks the web application instead of reporting failure cleanly.",
+    "Handle artifact storage lookup failures gracefully without crashing downstream request handlers."
+  ],
+  "search": "Internal server helpers that return objects rather than HTTP responses must not be decorated with catch_mlflow_exception to prevent returning a Flask Response where an artifact repository is expected. In mlflow/server/handlers.py:_get_artifact_repo, removing the decorator allows exceptions to propagate to calling handlers that are already decorated to handle response conversions. This rule applies to internal helpers in mlflow/server/handlers.py returning non-response objects, provided all callers remain decorated handlers. The helper function name _get_artifact_repo must be preserved as a mocking seam because tests/server/test_handlers.py patches it across approximately ten test sites.",
+  "saysFor": "s2:12e6d924ec40191f76f7215080352ab204e629feabfd18fa7f86053beb626d34"
+}

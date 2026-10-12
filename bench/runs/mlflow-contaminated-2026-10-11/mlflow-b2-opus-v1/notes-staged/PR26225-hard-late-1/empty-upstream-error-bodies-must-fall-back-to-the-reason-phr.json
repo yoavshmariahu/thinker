@@ -1,0 +1,90 @@
+{
+  "id": "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr",
+  "title": "Empty upstream error bodies must fall back to the reason phrase, not stringify None or empty values",
+  "kind": "rule",
+  "answers": [
+    "gateway error message shows None or {} instead of the real error",
+    "empty error body from provider produces odd detail text",
+    "stream error detail blank when provider returns no body",
+    "how to handle aiohttp json() returning None in error paths"
+  ],
+  "body": "Invariant: Every upstream-error path in mlflow/gateway/providers/utils.py must end with a non-empty detail, falling back to e.message (the aiohttp reason phrase).\nEnforced by: _error_detail returns \"\" for falsy bodies, and the callers use `or e.message` on both the json and text results (send_stream_request, send_proxy_request).\nWhat breaks if skipped: aiohttp's response.json() returns None for an empty body and response.text() returns \"\", so without the guards the HTTPException detail becomes \"None\", \"{}\", or an empty string, and the user loses the only error text they had.\nTests: tests/gateway/providers/test_provider_utils.py:test_send_stream_request_falls_back_to_reason_phrase parametrizes these empty-body shapes; keep it covering None, {}, \"\", and an unreadable body when changing the chain.",
+  "applies": "Any new error-body parsing in the gateway provider utilities; does not cover send_request, which returns the raw body.",
+  "tags": [
+    "gateway",
+    "error-handling",
+    "aiohttp",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "_error_detail",
+      "hash": "sha256:9d5883b16adaed761fc6562f",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d5883b16adaed761fc6562f",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_stream_request",
+      "hash": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "line": 179,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "fanout": {
+        "files": 13,
+        "sites": 20,
+        "refs": 38
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_provider_utils.py",
+      "symbol": "test_send_stream_request_falls_back_to_reason_phrase",
+      "hash": "sha256:87da48bdd6d4172d93b46552",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:87da48bdd6d4172d93b46552",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26036"
+  },
+  "created": "2026-10-11T10:28:27.292Z",
+  "verified": "2026-10-11T10:28:27.292Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "streaming-gateway-errors-show-reason-phrase-instead-of-upstr"
+  ],
+  "says": [
+    "Gateway error responses display empty brackets or meaningless null values instead of actual reasons.",
+    "Streaming requests that fail upstream show completely blank error messages in the interface.",
+    "Display standard HTTP status explanations when an external model provider returns empty error payloads.",
+    "Model provider failures leave users with unhelpful empty error text during streaming interactions.",
+    "Fall back to the server status description whenever upstream provider error responses lack content."
+  ],
+  "search": "In mlflow/gateway/providers/utils.py error paths, every upstream error detail must fall back to the aiohttp reason phrase e.message rather than stringifying None, {}, or empty strings. This invariant is enforced by having _error_detail return an empty string for falsy bodies and having callers like send_stream_request and send_proxy_request use `or e.message` on both json and text results to prevent blank HTTPException details. This applies to new gateway provider error-body parsing except send_request (which returns raw bodies), and changes must preserve test coverage for None, {}, empty string, and unreadable bodies in tests/gateway/providers/test_provider_utils.py:test_send_stream_request_falls_back_to_reason_phrase.",
+  "saysFor": "s2:aac7aff871141118304fa1b083b3c5b2ac6f3caf93d661e328ac76124541436a",
+  "lastUsed": "2026-10-11T18:36:30.389Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v1-PR26270-hard-0",
+    "codex-mlflow-b2-astra-v1-PR26270-hard-1"
+  ]
+}

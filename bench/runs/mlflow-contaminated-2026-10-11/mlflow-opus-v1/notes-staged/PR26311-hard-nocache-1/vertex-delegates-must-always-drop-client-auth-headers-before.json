@@ -1,0 +1,102 @@
+{
+  "id": "vertex-delegates-must-always-drop-client-auth-headers-before",
+  "title": "Vertex delegates must always drop client auth headers before the header merge",
+  "kind": "rule",
+  "answers": [
+    "Claude Code or Codex client gets duplicate Authorization header on Vertex AI endpoint",
+    "gateway request to Claude on Vertex fails when client sends its own API key",
+    "credential agent auth header overrides GCP bearer token on Vertex AI",
+    "Google rejects request with two Authorization headers through AI Gateway"
+  ],
+  "body": "Symptom: a Claude Code, Codex or Gemini CLI client calling a Vertex AI Claude or MaaS endpoint through the AI Gateway fails, because its own credential reaches Google next to the GCP bearer token (duplicate Authorization), or replaces the GCP token.\nRoot cause: AnthropicProvider._get_headers and OpenAICompatibleProvider._get_headers keep a credential agent's own auth header (the #25129 carve-out), and the Vertex delegates inherited that behaviour.\nFix pattern: override _get_headers in _VertexAIClaudeProvider and _VertexAIMaaSProvider to call _drop_client_auth_headers(headers) before super(), unconditionally, not only for credential agents.\nConstraints: a client's Anthropic or OpenAI credential is never valid on Vertex, so the drop is always correct there. Any new Vertex delegate header path must do the same. Tests: test_claude_passthrough_headers_drop_credential_agent_auth in tests/gateway/providers/test_vertex_ai.py.",
+  "applies": "Any change to header construction for Vertex AI delegates (Claude or MaaS) in the gateway.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "auth",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._get_headers",
+      "hash": "sha256:2e52c56e62618efe794dba47",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2e52c56e62618efe794dba47",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._get_headers",
+      "hash": "sha256:6670ef378d93bcc4ab12fd9a",
+      "line": 312,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6670ef378d93bcc4ab12fd9a",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "_drop_client_auth_headers",
+      "hash": "sha256:513b52d4af8168f2b04cbaf5",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:513b52d4af8168f2b04cbaf5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_claude_passthrough_headers_drop_credential_agent_auth",
+      "hash": "sha256:f5f53e0b0c163c93971a55e4",
+      "line": 766,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f5f53e0b0c163c93971a55e4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-11T08:47:04.340Z",
+  "verified": "2026-10-11T08:47:04.340Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-claude-request-fields-must-live-on-the-adapter-not-th",
+    "judge-path-resolves-vertex-providers-then-formats-via-adapte",
+    "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex",
+    "enable-tracing-must-be-passed-into-vertex-ai-delegates-or-pa"
+  ],
+  "says": [
+    "Google rejects AI Gateway requests to Claude because duplicate authorization headers were sent",
+    "Coding assistant fails when connecting to Vertex models through the gateway with personal keys",
+    "AI Gateway should drop client API credentials when routing traffic to Google Cloud endpoints",
+    "Requests to hosted models fail because user tokens override the cloud bearer token",
+    "Allow terminal coding tools to access Vertex AI endpoints through the gateway without authentication errors"
+  ],
+  "search": "Vertex AI delegates in the AI Gateway must unconditionally drop client auth headers before merging headers. In `mlflow/gateway/providers/vertex_ai.py`, `_VertexAIClaudeProvider._get_headers` and `_VertexAIMaaSProvider._get_headers` must call `_drop_client_auth_headers` before `super()` to prevent client credentials from creating duplicate Authorization headers or overriding the GCP bearer token. This applies to any header construction changes for Vertex Claude or MaaS delegates, where client credentials are never valid, and is verified by `test_claude_passthrough_headers_drop_credential_agent_auth` in `tests/gateway/providers/test_vertex_ai.py`.",
+  "saysFor": "s2:6f9dbd42181d07e8069dcdc977f8d046a387e26531a67c5e55f2598ff6abf8cc"
+}

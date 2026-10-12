@@ -1,0 +1,86 @@
+{
+  "id": "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure",
+  "title": "Strip only a bullet marker plus whitespace from LLM failure-label lines, never a character set",
+  "kind": "rule",
+  "answers": [
+    "failure label is missing its leading minus sign",
+    "symptom starting with -1 or -inf loses the hyphen",
+    "evaluation discovery labels drop leading dash characters",
+    "why does lstrip eat hyphens from generated symptom text"
+  ],
+  "body": "Symptom: A failure label whose symptom text begins with a hyphen or minus sign loses it, e.g. \"-1 returned instead of error\" is shown as \"1 returned instead of error\" and \"-inf score emitted\" as \"inf score emitted\".\nRoot cause: mlflow/genai/discovery/extraction.py:_generate_labels used str.lstrip(\"- \"), which removes every leading '-' and space character, not just one bullet marker.\nFix pattern: Remove the bullet with a compiled prefix regex (_BULLET_PREFIX = r\"^\\s*[-*+]\\s+\") that requires whitespace after the marker, then strip the remainder. Keep a regression test with leading-hyphen symptoms in tests/genai/discovery/test_extraction.py:test_extract_failure_labels_keeps_leading_hyphen.\nConstraints: Applies to parsing bullet lines of LLM output in extraction.py. Do not reintroduce lstrip/rstrip with a character set for bullet removal. Symptoms that start with a bullet followed directly by a non-space character are treated as content and kept.",
+  "applies": "Parsing of LLM-generated bullet lists into failure labels in mlflow/genai/discovery/extraction.py; not for other string cleanup.",
+  "tags": [
+    "genai",
+    "discovery",
+    "evaluation",
+    "parsing",
+    "regex"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/discovery/extraction.py",
+      "symbol": "_generate_labels",
+      "hash": "sha256:3f57f7f8d24b2cfcb9d2943e",
+      "line": 203,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3f57f7f8d24b2cfcb9d2943e",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/genai/discovery/extraction.py",
+      "symbol": "_BULLET_PREFIX",
+      "hash": "sha256:5613d97f7ac87bcf4f5d3e10",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/genai/discovery/test_extraction.py",
+      "symbol": "test_extract_failure_labels_keeps_leading_hyphen",
+      "hash": "sha256:ea086df422d67023b629cf7a",
+      "line": 132,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea086df422d67023b629cf7a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25588"
+  },
+  "created": "2026-10-11T08:43:22.715Z",
+  "verified": "2026-10-11T08:43:22.715Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Evaluation failure labels are missing the leading minus sign on negative numbers.",
+    "Discovered failure tags drop the initial dash when reporting negative values.",
+    "Negative score symptoms in evaluation discovery appear without their starting minus sign.",
+    "Generated failure labels should preserve leading hyphens instead of stripping them off.",
+    "Failure labels starting with minus one display as positive one on screen."
+  ],
+  "search": "When parsing LLM-generated bullet lists into failure labels in mlflow/genai/discovery/extraction.py:_generate_labels, remove bullet markers using the compiled regex _BULLET_PREFIX requiring whitespace after the marker rather than str.lstrip with a character set. This prevents stripping leading hyphens or minus signs from symptom text such as negative numbers or scores, treating bullets followed immediately by non-space characters as content. Regression coverage is maintained in tests/genai/discovery/test_extraction.py:test_extract_failure_labels_keeps_leading_hyphen, and the rule applies strictly to bullet parsing in extraction.py rather than general string cleanup.",
+  "saysFor": "s2:9154288f467d6416ad006557a7e96c9f4c6a745c989ba8e88ceefae004a8052a",
+  "lastUsed": "2026-10-11T10:46:40.052Z",
+  "servedIn": [
+    "975b61ed-2c13-413c-ac47-b67a6d692112"
+  ]
+}

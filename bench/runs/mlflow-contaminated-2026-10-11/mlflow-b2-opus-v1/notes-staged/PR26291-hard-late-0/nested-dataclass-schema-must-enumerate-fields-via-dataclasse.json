@@ -1,0 +1,84 @@
+{
+  "id": "nested-dataclass-schema-must-enumerate-fields-via-dataclasse",
+  "title": "Nested dataclass schema must enumerate fields via dataclasses.fields(), not __annotations__",
+  "kind": "rule",
+  "answers": [
+    "nested dataclass model signature rejects inherited field like role",
+    "valid message input fails schema validation when dataclass subclass inherits fields",
+    "MLflow signature nested dataclass missing parent class fields",
+    "ClassVar or InitVar showing up as a required input in nested dataclass schema"
+  ],
+  "body": "Symptom: A nested dataclass input (e.g. a chat message with an inherited `role`) is rejected by schema validation, even though the value is valid; fields defined on a parent dataclass are missing from the inferred schema.\nRoot cause: mlflow/types/schema.py:_convert_dataclass_to_nested_object iterated `dataclass.__annotations__`, which holds only the class's own annotations (no inherited fields) and also includes pseudo-fields (ClassVar, InitVar, KW_ONLY sentinel).\nFix pattern: Build nested object properties from `dataclasses.fields(dataclass)`, passing `field.name` and `field.type` to `_convert_field_to_property`. `fields()` returns the MRO-merged real fields and skips pseudo-fields.\nConstraints: Any code that derives per-field schema from a dataclass in this module must use `fields()`, not `__annotations__` or `__dict__`. Regression tests for this live in tests/types/test_schema.py (nested inheritance, inherited-only subclass, override, pseudo-fields, diamond inheritance). Field types are taken as written; `field.type` may be a string under postponed annotations, so do not assume it is resolved.",
+  "applies": "Nested dataclass conversion to Object/ColSpec types in mlflow/types/schema.py; applies to any future change to dataclass-to-schema conversion.",
+  "tags": [
+    "schema",
+    "dataclass",
+    "signature",
+    "inheritance",
+    "type-conversion"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "_convert_dataclass_to_nested_object",
+      "hash": "sha256:c154e509cc31bdd19f9a045c",
+      "line": 1478,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c154e509cc31bdd19f9a045c",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "_convert_field_to_property",
+      "hash": "sha256:1afc00d548188312ff7452be",
+      "line": 1486,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1afc00d548188312ff7452be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_schema",
+      "hash": "sha256:2499cb5f8c38d2ce8cce5b63",
+      "line": 989,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 108
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26071"
+  },
+  "created": "2026-10-11T10:24:58.391Z",
+  "verified": "2026-10-11T10:24:58.391Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "schema-merge-must-accept-anytype-on-the-right-hand-side-so-i",
+    "schema-merge-results-must-not-depend-on-which-side-holds-any"
+  ],
+  "says": [
+    "Valid chat messages are rejected by model input schema validation because of inherited fields.",
+    "The model signature validation fails on inputs that inherit properties from a base class.",
+    "Internal class variables are incorrectly required as model input fields during validation.",
+    "Allow structured model inputs to include inherited attributes without failing schema checks."
+  ],
+  "search": "In mlflow/types/schema.py:_convert_dataclass_to_nested_object, nested dataclass properties must be obtained via dataclasses.fields(dataclass) and passed to _convert_field_to_property. Using __annotations__ misses MRO-inherited fields and includes pseudo-fields like ClassVar, InitVar, and KW_ONLY. Applies to Object and ColSpec conversion in schema.py, where field.type can be a string under postponed annotations and must not be assumed resolved.",
+  "saysFor": "s2:d964518c9510afb4f7db755d1fdb81b65540ad0bbdc9b4f782659398db2962a7"
+}

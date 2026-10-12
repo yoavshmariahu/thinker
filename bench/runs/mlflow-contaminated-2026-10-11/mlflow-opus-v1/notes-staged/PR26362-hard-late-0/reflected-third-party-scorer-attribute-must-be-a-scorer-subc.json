@@ -1,0 +1,59 @@
+{
+  "id": "reflected-third-party-scorer-attribute-must-be-a-scorer-subc",
+  "title": "Reflected third-party scorer attribute must be a Scorer subclass before instantiation",
+  "kind": "rule",
+  "answers": [
+    "scorer payload instantiates a non-scorer class from an allowed module",
+    "third-party scorer class not a Scorer subclass error",
+    "model_validate calls a constructor on an arbitrary attribute"
+  ],
+  "body": "Invariant: after getattr on the imported module, the resolved object must pass inspect.isclass(...) and issubclass(..., Scorer) before it is instantiated.\nEnforced at: mlflow/genai/scorers/base.py:Scorer.model_validate, which raises invalid_parameter_value ('is not a Scorer subclass') before init_kwargs are built.\nWhat breaks if skipped: a module-level function or non-scorer class named in the payload gets called with the caller's kwargs. Tests use fake Mock modules with a non-Scorer class and a plain function to exercise this path.\nConstraints: test fixtures for scorer classes used with this path must subclass Scorer, or they will be rejected.",
+  "applies": "Any change to how Scorer.model_validate resolves a class from third_party_scorer_data.",
+  "tags": [
+    "genai",
+    "scorers",
+    "deserialization",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-11T08:44:58.813Z",
+  "verified": "2026-10-11T08:44:58.813Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-serialized-scorers-must-reload-with-timeout-0-not-the",
+    "third-party-scorer-module-must-match-the-allow-list-exactly",
+    "validate-metric-name-and-kwargs-before-import-module-in-thir",
+    "scorer-invocation-timeout-is-enforced-only-inside-scorer-run"
+  ],
+  "says": [
+    "Configuring a third-party evaluation metric fails with an invalid scorer class error.",
+    "Custom evaluation definitions can accidentally execute arbitrary functions from the target module.",
+    "Reject any external evaluator class that does not implement the standard scorer interface.",
+    "Validate that the specified evaluation attribute is a proper scorer class before initializing.",
+    "Test evaluation fixtures are getting rejected during model evaluation parameter validation."
+  ],
+  "search": "When resolving third-party scorer classes in mlflow/genai/scorers/base.py:Scorer.model_validate from third_party_scorer_data, the resolved object from getattr must pass inspect.isclass and issubclass against Scorer before instantiation. If validation fails, model_validate raises invalid_parameter_value stating it is not a Scorer subclass before init_kwargs are built, preventing arbitrary functions or non-scorer classes from being called. Applies to resolving classes from third_party_scorer_data, and test fixtures used with this path must explicitly subclass Scorer to avoid rejection.",
+  "saysFor": "s2:bd645bb6d3b551d10b41a629062058abee0c436fcde3f5ea149cf321e16d9341"
+}
