@@ -18,8 +18,15 @@ From then on thinker runs in every git repository on this machine: a cache start
 empty, with the first agent session in a repository (kept out of `git status` through
 `.git/info/exclude`) and grows from your sessions.
 
-The rest of setup happens in the browser. The installer ends by opening the local
-page on its **warm-up** view, and that is where you choose what to build.
+Warming a cache reads the repository's merged pull requests into it, so the first
+session there already finds notes. The installer ends with `thinker warmup`, which asks
+where to choose the repositories: the local page in your browser, or the terminal, where
+one list is shown (the five most recently used are picked; type numbers, `all`, or
+`skip`) and each pick is built at full depth with `thinker setup --build`. Over ssh, or
+on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
+the machine it runs on. `thinker warmup` runs again any time; `thinker warmup --skip`
+and `--yes` answer without asking. Depth, directories and the model are chosen on the
+page.
 
 ## Setting up on the local page
 
