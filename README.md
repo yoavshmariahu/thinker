@@ -26,7 +26,9 @@ Run this in a terminal, inside your repository:
 curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
 ```
 
-Or, with npm, the same installer carried in a package instead of fetched at run time:
+Or, with npm, the same installer carried in the
+[`@zerotime/thinker`](https://www.npmjs.com/package/@zerotime/thinker) package instead of
+fetched at run time:
 
 ```bash
 npx @zerotime/thinker
