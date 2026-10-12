@@ -39,5 +39,7 @@ test('pack.sh builds the npm package with the installer at the release version',
   assert.equal(pkg.name, '@zerotime/thinker');
   assert.equal(pkg.version, JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version);
   assert.deepEqual(fs.readFileSync(path.join(dist, 'npm/install.sh')), fs.readFileSync(path.join(dist, 'install.sh')));
+  // npm 11 drops a bin written as ./install.mjs when it publishes, and npx then has nothing to run
+  for (const f of Object.values(pkg.bin)) assert.ok(!f.startsWith('./'), f);
   for (const f of Object.values(pkg.bin).concat(pkg.files)) assert.ok(fs.existsSync(path.join(dist, 'npm', f)), f);
 });

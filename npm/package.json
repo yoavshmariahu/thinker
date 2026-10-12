@@ -4,7 +4,7 @@
   "description": "Installer for thinker, a knowledge cache for coding agents: npx @zerotime/thinker",
   "type": "module",
   "bin": {
-    "thinker-install": "./install.mjs"
+    "thinker-install": "install.mjs"
   },
   "files": [
     "install.mjs",
