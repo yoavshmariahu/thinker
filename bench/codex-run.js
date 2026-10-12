@@ -10,6 +10,7 @@ import { installClient } from '../src/clients.js';
 import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
 import { complete } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
+import { runOracle, goldTouched, codexLoopStats, listCost, resetWorktree as resetBase, goldTestsSeen } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -27,8 +28,10 @@ for (let i = 0; i < args.length; i++) {
 const repoName = flags.repo || 'posthog';
 const REPO = path.join(HERE, 'repos', repoName);
 const TASKS = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json`);
-const NOTESET = flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`);
-const NOTES = flags['notes-dir'] || path.join(NOTESET, 'notes');
+// absolute: the hook runs with the repository as its cwd, where a relative path found no notes
+// (mlflow-astra-v1, 2026-10-11: the hook arms were served nothing and recorded it as such)
+const NOTESET = path.resolve(flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`));
+const NOTES = path.resolve(flags['notes-dir'] || path.join(NOTESET, 'notes'));
 const TAG = flags.tag || (args[0] && !args[0].startsWith('--') ? args[0] : `${repoName}-codex-gpt56`);
 const REPS = Number(flags.reps || (args[1] && !args[1].startsWith('--') ? args[1] : 2));
 const CONC = Number(flags.conc || (args[2] && !args[2].startsWith('--') ? args[2] : 3));
@@ -77,10 +80,7 @@ function makeWorktree(i) {
   return wt;
 }
 function resetWorktree(wt) {
-  try {
-    execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt });
-    execFileSync('git', ['clean', '-qfd'], { cwd: wt });
-  } catch {}
+  resetBase(wt);  // a hard reset: the oracle stages the gold tests (bench/oracle.js)
   fs.rmSync(path.join(wt, '.thinker'), { recursive: true, force: true });
   fs.rmSync(path.join(wt, '.codex'), { recursive: true, force: true });
 }
@@ -89,6 +89,9 @@ function resetWorktree(wt) {
 function armCache(wt) {
   const own = path.join(wt, '.thinker');
   fs.cpSync(NOTES, path.join(own, 'notes'), { recursive: true });
+  // mlflow keeps AGENTS.md as a symlink; the installer refuses to edit one, so the arm gets a plain copy
+  const agentsFile = path.join(wt, 'AGENTS.md');
+  try { if (fs.lstatSync(agentsFile).isSymbolicLink()) { const text = fs.readFileSync(agentsFile, 'utf8'); fs.rmSync(agentsFile); fs.writeFileSync(agentsFile, text); } } catch {}
   installClient('codex', {
     repo: wt, cli: CLI, hooks: false, learn: false, late: true, shared: false, mcp: true,
     mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local' } },
@@ -119,11 +122,16 @@ function cacheUse(wt) {
 // cross-encoder reading the request's first 120 tokens it crowded the request out (2026-10-04: nothing served
 // on four tasks that get a note on the bare request). The agent still receives the whole prompt.
 const requestOf = p => /^Implement the following change/.test(p) ? (p.split('\n\n').slice(1).join('\n\n') || p) : p;
-function contextFor(task, session) {
+// hook-bm25: the lexical ranking with two notes, as the hook served before 2026-10-04
+// hook: the cross-encoder at floor 0 with two notes, the default since PR #199 (2026-10-11); this
+// branch's src still carries the one-note default, so the arm pins it
+const ARM_ENV = { hook: { THINKER_CE_MAX: '2' }, 'hook-bm25': { THINKER_CE: 'off' } };
+function contextFor(task, session, arm = 'hook') {
   const env = {
     ...process.env,
     THINKER_NOTES_DIR: NOTES,
     THINKER_NO_BG_VERIFY: '1',
+    ...(ARM_ENV[arm] || {}),
   };
   try {
     const text = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO, '--budget', String(BUDGET)], {
@@ -225,13 +233,13 @@ async function runWorker(cwd) {
     const session = `codex-${TAG}-${task.id}-${rep}`;
     let prompt = task.prompt;
     let injected = '';
-    if (arm === 'hook') {
-      injected = contextFor(task, session);
+    if (arm === 'hook' || arm === 'hook-bm25') {
+      injected = contextFor(task, session, arm);
       // the notes carry their own preamble; no second instruction around them
       prompt = `${injected}\n\n${task.prompt}`;
     }
-    if (arm === 'full') armCache(cwd);
     try {
+      if (arm === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
       const run = await runCodex(prompt, cwd);
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
       if (arm === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
@@ -246,7 +254,16 @@ async function runWorker(cwd) {
       run.cost = null;
       run.api_ms = null;
       run.diff = task.type === 'change' ? getDiff(cwd) : null;
-      run.grade = await gradePatch(task, run.diff, run.result);
+      // the executable oracle where the task has one; the model judge otherwise (or on request)
+      run.grade = task.testCmd ? runOracle(task, cwd) : null;
+      if (!flags['no-judge'] && !task.testCmd) run.grade = await gradePatch(task, run.diff, run.result);
+      Object.assign(run.tools, codexLoopStats(run.raw_events));
+      run.goldTouched = run.diff ? goldTouched(task, run.diff) : null;
+      run.leak = goldTestsSeen(task, JSON.stringify(run.raw_events || []));  // gold test names the events show: the session had the answer key
+      if (run.leak.length) console.log(`${id} LEAK: the events name gold tests ${run.leak.join(', ')}`);
+      run.fresh_in_tokens = run.in_tokens - (run.cached_tokens || 0);
+      run.cost = listCost(MODEL, { inTokens: run.in_tokens, cachedTokens: run.cached_tokens, outTokens: run.out_tokens });
+      run.costBasis = run.cost != null ? 'list price from token classes' : null;
       // the session is ephemeral, so this stream is the only record of what the agent did
       fs.writeFileSync(path.join(OUT, 'events', `${id}.jsonl`), run.raw_events.map(e => JSON.stringify(e)).join('\n'));
       delete run.raw_events;

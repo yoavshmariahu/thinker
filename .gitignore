@@ -14,3 +14,8 @@ bench/runs/efficiency-simple/
 
 # private gateway deployment snapshots and credentials
 .access-work/
+
+!bench/runs/mlflow-contaminated-2026-10-11/README.md
+# contaminated mlflow runs of 2026-10-11: diagnosis only, kept on disk, not in git (README stays)
+bench/data/*.bundle
+bench/runs/mlflow-contaminated-2026-10-11/*

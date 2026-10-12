@@ -4,10 +4,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
+import { testGreen, resetWorktree, goldTestsSeen } from './oracle.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -59,16 +60,31 @@ function stageNotes(id) {
   return dst;
 }
 
-function resetWorktree(wt) {
-  try { execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt }); execFileSync('git', ['clean', '-qfd'], { cwd: wt }); } catch {}
-}
+// bench/oracle.js:resetWorktree: a hard reset, since the oracle stages the gold tests
 
+// A test run is a shell command that invokes a test runner; it is green when its output carries
+// no failure marker. The loop counters (bench/MEASUREMENT.md): test runs before the first edit,
+// and attempts after it: test runs from the first edit up to and including the first green one.
+const TEST_RUN = /\b(pytest|py\.test|npm test|yarn test|pnpm test|node --test|go test|cargo test|jest|vitest|unittest)\b/;
+const TEST_FAILED = /\b(\d+ failed|\d+ errors?\b|FAILED|ERROR|error:|Error:|failed|Traceback)/;
 function toolStats(file) {
-  const stats = { calls: 0, byTool: {}, thinkerCalls: 0, filesRead: new Set(), greps: 0 };
+  const stats = { calls: 0, byTool: {}, thinkerCalls: 0, filesRead: new Set(), greps: 0, callsBeforeFirstEdit: null, testRunsBeforeEdit: 0, testRunsAfterEdit: 0, attemptsToGreen: null, greenReached: false };
   if (!fs.existsSync(file)) return { ...stats, filesRead: 0 };
+  const testIds = new Map();  // tool_use id → 'before' | 'after'
+  let edited = false, attempts = 0;
   for (const l of fs.readFileSync(file, 'utf8').split('\n')) {
     let j; try { j = JSON.parse(l); } catch { continue; }
-    if (j.type !== 'assistant' || !Array.isArray(j.message?.content)) continue;
+    if (!Array.isArray(j.message?.content)) continue;
+    if (j.type === 'user') {
+      for (const b of j.message.content) {
+        if (b.type !== 'tool_result' || !testIds.has(b.tool_use_id) || stats.greenReached) continue;
+        if (testIds.get(b.tool_use_id) !== 'after') continue;
+        const out = typeof b.content === 'string' ? b.content : Array.isArray(b.content) ? b.content.map(x => x.text || '').join('\n') : JSON.stringify(b.content || '');
+        if (testGreen(out, null)) { stats.greenReached = true; stats.attemptsToGreen = attempts; }
+      }
+      continue;
+    }
+    if (j.type !== 'assistant') continue;
     for (const b of j.message.content) {
       if (b.type !== 'tool_use') continue;
       stats.calls++; stats.byTool[b.name] = (stats.byTool[b.name] || 0) + 1;
@@ -76,9 +92,39 @@ function toolStats(file) {
       if (b.name === 'Read') stats.filesRead.add(b.input?.file_path);
       if (b.name === 'Grep' || b.name === 'Glob') stats.greps++;
       if (b.name === 'Bash' && /\b(grep|rg|find|cat|sed|head|tail|ls)\b/.test(b.input?.command || '')) stats.greps++;
+      if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(b.name) && !edited) { edited = true; stats.callsBeforeFirstEdit = stats.calls - 1; }
+      if (b.name === 'Bash' && TEST_RUN.test(b.input?.command || '')) {
+        if (edited) { stats.testRunsAfterEdit++; if (!stats.greenReached) attempts++; testIds.set(b.id, 'after'); }
+        else { stats.testRunsBeforeEdit++; testIds.set(b.id, 'before'); }
+      }
     }
   }
+  if (!edited) stats.callsBeforeFirstEdit = stats.calls;
   return { ...stats, filesRead: stats.filesRead.size };
+}
+
+// The source files the merged change edited (tests left out) that the agent's diff also edited.
+const isTestPath = p => /(^|\/)(tests?|__tests__|testing|spec)\//.test(p) || /(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?|\/test_[^/]*\.py)$/.test(p);
+function goldTouched(task, diff) {
+  const gold = (task.goldFiles || []).filter(p => !isTestPath(p));
+  if (!gold.length) return null;
+  const touched = new Set(); for (const m of String(diff || '').matchAll(/^diff --git a\/(\S+) b\/(\S+)/gm)) touched.add(m[2]);
+  const hit = gold.filter(p => touched.has(p));
+  return { goldSrc: gold.length, touched: hit.length, missing: gold.filter(p => !touched.has(p)) };
+}
+
+// The task's own tests, as the merged change left them, put into the worktree over whatever the
+// agent did to those files, so the oracle is the same for every arm. Other test files the agent
+// wrote stay. Hunks come from the stored gold diff.
+function installGoldTests(task, cwd) {
+  if (!task.goldDiff || !task.testFiles?.length) return;
+  const diff = fs.readFileSync(path.join(HERE, '..', task.goldDiff), 'utf8');
+  const hunks = diff.split(/^(?=diff --git )/m).filter(h => { const m = h.match(/^diff --git a\/(\S+) b\/(\S+)/); return m && task.testFiles.includes(m[2]); }).join('');
+  const existing = task.testFiles.filter(f => fs.existsSync(path.join(cwd, f)));
+  try { if (existing.length) execFileSync('git', ['checkout', '-q', '--', ...existing], { cwd, stdio: 'ignore' }); } catch {}
+  for (const f of task.testFiles) { try { const p = path.join(cwd, f); if (fs.existsSync(p) && !existing.includes(f)) fs.rmSync(p); } catch {} }
+  const r = spawnSync('git', ['apply', '--3way', '-'], { cwd, input: hunks, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error('gold tests did not apply: ' + (r.stderr || '').slice(0, 300));
 }
 
 function transcriptModels(file) {
@@ -104,8 +150,9 @@ function injectedIds(file) {
   return [...ids];
 }
 
-function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
+function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
   const a = ['-p', '--model', model, '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--strict-mcp-config', '--max-turns', String(flags['max-turns'] || 60)];
+  const sys = system ? [system] : [];  // every --append-system-prompt part, joined once at the end
   if (flags['isolated-settings']) a.push('--setting-sources', '');
   if (effort) a.push('--effort', effort);
   const disallowed = [];
@@ -137,7 +184,7 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
 
   const cfg = ARMS[arm];
   if (arm === 'cache' || cfg?.mcp) {
-    a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT);
+    a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } })); sys.push(CACHE_PROMPT);
   } else {
     a.push('--mcp-config', '{"mcpServers":{}}');
   }
@@ -148,8 +195,9 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
     if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];
     if (cfg.nudge) hooks.Stop = [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook stop --nudge --no-distill --repo ${cwd}`, timeout: 20 }] }];
-    a.push('--settings', JSON.stringify({ hooks }), '--append-system-prompt', HOOK_PROMPT);
+    a.push('--settings', JSON.stringify({ hooks })); sys.push(HOOK_PROMPT);
   }
+  if (sys.length) a.push('--append-system-prompt', sys.join('\n\n'));
   const t0 = Date.now();
   return new Promise((resolve, reject) => {
     const p = spawn('claude', a, { cwd, env });
@@ -224,8 +272,14 @@ async function main() {
         // the request first, the benchmark's framing paragraph ("Implement the following change… Do not install
         // dependencies…") after it, for every arm alike: the hook reads the request's first tokens, and a person
         // types the request, not the framing
-        const agentPrompt = /^Implement the following change/.test(task.prompt) && task.prompt.includes('\n\n') ? task.prompt.split('\n\n').slice(1).join('\n\n') + '\n\n' + task.prompt.split('\n\n')[0] : task.prompt;
-        try { r = await runClaude(agentPrompt, { arm, allowEdit: task.type === 'change', cwd, notesDir }); }
+        // The benchmark's framing paragraph ("Implement the following change… the test environment is at…")
+        // goes to the system prompt, the same for every arm; the user turn is the request alone, as a
+        // person would type it. With the framing in the user turn the hook's ranker read it as part of the
+        // request and served nothing (mlflow smoke test, 2026-10-11).
+        const framed = /^Implement the following change/.test(task.prompt) && task.prompt.includes('\n\n');
+        const agentPrompt = framed ? task.prompt.split('\n\n').slice(1).join('\n\n') : task.prompt;
+        const framing = framed ? task.prompt.split('\n\n')[0] : null;
+        try { r = await runClaude(agentPrompt, { arm, allowEdit: task.type === 'change', cwd, notesDir, system: framing }); }
         catch (e) { console.log(`${id} ERROR ${e.message}`); r = null; break; }
         // usage/session limit: do not record garbage; wait and retry
         if ((r.num_turns || 0) <= 1 && /session limit|usage limit|rate limit|limit reached/i.test(r.result || '')) {
@@ -252,12 +306,15 @@ async function main() {
       const transcriptModelIds = transcriptModels(transcriptPath(r.session_id, cwd));
       if (flags['strict-model'] && transcriptModelIds.some(m => m !== model)) throw new Error(`${id}: transcript model mismatch: ${transcriptModelIds.join(', ')}`);
       tools.injected = injectedIds(transcriptPath(r.session_id, cwd));
-      try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); } catch {}
+      let leak = [];
+      try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); leak = goldTestsSeen(task, tx); } catch {}
+      if (leak.length) console.log(`${id} LEAK: the transcript names gold tests ${leak.join(', ')}`);
       let grade = null, diff = null;
       if (task.type === 'change') {
         try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker'], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
         if (!flags['no-judge']) { try { grade = await judgeChange(task, diff, r.result || ''); } catch (e) { grade = { error: e.message }; } }
         if (task.testCmd) {
+          try { installGoldTests(task, cwd); } catch (e) { grade = { ...(grade || {}), goldTests: e.message }; }
           // run the task's test command in the worktree with the agent's edits applied.
           // testCmd is an argv array (grafana) or a shell string; an array handed to `sh -c`
           // stringifies to a comma-joined word and every such task reported `tests: fail`.
@@ -273,6 +330,9 @@ async function main() {
         turns: r.num_turns, wall_ms: r.wall_ms, api_ms: r.duration_api_ms, cost: r.total_cost_usd,
         in_tokens: (r.usage?.input_tokens || 0) + (r.usage?.cache_creation_input_tokens || 0) + (r.usage?.cache_read_input_tokens || 0),
         out_tokens: r.usage?.output_tokens || 0, tools, grade, result: r.result, is_error: r.is_error, diff, distill,
+        cache_read_tokens: r.usage?.cache_read_input_tokens || 0, cache_write_tokens: r.usage?.cache_creation_input_tokens || 0, fresh_in_tokens: r.usage?.input_tokens || 0,
+        goldTouched: diff ? goldTouched(task, diff) : null,
+        leak,  // gold test names the transcript shows: a session that saw one had the answer key
       };
       fs.writeFileSync(file, JSON.stringify(rec, null, 2));
       summary.push(rec);

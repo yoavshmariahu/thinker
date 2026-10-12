@@ -18,7 +18,7 @@ async function one(t) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await complete({ model: 'sonnet', schema: SCHEMA,
       system: 'You rewrite a pull request description into the request a product manager or user would have written BEFORE the fix existed: what is wrong or missing, observable behavior, and the desired behavior. Keep every behavioral detail needed to implement it correctly. Remove every implementation detail: no file names, class names, function names, module or directory names, endpoint paths, variable names, or code identifiers of any kind. Use plain product vocabulary (the feature, the page, the button, the setting). 3-8 sentences.',
-      prompt: `PR TITLE: ${t.goldTitle}\n\nPR DESCRIPTION:\n${t.prompt.replace(PRE, '')}\n\nFILES CHANGED (for your reference only, never mention them): ${t.goldFiles.join(', ')}` });
+      prompt: `PR TITLE: ${t.goldTitle}\n\nPR DESCRIPTION:\n${t.prompt.replace(/^Implement the following change[^\n]*\n\n/, '')}\n\nFILES CHANGED (for your reference only, never mention them): ${t.goldFiles.join(', ')}` });
     const sym = r.json.symptom.trim();
     const leaks = explicitIdents(sym).filter(x => banned.has(x));
     if (!leaks.length) return sym;
@@ -30,7 +30,9 @@ const out = [];
 for (const t of spec.tasks) {
   const sym = await one(t);
   if (!sym) { console.log(`${t.id}: FAILED`); continue; }
-  out.push({ ...t, id: t.id + '-hard', prompt: PRE + sym });
+  // a task set with its own framing paragraph (mlflow: targeted tests allowed) keeps it
+  const framing = t.prompt.match(/^Implement the following change[^\n]*\n\n/)?.[0] || PRE;
+  out.push({ ...t, id: t.id + '-hard', prompt: framing + sym });
   console.log(`${t.id}: ${sym.slice(0, 160)}`);
 }
 fs.writeFileSync(path.join(HERE, 'tasks', `${repo}-hard.json`), JSON.stringify({ ...spec, tasks: out }, null, 1));
