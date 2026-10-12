@@ -46,7 +46,8 @@ export function goldTestNames(task) {
   if (!task.goldDiff) return [];
   const diff = fs.readFileSync(path.join(HERE, '..', task.goldDiff), 'utf8');
   const hunks = diff.split(/^(?=diff --git )/m).filter(h => { const m = h.match(/^diff --git a\/(\S+) b\/(\S+)/); return m && isTestPath(m[2]); }).join('');
-  return [...new Set([...hunks.matchAll(/^\+\s*(?:async\s+)?def (test_\w+)/gm)].map(m => m[1]))];
+  // [ \t]* and not \s*: \s crosses the newline after an added blank line into the next context line
+  return [...new Set([...hunks.matchAll(/^\+[ \t]*(?:async[ \t]+)?def (test_\w+)/gm)].map(m => m[1]))];
 }
 // The gold test names that appear in a session's transcript or event stream: [] for a clean session.
 export function goldTestsSeen(task, text) {

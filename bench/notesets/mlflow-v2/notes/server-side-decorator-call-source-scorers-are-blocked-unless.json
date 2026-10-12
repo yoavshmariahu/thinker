@@ -71,7 +71,7 @@
   "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 0,
+  "uses": 1,
   "related": [
     "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n",
     "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi",
@@ -86,5 +86,9 @@
     "Allow team members to register custom code scorers for model evaluation."
   ],
   "search": "Server-side execution and registration of custom decorator scorers are gated on MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS using custom_scorer_execution_blocked in mlflow/genai/scorers/scorer_utils.py. The check recursively inspects ensemble_scorer_data to prevent nested decorator scorers from executing without the flag. This validation applies to register and invoke payloads in mlflow/server/handlers.py:_validate_serialized_scorer_payload as well as stored scorers, but relaxing the execution guard must not relax third-party egress checks.",
-  "saysFor": "s2:89c968fed70acf059cac4236a05fe9a94e5013f918a842c2f4645c9b04366e93"
+  "saysFor": "s2:89c968fed70acf059cac4236a05fe9a94e5013f918a842c2f4645c9b04366e93",
+  "lastUsed": "2026-10-12T04:13:28.500Z",
+  "servedIn": [
+    "codex-mlflow-b2-astra-v2-PR26225-hard-0"
+  ]
 }
