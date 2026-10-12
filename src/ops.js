@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
+import { auditSkill, markSkillBroken } from './skills.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER, tokenize } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
@@ -126,6 +127,8 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
     // a desired behavior says whether a change may revise it (behavior.js); default mutable, since
     // `fixed` is the stronger claim and should be made on purpose
     ...(kind === 'behavior' ? { mutability: MUTABILITY.includes(input.mutability) ? input.mutability : 'mutable' } : {}),
+    // a skill card names its file (skills.js); the file is also its first dep
+    ...(kind === 'skill' && input.skill?.file ? { skill: { name: String(input.skill.name || ''), file: String(input.skill.file), ...(input.skill.root ? { root: String(input.skill.root) } : {}), ...(input.skill.description ? { description: String(input.skill.description) } : {}) } } : {}),
     answers: (input.answers || []).map(s => String(s).trim()).filter(Boolean),
     body: String(input.body).trim(),
     applies: input.applies ? String(input.applies).trim() : undefined,
@@ -144,6 +147,9 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
 export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
   return notes.map(n => {
     if (n.status === 'invalid') return n;
+    // a broken skill (skills.js) stays as it is until its file changes or a person reviews it: a code
+    // change alone does not put it back into audit
+    if (n.status === 'broken') return n;
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasStale = n.status === 'stale';
     if (changed.length) {
@@ -326,6 +332,16 @@ export function attest(store, assessments, { session, client, model } = {}) {
     const now = new Date().toISOString();
     n.attest = n.attest || { confirmed: 0, contradicted: 0, unused: 0 };
     if (a.verdict === 'confirmed') { n.attest.confirmed++; n.confidence = Math.min(1, (n.confidence ?? 0.7) + 0.05); n.verified = now; }
+    else if (a.verdict === 'contradicted' && n.kind === 'skill') {
+      // a session found the skill wrong: the issue is recorded on the card and the skill leaves serving
+      // and audit until its file changes or a person reviews it (skills.js:markSkillBroken)
+      n.attest.contradicted++;
+      n.confidence = Math.max(0.05, (n.confidence ?? 0.8) - 0.25);
+      store.put(n);
+      const b = markSkillBroken(store, n, { reason: String(a.evidence || '').slice(0, 300), issues: [{ claim: String(a.correction || a.evidence || '').slice(0, 400), actual: String(a.evidence || '').slice(0, 400) }], source: 'session', session });
+      applied.push({ id: n.id, verdict: 'contradicted', confidence: b.confidence, broken: true });
+      continue;
+    }
     else if (a.verdict === 'contradicted') {
       n.attest.contradicted++;
       n.confidence = Math.max(0.05, (n.confidence ?? 0.7) - 0.25);
@@ -494,7 +510,7 @@ export function linkNotes(store, note, notes = store.list()) {
 }
 
 
-const STATUS_ORDER = { violated: 0, stale: 1, fresh: 2 };
+const STATUS_ORDER = { violated: 0, broken: 0, stale: 1, fresh: 2 };
 export async function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
   const start = Date.now();
   let notes = refresh(store, store.list());
@@ -502,7 +518,7 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
   // a kind with no query (`lookup(kind: "behavior")`): every note of the kind, the rules first
-  const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
+  const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid' && n.status !== 'broken').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
   let ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
   const candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
@@ -709,7 +725,7 @@ export async function phraseBatches(store, notes, { model, phase, per = 8, conc 
   return { done, tokens, failed, lastError };
 }
 
-function gitDiffFor(repo, fromCommit, paths) {
+export function gitDiffFor(repo, fromCommit, paths) {
   if (!fromCommit) return '';
   try {
     return execFileSync('git', ['diff', '--no-color', '-U3', fromCommit, '--', ...paths], { cwd: repo, maxBuffer: 8 * 1024 * 1024 }).toString().slice(0, 12000);
@@ -743,6 +759,7 @@ export function cleanBody(body, title) {
 // dependencies plus the current text of each dependency symbol.
 export async function verifyNote(store, note, { model } = {}) {
   if (note.kind === 'behavior') return verifyBehavior(store, note, { model });
+  if (note.kind === 'skill') return auditSkill(store, note, { model }); // the skill file against the code (skills.js)
   const repo = store.repo;
   model = model || store.config().verifyModel || 'haiku';
   const changed = note.stale?.changed || [];
@@ -914,7 +931,8 @@ export const REVIEW_KINDS = ['behavior', 'rule'];
 export function distillKinds(store) {
   const arch = archiveConfig(store);
   // a desired behavior is written or accepted by a person (behavior.js), never distilled from a session
-  return (arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS]).filter(k => k !== 'behavior');
+  // and a skill card comes from its file (skills.js), never from a session or a pull request
+  return (arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS]).filter(k => k !== 'behavior' && k !== 'skill');
 }
 export function archiveConfig(store) {
   const c = store.config().archive;
@@ -924,7 +942,7 @@ export function archiveConfig(store) {
   return cfg;
 }
 export function archiveReason(note, { kinds, unservedDays, now = Date.now() }) {
-  if (note.archived || note.status === 'invalid' || note.kind === 'behavior') return null; // a desired behavior is a rule a person wrote, not a note the sessions grade
+  if (note.archived || note.status === 'invalid' || note.status === 'broken' || note.kind === 'behavior') return null; // a desired behavior is a rule a person wrote, not a note the sessions grade
   if (kinds.includes(note.kind)) return `kind ${note.kind}`;
   const made = Date.parse(note.created || '');
   if (unservedDays > 0 && !(note.uses > 0) && !(note.servedIn || []).length && Number.isFinite(made) && now - made > unservedDays * 86400_000) return `not served in ${unservedDays} days`;

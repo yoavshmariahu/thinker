@@ -192,6 +192,8 @@
     .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
     .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
     .pill.ok { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .issues { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
+    .issues li { margin: 0.15rem 0; }
     .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.95rem; }
     .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
@@ -297,7 +299,7 @@
         <button class="back" id="back">← All repositories</button>
         <div class="kicker">Cache</div>
         <h1 id="d-title"></h1>
-        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them.</p>
+        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them. A <b>skill</b> card stands for a SKILL.md file; one found <b>out of date</b> lists what contradicts the code and is neither served nor re-checked until the file changes or you mark it reviewed.</p>
         <div id="d-activity"></div>
         <div class="controls">
           <div class="chips" id="c-chips"></div>
@@ -305,7 +307,7 @@
         <div class="cards section" id="c-stats" style="margin-top:1.4rem"></div>
         <div class="controls" style="margin-top:1.2rem">
           <div class="seg" id="sort-seg"><button data-sort="hits" class="on">Most hits</button><button data-sort="new">Newest</button><button data-sort="old">Oldest</button></div>
-          <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button></div>
+          <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button><button data-kind="skill">Skills</button></div>
           <input class="search" id="c-search" placeholder="Search notes">
         </div>
         <div class="list" id="c-list"><div class="empty"><span class="spinner"></span>Reading the cache…</div></div>
@@ -622,6 +624,7 @@ const C_FILTERS = [
   ['serving', 'Served', n => n.status === 'fresh' || n.status === 'stale'],
   ['fresh', 'Fresh', n => n.status === 'fresh'],
   ['stale', 'Stale', n => n.status === 'stale'],
+  ['broken', 'Out of date', n => n.status === 'broken'],
   ['archived', 'Archived', n => n.status === 'archived'],
   ['retired', 'Retired', n => n.status === 'retired'],
   ['all', 'All', () => true],
@@ -656,7 +659,7 @@ function renderCache() {
   const inView = byKind.filter(f), hits = inView.reduce((a, n) => a + n.uses, 0), hit = inView.filter(n => n.uses > 0).length, ages = inView.map(ageDays);
   const fresh7 = inView.filter(n => { const d = ageDays(n); return d != null && d < 7; }).length;
   $('#c-stats').innerHTML = inView.length ? `
-    ${card('Notes', fmt(inView.length), 'in this view', [['Rules', fmt(inView.filter(n => n.kind === 'rule').length)], ['Maps', fmt(inView.filter(n => n.kind === 'map').length)], ['How-tos', fmt(inView.filter(n => n.kind === 'howto').length)]])}
+    ${card('Notes', fmt(inView.length), 'in this view', [['Rules', fmt(inView.filter(n => n.kind === 'rule').length)], ['Maps', fmt(inView.filter(n => n.kind === 'map').length)], ['How-tos', fmt(inView.filter(n => n.kind === 'howto').length)], ['Skills', fmt(inView.filter(n => n.kind === 'skill').length)]])}
     ${card('Cache hits', fmt(hits), 'times these notes were served to an agent', [['Notes served at least once', `${fmt(hit)} (${pct(hit, inView.length)})`], ['Never served', fmt(inView.length - hit)], ['Hits per served note', hit ? (hits / hit).toFixed(1) : '—']])}
     ${card('Age', age(median(ages)), 'median age, since each note was written', [['Written this week', fmt(fresh7)], ['Newest', age(Math.min(...ages.filter(x => x != null)))], ['Oldest', age(Math.max(...ages.filter(x => x != null)))]])}` : '';
   if (!shown.length) {
@@ -668,7 +671,7 @@ function renderCache() {
   wireCache();
 }
 function npills(n) {
-  const st = { fresh: '<span class="pill ok">Fresh</span>', stale: '<span class="pill wait">Stale</span>', archived: '<span class="pill">Archived</span>', retired: '<span class="pill bad">Retired</span>' }[n.status];
+  const st = { fresh: '<span class="pill ok">Fresh</span>', stale: '<span class="pill wait">Stale</span>', broken: '<span class="pill bad">Out of date</span>', archived: '<span class="pill">Archived</span>', retired: '<span class="pill bad">Retired</span>' }[n.status];
   return `${st}<span class="pill">${esc(n.kind)}</span>`;
 }
 function ncard(n) {
@@ -680,8 +683,11 @@ function ncard(n) {
     n.status === 'stale' && n.changed.length ? `<b>Code changed</b> ${n.changed.map(esc).join(', ')} · re-checked on the next maintenance run, or <code>thinker verify ${esc(n.id)}</code>` : '',
     n.status === 'archived' ? `<b>Archived</b> ${day(n.archived?.at)}${n.archived?.reason ? `: ${esc(n.archived.reason)}` : ''}` : '',
     n.status === 'retired' && n.invalidReason ? `<b>Retired</b> ${esc(n.invalidReason)}` : '',
+    n.skill ? `<b>Skill</b> <code>${esc(n.skill.name)}</code> in <code>${esc(n.skill.file)}</code>` : '',
+    n.broken ? `<b>Out of date</b> since ${day(n.broken.at)}${n.broken.source ? ` (found by ${n.broken.source === 'session' ? 'a session' : 'the audit'})` : ''}${n.broken.reason ? `: ${esc(n.broken.reason)}` : ''}` + (n.broken.issues.length ? `<ul class="issues">${n.broken.issues.map(i => `<li><b>${esc(i.claim)}</b>${i.actual ? ` — ${esc(i.actual)}` : ''}${i.pointer ? ` <code>${esc(i.pointer)}</code>` : ''}</li>`).join('')}</ul>` : '<br>') + `Not served or re-checked until the skill file changes or you mark it reviewed.` : '',
   ].filter(Boolean).join('<br>');
   const act = n.status === 'archived' ? `<button class="btn ghost" data-act="restore">Restore to serving</button>`
+    : n.status === 'broken' ? `<button class="btn ghost" data-act="review">Mark reviewed: serve and re-check again</button>`
     : n.status === 'retired' ? '' : `<button class="btn ghost" data-act="archive">Archive</button>`;
   return `<div class="bcard" data-id="${esc(n.id)}" data-repo="${esc(n.repo)}"><div class="bcard-top"><div class="btitle">${esc(n.title)}</div><div class="pills">${npills(n)}</div></div>
     <div class="bbody${long && !open ? ' clamp' : ''}" data-act="expand">${rich(n.body)}</div>${long ? `<button class="more" data-act="expand">${open ? 'Show less' : 'Show more'}</button>` : ''}
@@ -696,7 +702,7 @@ function wireCache() {
       btn.disabled = true;
       try {
         await api(`/api/cache/${act}`, { id, repo });
-        toast(act === 'archive' ? 'Archived: no longer served' : 'Restored: served again');
+        toast(act === 'archive' ? 'Archived: no longer served' : act === 'review' ? 'Reviewed: the skill is served and re-checked again' : 'Restored: served again');
         await loadCache();
       } catch (e) { btn.disabled = false; toast(e.message, true); }
     });

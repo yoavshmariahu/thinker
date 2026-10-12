@@ -118,6 +118,7 @@ cache at twice the input price and never read again.
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
+| `src/skills.js`, `src/commands/skills.js` | skill files (SKILL.md) as cached knowledge: one card per file, audited against the code, graded by the sessions that invoke it, duplicates settled; `thinker skills` (docs/skills.md) |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
@@ -832,6 +833,26 @@ until 2026-10-11 (`action/review/`, removed with `thinker review`). Client
 sharing, sync, and staged-note repair were removed; old client sync settings do
 nothing. Do not reintroduce team collaboration as part of the product. Personal
 backup/restore remain supported.
+
+## Skills
+
+A skill file (SKILL.md under `.claude/skills`, `.agents/skills`, `.codex/skills`, `.cursor/skills`,
+`.github/skills`, `skills/`) gets a note of kind `skill` (`skills.js:scanSkills`, one model call per
+file, by maintenance and by a build): a card that is served like a note and tells the agent to
+invoke the skill, with the file and the code the skill names as deps. Staleness is `ops.js:refresh`
+as for any note; the verification is `skills.js:auditSkill` (through `ops.js:verifyNote`), which
+reads the skill file against the current code and answers holds or broken with the issues. A
+broken skill has status `broken` (a LOCAL_FIELDS entry): not ranked (`rank.js`), not listed by
+`lookup` by kind, left alone by `refresh` and `pickStale`, until its file changes (the scan rewrites
+the card and clears it) or a person reviews it (`skills.js:reviewSkill`; `thinker skills review`,
+the button in the UI). A card whose own file changed is left to the scan, not audited
+(`maintain.js:pickStale`). Sessions grade skills: `transcripts.js` keeps the skill directory on the
+Skill tool call, `skills.js:skillsInvoked` and `skillNotesFor` add the invoked skills to the notes a
+distillation assesses (always assessed, `learning-evidence.js`), a contradiction is accepted at once
+(`learning-pending.js`) and marks the skill broken (`ops.js:attest`), and a session older than the
+skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:dedupeSkills`, with
+`skills.prefer` in the config as the pin. Skill cards are never distilled (`distillSpec`,
+`distillKinds`, `saveNotes`) or written through `remember`. See docs/skills.md.
 
 ## Desired behaviors
 

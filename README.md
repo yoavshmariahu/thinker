@@ -35,6 +35,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the note that fits, if one does, and tools that jump straight to the code.
 3. **It knows your rules.** The behaviors your system must keep come from the design documents checked into the repository (READMEs beside the code), and you can add, change or remove one by asking your agent. When a change touches the code a rule governs, the agent reviewing it is handed that rule.
 4. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
+5. **It audits your skills.** Each skill file (`SKILL.md`) checked into the repository gets a card that is served like a note and checked against the code it talks about. A skill the code contradicts is listed with its issues and not handed over until it is fixed or reviewed; among skills that do the same thing, the one the sessions confirm is the one served.
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
 the coding agent you already use, on its own login.
@@ -43,6 +44,7 @@ the coding agent you already use, on its own login.
 
 ```bash
 thinker system docs                 # behaviors from the READMEs and design documents checked in
+thinker skills                      # the skill files as the cache sees them: out of date, duplicates, evidence
 thinker ui                          # local page: usage, the cache, behaviors to accept or edit
 thinker benchmark                   # compare your agent with and without the cache
 thinker usage --here                # what the cache cost and what it saved
@@ -74,6 +76,7 @@ reviewer caught (research/regression-heldout on the `agent/heldout-regression` b
 
 - [Setup, updates and telemetry](docs/setup.md): install options, build depth and cost, large repositories, the local cache, updates, test mode, telemetry and opting out
 - [Usage, savings and learning](docs/usage.md): `thinker stats` and `usage`, the holdout comparison, how sessions are learned from
+- [Skills](docs/skills.md): skill cards, the audit, what sessions say about a skill, duplicates
 - [Delivery outcomes](docs/delivery-outcomes.md): `thinker impact`, tokens and fixes per merged PR
 - [Task verification](docs/task-verification.md): verification contracts run in Docker
 - [ONBOARDING.md](ONBOARDING.md): setting up your local cache

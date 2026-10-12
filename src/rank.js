@@ -117,7 +117,7 @@ function pathAffinity(note, file) {
   return best;
 }
 
-const KIND_PRIOR = { howto: 0.15, rule: 0.1, map: 0.07, behavior: 0.12 };
+const KIND_PRIOR = { howto: 0.15, rule: 0.1, map: 0.07, behavior: 0.12, skill: 0.12 };
 
 // What a request tells the agent not to do is not what it is about: "do not run the test suite"
 // would otherwise bring up the notes on running tests. Only instructions: "it never updates" and
@@ -191,7 +191,7 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     const a = n.attest || {}, acted = ((a.confirmed || 0) + 1) / ((a.confirmed || 0) + (a.unused || 0) + 2);
     let score = rel + aff * 0.4 + prior + 0.05 * conf + 0.2 * (acted - 0.5);
     if (n.status === 'stale') score *= 0.6;
-    if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for drilldown and lookup by id (ops.js:archiveNotes)
+    if (n.status === 'invalid' || n.status === 'broken' || n.archived) score = -1; // archived: kept for drilldown and lookup by id (ops.js:archiveNotes); broken: a skill out of date (skills.js)
     return { note: n, score, rel, aff, cover, coverQ, dense: ds, matched: mq + mb };
   });
   // with dense scores the blend is normalized to the best passing note, as the lexical relevance is
@@ -216,6 +216,8 @@ export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites ||
 export function renderNote(n, { full = true } = {}) {
   const flag = n.status === 'stale'
     ? `\n> ⚠ STALE: ${(n.stale?.changed || []).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'dependencies changed'} since this was verified. Confirm against the code before relying on it.`
+    : n.status === 'broken'
+    ? `\n> ⚠ OUT OF DATE: this skill contradicts the code${n.broken?.reason ? `: ${n.broken.reason}` : ''}${(n.broken?.issues || []).length ? ` (${n.broken.issues.slice(0, 3).map(i => i.claim).join('; ')})` : ''}. It is not served until ${n.skill?.file || 'its file'} changes or a person reviews it (thinker skills review ${n.id}).`
     : n.status === 'violated'
     ? `\n> ⚠ VIOLATED: the code no longer upholds this ${n.mutability || 'mutable'} behavior${n.violated?.commit ? ` since commit ${String(n.violated.commit).slice(0, 10)}` : ''}${n.violated?.reason ? `: ${n.violated.reason}` : ''}. ${n.mutability === 'fixed' ? 'Restore it; a fixed behavior is not revised.' : 'Restore it, or revise the behavior note on purpose.'}`
     : '';
@@ -227,7 +229,8 @@ export function renderNote(n, { full = true } = {}) {
   const head = `### [${n.kind}${n.kind === 'behavior' ? `, ${n.mutability || 'mutable'}` : ''}] ${n.title}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)`;
   if (!full) return `${head}${flag}\n${(n.body || '').split('\n')[0].slice(0, 200)}\n→ ${deps}`;
   const applies = n.applies ? `\nApplies: ${n.applies}` : '';
-  return `${head}${flag}\n${n.body}${applies}\n→ pointers: ${deps}`;
+  const invoke = n.kind === 'skill' && n.skill?.name ? `\nInvoke the skill \`${n.skill.name}\` (${n.skill.file}) for the full instructions.` : '';
+  return `${head}${flag}\n${n.body}${applies}${invoke}\n→ pointers: ${deps}`;
 }
 
 // Greedy pack ranked notes into a token budget; returns {text, included, omitted}

@@ -166,7 +166,8 @@ ASSESSING INJECTED NOTES: the session started with cached notes injected (listed
 - confirmed: the agent acted on the note's pointers (read/grepped/edited what it names) and nothing it observed contradicted the note's claims.
 - contradicted: something the agent observed (code it read, a failed command, a symbol it could not find) shows a claim in the note is wrong or the note misdirected the agent. Provide the corrected full body.
 - unused: the note played no visible role.
-Be strict about "contradicted": only when the trace shows evidence, not when the note was merely incomplete for this task.`;
+Be strict about "contradicted": only when the trace shows evidence, not when the note was merely incomplete for this task.
+A [skill] note stands for a skill file the agent invoked (its excerpt follows the card). Judge the skill, not the card: confirmed when the agent followed its instructions and they worked (its commands ran, its paths and names were found, the change it prescribes landed); contradicted when something it prescribes failed or the code the agent read disagrees with it (a command or flag that errored, a path or definition that does not exist, a rule the code does the opposite of): then evidence names the failing instruction and what the trace showed instead, and correction is empty. Following the skill in a way that merely took effort is not a contradiction, and neither is the agent taking another route while nothing the skill prescribes failed: that is unused.`;
 
 export const EXISTING_RULES = `
 
@@ -211,8 +212,9 @@ export function relatedNotes(store, events, { max = 12, topical = 4 } = {}) {
 // what a location note would say is found by code search.
 export function distillSpec({ kinds = KINDS } = {}) {
   // a desired behavior (behavior.js) is a person's rule, never distilled; the model is not even offered the kind
-  kinds = kinds.filter(k => k !== 'behavior');
-  const left = KINDS.filter(k => k !== 'behavior' && !kinds.includes(k));
+  // a skill card comes from a skill file (skills.js), never from a session
+  kinds = kinds.filter(k => k !== 'behavior' && k !== 'skill');
+  const left = KINDS.filter(k => k !== 'behavior' && k !== 'skill' && !kinds.includes(k));
   const schema = JSON.parse(JSON.stringify(NOTE_SCHEMA));
   schema.properties.notes.items.properties.kind.enum = KINDS.filter(k => kinds.includes(k));
   if (!left.length) return { system: DISTILL_SYSTEM, schema };
@@ -238,7 +240,7 @@ export async function distillEvents(events, { model = 'haiku', repoHint = '', se
   }
   if (served.length) {
     system += ASSESS_RULES; schema = { ...ASSESS_SCHEMA, properties: { ...ASSESS_SCHEMA.properties, notes: schema.properties.notes } };
-    prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${compact ? (n.body || '').slice(0, 1200) : n.body}`).join('\n\n');
+    prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${compact ? (n.body || '').slice(0, 1200) : n.body}${n.kind === 'skill' && n.text ? `\nSKILL FILE ${n.skill?.file || ''} (excerpt):\n${n.text}` : ''}`).join('\n\n');
     prompt += compact
       ? `\n\nReturn ${discover ? 'reusable notes, if any,' : 'notes: [],'} and only assessments supported by explicit evidence. Omit unknown notes; never infer unused from this selection.`
       : `\n\nProduce the notes JSON and one assessment per injected note.`;
@@ -261,6 +263,7 @@ export function saveNotes(store, notes, { source, kinds = KINDS }) {
   const saved = [], merged = [], skipped = [];
   for (const n of notes) {
     if (kindOf(n.kind) === 'behavior') { skipped.push({ title: n.title, reason: 'human behaviors cannot be created by automatic learning' }); continue; }
+    if (kindOf(n.kind) === 'skill') { skipped.push({ title: n.title, reason: 'skill cards come from skill files (thinker skills scan)' }); continue; }
     if (KINDS.includes(kindOf(n.kind)) && !kinds.includes(kindOf(n.kind))) { skipped.push({ title: n.title, reason: `kind ${kindOf(n.kind)} is not served in this repository (archived by thinker archive)` }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);

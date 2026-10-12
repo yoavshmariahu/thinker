@@ -25,6 +25,8 @@ export const DEFAULTS = {
   prsPerRun: 3,
   docs: true,       // read design documents that are new or changed into behaviors (behavior-docs.js)
   docsPerRun: 3,
+  skills: true,     // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js)
+  skillsPerRun: 3,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
@@ -99,6 +101,8 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   const stale = notes
     .filter(n => n.status === 'stale' && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
     .filter(n => recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
+    // a skill card whose own file changed is rewritten by the skills step of this run (skills.js:scanSkills), not audited
+    .filter(n => !(n.kind === 'skill' && n.skill?.file && (n.stale?.changed || []).some(c => c.path === n.skill.file)))
     .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
     .sort((a, b) => (b.uses || 0) - (a.uses || 0))
     .slice(0, cfg.verifyPerRun);
@@ -135,7 +139,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -156,7 +160,8 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
           r.tokens += v.tokens || 0; r.verified++;
           if (v.verdict === 'update') r.updated++;
           if (v.verdict === 'invalid') r.retired++;
-          if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
+          if (v.verdict === 'broken' && n.kind === 'skill') r.skillsBroken++; // a skill out of date (skills.js:auditSkill); the notice names it
+          else if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
           if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
         } catch { r.errors++; }
       }
@@ -183,14 +188,21 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         if (!dry) { try { const d = await fns.docs({ limit: cfg.docsPerRun }); r.docs = d?.saved?.length || 0; r.unstated = d?.unstated?.length || 0; r.tokens += d?.tokens || 0; if (r.docs || r.unstated || d?.reworded?.length) { try { writeSystemMarkdown(store); } catch {} } } catch { r.errors++; } }
       } else r.capped = true;
     }
+    // 6. skill files that are new or changed since they were carded; their duplicates settled (skills.js)
+    if (cfg.skills !== false && fns.skills) {
+      if (afford()) {
+        if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch { r.errors++; } }
+      } else r.capped = true;
+    }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
     // (ops.js:noteUnreported), after the state was read: keep it
     const liveState = readState(store).unreported || {};
     if (liveState.violated?.length) u.violated = liveState.violated;
     if (liveState.revised?.length) u.revised = liveState.revised;
+    if (liveState.brokenSkills?.length) u.brokenSkills = liveState.brokenSkills;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs', 'docs', 'unstated']) u[k] = (u[k] || 0) + r[k];
+    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -226,6 +238,8 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.prs) parts.push(`${u.prs} PR notes`);
   if (u.docs) parts.push(`${u.docs} ${u.docs === 1 ? 'behavior' : 'behaviors'} from design documents; see thinker system`);
   if (u.unstated) parts.push(`${u.unstated} ${u.unstated === 1 ? 'behavior' : 'behaviors'} no longer stated by a design document; keep or discard in thinker ui`);
+  if (u.skills) parts.push(`${u.skills} skill ${u.skills === 1 ? 'card' : 'cards'}`);
+  if (u.brokenSkills?.length) parts.push(`${u.brokenSkills.length} ${u.brokenSkills.length === 1 ? 'skill is' : 'skills are'} out of date (${u.brokenSkills.map(b => b.name || b.id).join(', ')}); not served until fixed or reviewed; see thinker skills`);
   if (u.pruned?.length) parts.push('Thinker setup updated');
   if (u.capped) {
     const day = capDay(now);
@@ -270,5 +284,7 @@ export function renderMaintain(r) {
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
   if (r.docs) bits.push(`${r.docs} from design documents`);
   if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
+  if (r.skills) bits.push(`${r.skills} skill ${r.skills === 1 ? 'card' : 'cards'}`);
+  if (r.skillsBroken) bits.push(`${r.skillsBroken} ${r.skillsBroken === 1 ? 'skill' : 'skills'} found out of date`);
   return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

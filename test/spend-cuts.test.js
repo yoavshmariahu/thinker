@@ -37,7 +37,7 @@ test('a quiet session is one with nothing served, nothing at stake and little ex
 
 test('the distiller is not asked for archived kinds, and a note of one is not saved', () => {
   const all = distillSpec({});
-  assert.deepEqual(all.schema.properties.notes.items.properties.kind.enum, KINDS.filter(k => k !== 'behavior')); // a desired behavior is a person's (behavior.js)
+  assert.deepEqual(all.schema.properties.notes.items.properties.kind.enum, KINDS.filter(k => k !== 'behavior' && k !== 'skill')); // a desired behavior is a person's (behavior.js); a skill card comes from its file (skills.js)
   assert.ok(!/Do not produce notes of these kinds/.test(all.system));
   const some = distillSpec({ kinds: KINDS.filter(k => k !== 'map') });
   assert.deepEqual(some.schema.properties.notes.items.properties.kind.enum, ['howto', 'rule']);
@@ -51,7 +51,7 @@ test('the distiller is not asked for archived kinds, and a note of one is not sa
   fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['overview'] } })); // the old name means map
   assert.deepEqual(distillKinds(new Store(dir0)), ['howto', 'rule']);
   fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: false }));
-  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'behavior'));
+  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'behavior' && k !== 'skill'));
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   fs.mkdirSync(path.join(dir, 'src')); fs.writeFileSync(path.join(dir, 'src/a.js'), 'export function f() {}\n');
   const store = new Store(dir).init();
