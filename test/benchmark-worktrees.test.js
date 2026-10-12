@@ -105,7 +105,7 @@ for (const runner of ['run', 'codex-run', 'gemini-run', 'criteria']) {
     fs.symlinkSync(f.repo, path.join(bench, 'repos', 'fixture'), 'dir');
     fs.symlinkSync(new URL('../src', import.meta.url).pathname, path.join(f.root, 'src'), 'dir');
     fs.writeFileSync(path.join(f.root, 'package.json'), '{"type":"module"}');
-    for (const file of [runner + '.js', 'worktrees.js', 'judge-protocol.js']) {
+    for (const file of [runner + '.js', 'worktrees.js', 'judge-protocol.js', 'oracle.js']) {
       fs.copyFileSync(new URL('../bench/' + file, import.meta.url), path.join(bench, file));
     }
     fs.mkdirSync(path.join(bench, 'codex-home'));
