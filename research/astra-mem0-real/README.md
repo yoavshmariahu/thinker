@@ -54,3 +54,20 @@ Generating the shared source sessions cost **308,817 tokens and 223.0 seconds**,
 One run per arm on two historical public tasks is a pilot, not a general ranking. No selective solver retries. No model judge. Differences from the earlier Sonnet cohort also include the coding harness and regenerated evidence; do not attribute them solely to the model.
 
 See [METHOD.md](METHOD.md) for the pinned commits, environment, model controls, baseline pager-test caveat, isolation limits and reproduction steps. [raw/summary.json](raw/summary.json) retains detailed counters; `raw-evidence.tar.gz` retains prompts, full events, patches, memory outputs, upstream gold fixtures and test logs.
+
+## Literal arm (added 2026-10-10)
+
+A fourth arm, `literal`, reuses the frozen source sessions, solver model and scoring above with no
+memory builder at all: the condensed session is cut into paragraph-sized units (one command with
+its output, one paragraph of the agent's answer), ranked by BM25 against the task request and packed
+verbatim under the same 750-token budget (`bench/astra-mem0-real/literal-retrieve.mjs`, run and
+scored by `literal.py`). One run per task, Codex CLI 0.162.0, GPT-6 Astra medium.
+
+| Task | Arm | Acceptance | Full suite | Solver tokens | Uncached input + output | Solver seconds |
+|---|---|---:|---:|---:|---:|---:|
+| click-3364 | literal | 5/5 | 1440/1440 | 149,784 | 21,144 | 61.4 |
+| click-3391 | literal | 12/12 | 1626/1626 | 453,614 | 44,526 | 203.1 |
+
+Against the rows above: both tasks pass, zero build tokens, the shortest solver time of the four
+arms, and uncached spend between thinker's notes (55,123 over both tasks) and the control (77,465).
+Artifacts: `raw-evidence-literal.tar.gz`. Discussion: `research/mem0-review-2026-10/README.md`.

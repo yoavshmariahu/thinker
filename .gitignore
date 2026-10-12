@@ -11,6 +11,7 @@ bench/runs/empty-notes/
 bench/runs/efficiency-simple/
 # the benchmark's own python environment, built from python-requirements.txt
 .venv-perf/
+.venv-astra-mem0/
 
 # private gateway deployment snapshots and credentials
 .access-work/
