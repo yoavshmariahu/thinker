@@ -460,7 +460,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   save();
   const intro = on === 'edit'
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
-    : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
+    : `Cached notes about ${rel.join(', ')} from previous sessions: rules this code holds and context around it. A rule is a constraint a change here must respect, so check the diff against it before finishing; the notes are partial, so keep reading what the change needs, and nothing more.`;
   const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
   store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
   return { included: pick, text };

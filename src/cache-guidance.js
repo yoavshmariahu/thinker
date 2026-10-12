@@ -26,7 +26,7 @@ export function cacheUsageGuide({ disabled } = {}) {
   return `Use thinker as a map to the code, then do the work.
 
 1. Read the <thinker-cache> bundle in this turn if there is one. Call orient once with the task when there is none, or when nothing in it bears on the task.
-2. Keep the notes that answer the request; ignore the rest. A fresh note is a map, not a plan, and a STALE claim is checked against the code.
+2. Keep the notes that answer the request; ignore the rest. A note's rule is a constraint the change must respect, checked against the diff before finishing; its pointers are for finding code, not reasons to change more of it. A STALE claim is checked against the code.
 3. ${reachCode(disabled)}${on.find || on.drilldown ? ', and stay right for known non-code files and exact text' : ''}.
 4. lookup answers one question a note left open. Then edit and verify.
 
@@ -66,7 +66,10 @@ export const cacheBundleIntro = ({ stale = false, disabled } = {}) => {
   const code = on.find && on.drilldown ? ' For code no note maps, find lists the definitions carrying the words the code would use and drilldown reads them, before the first grep.'
     : on.find ? ' For code no note maps, find lists the definitions carrying the words the code would use, before the first grep.'
     : on.drilldown ? ' drilldown reads the definition behind a pointer whole, before the first grep.' : '';
-  return `Notes about this repo from earlier sessions; their tracked dependencies were re-hashed just now${stale ? ', so check a STALE claim against the code' : ' and match the working tree'}. Use the pointers that fit this request and ignore neighboring topics; a fresh note is a map, not a plan. If none of them bears on the task, orient on it yourself.${code}`;
+  // Two decisions the agent makes with a note (2026-10-12, mlflow): a rule is a constraint the change
+  // must respect, checked against the diff; a pointer is for finding code, never a reason to extend the
+  // change to it. Served notes widened what agents built and tested on tasks that failed elsewhere.
+  return `Notes about this repo from earlier sessions; their tracked dependencies were re-hashed just now${stale ? ', so check a STALE claim against the code' : ' and match the working tree'}. Use the pointers that fit this request and ignore neighboring topics. A note's rule is a constraint the change must respect: check the diff against it before finishing. Keep the change to what the request asks; code a note names beyond that is for finding your way, not for extending the patch. If none of them bears on the task, orient on it yourself.${code}`;
 };
 
 // Short, persistent workflow for native instruction files and CLI-only adapters.
