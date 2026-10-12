@@ -138,7 +138,7 @@ function registerTools() {
     description: 'Save what you had to work out and a future agent would re-derive: where something happens, a call path, what changes together, how to build/test/run, a convention, a gotcha, or why something is the way it is. Not a summary of a file. Name files and symbols, and list the files/symbols it depends on: the note goes stale when they change. Kinds: rule (an invariant, convention, trap, fix not to undo, or reason), map (where, call path, module map), howto, behavior (a desired behavior of the system; from an agent, a proposal until a person accepts it).',
     inputSchema: {
       title: z.string().describe('Short, specific title'),
-      kind: z.enum(KINDS),
+      kind: z.enum(KINDS.filter(k => k !== 'skill')), // a skill card comes from its file (thinker skills scan)
       mutability: z.enum(['fixed', 'mutable']).optional().describe('kind behavior: fixed, or mutable (default)'),
       answers: z.array(z.string()).describe('Questions this note answers, for retrieval'),
       body: z.string().describe('3-12 lines with file:symbol pointers; the non-obvious parts'),

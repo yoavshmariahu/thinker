@@ -12,6 +12,7 @@ import { provider } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
+import { scanSkills, skillsInvoked, skillNotesFor } from '../skills.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs, mineable } from '../prs.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
@@ -99,6 +100,7 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const r = await maintain(store, repo, { dry, fns: {
     minePrs: canMine ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
+    skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
   if (!quiet) out(renderMaintain(r));
 }
@@ -172,6 +174,9 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   const ids = new Set(injectedIds(file, { fromLine }));
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
   let served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
+  // the skills the agent invoked are assessed like injected notes (skills.js): the card, with an excerpt of the file
+  let sessionEnd = null; try { sessionEnd = fs.statSync(file).mtimeMs; } catch {}
+  for (const n of skillNotesFor(store, skillsInvoked(events), { sessionEnd })) if (!ids.has(n.id) && !(incremental && (state.assessed || []).includes(n.id))) served.push(n);
   // Separate discovery from assessment: a serving alone warrants neither a model call
   // nor a usefulness verdict. Unselected evidence stays unknown.
   const config = store.config().learn || {};

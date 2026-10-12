@@ -29,7 +29,9 @@ export function safeLearningAssessments(store, assessments, shown) {
       const original = shown.find(n => n.id === a.id);
       if (!original || snapshot(original) !== snapshot(note)) continue;
     }
-    if (a.verdict === 'contradicted') deferred.push({ reason: 'contradiction requires investigation', assessment: a, existing: { id: note.id, body: note.body } });
+    // a contradicted skill is recorded on its card and taken out of serving at once (ops.js:attest); other
+    // contradictions wait for investigation
+    if (a.verdict === 'contradicted' && note.kind !== 'skill') deferred.push({ reason: 'contradiction requires investigation', assessment: a, existing: { id: note.id, body: note.body } });
     else if (note.kind !== 'behavior') accepted.push(a);
   }
   return { accepted, deferred };

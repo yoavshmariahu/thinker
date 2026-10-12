@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { summarize } from '../usage.js';
 import { Store, repoId, isGitCheckout } from '../store.js';
 import { refresh, archiveNotes } from '../ops.js';
+import { reviewSkill } from '../skills.js';
 import { isBehavior } from '../behavior.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../behavior-workbench.js';
 import { discoverRepos, warmupCandidates, cacheStats, displayName } from '../machine.js';
@@ -61,7 +62,10 @@ export function cacheView(store) {
   return {
     notes: notes.map(n => ({
       id: n.id, title: n.title, kind: n.kind, body: n.body || '',
-      status: n.status === 'invalid' ? 'retired' : n.archived ? 'archived' : n.status === 'stale' ? 'stale' : 'fresh',
+      status: n.status === 'invalid' ? 'retired' : n.status === 'broken' ? 'broken' : n.archived ? 'archived' : n.status === 'stale' ? 'stale' : 'fresh',
+      // a skill card (skills.js): the file it stands for, and what the audit or a session found wrong with it
+      skill: n.kind === 'skill' ? { name: n.skill?.name || '', file: n.skill?.file || '' } : null,
+      broken: n.status === 'broken' && n.broken ? { at: n.broken.at || null, reason: n.broken.reason || '', source: n.broken.source || '', issues: (n.broken.issues || []).map(i => ({ claim: i.claim || '', actual: i.actual || '', pointer: i.pointer || '' })) } : null,
       archived: n.archived ? { at: n.archived.at, reason: n.archived.reason } : null,
       changed: n.status === 'stale' ? (n.stale?.changed || []).map(c => typeof c === 'string' ? c : `${c.path}${c.symbol ? ':' + c.symbol : ''}${c.reason ? ' (' + c.reason + ')' : ''}`) : [],
       invalidReason: n.status === 'invalid' ? n.invalidReason || '' : '',
@@ -296,6 +300,11 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       let r;
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
+      else if (url.pathname === '/api/cache/review') {
+        // a person looked at a skill found out of date: back into serving and audit (skills.js:reviewSkill)
+        const n = st.get(b.id);
+        if (!n) r = { error: 'no such note' }; else r = reviewSkill(st, b.id);
+      }
       else if (url.pathname === '/api/cache/archive' || url.pathname === '/api/cache/restore') {
         const n = st.get(b.id), restore = url.pathname.endsWith('restore');
         if (!n || isBehavior(n)) r = { error: 'no such note' };

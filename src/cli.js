@@ -11,6 +11,7 @@ import { commands as projectCommands } from './commands/project.js';
 import { commands as noteCommands } from './commands/notes.js';
 import { commands as impactCommands } from './commands/impact.js';
 import { commands as cacheCommands } from './commands/cache.js';
+import { commands as skillsCommands } from './commands/skills.js';
 import { commands as learnCommands } from './commands/learn.js';
 import { commands as hookCommands } from './commands/hooks.js';
 import { commands as setupCommands } from './commands/setup.js';
@@ -156,6 +157,12 @@ const HELP = `thinker — knowledge cache for coding agents
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
                                  discard, and what is being mined or distilled, with a stop button), and the warm-up page
                                  that builds caches for the repositories your agents work in; 127.0.0.1 only, Ctrl+C stops it
+  skills [list|scan|audit <id>|review <id>|prefer <id>|dedupe] [--dry] [--again] [--limit n] [--json]
+                                 the skill files (SKILL.md) of this checkout as the cache sees them: each has a card that is
+                                 served like a note and audited against the code; a skill found out of date is listed with
+                                 its issues and is neither served nor audited again until the file changes or a review;
+                                 scan cards new or changed files (maintenance does this too), prefer picks one of
+                                 several skills that do the same thing
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
@@ -184,10 +191,10 @@ const HELP = `thinker — knowledge cache for coding agents
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback'];
+const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...switchCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...switchCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

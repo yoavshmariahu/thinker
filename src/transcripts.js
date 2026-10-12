@@ -151,6 +151,8 @@ function parseMessages(rows, fromLine) {
     if (typeof c === 'string') { if (role === 'user' && !j.isMeta) events.push({ t: 'prompt', text: cleanPrompt(c) }); else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
     if (!Array.isArray(c)) return;
     for (const b of c) {
+      // Claude Code loads a skill as a meta message after the Skill call: keep the directory on the call (skills.js:skillsInvoked)
+      if (b.type === 'text' && role === 'user' && j.isMeta && /^Base directory for this skill: /.test(String(b.text || ''))) { const last = events.findLast(e => e.t === 'tool' && e.name === 'Skill'); if (last) last.skillDir = String(b.text).split('\n')[0].slice('Base directory for this skill: '.length).trim(); continue; }
       if (b.type === 'text' && role === 'user' && !j.isMeta) events.push({ t: 'prompt', text: cleanPrompt(b.text) });
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
       else if (b.type === 'tool_use') events.push(tool(b.name, b.input, '', b.id));

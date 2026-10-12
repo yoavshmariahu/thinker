@@ -14,7 +14,11 @@ import { execFileSync, spawnSync } from 'node:child_process';
 // the code must conform to it, never the other way round; `mutability` says whether a change may
 // revise it. Until October 2026 there were eleven kinds; the old names are read as the new ones
 // (KIND_ALIAS) wherever a note is read, so committed notes and benchmark notesets stay as they are.
-export const KINDS = ['map', 'howto', 'rule', 'behavior'];
+export const KINDS = ['map', 'howto', 'rule', 'behavior', 'skill'];
+// `skill`: a card for a skill file (SKILL.md) the agents invoke by name (skills.js). The file and the
+// code it talks about are its deps, so the card goes stale with either; a skill found out of date is
+// `broken` (a LOCAL_FIELDS entry) and neither served nor audited again until the file changes or a
+// person reviews it.
 export const KIND_ALIAS = { location: 'map', callpath: 'map', overview: 'map', invariant: 'rule', convention: 'rule', gotcha: 'rule', rationale: 'rule', fix: 'rule', cochange: 'rule' }; // cochange: a kind of earlier caches, read as a rule
 export const kindOf = k => KIND_ALIAS[k] || k;
 export const MUTABILITY = ['fixed', 'mutable'];
@@ -159,10 +163,10 @@ export function adoptLocalLog(store) {
 //                        and content it changed and has not shared yet (`pending`). So serving,
 //                        assessing and re-verifying a shared note never touches the committed file.
 // With THINKER_NOTES_DIR (benchmark arms) there is one directory of whole notes, as before.
-export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated'];
+export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
-const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];
+const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'skill', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];
 const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
 const NOTE_FILE = /^[a-z0-9][a-z0-9-]*\.json$/;
 

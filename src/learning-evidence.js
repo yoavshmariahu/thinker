@@ -17,7 +17,8 @@ export function learningPlan(events, { served = [], repo = '', key = '', auditRa
   // or a failure/correction on its dependencies, warrants a compact assessment.
   const words = events.filter(e => e.t === 'say' || e.t === 'prompt').map(e => clean(e.text)).join('\n');
   const files = new Set(touchedFiles(events, repo));
-  const assess = served.filter(n => words.includes(n.id) || ((stakes.failures || stakes.corrections) && (n.deps || []).some(d => files.has(d.path)))).slice(0, 4);
+  // an invoked skill is always assessed: the agent chose it, so what happened next is evidence about it (skills.js)
+  const assess = served.filter(n => n.kind === 'skill' || words.includes(n.id) || ((stakes.failures || stakes.corrections) && (n.deps || []).some(d => files.has(d.path)))).slice(0, 4);
   const mode = audit ? 'audit' : (stakes.any || minExplore === 0) ? 'evidence' : assess.length ? 'assessment' : 'skip';
   return { mode, served: audit ? served.slice(0, 4) : assess, discover: mode === 'audit' || mode === 'evidence',
     trace: mode === 'audit' ? condense(events) : evidencePacket(events) };

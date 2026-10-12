@@ -11,6 +11,7 @@ import { oneLine } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
 import { deriveDocBehaviors, docBehaviorsLine } from '../behavior-docs.js';
+import { scanSkills, skillsLine } from '../skills.js';
 import { c, formatBytes, selectMenu, withSpinner } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -130,7 +131,7 @@ export function ignoreLocalState(dir) {
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, docsFn = deriveDocBehaviors, phraseFn = phraseBatches }) {
+export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, docsFn = deriveDocBehaviors, skillsFn = scanSkills, phraseFn = phraseBatches }) {
   let warnings = 0;
   // without pull requests there is nothing to estimate: what is left (linking) is free and local,
   // and the notes come from the sessions to come
@@ -170,6 +171,16 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
   } catch (e) {
     warnings++;
     out(`        ${c.yellow('⚠')} Design documents not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system docs`);
+  }
+
+  // Still stage 1: the skill files of the checkout, one card each (skills.js). Free when there are none.
+  try {
+    const result = await withSpinner(out, 'Reading the skill files (SKILL.md)', () => skillsFn(store, { model, limit: 60, phase: 'init' }), { indent: '        ' });
+    if (result.failed) warnings++;
+    if (result.found) out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${skillsLine(result)}`);
+  } catch (e) {
+    warnings++;
+    out(`        ${c.yellow('⚠')} Skill files not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker skills scan`);
   }
 
   // Stage 2: Merged PR mining
