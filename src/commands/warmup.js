@@ -9,7 +9,7 @@ import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { warmupCandidates } from '../machine.js';
-import { selectMenu, c, formatDuration, withSpinner } from '../setup/ui.js';
+import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
@@ -19,12 +19,13 @@ export function headless(env = process.env, platform = process.platform) {
   return platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY;
 }
 
-const row = (r, picked, width) => {
-  const est = r.estimates[DEFAULT_DEPTH], mark = picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]');
+const rowNote = r => {
+  const est = r.estimates[DEFAULT_DEPTH];
   const what = est.prs ? `~${formatDuration(est.seconds)}, ${est.prs} pull requests` : 'no merged pull requests to read';
   const tags = [r.current ? 'current' : '', r.warmed ? 'warmed before' : r.hasCache ? `${r.notes} notes already` : ''].filter(Boolean).join(', ');
-  return `    ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}`;
+  return `${what}${tags ? ` · ${tags}` : ''}`;
 };
+const row = (r, picked, width) => `    ${picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]')} ${r.name.padEnd(width)} ${c.dim(rowNote(r))}`;
 
 export async function warmupCommand(ctx) {
   const { flags, store, out, HERE } = ctx;
@@ -62,17 +63,25 @@ export async function warmupCommand(ctx) {
   const picked = items.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, PICKED);
   out(`\n  Your agents worked in these repositories, the most recently active first. A warm-up reads merged pull requests into notes, around where you are most active:\n`);
   const width = Math.min(44, Math.max(...items.map(r => r.name.length)));
-  for (const r of items) out(row(r, picked, width));
   let chosen;
   if (flags.repos) {
+    for (const r of items) out(row(r, picked, width));
     const want = String(flags.repos).split(',').map(s => s.trim()).filter(Boolean);
     chosen = all.filter(r => !r.disabled && (want.includes(r.name) || want.includes(r.checkout) || want.includes(r.id)));
     const missing = want.filter(w => !chosen.some(r => [r.name, r.checkout, r.id].includes(w)));
     if (missing.length) { out(`  Not on this machine's list: ${missing.join(', ')}`); process.exitCode = 1; return; }
-  } else if (flags.yes || !picked.length) chosen = picked;
-  else {
-    const a = (await ask(`\n  Warm up the ${picked.length === 1 ? 'picked repository' : `${picked.length} picked`} ${c.dim('[Y/n]')} ${c.dim('(the page, thinker ui, picks others)')}: `)).trim().toLowerCase();
-    if (!process.stdin.isTTY) out('');
+  } else if (flags.yes || !picked.length) { for (const r of items) out(row(r, picked, width)); chosen = picked; }
+  else if (process.stdin.isTTY) {
+    // arrows move, Space toggles, Enter starts; a row with nothing to read cannot be picked
+    const rows = items.map(r => ({ r, label: r.name.padEnd(width), picked: picked.includes(r), disabled: !r.canMine, note: rowNote(r) }));
+    const got = await multiSelect({ items: rows, out });
+    chosen = (got || []).map(x => x.r);
+    out(chosen.length ? `  Picked: ${chosen.map(r => r.name).join(', ')}` : '  Nothing picked.');
+    if (!chosen.length) { later(); return; }
+  } else {
+    for (const r of items) out(row(r, picked, width));
+    const a = (await ask(`\n  Warm up the ${picked.length === 1 ? 'picked repository' : `${picked.length} picked`} ${c.dim('[Y/n]')}: `)).trim().toLowerCase();
+    out('');
     chosen = ['', 'y', 'yes'].includes(a) ? picked : [];
     if (!chosen.length) { out('  Skipped.'); later(); return; }
   }

@@ -173,8 +173,8 @@ the first hook, MCP server or cache command in a checkout starts one, empty
 grows from the sessions there. Nothing is opt-in but the warm-up: building a
 cache from merged pull requests. The installer ends with `thinker warmup`
 (`commands/warmup.js`): browser or terminal, then the ten repositories the
-agents work in (`machine.js:warmupCandidates`) with the top five picked, Enter
-to warm them or `n` to skip, each built
+agents work in (`machine.js:warmupCandidates`) with the top five picked (`setup/ui.js:multiSelect`: arrows, Space, Enter;
+Esc skips; a plain Y/n without a TTY), each built
 with `thinker setup --build` at full depth around the person's areas
 (`setup/project.js`, `--yes`). A machine without a display (ssh,
 `headless`) is offered the terminal alone: the page binds 127.0.0.1 of the

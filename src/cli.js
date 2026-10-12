@@ -155,8 +155,9 @@ const HELP = `thinker — knowledge cache for coding agents
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
   warmup [--terminal | --browser | --skip] [--repos name,name] [--yes] [--dry]
                                  warm up caches from the terminal: open the warm-up page in the browser, or here: the
-                                 ten repositories your agents work in, the top five picked, Enter warms them with
-                                 thinker setup --build at full depth, n skips; the installer runs this last. A machine without a display (ssh) is not
+                                 ten repositories your agents work in, the top five picked (arrows move, Space toggles,
+                                 Enter starts, Esc skips), each built with thinker setup --build at full depth; the
+                                 installer runs this last. A machine without a display (ssh) is not
                                  offered the browser. --yes takes the picked ones, --repos names them, --dry only says
   ui [--port n] [--no-open] [--tab usage|cache|warmup]
                                  open the local page, from any directory: usage by repository, the caches on this machine

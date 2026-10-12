@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { headless, SHOWN, PICKED } from '../src/commands/warmup.js';
+import { multiSelect } from '../src/setup/ui.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 test('ten rows, the top five picked; a machine without a display is not offered the browser: ssh, or linux with no DISPLAY', () => {
@@ -61,4 +63,32 @@ test('in the terminal the current repository is listed; one with no merged pull 
   assert.match(named.stdout, /Not on this machine's list: nope/);
   // the cache is not created by looking
   assert.ok(!fs.existsSync(path.join(repo, '.thinker', 'notes')) || fs.readdirSync(path.join(repo, '.thinker', 'notes')).length === 0);
+});
+
+class TtyIn extends EventEmitter { constructor() { super(); this.isTTY = true; this.isRaw = false; } setRawMode(v) { this.isRaw = v; } resume() {} pause() {} }
+const ttyOut = () => ({ isTTY: true, columns: 100, writes: [], write(s) { this.writes.push(String(s)); return true; } });
+
+test('the multi-select: arrows move past a disabled row, Space toggles, a picks all, n clears, Enter confirms, Esc gives nothing', async () => {
+  const items = [{ label: 'one', picked: true }, { label: 'two' }, { label: 'three', disabled: true }, { label: 'four', picked: true }];
+  const drive = async keys => {
+    const stdin = new TtyIn(), stdout = ttyOut();
+    const p = multiSelect({ items, stdin, stdout, out: () => {} });
+    for (const k of keys) stdin.emit('keypress', k.str ?? null, k.key ?? {});
+    const r = await p; return { r: r && r.map(x => x.label), raw: stdin.isRaw, drawn: stdout.writes.join('') };
+  };
+  let d = await drive([{ key: { name: 'return' } }]);
+  assert.deepEqual(d.r, ['one', 'four'], 'Enter keeps the picked ones'); assert.equal(d.raw, false, 'raw mode is restored');
+  assert.match(d.drawn, /\[x\].*one/); assert.match(d.drawn, /Space toggles/);
+  d = await drive([{ key: { name: 'down' } }, { key: { name: 'space' } }, { key: { name: 'return' } }]);
+  assert.deepEqual(d.r, ['one', 'two', 'four'], 'Space toggles the row under the cursor');
+  d = await drive([{ key: { name: 'down' } }, { key: { name: 'down' } }, { key: { name: 'space' } }, { key: { name: 'return' } }]);
+  assert.deepEqual(d.r, ['one'], 'the cursor skips the disabled row and lands on four');
+  d = await drive([{ key: { name: 'up' } }, { key: { name: 'space' } }, { key: { name: 'return' } }]);
+  assert.deepEqual(d.r, ['one'], 'up from the first row wraps to the last pickable one');
+  d = await drive([{ str: 'a' }, { key: { name: 'return' } }]);
+  assert.deepEqual(d.r, ['one', 'two', 'four'], 'a picks every row that can be picked');
+  d = await drive([{ str: 'n' }, { key: { name: 'return' } }]);
+  assert.deepEqual(d.r, [], 'n clears');
+  d = await drive([{ key: { name: 'escape' } }]);
+  assert.equal(d.r, null, 'Esc picks nothing');
 });
