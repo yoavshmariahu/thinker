@@ -6,8 +6,7 @@ Installs [thinker](https://github.com/yoavshmariahu/thinker), a knowledge cache 
 npx @zerotimedev/thinker
 ```
 
-This runs the same installer as the `curl ... | bash` command in the thinker README, carried in
-the package instead of fetched at run time. It downloads the latest thinker release, verifies it
+The package carries thinker's installer and runs it. It downloads the latest thinker release, verifies it
 against the release's sha256, installs it into `~/.thinker`, wires it into the coding agents on
 the machine and opens the warm-up page. The installer's options pass through, for example
 `npx @zerotimedev/thinker --uninstall`.

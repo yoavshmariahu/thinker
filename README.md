@@ -23,18 +23,13 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 Run this in a terminal, inside your repository:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
-```
-
-Or, with npm, the same installer carried in the
-[`@zerotimedev/thinker`](https://www.npmjs.com/package/@zerotimedev/thinker) package instead of
-fetched at run time:
-
-```bash
 npx @zerotimedev/thinker
 ```
 
-Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
+The installer comes in the
+[`@zerotimedev/thinker`](https://www.npmjs.com/package/@zerotimedev/thinker) package on npm.
+
+Requires bash, git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
 Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
 OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 

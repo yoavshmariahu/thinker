@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// npx @zerotimedev/thinker: runs the installer this package carries (install.sh, the same file the
-// curl command pipes to bash), with the arguments passed through. Nothing of thinker runs from
+// npx @zerotimedev/thinker: runs the installer this package carries (install.sh), with the
+// arguments passed through. Nothing of thinker runs from
 // the npx cache, which npm may clear: the installer puts the tool in THINKER_HOME (~/.thinker),
 // where the hooks and `thinker update` find it. scripts/pack.sh copies install.sh in beside this
 // file and sets the version; the package is not meant to be installed as a dependency.

@@ -4,9 +4,8 @@ The details behind the install line in the [README](../README.md).
 
 ## Install and start
 
-Run `curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash`, or
-`npx @zerotimedev/thinker`, which runs the same installer from the npm package of that name
-(published with each release) and takes the same options. It
+Run `npx @zerotimedev/thinker`. It runs the installer carried in the npm package of that
+name (published with each release) and passes its options through. It
 installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
 of the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
@@ -145,7 +144,7 @@ event reaches them without `thinker setup` being rerun (`thinker rewire` does it
 
 Installs made before 0.1.35 downloaded from zerotime.dev. Their next update from
 a release moves them to GitHub; an install that is stuck on the old host moves with
-`curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash -s -- --update`,
+`npx @zerotimedev/thinker --update`,
 which keeps the existing home and settings.
 
 To pin a release, or go back to one:
